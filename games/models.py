@@ -15,6 +15,7 @@ class Game(models.Model):
     edit_time = models.DateTimeField(_('Last edit'))
     is_hidden = models.BooleanField(_('Hidden'), default=False)
     is_readonly = models.BooleanField(_('Readonly'), default=False)
+    tags = models.ManyToManyField('GameTag')
     added_by = models.ForeignKey(User)
 
     # -(GameContestEntry)
@@ -25,9 +26,12 @@ class Game(models.Model):
 
 
 class URL(models.Model):
+    def __str__(self):
+        return "%s : %s" % (self.local_url, self.original_url)
+
     original_url = models.URLField(null=True, blank=True)
     local_url = models.CharField(null=True, blank=True, max_length=255)
-    local_path = models.FilePathField(null=True, blank=True)
+    local_path = models.CharField(null=True, blank=True, max_length=255)
     content_type = models.CharField(null=True, blank=True, max_length=255)
     show_original = models.BooleanField(default=True)
     show_local = models.BooleanField(default=True)
@@ -35,10 +39,13 @@ class URL(models.Model):
     is_deleted = models.BooleanField(default=False)
     creation_date = models.DateTimeField()
     use_count = models.IntegerField(default=0)
-    creator = models.ForeignKey(User)
+    creator = models.ForeignKey(User, null=True, blank=True)
 
 
 class URLCategory(models.Model):
+    def __str__(self):
+        return self.title
+
     symbolic_id = models.SlugField()
     title = models.CharField(max_length=255)
     description = models.CharField(null=True, blank=True, max_length=255)
@@ -47,6 +54,9 @@ class URLCategory(models.Model):
 
 
 class GameURL(models.Model):
+    def __str__(self):
+        return "%s (%s): %s" % (self.game, self.category, self.url)
+
     game = models.ForeignKey(Game)
     url = models.ForeignKey(URL)
     category = models.ForeignKey(URLCategory)
@@ -55,22 +65,34 @@ class GameURL(models.Model):
 
 
 class Author(models.Model):
+    def __str__(self):
+        return self.name
+
     name = models.CharField(max_length=255)
 
 
 class GameAuthorRole(models.Model):
+    def __str__(self):
+        return self.title
+
     symbolic_id = models.SlugField()
     title = models.CharField(max_length=255)
     order = models.SmallIntegerField(default=0)
 
 
 class GameAuthor(models.Model):
+    def __str__(self):
+        return "%s -- %s (%s)" % (self.game, self.author, self.role)
+
     game = models.ForeignKey(Game)
     author = models.ForeignKey(Author)
     role = models.ForeignKey(GameAuthorRole)
 
 
 class GameTagCategory(models.Model):
+    def __str__(self):
+        return self.name
+
     symbolic_id = models.SlugField()
     name = models.CharField(max_length=255)
     description = models.CharField(null=True, blank=True, max_length=255)
@@ -82,6 +104,9 @@ class GameTagCategory(models.Model):
 
 
 class GameTag(models.Model):
+    def __str__(self):
+        return "%s: %s" % (self.category, self.title)
+
     symbolic_id = models.SlugField()
     category = models.ForeignKey(GameTagCategory)
     title = models.CharField(max_length=255)
