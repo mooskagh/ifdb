@@ -98,8 +98,11 @@ class GameTagCategory(models.Model):
     description = models.CharField(null=True, blank=True, max_length=255)
     mutaly_exclusive = models.BooleanField(default=False)
     allow_new_tags = models.BooleanField(default=False)
+    show_in_edit = models.BooleanField(default=True)
     show_in_search = models.BooleanField(default=True)
     show_in_details = models.BooleanField(default=True)
+    # True = show checkboxes; False = show edit box
+    show_all_options = models.BooleanField(default=False)
     order = models.SmallIntegerField(default=0)
 
 
