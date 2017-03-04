@@ -541,7 +541,7 @@
 			"file": "games/models.py",
 			"settings":
 			{
-				"buffer_size": 3954,
+				"buffer_size": 4078,
 				"encoding": "UTF-8",
 				"line_ending": "Unix"
 			}
@@ -638,7 +638,7 @@
 				"Git: Push"
 			],
 			[
-				"commit",
+				"comm",
 				"Git: Commit"
 			],
 			[
@@ -646,7 +646,7 @@
 				"Git: Add..."
 			],
 			[
-				"comm",
+				"commit",
 				"Git: Commit"
 			],
 			[
@@ -1261,15 +1261,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 3954,
+						"buffer_size": 4078,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								2847,
-								2847
+								793,
+								793
 							]
 						],
 						"settings":
@@ -1279,7 +1279,7 @@
 							"syntax": "Packages/Python/Python.sublime-syntax"
 						},
 						"translation.x": 0.0,
-						"translation.y": 878.0,
+						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 0,

@@ -1,2 +1,3 @@
 sublime.sublime-project
 __pycache__
+db.sqlite3

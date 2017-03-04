@@ -10,9 +10,10 @@ class Game(models.Model):
         return self.title
 
     title = models.CharField(_('Title'), max_length=255)
-    description = models.TextField(_('Description'))
+    description = models.TextField(_('Description'), null=True, blank=True)
+    release_date = models.DateField(_('Release date'), null=True, blank=True)
     creation_time = models.DateTimeField(_('Added at'))
-    edit_time = models.DateTimeField(_('Last edit'))
+    edit_time = models.DateTimeField(_('Last edit'), null=True, blank=True)
     is_hidden = models.BooleanField(_('Hidden'), default=False)
     is_readonly = models.BooleanField(_('Readonly'), default=False)
     tags = models.ManyToManyField('GameTag')
