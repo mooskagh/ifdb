@@ -1,0 +1,1267 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"Ext",
+				"ExtractCell"
+			],
+			[
+				"Extr",
+				"ExtractGroup"
+			],
+			[
+				"Fe",
+				"FetchSound"
+			],
+			[
+				"Get",
+				"GetRow"
+			],
+			[
+				"Tra",
+				"TransPrint"
+			],
+			[
+				"from",
+				"from_pyfile"
+			],
+			[
+				"back",
+				"background-color"
+			],
+			[
+				"fon",
+				"font-size"
+			],
+			[
+				"re",
+				"reachable"
+			],
+			[
+				"In",
+				"InInventory"
+			],
+			[
+				"Con",
+				"ConvertToStoreable"
+			],
+			[
+				"GetC",
+				"GetCompoudDesc"
+			],
+			[
+				"__",
+				"__init__"
+			],
+			[
+				"Add",
+				"AddStaticObject"
+			],
+			[
+				"__pa",
+				"__parsing_queue"
+			],
+			[
+				"ini",
+				"init_context"
+			],
+			[
+				"__st",
+				"__static_objects"
+			],
+			[
+				"cur",
+				"cur_val"
+			],
+			[
+				"zO",
+				"zObject"
+			],
+			[
+				"lo",
+				"location_type"
+			],
+			[
+				"GetALl",
+				"GetAllObjects"
+			],
+			[
+				"cmd",
+				"cmds_seen"
+			],
+			[
+				"__Get",
+				"__GetObjectFromInterpretation"
+			],
+			[
+				"is",
+				"isinstance"
+			],
+			[
+				"_ob",
+				"_obj_req"
+			],
+			[
+				"in",
+				"interpretation"
+			],
+			[
+				"en",
+				"engine"
+			],
+			[
+				"rege",
+				"regexes"
+			],
+			[
+				"_Ad",
+				"_AddParsers"
+			],
+			[
+				"FR",
+				"FromName"
+			],
+			[
+				"E",
+				"Enrich"
+			],
+			[
+				"En",
+				"EnsureSet"
+			],
+			[
+				"de",
+				"description"
+			],
+			[
+				"De",
+				"DebugStr"
+			],
+			[
+				"Set",
+				"SetInitial"
+			],
+			[
+				"word",
+				"word_repository"
+			],
+			[
+				"GetW",
+				"GetWordByNumber"
+			],
+			[
+				"cna",
+				"candidates"
+			],
+			[
+				"Ui",
+				"Uint32"
+			],
+			[
+				"wo",
+				"word_cache"
+			],
+			[
+				"hoo",
+				"hookclass"
+			],
+			[
+				"new",
+				"new_kwargs"
+			],
+			[
+				"kw",
+				"kwargs2"
+			],
+			[
+				"o",
+				"objname"
+			],
+			[
+				"locati",
+				"location_type"
+			],
+			[
+				"s",
+				"spreadquest"
+			],
+			[
+				"name",
+				"name_group"
+			],
+			[
+				"Na",
+				"NameOverlord"
+			],
+			[
+				"State",
+				"StateRefList"
+			],
+			[
+				"Mat",
+				"MatchPartial"
+			],
+			[
+				"ex",
+				"expression"
+			],
+			[
+				"e",
+				"extend"
+			],
+			[
+				"Ma",
+				"MatchOne"
+			],
+			[
+				"A",
+				"AddStaticObject"
+			],
+			[
+				"z",
+				"zStateful"
+			],
+			[
+				"expr",
+				"expression"
+			],
+			[
+				"Ho",
+				"HookMatcher"
+			],
+			[
+				"N",
+				"NullMatcher"
+			],
+			[
+				"_P",
+				"_ParseSequence"
+			],
+			[
+				"_Pa",
+				"_ParseOr"
+			],
+			[
+				"_R",
+				"_rs_tokens"
+			],
+			[
+				"rs",
+				"_rs_token_names"
+			],
+			[
+				"sta",
+				"startswith"
+			],
+			[
+				"f",
+				"ForceExecute"
+			],
+			[
+				"gam",
+				"game_objects"
+			],
+			[
+				"GetI",
+				"GetObjectDict"
+			],
+			[
+				"sho",
+				"short_description"
+			],
+			[
+				"cls",
+				"cls_name"
+			],
+			[
+				"ga",
+				"game_cls"
+			],
+			[
+				"obje",
+				"obj_name"
+			],
+			[
+				"defaul",
+				"default_state"
+			],
+			[
+				"inst",
+				"instance_default"
+			],
+			[
+				"fo",
+				"frontend"
+			],
+			[
+				"pa",
+				"parser_name"
+			],
+			[
+				"par",
+				"parser_res"
+			],
+			[
+				"Ge",
+				"GetObjectByName"
+			],
+			[
+				"rea",
+				"reaction_queue"
+			],
+			[
+				"GetG",
+				"GetGameDataObject"
+			],
+			[
+				"G",
+				"GetRootObject"
+			],
+			[
+				"Ob",
+				"ObjectName"
+			],
+			[
+				"S",
+				"SimpleParsingCommand"
+			],
+			[
+				"Clo",
+				"Cloakroom"
+			],
+			[
+				"Gen",
+				"GetObjectByName"
+			],
+			[
+				"wor",
+				"word_repository"
+			],
+			[
+				"re_",
+				"re_tok"
+			],
+			[
+				"Has",
+				"HasName"
+			],
+			[
+				"m",
+				"my_location"
+			],
+			[
+				"I",
+				"IsLocation"
+			],
+			[
+				"Is",
+				"IsSubclassOf"
+			],
+			[
+				"Par",
+				"ParsingState"
+			],
+			[
+				"to",
+				"tokens"
+			],
+			[
+				"was_",
+				"was_space"
+			],
+			[
+				"obj",
+				"objects"
+			],
+			[
+				"auto",
+				"autovivification"
+			],
+			[
+				"def",
+				"default_value"
+			],
+			[
+				"Sta",
+				"StateRef"
+			],
+			[
+				"Output",
+				"OutputLastResponse"
+			],
+			[
+				"Tour",
+				"TournamentPlayer"
+			],
+			[
+				"la",
+				"lacinka_map"
+			],
+			[
+				"cu",
+				"cur_b"
+			],
+			[
+				"b",
+				"b_idx"
+			],
+			[
+				"white",
+				"white_player"
+			],
+			[
+				"buck",
+				"bucket"
+			],
+			[
+				"bu",
+				"buckets"
+			],
+			[
+				"short",
+				"short_name"
+			],
+			[
+				"Ch",
+				"CheckRegistrationToken"
+			],
+			[
+				"Us",
+				"UserAlreadyExists"
+			],
+			[
+				"BUc",
+				"BucketAdmin"
+			],
+			[
+				"las",
+				"last_game"
+			],
+			[
+				"was",
+				"was_active_game"
+			],
+			[
+				"wa",
+				"was_active_game"
+			],
+			[
+				"round",
+				"round_set"
+			],
+			[
+				"games",
+				"game_set"
+			],
+			[
+				"list",
+				"list_display"
+			],
+			[
+				"onl",
+				"only_active"
+			],
+			[
+				"tourn",
+				"tournaments_json"
+			],
+			[
+				"end",
+				"end_date"
+			],
+			[
+				"si",
+				"signup_start"
+			],
+			[
+				"shor",
+				"short_name"
+			],
+			[
+				"add",
+				"add_forum_message"
+			],
+			[
+				"game",
+				"game_id"
+			],
+			[
+				"get",
+				"get_object_or_404"
+			],
+			[
+				"black",
+				"black_player"
+			],
+			[
+				"Gam",
+				"GameAdmin"
+			],
+			[
+				"reat",
+				"related_name"
+			],
+			[
+				"F",
+				"ForeignKey"
+			],
+			[
+				"Date",
+				"DateTimeField"
+			],
+			[
+				"he",
+				"help_text"
+			]
+		]
+	},
+	"buffers":
+	[
+	],
+	"build_system": "Packages/Python/Python.sublime-build",
+	"build_system_choices":
+	[
+		[
+			[
+				[
+					"Packages/LaTeXing/LaTeX.sublime-build",
+					""
+				],
+				[
+					"Packages/LaTeXing/LaTeX.sublime-build",
+					"Clean up Files"
+				]
+			],
+			[
+				"Packages/LaTeXing/LaTeX.sublime-build",
+				""
+			]
+		],
+		[
+			[
+				[
+					"Packages/Python/Python.sublime-build",
+					""
+				],
+				[
+					"Packages/Python/Python.sublime-build",
+					"Syntax Check"
+				]
+			],
+			[
+				"Packages/Python/Python.sublime-build",
+				"Syntax Check"
+			]
+		],
+		[
+			[
+				[
+					"Packages/Rust/Rust.sublime-build",
+					""
+				],
+				[
+					"Packages/Rust/Rust.sublime-build",
+					"Run"
+				]
+			],
+			[
+				"Packages/Rust/Rust.sublime-build",
+				""
+			]
+		]
+	],
+	"build_varint": "",
+	"command_palette":
+	{
+		"height": 392.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"remove ",
+				"Package Control: Remove Package"
+			],
+			[
+				"pack",
+				"Package Control: List Packages"
+			],
+			[
+				"instal",
+				"Package Control: Install Package"
+			],
+			[
+				"insta",
+				"Package Control: Install Package"
+			],
+			[
+				"form",
+				"PyYapf: Format Selection"
+			],
+			[
+				"upp",
+				"Convert Case: Upper Case"
+			],
+			[
+				"comm",
+				"Git: Commit"
+			],
+			[
+				"add",
+				"Git: Add..."
+			],
+			[
+				"push",
+				"Git: Push"
+			],
+			[
+				"pull",
+				"Git: Pull"
+			],
+			[
+				"com",
+				"Git: Commit"
+			],
+			[
+				"pus",
+				"Git: Push"
+			],
+			[
+				"co",
+				"Git: Commit"
+			],
+			[
+				"stat",
+				"Git: Status"
+			],
+			[
+				"wra",
+				"Word Wrap: Toggle"
+			],
+			[
+				"wrap",
+				"Word Wrap: Toggle"
+			],
+			[
+				"status",
+				"Git: Status"
+			],
+			[
+				"upper",
+				"Convert Case: Upper Case"
+			],
+			[
+				"commit",
+				"Git: Commit"
+			],
+			[
+				"checkout",
+				"Git: Checkout Current File"
+			],
+			[
+				"reset",
+				"Git: Reset (unstage) Current File"
+			],
+			[
+				"a",
+				"Git: Add All"
+			],
+			[
+				"diff",
+				"Git: Diff All Files"
+			],
+			[
+				"git re",
+				"Git: Reset (unstage) All"
+			],
+			[
+				"COMM",
+				"Git: Commit"
+			],
+			[
+				"commi",
+				"Git: Commit"
+			],
+			[
+				"forma",
+				"PyYapf: Format Document"
+			],
+			[
+				"comi",
+				"Git: Commit"
+			],
+			[
+				"install",
+				"Package Control: Install Package"
+			],
+			[
+				"git pull",
+				"Git: Pull"
+			],
+			[
+				"git rese",
+				"Git: Reset (unstage) All"
+			],
+			[
+				"git stat",
+				"Git: Status"
+			],
+			[
+				"git add",
+				"Git: Add All"
+			],
+			[
+				"check",
+				"Build With: Python - Syntax Check"
+			],
+			[
+				"py",
+				"PyYapf: Format Document"
+			],
+			[
+				"yapf",
+				"PyYapf: Format Document"
+			],
+			[
+				"packa",
+				"Package Control: List Packages"
+			],
+			[
+				"python",
+				"Build With: Python - Syntax Check"
+			],
+			[
+				"format",
+				"PyYapf: Format Document"
+			],
+			[
+				"di",
+				"Git: Diff Staged Files"
+			],
+			[
+				"ad",
+				"Git: Add..."
+			],
+			[
+				"commen",
+				"Toggle Comment"
+			],
+			[
+				"stage",
+				"Git: Diff Staged Files"
+			],
+			[
+				"git pu",
+				"Git: Pull Using Rebase"
+			],
+			[
+				"git com",
+				"Git: Commit"
+			],
+			[
+				"git st",
+				"Git: Status"
+			],
+			[
+				"quic",
+				"Build: Custom Quick Build"
+			],
+			[
+				"package in",
+				"Package Control: Install Package"
+			],
+			[
+				"LaTeXing: ca",
+				"LaTeXing: Rebuild Cache (Hard)"
+			],
+			[
+				"LaTeXing: ",
+				"LaTeXing: Open"
+			],
+			[
+				"LaTeXing: li",
+				"LaTeXing: Install License"
+			],
+			[
+				"Snippet: lis",
+				"Snippet: Listing"
+			],
+			[
+				"Build: ",
+				"Build With: LaTeX"
+			],
+			[
+				"inst",
+				"Package Control: Install Package"
+			]
+		],
+		"width": 432.0
+	},
+	"console":
+	{
+		"height": 126.0,
+		"history":
+		[
+			"import urllib.request,os,hashlib; h = 'eb2297e1a458f27d836c04bb0cbaf282' + 'd0e7a3098092775ccb37ca9d6b2e4b7d'; pf = 'Package Control.sublime-package'; ipp = sublime.installed_packages_path(); urllib.request.install_opener( urllib.request.build_opener( urllib.request.ProxyHandler()) ); by = urllib.request.urlopen( 'http://packagecontrol.io/' + pf.replace(' ', '%20')).read(); dh = hashlib.sha256(by).hexdigest(); print('Error validating download (got %s instead of %s), please try manual install' % (dh, h)) if dh != h else open(os.path.join( ipp, pf), 'wb' ).write(by)"
+		]
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"expanded_folders":
+	[
+		"/D/Dev/ifdb"
+	],
+	"file_history":
+	[
+		"/D/Dev/dict/bases/learn.txt",
+		"/D/Dev/dict/bases/all.txt",
+		"/D/Dev/dict/q.txt",
+		"/D/Dev/dict/input.txt",
+		"/D/Dev/dict/fetchdict.py",
+		"/D/Dev/dict/input.next",
+		"/D/Dev/dict/aaa",
+		"/C/Users/crem/AppData/Roaming/Sublime Text 3/Installed Packages/Duplicate Lines.sublime-package",
+		"/D/Dev/dict/sounds/../newword",
+		"/D/Vocabulary2.txt",
+		"/D/Dev/dict/sents.txt",
+		"/D/Dev/dict/glossika.py",
+		"/D/Dev/dict/output.dbg",
+		"/D/Dev/dict/prons.py",
+		"/D/Dev/dict/rest.txt",
+		"/D/Dev/dict/output.txt",
+		"/D/tmp/3/de",
+		"/D/Dev/dict/bases/leipzig.txt",
+		"/D/Dev/dict/bases/verbs.txt",
+		"/D/Dev/dict/bases/nouns.txt",
+		"/D/My/tex/Envelope bonuscard/Envelope.tex",
+		"/D/Dev/dict/get.py",
+		"/D/My/tex/Bonuscard letter/letter.tex",
+		"/D/Dev/spreadquest/nigerian/create.sql",
+		"/D/Dev/spreadquest/nigerian/nigerian.cfg",
+		"/D/Dev/spreadquest/nigerian/static/welcome.js",
+		"/D/Dev/spreadquest/nigerian/static/welcome.html",
+		"/D/Dev/spreadquest/spreadquest/frontends/db.py",
+		"/D/Dev/spreadquest/nigerian/web_main.py",
+		"/D/Dev/spreadquest/spreadquest/russian/objects.py",
+		"/D/Dev/spreadquest/nigerian/static/gamemain.html",
+		"/D/Dev/spreadquest/tools/../create_db.cmd",
+		"/D/Dev/spreadquest/tools/play_sql.py",
+		"/D/Dev/spreadquest/nigerian/create_db.cmd",
+		"/D/Dev/spreadquest/nigerian/mygame.py",
+		"/D/Dev/spreadquest/spreadquest/core/shortcuts.py",
+		"/D/Dev/spreadquest/nigerian/data/updatev2_xlsx.py",
+		"/D/Dev/spreadquest/spreadquest/core/parser.py",
+		"/D/Dev/spreadquest/spreadquest/common/selectors.py",
+		"/D/Dev/spreadquest/spreadquest/frontends/simple.py",
+		"/D/Dev/spreadquest/nigerian/console_main.py",
+		"/D/Dev/spreadquest/nigerian/static/front.css",
+		"/D/Dev/spreadquest/nigerian/static/index.html",
+		"/D/Dev/spreadquest/spreadquest/core/engine.py",
+		"/D/Dev/spreadquest/docs/title.svg",
+		"/D/Dev/spreadquest/docs/letter_rus.txt",
+		"/D/Dev/spreadquest/docs/letter.txt",
+		"/D/My/tex/Envelope Swica/Envelope.tex",
+		"/D/Dev/spreadquest/spreadquest/contrib/xlsx_importer.py",
+		"/D/Dev/spreadquest/spreadquest/core/state.py",
+		"/D/Dev/spreadquest/spreadquest/core/handlers.py",
+		"/D/Dev/spreadquest/spreadquest/common/objects.py",
+		"/D/Dev/spreadquest/spreadquest/russian/matchers.py",
+		"/D/Dev/spreadquest/spreadquest/common/game.py",
+		"/D/Dev/spreadquest/tools/getwords2.py",
+		"/D/Dev/spreadquest/tools/genwords3.py",
+		"/D/Dev/spreadquest/spreadquest/russian/shortcuts.py",
+		"/D/Dev/spreadquest/tools/sstable.py",
+		"/D/Dev/spreadquest/nigerian/game.py",
+		"/D/Dev/spreadquest/spreadquest/common/words.py",
+		"/D/Dev/spreadquest/nigerian/init_logging.py",
+		"/D/Dev/spreadquest/spreadquest/common/filters.py",
+		"/D/Dev/spreadquest/spreadquest/russian/data/glosses.csv",
+		"/D/Dev/spreadquest/spreadquest/common/grammar.py",
+		"/D/Dev/spreadquest/spreadquest/core/game.py",
+		"/D/Dev/spreadquest/tools/convglosses.py",
+		"/D/Dev/spreadquest/.gitignore",
+		"/D/Dev/spreadquest/tools/genwords.py",
+		"/D/Dev/spreadquest/spreadquest/contrib/csv_importer.py",
+		"/C/Users/crem/AppData/Roaming/Sublime Text 3/Packages/Default/Preferences.sublime-settings",
+		"/C/Users/crem/AppData/Roaming/Sublime Text 3/Packages/User/Preferences.sublime-settings",
+		"/C/Users/crem/AppData/Roaming/Sublime Text 3/Packages/Default/Default (Windows).sublime-keymap",
+		"/C/Users/crem/AppData/Roaming/Sublime Text 3/Packages/PyYapf Python Formatter/PyYapf.sublime-settings",
+		"/C/Users/crem/AppData/Roaming/Sublime Text 3/Packages/User/PyYapf.sublime-settings",
+		"/C/Users/crem/AppData/Roaming/Sublime Text 3/Packages/User/Default (Windows).sublime-keymap",
+		"/D/tmp/words.tsv",
+		"/D/Dev/spreadquest/spreadquest/frontends/../russian/matchers.py",
+		"/D/Dev/spreadquest/spreadquest/core/ptest.py",
+		"/D/Dev/spreadquest/spreadquest/common/xlsx.py",
+		"/D/Dev/spreadquest/spreadquest/contrib/ods_importer.py",
+		"/D/Dev/spreadquest/nigerian/ods/update_ods.py",
+		"/D/Dev/spreadquest/spreadquest/russian/game.py",
+		"/D/My/tex/Conrad letter/Cablecom letter.tex",
+		"/D/My/tex/Sticker/sticker.tex",
+		"/D/Dev/spreadquest/textquest/core/parser.py",
+		"/D/Dev/spreadquest/textquest/core/engine.py",
+		"/D/Dev/spreadquest/textquest/russian/objects.py",
+		"/D/Dev/spreadquest/sample/cloak.py",
+		"/D/Dev/spreadquest/textquest/common/commands.py",
+		"/D/Dev/spreadquest/textquest/core/reactors.py",
+		"/D/Dev/spreadquest/textquest/common/filters.py",
+		"/D/Dev/spreadquest/textquest/russian/words.py",
+		"/D/Dev/spreadquest/sample/simple.py",
+		"/D/Dev/spreadquest/textquest/russian/commands.py",
+		"/D/Dev/spreadquest/textquest/common/grammar.py",
+		"/D/Dev/spreadquest/textquest/common/objects.py",
+		"/D/Dev/textquest/textquest/common/objects.py",
+		"/D/Dev/textquest/sample/near_cave.py",
+		"/D/Dev/textquest/textquest/russian/commands.py",
+		"/D/Dev/textquest/textquest/common/grammar.py",
+		"/D/Dev/textquest/textquest/common/commands.py",
+		"/D/Dev/textquest/textquest/core/shortcuts.py",
+		"/D/Dev/textquest/textquest/core/state.py",
+		"/D/Dev/textquest/textquest/core/parser.py",
+		"/D/Dev/textquest/textquest/russian/objects.py",
+		"/D/Dev/textquest/textquest/core/engine.py",
+		"/D/Dev/textquest/textquest/core/reactors.py",
+		"/D/Dev/textquest/textquest/common/filters.py",
+		"/D/Dev/textquest/textquest/core/filters.py",
+		"/D/Dev/textquest/textquest/frontends/simple.py",
+		"/D/Dev/textquest/textquest/core/context.py",
+		"/D/Dev/textquest/textquest/core/objects.py",
+		"/D/Dev/textquest/textquest/core/objectset.py",
+		"/D/Dev/textquest/textquest/core/filters",
+		"/D/Dev/textquest/sample/simple.py",
+		"/D/Dev/textquest/textquest/parsing/parser.py",
+		"/D/Dev/textquest/textquest/templates/common.py",
+		"/D/Dev/textquest/textquest/templates/russian/commands.py",
+		"/D/Dev/textquest/textquest/templates/russian.py",
+		"/D/Dev/textquest/textquest/parser/tokenization.py",
+		"/D/Dev/textquest/textquest/core/__init__.py",
+		"/D/Dev/textquest/textquest/templates/russian/__init__.py",
+		"/D/Dev/textquest/textquest/parser/__init__.py",
+		"/D/Dev/textquest/textquest/__init__.py",
+		"/D/Dev/textquest/textquest/frontends/__init__.py",
+		"/D/Dev/textquest/textquest/templates/__init__.py",
+		"/D/Downloads/GOLDSKLR.T",
+		"/D/Dev/textquest/textquest/contrib/russian/grammar.py"
+	],
+	"find":
+	{
+		"height": 34.0
+	},
+	"find_in_files":
+	{
+		"height": 90.0,
+		"where_history":
+		[
+			"*.py",
+			"details",
+			""
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+			"nähern",
+			"nähen",
+			"lösen",
+			"merk",
+			"begeist",
+			"schicke",
+			"selten",
+			" ",
+			"???",
+			"TransPrint",
+			"??",
+			"gemacht",
+			"melden",
+			"verbrau",
+			"beide",
+			"krieg",
+			"erinnern",
+			"räumen",
+			"erlaub",
+			"Baum",
+			"json.",
+			"dbgfile",
+			"\\t.*",
+			"DebugStr",
+			"GetRow",
+			"ziehen",
+			"Number",
+			"English",
+			"German",
+			"Sound",
+			"anziehen",
+			"Weshalb",
+			"Vergnügen",
+			"weich",
+			"gestern",
+			"GetJsonForWord",
+			"Root",
+			"\\]\\]",
+			"\\d+ \\[\\[",
+			"·",
+			" to .*",
+			"\\d+. ",
+			" ~.*",
+			".* – ",
+			"28. Child – ",
+			".* – D.. ",
+			"28. Child – D.. ",
+			".* – ",
+			"Erde",
+			"Erse",
+			".* – ",
+			" ~.*",
+			".* – D.. ",
+			"GetFromJs",
+			" to.*",
+			"TransPrint",
+			"concore",
+			"ensureobj",
+			"Exec",
+			"GetAvailableContents",
+			"SingleTokenMatcher",
+			"Matched with score",
+			"PlayDial",
+			"events",
+			"s",
+			"Exec",
+			"'>'",
+			"getgamedataobject",
+			"parser_standard",
+			"z_",
+			"default_state",
+			"MAGIC",
+			"GetObjects",
+			"Handli",
+			"handling",
+			"known_classes",
+			"_dialogs",
+			"_std_hooks",
+			"Context",
+			"default_",
+			"struct",
+			"dbm",
+			"struct",
+			"print",
+			"GetAllObjects",
+			"ContainsIn",
+			"sort",
+			"Test",
+			"cmd",
+			"role",
+			"cmd_",
+			"GetName",
+			"cap",
+			"GetKnownClasses",
+			"print",
+			"AddHandlingRule",
+			"RuleCondition",
+			"Test",
+			"IsLocationTypeReachable",
+			"что",
+			"чтр",
+			"zParsing",
+			"GetAppropriateQueue",
+			"zHandling",
+			"Queue",
+			"zDirectHandler",
+			"engine",
+			"SayRaw",
+			"gamedata",
+			"engine.Get",
+			"anim",
+			"Merge",
+			"black",
+			"blacklist",
+			"random",
+			"case",
+			"print",
+			"SetFlavor",
+			"print",
+			"GetParser",
+			"set",
+			"{}",
+			"set",
+			"fl",
+			"GetNameParser",
+			"anima",
+			"ani",
+			"acc"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": true,
+		"replace_history":
+		[
+			"\\n",
+			"",
+			"freq ranks",
+			"translation",
+			"sentence",
+			"audio",
+			"",
+			"__known_classes",
+			"__dialogs",
+			"__std_hooks",
+			"frozenset",
+			",",
+			"interpretation",
+			"",
+			"question",
+			"",
+			"main_table",
+			"",
+			"JKL"
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"sheets":
+			[
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 22.0
+	},
+	"input":
+	{
+		"height": 31.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.exec":
+	{
+		"height": 100.0
+	},
+	"output.find_results":
+	{
+		"height": 0.0
+	},
+	"output.git":
+	{
+		"height": 425.0
+	},
+	"pinned_build_system": "Packages/Python/Python.sublime-build",
+	"project": "ifdb.sublime-project",
+	"replace":
+	{
+		"height": 62.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"web",
+				"nigerian\\web_main.py"
+			],
+			[
+				"engine",
+				"spreadquest\\core\\engine.py"
+			],
+			[
+				"common/o",
+				"spreadquest\\common\\objects.py"
+			],
+			[
+				"en",
+				"spreadquest\\core\\engine.py"
+			],
+			[
+				"importer",
+				"spreadquest\\contrib\\xlsx_importer.py"
+			],
+			[
+				"reac",
+				"textquest\\core\\reactors.py"
+			],
+			[
+				"eng",
+				"textquest\\core\\engine.py"
+			],
+			[
+				"rea",
+				"textquest\\core\\reactors.py"
+			]
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 500.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"",
+				"D:\\Dev\\tensorflow\\tensorflow.sublime-project"
+			]
+		],
+		"width": 380.0
+	},
+	"select_symbol":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"selected_group": 0,
+	"settings":
+	{
+	},
+	"show_minimap": true,
+	"show_open_files": true,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 175.0,
+	"status_bar_visible": true,
+	"template_settings":
+	{
+	}
+}
