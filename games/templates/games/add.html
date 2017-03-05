@@ -1,0 +1,31 @@
+{% extends "./base.html" %}
+
+{% block content %}
+<div class="leftpane">
+    <div class="fieldname">Название</div>
+    <textarea id="title"></textarea>
+</div>
+<div class="leftpane">
+    <div class="fieldname">Изображения</div>
+</div>
+<div class="leftpane">
+    <div class="fieldname">Описание</div>
+    <div class="fieldcomment">
+        Можно использовать разметку markdown (как в википедии).
+    </div>
+    <textarea id="description"></textarea>
+</div>
+<div class="rightpane">
+    <div class="fieldname">Дата релиза</div>
+    <input type="date">
+</div>
+<div class="rightpane">
+    <div class="fieldname">Авторы</div>
+</div>
+<div class="rightpane">
+    <div class="fieldname">Свойства</div>
+</div>
+<div class="rightpane">
+    <div class="fieldname">Ссылки</div>
+</div>
+{% endblock %}

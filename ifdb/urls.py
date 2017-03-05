@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.http.response import HttpResponseRedirect
 
 urlpatterns = [
-    url(r'^$', lambda r: HttpResponseRedirect('games/')),
+    url(r'^$', lambda r: HttpResponseRedirect('index/')),
     url(r'^adminz/', admin.site.urls, name='admin'),
-    url(r'^games/', include('games.urls'), name='games'),
+    url(r'^', include('games.urls'), name='games'),
 ]

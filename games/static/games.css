@@ -69,3 +69,33 @@
 .header {
     font-size: 300%;
 }
+
+.leftpane {
+    float: left;
+    width: 680px;
+}
+
+.rightpane {
+    margin-left: 686px;
+}
+
+.fieldname {
+    font-size: 120%;
+    text-transform: uppercase;
+    font-weight: bold;
+    color: #888;
+}
+
+.fieldcomment {
+    color: #888;
+    font-style: italic;
+}
+
+textarea#title {
+    width: 670px;
+}
+
+textarea#description {
+    width: 670px;
+    height: 480px;
+}
