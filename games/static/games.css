@@ -121,16 +121,24 @@ textarea#description {
 
 .narrow-list {
     display: inline-block;
-    width: 30%;
+    width: 40%;
 }
 
 .wide-list {
     display: inline-block;
     margin: 0 5px;
-    width: 55%;
+    width: 50%;
 }
 
-.delicon {
+.suggestinput {
+    width: 100%;
+}
+
+.suggestinput-icon {
+    width: calc(100% - 1.3em);
+}
+
+.ico {
     cursor: pointer;
 }
 
@@ -187,4 +195,9 @@ button#submit {
     border: none;
     padding: 15px 32px;
     display: inline-block;
+}
+
+.ui-widget {
+    font-size: 13px;
+    font-family: Arial;
 }

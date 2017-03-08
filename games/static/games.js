@@ -4,23 +4,44 @@
             optToId: {},
             minLength: 1,
             id: -1,
+            showAll: false
         },
 
         _create: function() {
             var ops = this.options;
+            if (ops.showAll) {
+                var input = $('<input class="suggestinput-icon">')
+                    .appendTo(this.element);
+                var button = $('<span class="ico">&#9660;</span>')
+                    .appendTo(this.element);
+            } else {
+                var input = $('<input class="suggestinput">')
+                    .appendTo(this.element);
+            }
             ops.list = [];
             for (var key in ops.optToId) {
                 if (ops.optToId.hasOwnProperty(key)) {
                     ops.list.push(key);
                     if (ops.optToId[key] == ops.id) {
-                        this.element.val(key);
+                        input.val(key);
                     }
                 }
             }
-            this.element.autocomplete({
+            input.autocomplete({
                 source: ops.list,
                 minLength: ops.minLength
             });
+
+            if (ops.showAll) {
+                var wasOpen = false;
+                button .on( "mousedown", function() {
+                    wasOpen = input.autocomplete( "widget" ).is( ":visible" );
+                })
+                .click(function() {
+                    if (!wasOpen)
+                        input.autocomplete('search', '');
+                });
+            }
             if (ops.minValue == 0) {
                 this.element.focus(function() {
                     $(this).autocomplete('search', $(this).val());
@@ -61,19 +82,20 @@
             var vals = this.options.value;
             for (var i = 0; i < vals.length; ++i) {
                 var entry = $('<div class="entry"></div>');
-                var role = $('<input class="narrow-list"/>')
+                var role = $('<span class="narrow-list"/>')
                     .suggest({
                         optToId: ops.roleToId,
                         minLength: 0,
-                        id: vals[i]['role']
+                        id: vals[i]['role'],
+                        showAll: true
                     });
-                var author = $('<input class="wide-list"/>')
+                var author = $('<span class="wide-list"/>')
                     .suggest({
                         optToId: ops.authorToId,
                         minLength: 1,
                         id: vals[i]['author']
                     });
-                var delicon = $('<span class="delicon">&#10006;</span>')
+                var delicon = $('<span class="ico">&#10006;</span>')
                 role.appendTo(entry);
                 author.appendTo(entry);
                 delicon.appendTo(entry);
