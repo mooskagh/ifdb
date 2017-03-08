@@ -1,14 +1,41 @@
-(function($){
+(function($) {
+    $.widget("crem.suggest", {
+        options: {
+            optToId: {},
+            minLength: 1,
+            id: -1,
+        },
+
+        _create: function() {
+            var ops = this.options;
+            ops.list = [];
+            for (var key in ops.optToId) {
+                if (ops.optToId.hasOwnProperty(key)) {
+                    ops.list.push(key);
+                    if (ops.optToId[key] == ops.id) {
+                        this.element.val(key);
+                    }
+                }
+            }
+            this.element.autocomplete({
+                source: ops.list,
+                minLength: ops.minLength
+            });
+            if (ops.minValue == 0) {
+                this.element.focus(function() {
+                    $(this).autocomplete('search', $(this).val());
+                });
+            }
+        }
+    });
+
 
     $.widget("crem.authors", {
         options: {
             categoriesUrl: "/json/authors",
-            roles: [],
-            authors: [],
             value: [],
+            roleToId: {},
             authorToId: {},
-            idToAuthor: {},
-            authorList: [],
         },
         _create: function() {
             var self = this;
@@ -19,42 +46,33 @@
         },
         _build: function() {
             var self = this;
+            var ops = self.options;
 
-            for (var i = 0; i < self.options.authors.length; ++i) {
-                var a = self.options.authors[i];
-                self.options.authorToId[a['name']] = a['id'];
-                self.options.idToAuthor[a['id']] = a['name'];
-                self.options.authorList.push(a['name']);
+            for (var i = 0; i < ops.authors.length; ++i) {
+                var a = ops.authors[i];
+                ops.authorToId[a['name']] = a['id'];
             }
 
-            var createRoleList = function(id) {
-                var res = $('<select class="dropdown">blah</select>');
-                for (var i = 0; i < self.options.roles.length; ++i) {
-                    var role = self.options.roles[i];
-                    var option = $('<option/>')
-                        .val(role['id'])
-                        .text(role['title']);
-                    if (role['id'] == id) {
-                        option.attr('selected', 'selected');
-                    }
-                    option.appendTo(res);
-                }
-                return res;
-            }
-
-            var createAuthorInput = function(name) {
-                var res = $('<input class="suggest"/>');
-                res.val(name);
-                res.autocomplete({source: self.options.authorList});
-                return res;
+            for (var i = 0; i < ops.roles.length; ++i) {
+                var a = ops.roles[i];
+                ops.roleToId[a['title']] = a['id'];
             }
 
             var vals = this.options.value;
             for (var i = 0; i < vals.length; ++i) {
                 var entry = $('<div class="entry"></div>');
-                var role = createRoleList(vals[i]['role']);
-                var author = createAuthorInput(
-                    self.options.idToAuthor[vals[i]['author']]);
+                var role = $('<input class="narrow-list"/>')
+                    .suggest({
+                        optToId: ops.roleToId,
+                        minLength: 0,
+                        id: vals[i]['role']
+                    });
+                var author = $('<input class="wide-list"/>')
+                    .suggest({
+                        optToId: ops.authorToId,
+                        minLength: 1,
+                        id: vals[i]['author']
+                    });
                 var delicon = $('<span class="delicon">&#10006;</span>')
                 role.appendTo(entry);
                 author.appendTo(entry);
