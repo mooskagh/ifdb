@@ -1,11 +1,15 @@
+/* https://coolors.co/ceff1a-31322d-625b61-aaa95a-f2f1eb
+*/
+
+
 .content {
     margin: 50px auto 0;
     width: 1024px;
 }
 
 .root {
-    background-color: #f8f8f8;
-    color: #444;
+    background-color: #F2F1EB;
+    color: #31322D;
     font-family: 'Open Sans', sans-serif;
     font-size: 13px;
     height: 100%;
@@ -16,12 +20,12 @@
 }
 
 #top-nav {
-    background-image: linear-gradient(to bottom,#e5e5e5,#dedede);
+    background-image: linear-gradient(to bottom,#D6FF43,#CEFF1A);
     background-position: 0 0;
     background-repeat: no-repeat;
     background-size: 100% 100%;
     box-shadow: 0 1px 3px rgba(0,0,0,.3);
-    color: #212121;
+    color: #625B61;
     height: 40px;
     left: 0;
     min-width: 1024px;
@@ -33,7 +37,7 @@
 }
 
 #top-nav a:hover {
-    color: #111;
+    color: #31322D;
 }
 
 #top-nav a.current {
@@ -44,7 +48,7 @@
 }
 
 #top-nav a {
-    color: #666666;
+    color: #625B61;
     display: inline-block;
     font: bold 14px/40px 'Trebuchet MS', 'Helvetica Neue', Arial, Sans-Serif;
     height: 40px;
@@ -83,11 +87,11 @@
     font-size: 120%;
     text-transform: uppercase;
     font-weight: bold;
-    color: #888;
+    color: #31322D;
 }
 
 .fieldcomment {
-    color: #888;
+    color: #625B61;
     font-style: italic;
 }
 
@@ -130,7 +134,7 @@ textarea#description {
 }
 
 #errorbox {
-    border: 1px solid #bbb;
+    border: 1px solid #625B61;
     border-radius: 4px;
     width: 300px;
     height: 200px;
@@ -141,15 +145,14 @@ textarea#description {
 }
 
 #errorheader {
-    background-image: linear-gradient(to bottom,#e5e5e5,#dedede);
+    background-image: linear-gradient(to bottom,#AAA95A,#9B9A52);
     background-position: 0 0;
     background-repeat: no-repeat;
     background-size: 100% 100%;
     box-shadow: 0 1px 3px rgba(0,0,0,.3);
-    color: #212121;
     height: 40px;
     text-align: center;
-    color: #666666;
+    color: #31322D;
     font: bold 14px/40px 'Trebuchet MS', 'Helvetica Neue', Arial, Sans-Serif;
     padding: 0 10px;
     text-decoration: none;
@@ -161,9 +164,9 @@ textarea#description {
 }
 
 button {
-    background-color: #888;
+    background-color: #625B61;
     border: none;
-    color: #ddd;
+    color: #F2F1EB;
     text-align: center;
     box-shadow: -2px 3px 2px rgba(0,0,0,0.2);
     font-size: 14px;
