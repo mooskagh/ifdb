@@ -51,49 +51,32 @@
     });
 
 
-    $.widget("crem.authors", {
+    $.widget("crem.propSelector", {
         options: {
-            categoriesUrl: "/json/authors",
-            value: [],
-            roleToId: {},
-            authorToId: {},
+            catToId: {},
+            valToId: {},
+            values: [],
+            allowNewCat: true,
         },
         _create: function() {
             var self = this;
-            $.getJSON(this.options.categoriesUrl, function(data) {
-                $.extend(self.options, data);
-                self._build();
-            });
-        },
-        _build: function() {
-            var self = this;
             var ops = self.options;
+            var vals = ops.values;
 
-            for (var i = 0; i < ops.authors.length; ++i) {
-                var a = ops.authors[i];
-                ops.authorToId[a['name']] = a['id'];
-            }
-
-            for (var i = 0; i < ops.roles.length; ++i) {
-                var a = ops.roles[i];
-                ops.roleToId[a['title']] = a['id'];
-            }
-
-            var vals = this.options.value;
             for (var i = 0; i < vals.length; ++i) {
                 var entry = $('<div class="entry"></div>');
                 var role = $('<span class="narrow-list"/>')
                     .suggest({
-                        optToId: ops.roleToId,
+                        optToId: ops.catToId,
                         minLength: 0,
-                        id: vals[i]['role'],
+                        id: vals[i][0],
                         showAll: true
                     });
                 var author = $('<span class="wide-list"/>')
                     .suggest({
-                        optToId: ops.authorToId,
+                        optToId: ops.valToId,
                         minLength: 1,
-                        id: vals[i]['author']
+                        id: vals[i][1]
                     });
                 var delicon = $('<span class="ico">&#10006;</span>')
                 role.appendTo(entry);
@@ -106,7 +89,34 @@
 
 })(jQuery);
 
-function getCookie(name) {
+function BuildAuthors(element) {
+    $.getJSON('/json/authors/', function(data) {
+        var cats = {};
+        var vals = {};
+        var vs = [];
+
+        for (var i = 0; i < data['roles'].length; ++i) {
+            var v = data['roles'][i];
+            cats[v['title']] = v['id'];
+        }
+        for (var i = 0; i < data['authors'].length; ++i) {
+            var v = data['authors'][i];
+            vals[v['name']] = v['id'];
+        }
+        for (var i = 0; i < data['value'].length; ++i) {
+            var v = data['value'][i];
+            vs.push([v['role'], v['author']]);
+        }
+
+        element.propSelector({
+            catToId: cats,
+            valToId: vals,
+            values: vs
+        });
+    });
+}
+
+function GetCookie(name) {
     var cookieValue = null;
     if (document.cookie && document.cookie !== '') {
         var cookies = document.cookie.split(';');
@@ -131,7 +141,7 @@ function PostRedirect(url, data) {
     input.val(JSON.stringify(data));
     input.appendTo(form);
     $('<input type="hidden" name="csrfmiddlewaretoken"/>')
-        .val(getCookie('csrftoken'))
+        .val(GetCookie('csrftoken'))
         .appendTo(form);
     form.appendTo(document.body);
     form.submit();
