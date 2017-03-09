@@ -29,7 +29,10 @@
             }
             input.autocomplete({
                 source: ops.list,
-                minLength: ops.minLength
+                minLength: ops.minLength,
+                select: function() {
+                    input.trigger('input');
+                }
             });
 
             if (ops.showAll) {
@@ -47,9 +50,71 @@
                     $(this).autocomplete('search', $(this).val());
                 });
             }
+            this.input = input;
+        },
+
+        empty: function() {
+            return this.input.val() == '';
         }
     });
 
+    function CreatePair(catToId, valToId, cat, val) {
+        var entry = $('<div class="entry"></div>');
+
+        var cats = $('<span class="narrow-list"/>')
+            .suggest({
+                optToId: catToId,
+                minLength: 0,
+                id: cat,
+                showAll: true
+            });
+
+        var vals = $('<span class="wide-list"/>')
+            .suggest({
+                optToId: valToId,
+                minLength: 1,
+                id: val
+            });
+
+        var delicon = $('<span class="ico">&#10006;</span>')
+        cats.appendTo(entry);
+        vals.appendTo(entry);
+        delicon.appendTo(entry);
+
+        var obj = {
+            element: entry,
+            cats: cats,
+            vals: vals,
+            delicon: delicon
+            // onempty  -- When loses focus and is empty
+            // oninput - when first char appeared
+            // ondel - when delete button is pressed.
+        };
+
+        obj.Destroy = function() {
+            obj.element.remove();
+        }
+
+        function CheckEmpty() {
+            if (cats.suggest('empty') && vals.suggest('empty') && obj.onempty)
+                obj.onempty(obj);
+        }
+        cats.focusout(CheckEmpty);
+        vals.focusout(CheckEmpty);
+
+        function CheckInput() {
+            if (obj.onchar)
+                obj.onchar(obj);
+        }
+        cats.on('input', CheckInput);
+        vals.on('input', CheckInput);
+
+        delicon.click(function() {
+            if (obj.delicon) obj.ondel(obj);
+        });
+
+        return obj;
+    }
 
     $.widget("crem.propSelector", {
         options: {
@@ -63,26 +128,47 @@
             var ops = self.options;
             var vals = ops.values;
 
-            for (var i = 0; i < vals.length; ++i) {
-                var entry = $('<div class="entry"></div>');
-                var role = $('<span class="narrow-list"/>')
-                    .suggest({
-                        optToId: ops.catToId,
-                        minLength: 0,
-                        id: vals[i][0],
-                        showAll: true
-                    });
-                var author = $('<span class="wide-list"/>')
-                    .suggest({
-                        optToId: ops.valToId,
-                        minLength: 1,
-                        id: vals[i][1]
-                    });
-                var delicon = $('<span class="ico">&#10006;</span>')
-                role.appendTo(entry);
-                author.appendTo(entry);
-                delicon.appendTo(entry);
-                entry.appendTo(this.element);
+            var objs = [];
+
+            function OnDel(obj) {
+                for (var i = 0; i < objs.length-1; ++i) {
+                    if (obj === objs[i]) {
+                        obj.Destroy();
+                        objs.splice(i, 1);
+                        return;
+                    }
+                }
+            }
+
+            function OnInput(obj) {
+                if (obj == objs[objs.length-1]) {
+                    obj.delicon.show();
+                    var el = CreatePair(ops.catToId, ops.valToId, '', '');
+                    el.delicon.hide();
+                    el.element.appendTo(self.element);
+                    objs.push(el);
+                    el.ondel = OnDel;
+                    el.onempty = OnDel;
+                    el.onchar = OnInput;
+                }
+            }
+
+            for (var i = 0; i < vals.length + 1; ++i) {
+                var v = ['', ''];
+                if (i < vals.length) {
+                    v = vals[i];
+                }
+                var el = CreatePair(ops.catToId, ops.valToId, v[0], v[1]);
+                if (i == vals.length) {
+                    el.delicon.hide();
+                }
+                objs.push(el);
+
+                el.ondel = OnDel;
+                el.onempty = OnDel;
+                el.onchar = OnInput;
+
+                el.element.appendTo(this.element);
             }
         }
     });
