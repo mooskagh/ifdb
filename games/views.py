@@ -1,4 +1,4 @@
-from .models import GameAuthorRole, Author, Game
+from .models import GameAuthorRole, Author, Game, GameTagCategory, GameTag
 from django.contrib.auth.decorators import login_required
 from django.http.response import JsonResponse
 from django.shortcuts import render, redirect
@@ -58,3 +58,20 @@ def authors(request):
 
     return JsonResponse(res)
 
+
+def tags(request):
+    res = {'categories': []}
+    for x in (GameTagCategory.objects.filter(show_in_edit=True).order_by(
+            'order', 'name')):
+        val = {'id': x.id,
+               'name': x.name,
+               'allow_new_tags': x.allow_new_tags,
+               'tags': []}
+        for y in (GameTag.objects.filter(
+                category=x, show_in_edit=True).order_by('order', 'name')):
+            val['tags'].append({
+                'id': y.id,
+                'name': y.name,
+            })
+        res['categories'].append(val)
+    return JsonResponse(res)

@@ -118,26 +118,23 @@ class GameTagCategory(models.Model):
     def __str__(self):
         return self.name
 
-    symbolic_id = models.SlugField()
+    symbolic_id = models.SlugField(null=True, blank=True)
     name = models.CharField(max_length=255)
-    description = models.CharField(null=True, blank=True, max_length=255)
-    mutaly_exclusive = models.BooleanField(default=False)
     allow_new_tags = models.BooleanField(default=False)
     show_in_edit = models.BooleanField(default=True)
     show_in_search = models.BooleanField(default=True)
     show_in_details = models.BooleanField(default=True)
-    # True = show checkboxes; False = show edit box
-    show_all_options = models.BooleanField(default=False)
     order = models.SmallIntegerField(default=0)
 
 
 class GameTag(models.Model):
     def __str__(self):
-        return "%s: %s" % (self.category, self.title)
+        return "%s: %s" % (self.category, self.name)
 
-    symbolic_id = models.SlugField()
+    symbolic_id = models.SlugField(null=True, blank=True)
     category = models.ForeignKey(GameTagCategory)
-    title = models.CharField(max_length=255)
-    description = models.CharField(null=True, blank=True, max_length=255)
+    name = models.CharField(max_length=255)
+    show_in_edit = models.BooleanField(default=True)
     show_in_search = models.BooleanField(default=False)
     show_in_details = models.BooleanField(default=True)
+    order = models.SmallIntegerField(default=0)
