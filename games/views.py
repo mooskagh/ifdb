@@ -53,14 +53,11 @@ def authors(request):
     for x in Author.objects.order_by('name').all():
         res['authors'].append({'name': x.name, 'id': x.id})
 
-    for x in range(1, 3):
-        res['value'].append({'author': x, 'role': x})
-
     return JsonResponse(res)
 
 
 def tags(request):
-    res = {'categories': []}
+    res = {'categories': [], 'value': []}
     for x in (GameTagCategory.objects.filter(show_in_edit=True).order_by(
             'order', 'name')):
         val = {'id': x.id,
