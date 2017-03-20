@@ -1,10 +1,21 @@
 (function($) {
+    function ReverseDict(d) {
+        var res = {};
+        for (var key in d) {
+            if (d.hasOwnProperty(key)) {
+                res[d[key]] = key;
+                }
+            }
+        return res;
+    }
+
     $.widget("crem.suggest", {
         options: {
             optToId: {},
             minLength: 1,
             id: -1,
-            showAll: false
+            showAll: false,
+            allowNew: true
         },
 
         _create: function() {
@@ -18,6 +29,15 @@
                 var input = $('<input class="suggestinput">')
                     .appendTo(this.element);
             }
+            if (!ops.allowNew) {
+                input.prop("readonly", true).on('mousedown', function() {
+                    if (!input.autocomplete("widget").is(":visible")) {
+                        input.autocomplete('search', '');
+                    } else {
+                        input.autocomplete('close');
+                    }
+                });
+            }
             ops.list = [];
             for (var key in ops.optToId) {
                 if (ops.optToId.hasOwnProperty(key)) {
@@ -30,26 +50,29 @@
             input.autocomplete({
                 source: ops.list,
                 minLength: ops.minLength,
-                select: function() {
-                    input.trigger('input');
+                select: function(event) {
+                    input.trigger('creminput');
                 }
             });
 
             input.on('input', function() {
+                input.trigger('creminput');
+            });
+            input.on('creminput', function() {
                 input.removeClass('invalidinput');
             });
 
             if (ops.showAll) {
                 var wasOpen = false;
-                button .on( "mousedown", function() {
-                    wasOpen = input.autocomplete( "widget" ).is( ":visible" );
+                button.on("mousedown", function() {
+                    wasOpen = input.autocomplete("widget").is(":visible");
                 })
                 .click(function() {
                     if (!wasOpen)
                         input.autocomplete('search', '');
                 });
             }
-            if (ops.minValue == 0) {
+            if (ops.minLength == 0) {
                 this.element.focus(function() {
                     $(this).autocomplete('search', $(this).val());
                 });
@@ -79,13 +102,13 @@
         }
     });
 
-    function CreatePair(catToId, valToId, cat, val) {
+    function CreatePair(catToId, valToId, cat, val, showAllVal, allowNewVal) {
         var entry = $('<div class="entry"></div>');
 
         var cats = $('<span class="narrow-list"/>')
             .suggest({
-                optToId: catToId,
                 minLength: 0,
+                optToId: catToId,
                 id: cat,
                 showAll: true
             });
@@ -93,8 +116,8 @@
         var vals = $('<span class="wide-list"/>')
             .suggest({
                 optToId: valToId,
-                minLength: 1,
-                id: val
+                id: val,
+                showAll: showAllVal
             });
 
         var delicon = $('<span class="ico">&#10006;</span>')
@@ -127,8 +150,8 @@
             if (obj.onchar)
                 obj.onchar(obj);
         }
-        cats.on('input', CheckInput);
-        vals.on('input', CheckInput);
+        cats.on('creminput', CheckInput);
+        vals.on('creminput', CheckInput);
 
         delicon.click(function() {
             if (obj.delicon) obj.ondel(obj);
@@ -145,10 +168,14 @@
 
     $.widget("crem.propSelector", {
         options: {
-            catToId: {},
-            valToId: {},
+            idToCat: {},
+            idToVal: {},
+            catToVals: undefined,
+            _catToId: {},
+            _valToId: {},
             values: [],
             allowNewCat: true,
+            showAllVals: false,
         },
         _create: function() {
             var self = this;
@@ -157,6 +184,9 @@
 
             var objs = [];
             ops.objs = objs;
+
+            ops._catToId = ReverseDict(ops.idToCat);
+            ops._valToId = ReverseDict(ops.idToVal);
 
             function OnDel(obj) {
                 for (var i = 0; i < objs.length-1; ++i) {
@@ -171,7 +201,8 @@
             function OnInput(obj) {
                 if (obj == objs[objs.length-1]) {
                     obj.delicon.show();
-                    var el = CreatePair(ops.catToId, ops.valToId, '', '');
+                    var el = CreatePair(ops._catToId, ops._valToId,
+                                        '', '', ops.showAllVals);
                     el.delicon.hide();
                     el.element.appendTo(self.element);
                     objs.push(el);
@@ -186,7 +217,8 @@
                 if (i < vals.length) {
                     v = vals[i];
                 }
-                var el = CreatePair(ops.catToId, ops.valToId, v[0], v[1]);
+                var el = CreatePair(ops._catToId, ops._valToId,
+                                    v[0], v[1], ops.showAllVals);
                 if (i == vals.length) {
                     el.delicon.hide();
                 }
@@ -228,11 +260,11 @@ function BuildAuthors(element) {
 
         for (var i = 0; i < data['roles'].length; ++i) {
             var v = data['roles'][i];
-            cats[v['title']] = v['id'];
+            cats[v['id']] = v['title'];
         }
         for (var i = 0; i < data['authors'].length; ++i) {
             var v = data['authors'][i];
-            vals[v['name']] = v['id'];
+            vals[v['id']] = v['name'];
         }
         for (var i = 0; i < data['value'].length; ++i) {
             var v = data['value'][i];
@@ -240,9 +272,40 @@ function BuildAuthors(element) {
         }
 
         element.propSelector({
-            catToId: cats,
-            valToId: vals,
+            idToCat: cats,
+            idToVal: vals,
             values: vs
+        });
+    });
+}
+
+function BuildTags(element) {
+    $.getJSON('/json/tags/', function(data) {
+        var cats = {};
+        var vals = {};
+        var cats2vals = {};
+        var vs = [];
+
+        for (var i = 0; i < data['categories'].length; ++i) {
+            var v = data['categories'][i];
+            cats[v['id']] = v['name'];
+            var v = data['categories'][i];
+            var catVals = [];
+            for (var j = 0; j < v['tags'].length; ++j) {
+                var w = v['tags'][j];
+                catVals.push(w['id']);
+                vals[w['id']] = w['name'];
+            }
+            cats2vals[v['id']] = catVals;
+        }
+        console.log(cats);
+        console.log(vals);
+        element.propSelector({
+            idToCat: cats,
+            idToVal: vals,
+            catToVals: cats2vals,
+            values: vs,
+            showAllVals: true
         });
     });
 }
