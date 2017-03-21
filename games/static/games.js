@@ -3,7 +3,7 @@
         var res = {};
         for (var key in d) {
             if (d.hasOwnProperty(key)) {
-                res[d[key]] = key;
+                res[d[key]] = parseInt(key);
                 }
             }
         return res;
@@ -53,13 +53,13 @@
             input.autocomplete({
                 source: ops.list,
                 minLength: ops.minLength,
-                select: function(event) {
-                    input.trigger('creminput');
+                select: function(event, ui) {
+                    input.trigger('creminput', ui.item.value);
                 }
             });
 
             input.on('input', function() {
-                input.trigger('creminput');
+                input.trigger('creminput', input.val());
             });
             input.on('creminput', function() {
                 input.removeClass('invalidinput');
@@ -89,13 +89,17 @@
 
         value: function() {
             var val = this.input.val();
-            if (val in this.options.optToId)
+            if (val.hasOwnProperty(this.options.optToId))
                 return this.options.optToId[val];
             return val;
         },
 
         txtvalue: function(newVal) {
-            return this.input.val(newVal);
+            if (newVal === undefined) {
+                return this.input.val();
+            } else {
+                return this.input.val(newVal);
+            }
         },
 
         optToId: function(newVal) {
@@ -111,7 +115,7 @@
         },
 
         allowNew: function(newVal) {
-            this.input.prop("readonly", newVal);
+            this.input.prop("readonly", !newVal);
         },
 
         isValid: function() {
@@ -141,6 +145,7 @@
 
         var vals = $('<span class="wide-list"/>')
             .suggest({
+                minLength: catsToValsToId ? 0 : 1,
                 optToId: catsToValsToId ? [] : valToId,
                 id: val,
                 showAll: showAllVal,
@@ -179,9 +184,9 @@
         cats.on('creminput', CheckInput);
         vals.on('creminput', CheckInput);
 
-        function UpdateVals() {
-            var catId = cats.suggest('value');
-            if (typeof(catId) != 'number') {
+        function UpdateVals(event, val) {
+            var catId = catToId[val];
+            if (catId === undefined) {
                 vals.suggest('txtvalue', '');
                 vals.suggest('optToId', {});
                 vals.suggest('allowNew', false);
@@ -199,7 +204,7 @@
 
         if (catsToValsToId) {
             UpdateVals();
-            cats.on('creminput'. UpdateVals);
+            cats.on('creminput', UpdateVals);
         }
 
         delicon.click(function() {
@@ -334,7 +339,6 @@ function BuildAuthors(element) {
 function BuildTags(element) {
     $.getJSON('/json/tags/', function(data) {
         var cats = {};
-        var vals = {};
         var cats2vals = {};
         var openCats = [];
         var vs = [];
@@ -343,11 +347,10 @@ function BuildTags(element) {
             var v = data['categories'][i];
             cats[v['id']] = v['name'];
             var v = data['categories'][i];
-            var catVals = [];
+            var catVals = {};
             for (var j = 0; j < v['tags'].length; ++j) {
                 var w = v['tags'][j];
-                catVals.push(w['id']);
-                vals[w['id']] = w['name'];
+                catVals[w['name']] = w['id'];
             }
             cats2vals[v['id']] = catVals;
             if (v['allow_new_tags']) {
@@ -356,7 +359,6 @@ function BuildTags(element) {
         }
         element.propSelector({
             idToCat: cats,
-            idToVal: vals,
             catToVals: cats2vals,
             allowNewValCats: openCats,
             values: vs,
