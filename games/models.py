@@ -90,10 +90,8 @@ class URL(models.Model):
     local_url = models.CharField(null=True, blank=True, max_length=255)
     local_path = models.CharField(null=True, blank=True, max_length=255)
     content_type = models.CharField(null=True, blank=True, max_length=255)
-    show_original = models.BooleanField(default=True)
-    show_local = models.BooleanField(default=True)
+    ok_to_clone = models.BooleanField(default=True)
     is_broken = models.BooleanField(default=False)
-    is_deleted = models.BooleanField(default=False)
     creation_date = models.DateTimeField()
     use_count = models.IntegerField(default=0)
     creator = models.ForeignKey(User, null=True, blank=True)
@@ -103,9 +101,10 @@ class URLCategory(models.Model):
     def __str__(self):
         return self.title
 
+    symbolic_id = models.SlugField(max_length=255)
     title = models.CharField(max_length=255)
-    description = models.CharField(null=True, blank=True, max_length=255)
     allow_in_editor = models.BooleanField(default=True)
+    allow_cloning = models.BooleanField(default=True)
     order = models.SmallIntegerField(default=0)
 
 
