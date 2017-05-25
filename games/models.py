@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.translation import ugettext_lazy as _
+from django.core.exceptions import PermissionDenied
 
 # Create your models here.
 
@@ -25,7 +26,7 @@ class Game(models.Model):
     # (LoadLog) // For computing popularity
     # -(GamePopularity)
     def FillAuthors(self, authors):
-        # TODO(crem) Erase before cration.
+        # TODO(crem) Erase before creation.
         for role, author in authors:
             r = GameAuthorRole.GetByNameOrId(role)
             a = Author.GetByNameOrId(author)
@@ -34,6 +35,16 @@ class Game(models.Model):
             ga.author = a
             ga.role = r
             ga.save()
+
+    def FillTags(self, tags):
+        # TODO(crem) Erase before creation.
+        for category, value in tags:
+            cat = GameTagCategory.GetByNameOrId(category)
+            if not cat.show_in_edit:
+                raise PermissionDenied
+            val = GameTag.GetByNameOrId(value, cat)
+            self.tags.add(val)
+        self.save()
 
 
 class URL(models.Model):
@@ -126,6 +137,12 @@ class GameTagCategory(models.Model):
     show_in_details = models.BooleanField(default=True)
     order = models.SmallIntegerField(default=0)
 
+    @staticmethod
+    def GetByNameOrId(val):
+        if isinstance(val, int):
+            return GameTagCategory.objects.get(id=val)
+        return GameTagCategory.objects.get(name=val)
+
 
 class GameTag(models.Model):
     def __str__(self):
@@ -135,6 +152,16 @@ class GameTag(models.Model):
     category = models.ForeignKey(GameTagCategory)
     name = models.CharField(max_length=255)
     show_in_edit = models.BooleanField(default=True)
-    show_in_search = models.BooleanField(default=False)
+    show_in_search = models.BooleanField(default=True)
     show_in_details = models.BooleanField(default=True)
     order = models.SmallIntegerField(default=0)
+
+    @staticmethod
+    def GetByNameOrId(val, category):
+        if isinstance(val, int):
+            return GameTag.objects.get(id=val, category=category)
+        if category.allow_new_tags:
+            return GameTag.objects.get_or_create(
+                name=val, category=category)[0]
+        else:
+            return GameTag.objects.get(name=val, category=category)

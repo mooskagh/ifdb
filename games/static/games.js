@@ -408,10 +408,12 @@ function SubmitGameJson() {
         isValid = false;
     }
     isValid &= $('#authors').propSelector('isValid');
+    isValid &= $('#tags').propSelector('isValid');
     if (!isValid) return;
 
     res['description'] = $('#description').val();
     res['release_date'] = $('#release_date').val();
     res['authors'] = $('#authors').propSelector('values');
+    res['properties'] = $('#tags').propSelector('values');
     PostRedirect('/store_game/', res);
 }

@@ -37,6 +37,7 @@ def store_game(request):
     g.added_by = request.user
     g.save()
     g.FillAuthors(j['authors'])
+    g.FillTags(j['properties'])
     # TODO(crem) Better redirect
     return redirect('/')
 
