@@ -68,7 +68,6 @@ class URLCategory(models.Model):
     def __str__(self):
         return self.title
 
-    symbolic_id = models.SlugField()
     title = models.CharField(max_length=255)
     description = models.CharField(null=True, blank=True, max_length=255)
     allow_in_editor = models.BooleanField(default=True)
@@ -104,7 +103,6 @@ class GameAuthorRole(models.Model):
     def __str__(self):
         return self.title
 
-    symbolic_id = models.SlugField(null=True, blank=True)
     title = models.CharField(max_length=255)
     order = models.SmallIntegerField(default=0)
 
@@ -129,7 +127,6 @@ class GameTagCategory(models.Model):
     def __str__(self):
         return self.name
 
-    symbolic_id = models.SlugField(null=True, blank=True)
     name = models.CharField(max_length=255)
     allow_new_tags = models.BooleanField(default=False)
     show_in_edit = models.BooleanField(default=True)
@@ -148,7 +145,6 @@ class GameTag(models.Model):
     def __str__(self):
         return "%s: %s" % (self.category, self.name)
 
-    symbolic_id = models.SlugField(null=True, blank=True)
     category = models.ForeignKey(GameTagCategory)
     name = models.CharField(max_length=255)
     show_in_edit = models.BooleanField(default=True)
