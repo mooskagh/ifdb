@@ -5,6 +5,8 @@ from django.shortcuts import render, redirect
 from django.views.decorators.csrf import ensure_csrf_cookie
 from dateutil.parser import parse as parse_date
 from datetime import datetime
+from django.http import Http404
+from django.core.exceptions import ObjectDoesNotExist
 import json
 
 
@@ -26,19 +28,30 @@ def store_game(request):
     if not j['title']:
         return render(request, 'games/error.html',
                       {'message': 'У игры должно быть название.'})
-
-    g = Game()
-    g.title = j['title']
-    if j['description']:
-        g.description = j['description']
-    if j['release_date']:
-        g.release_date = parse_date(j['release_date'])
-    g.creation_time = datetime.now()
-    g.added_by = request.user
-    g.save()
-    g.FillAuthors(j['authors'])
-    g.FillTags(j['properties'])
+    try:
+        g = Game()
+        g.title = j['title']
+        if j['description']:
+            g.description = j['description']
+        if j['release_date']:
+            g.release_date = parse_date(j['release_date'])
+        g.creation_time = datetime.now()
+        g.added_by = request.user
+        g.save()
+        g.FillAuthors(j['authors'])
+        g.FillTags(j['properties'])
+    except ObjectDoesNotExist:
+        raise Http404()
     # TODO(crem) Better redirect
+    return redirect('/')
+
+
+def show_game(request, game_id):
+    try:
+        game = Game.objects.get(id=game_id)
+        return render(request, 'games/game.html', {'title': game.title})
+    except Game.DoesNotExist:
+        raise Http404()
     return redirect('/')
 
 ########################

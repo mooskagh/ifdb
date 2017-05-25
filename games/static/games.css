@@ -96,6 +96,12 @@
     font-style: italic;
 }
 
+.gametitle {
+    color: #31322D;
+    font-size: 160%;
+    font-weight: bold;
+}
+
 #title_warning {
     color: red;
     display: none;

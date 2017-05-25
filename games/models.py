@@ -105,6 +105,7 @@ class GameAuthorRole(models.Model):
 
     title = models.CharField(max_length=255)
     order = models.SmallIntegerField(default=0)
+    is_key_role = models.BooleanField(default=False)
 
     @staticmethod
     def GetByNameOrId(val):

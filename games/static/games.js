@@ -415,5 +415,5 @@ function SubmitGameJson() {
     res['release_date'] = $('#release_date').val();
     res['authors'] = $('#authors').propSelector('values');
     res['properties'] = $('#tags').propSelector('values');
-    PostRedirect('/store_game/', res);
+    PostRedirect('/game/store/', res);
 }
