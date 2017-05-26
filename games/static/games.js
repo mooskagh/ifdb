@@ -57,12 +57,12 @@
                 source: ops.list,
                 minLength: ops.minLength,
                 select: function(event, ui) {
-                    input.trigger('creminput', ui.item.value);
+                    input.trigger('creminput', ops.optToId[ui.item.value]);
                 }
             });
 
             input.on('input', function() {
-                input.trigger('creminput', input.val());
+                input.trigger('creminput', ops.optToId[input.val()]);
             });
             input.on('creminput', function() {
                 input.removeClass('invalidinput');
@@ -190,8 +190,7 @@
         cats.on('creminput', CheckInput);
         vals.on('creminput', CheckInput);
 
-        function UpdateVals(event, val) {
-            var catId = catToId[val];
+        function UpdateVals(event, catId) {
             if (catId === undefined) {
                 vals.suggest('txtvalue', '');
                 vals.suggest('optToId', {});
@@ -320,8 +319,12 @@
     function CreateUrlEntry(categories, cat, url, desc) {
         var entry = $('<div class="entry"></div>');
         var catToId = {};
+        var enabledCats = {};
         for (var i = 0; i < categories.length; ++i) {
             catToId[categories[i]['title']] = categories[i]['id'];
+            if (categories[i]['uploadable']) {
+                enabledCats[categories[i]['id']] = true;
+            }
         }
 
         var cats = $('<span class="narrow-list"/>')
@@ -361,6 +364,13 @@
         obj.Destroy = function() {
             obj.element.remove();
         }
+
+        function UpdateUploadButton(event, catId) {
+            button_el.prop("disabled", !enabledCats.hasOwnProperty(catId));
+        }
+
+        cats.on('creminput', UpdateUploadButton);
+        UpdateUploadButton();
 
         function CheckEmpty() {
             if (cats.suggest('empty') && url_el.val() == '' &&

@@ -210,6 +210,11 @@ button {
     cursor: pointer;
 }
 
+button:disabled,button[disabled] {
+    background-color: #A29BA1;
+    color: #D2D1CB;
+}
+
 button#import_button {
     float: right;
     padding: 2px 4px;
