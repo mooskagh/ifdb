@@ -1,3 +1,5 @@
+import uuid
+from datetime import datetime
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.translation import ugettext_lazy as _
@@ -17,7 +19,7 @@ class Game(models.Model):
     edit_time = models.DateTimeField(_('Last edit'), null=True, blank=True)
     is_hidden = models.BooleanField(_('Hidden'), default=False)
     is_readonly = models.BooleanField(_('Readonly'), default=False)
-    tags = models.ManyToManyField('GameTag', null=True, blank=True)
+    tags = models.ManyToManyField('GameTag', blank=True)
     added_by = models.ForeignKey(User)
 
     # -(GameContestEntry)
@@ -45,6 +47,19 @@ class Game(models.Model):
             val = GameTag.GetByNameOrId(value, cat)
             self.tags.add(val)
         self.save()
+
+    def FillUrls(self, links, user):
+        # TODO(crem) Erase before creation.
+        for link in links:
+            cat = URLCategory.objects.get(id=link['category'])
+            url = URL.GetOrCreate(link['url'], cat.allow_cloning, user)
+            game_url = GameURL()
+            game_url.game = self
+            game_url.url = url
+            game_url.category = cat
+            if link['description']:
+                game_url.description = link['description']
+            game_url.save()
 
     def GetAuthors(self):
         authors = {}
@@ -84,10 +99,10 @@ class Game(models.Model):
 
 class URL(models.Model):
     def __str__(self):
-        return "%s : %s" % (self.local_url, self.original_url)
+        return "%s" % (self.original_url)
 
     symbolic_id = models.SlugField(max_length=16)
-    original_url = models.URLField(null=True, blank=True)
+    original_url = models.CharField(null=True, blank=True, max_length=255)
     content_type = models.CharField(null=True, blank=True, max_length=255)
     has_local = models.BooleanField(default=False)
     ok_to_clone = models.BooleanField(default=True)
@@ -96,6 +111,17 @@ class URL(models.Model):
     use_count = models.IntegerField(default=0)
     file_size = models.IntegerField(null=True, blank=True)
     creator = models.ForeignKey(User, null=True, blank=True)
+
+    @staticmethod
+    def GetOrCreate(url, allow_cloning, user):
+        return URL.objects.get_or_create(
+            original_url=url,
+            defaults={
+                'ok_to_clone': allow_cloning,
+                'creation_date': datetime.now(),
+                'creator': user,
+                'symbolic_id': str(uuid.uuid1()),
+            })[0]
 
 
 class URLCategory(models.Model):
@@ -117,7 +143,6 @@ class GameURL(models.Model):
     url = models.ForeignKey(URL)
     category = models.ForeignKey(URLCategory)
     description = models.CharField(null=True, blank=True, max_length=255)
-    order = models.SmallIntegerField(default=0)
 
 
 class Author(models.Model):

@@ -48,9 +48,10 @@ def store_game(request):
             g.release_date = parse_date(j['release_date'])
         g.creation_time = datetime.now()
         g.added_by = request.user
-        g.save()
         g.FillAuthors(j['authors'])
         g.FillTags(j['properties'])
+        g.FillUrls(j['links'], request.user)
+        g.save()
     except ObjectDoesNotExist:
         raise Http404()
     # TODO(crem) Better redirect
