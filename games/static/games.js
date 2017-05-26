@@ -92,7 +92,7 @@
 
         value: function() {
             var val = this.input.val();
-            if (val.hasOwnProperty(this.options.optToId))
+            if (this.options.optToId.hasOwnProperty(val))
                 return this.options.optToId[val];
             return val;
         },
@@ -334,7 +334,8 @@
                 placeholder: 'Тип',
             });
 
-        var desc_el = $('<input class="descinput" placeholder="Описание">');
+        var desc_el = $(
+            '<input class="descinput" placeholder="Описание (опционально)">');
         var url_el = $('<input class="urlinput" placeholder="URL">');
         var or_el = $('<span>или</span>');
         var button_el = $('<button id="upload_button">Закачать</button>');
@@ -351,7 +352,7 @@
             delicon: delicon,
             cats: cats,
             url: url_el,
-            description: desc_el,
+            desc: desc_el,
             // onempty  -- When loses focus and is empty
             // oninput - when first char appeared
             // ondel - when delete button is pressed.
@@ -378,10 +379,25 @@
         cats.on('creminput', CheckInput);
         url_el.on('keydown', CheckInput);
         desc_el.on('keydown', CheckInput);
+        url_el.on('input', function() {
+            url_el.removeClass('invalidinput');
+        });
 
         delicon.click(function() {
             if (obj.delicon) obj.ondel(obj);
         });
+
+        obj.IsValid = function() {
+            var a1 = cats.suggest('isValid');
+            var a2 = true;
+            if (url_el.val() == '') {
+                url_el.addClass('invalidinput');
+                a2 = false;
+            } else {
+                url_el.removeClass('invalidinput');
+            }
+            return a1 && a2;
+        }
 
         return obj;
     }
@@ -397,6 +413,7 @@
             var vals = this.options.values;
 
             var objs = [];
+            this.options.objs = objs;
 
             function OnDel(obj) {
                 for (var i = 0; i < objs.length-1; ++i) {
@@ -439,6 +456,23 @@
                 el.element.appendTo(this.element);
             }
         },
+        isValid: function() {
+            var isValid = true;
+            for (var i = 0; i < this.options.objs.length-1; ++i) {
+                isValid &= this.options.objs[i].IsValid();
+            }
+            return isValid;
+        },
+        values: function() {
+            var res = [];
+            for (var i = 0; i < this.options.objs.length-1; ++i) {
+                var o = this.options.objs[i];
+                res.push({'category': o.cats.suggest('value'),
+                          'description': o.desc.val(),
+                          'url': o.url.val()});
+            }
+            return res;
+        }
     });
 
 })(jQuery);
@@ -552,11 +586,13 @@ function SubmitGameJson() {
     }
     isValid &= $('#authors').propSelector('isValid');
     isValid &= $('#tags').propSelector('isValid');
+    isValid &= $('#links').urlUpload('isValid');
     if (!isValid) return;
 
     res['description'] = $('#description').val();
     res['release_date'] = $('#release_date').val();
     res['authors'] = $('#authors').propSelector('values');
     res['properties'] = $('#tags').propSelector('values');
+    res['links'] = $('#links').urlUpload('values');
     PostRedirect('/game/store/', res);
 }
