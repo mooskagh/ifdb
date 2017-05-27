@@ -8,12 +8,9 @@ from dateutil.parser import parse as parse_date
 from datetime import datetime
 from django.http import Http404
 from django.core.exceptions import ObjectDoesNotExist
-from django.conf import settings
-from django.utils.crypto import get_random_string
 from django.core.files.storage import FileSystemStorage
 import json
 import markdown
-import os
 
 
 def FormatDate(x):
