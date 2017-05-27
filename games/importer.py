@@ -34,7 +34,7 @@ def CategorizeUrl(url, desc):
         elif 'ifwiki' not in desc.lower():
             desc = desc + ' (IfWiki)'
 
-    if purl.hostname == 'urq.plut.info':
+    if purl.hostname == 'urq.plut.info' and purl.path.startswith('/node/'):
         cat_slug = 'game_page'
         if not desc:
             desc = 'Страница на плуте'
@@ -92,6 +92,9 @@ PLUT_FIELD = re.compile(r'<div class="field-label">([^<:]+).*?</div>.*?</div>',
                         re.DOTALL)
 
 PLUT_FIELD_ITEM = re.compile(r'<a [^>]+>([^<]+)</a>')
+PLUT_DOWNLOAD_LINK = re.compile(
+    r'<td><span class="file"><img class="file-icon" [^>]+> '
+    r'<a href="([^"]+)"[^>]*>([^<]*)</a>')
 
 MARKDOWN_LINK = re.compile(r'\[([^\]]*)\]\(([^)]+)\)')
 
@@ -123,6 +126,14 @@ def ImportFromPlut(url, html):
             m.group(1), "%Y-%m-%d").date()
 
     res['urls'] = [CategorizeUrl(url, '')]
+
+    for m in PLUT_DOWNLOAD_LINK.finditer(html):
+        url = m.group(1)
+        desc = unescape(m.group(2))
+        res['urls'].append({'urlcat_slug': 'download_direct',
+                            'description': desc,
+                            'url': url})
+
     tags = []
     authors = []
 
@@ -158,6 +169,3 @@ def ImportFromPlut(url, html):
                 res['urls'].append(x)
 
     return res
-
-
-print(Import('https://urq.plut.info/node/1988'))

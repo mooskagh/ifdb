@@ -247,8 +247,37 @@
             var objs = [];
             ops.objs = objs;
 
+            if (ops.catToVals) {
+                for (var key in ops.catToVals) {
+                    if (ops.catToVals.hasOwnProperty(key)) {
+                        var y = ops.catToVals[key];
+                        for (var x in y) {
+                            if (y.hasOwnProperty(x)) {
+                                ops.idToVal[y[x]] = x;
+                            }
+                        }
+                    }
+                }
+            }
+
             ops._catToId = ReverseDict(ops.idToCat);
             ops._valToId = ReverseDict(ops.idToVal);
+
+            for (var i = 0; i < vals.length + 1; ++i) {
+                var v = ['', ''];
+                if (i < vals.length) {
+                    v = vals[i];
+                }
+                this.addEntry(v[0], v[1]);
+            }
+        },
+
+        addEntry: function(cats, vals) {
+            cats = cats || '';
+            vals = vals || '';
+            var self = this;
+            var ops = this.options;
+            var objs = ops.objs;
 
             function OnDel(obj) {
                 for (var i = 0; i < objs.length-1; ++i) {
@@ -262,40 +291,21 @@
 
             function OnInput(obj) {
                 if (obj == objs[objs.length-1]) {
-                    obj.delicon.show();
-                    var el = CreatePair(ops._catToId, ops._valToId,
-                                    '', '', ops.allowNewCat, ops.showAllVals,
-                                    ops.catToVals, ops.allowNewValCats,
-                                    ops.catPlaceholder, ops.valPlaceholder);
-                    el.delicon.hide();
-                    el.element.appendTo(self.element);
-                    objs.push(el);
-                    el.ondel = OnDel;
-                    el.onempty = OnDel;
-                    el.onchar = OnInput;
+                    self.addEntry();
                 }
             }
 
-            for (var i = 0; i < vals.length + 1; ++i) {
-                var v = ['', ''];
-                if (i < vals.length) {
-                    v = vals[i];
-                }
-                var el = CreatePair(ops._catToId, ops._valToId,
-                                v[0], v[1], ops.allowNewCat, ops.showAllVals,
-                                ops.catToVals, ops.allowNewValCats,
-                                ops.catPlaceholder, ops.valPlaceholder);
-                if (i == vals.length) {
-                    el.delicon.hide();
-                }
-                objs.push(el);
-
-                el.ondel = OnDel;
-                el.onempty = OnDel;
-                el.onchar = OnInput;
-
-                el.element.appendTo(this.element);
-            }
+            if (objs.length > 0) objs[objs.length-1].delicon.show();
+            var el = CreatePair(ops._catToId, ops._valToId,
+                            cats, vals, ops.allowNewCat, ops.showAllVals,
+                            ops.catToVals, ops.allowNewValCats,
+                            ops.catPlaceholder, ops.valPlaceholder);
+            el.delicon.hide();
+            el.element.appendTo(self.element);
+            objs.push(el);
+            el.ondel = OnDel;
+            el.onempty = OnDel;
+            el.onchar = OnInput;
         },
 
         isValid: function() {
@@ -313,6 +323,30 @@
                 res.push([o.cats.suggest('value'), o.vals.suggest('value')]);
             }
             return res;
+        },
+        merge: function(d) {
+            var o = this.options;
+            for (var i = 0; i < d.length; ++i) {
+                var cat = d[i][0];
+                var val = d[i][1];
+                if (typeof(cat) == 'number') cat = o.idToCat[cat];
+                if (typeof(val) == 'number') val = o.idToVal[val];
+                var alreadyExists = false;
+                for (var j = 0; j < o.objs.length-1; ++j) {
+                    var oo = o.objs[j];
+                    if (oo.cats.suggest('txtvalue') == cat &&
+                        oo.vals.suggest('txtvalue') == val) {
+                        alreadyExists = true;
+                        break;
+                    }
+                }
+                if (alreadyExists) continue;
+                var obj = o.objs[o.objs.length-1];
+                this.addEntry();
+                obj.cats.suggest('txtvalue', cat);
+                obj.cats.trigger('creminput', o._catToId[cat]);
+                obj.vals.suggest('txtvalue', val);
+            }
         }
     });
 
@@ -680,6 +714,11 @@ function ImportGame() {
         if (data.hasOwnProperty('release_date')) {
             $('#release_date').val(data['release_date']);
         }
-
+        if (data.hasOwnProperty('authors')) {
+            $('#authors').propSelector('merge', data['authors']);
+        }
+        if (data.hasOwnProperty('tags')) {
+            $('#tags').propSelector('merge', data['tags']);
+        }
     });
 }
