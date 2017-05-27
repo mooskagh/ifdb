@@ -650,3 +650,36 @@ function SubmitGameJson() {
     res['links'] = $('#links').urlUpload('values');
     PostRedirect('/game/store/', res);
 }
+
+
+function ImportGame() {
+    var url = $('#import_url').val();
+    if (!url) {
+        $('#import_warning').show();
+        $('#import_warning').text('А укажите URL');
+        return;
+    }
+    $('#import_warning').hide();
+    $.getJSON('/json/import/', {'url': url}, function(data) {
+        if (data.hasOwnProperty('error')) {
+            $('#import_warning').show();
+            $('#import_warning').text(data['error']);
+            return;
+        }
+        if (data.hasOwnProperty('title')) {
+            $('#title').val(data['title']);
+        }
+        if (data.hasOwnProperty('desc')) {
+            var oldVal = $('#description').val();
+            if (oldVal) {
+                data['desc'] +=
+                    '\n\n----- Previous content: \n\n' + data['desc'];
+            }
+            $('#description').val(data['desc']);
+        }
+        if (data.hasOwnProperty('release_date')) {
+            $('#release_date').val(data['release_date']);
+        }
+
+    });
+}

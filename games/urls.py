@@ -11,4 +11,5 @@ urlpatterns = [
     url(r'^json/tags/', views.tags, name='tags'),
     url(r'^json/linktypes/', views.linktypes, name='linktypes'),
     url(r'^json/upload/', views.upload, name='upload'),
+    url(r'^json/import/', views.doImport, name='import'),
 ]

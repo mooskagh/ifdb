@@ -6,11 +6,15 @@
     <div class="leftpane">
         <div class="fieldname">Импортировать</div>
         <div class="fieldcomment">
-            Скопировать описание с другого ресурса.
+            Стащить описание с другого ресурса.
             Пока поддерживается только плут и ifwiki.
         </div>
+        <div id="import_warning">Ошибка.</div>
         <input id="import_url" placeholder="URL, например http://urq.plut.info/node/1988"/>
         <button id="import_button">Импортировать</button>
+        <script type="text/javascript">
+        $('#import_button').click(ImportGame);
+        </script>
     </div>
     <div class="leftpane">
         <div class="fieldname">Название</div>
@@ -25,7 +29,7 @@
     <div class="leftpane">
         <div class="fieldname">Описание</div>
         <div class="fieldcomment">
-            Можно использовать разметку markdown (как в википедии).
+            Можно использовать разметку markdown.
         </div>
         <textarea id="description"></textarea>
     </div>

@@ -9,6 +9,7 @@ from datetime import datetime
 from django.http import Http404
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import FileSystemStorage
+from .importer import Import
 import json
 import markdown
 
@@ -149,3 +150,54 @@ def upload(request):
     url.save()
 
     return JsonResponse({'url': url_full})
+
+
+def Importer2Json(r):
+    res = {}
+    for x in ['title', 'desc', 'release_date']:
+        if x in r:
+            res[x] = str(r[x])
+
+    if 'authors' in r:
+        res['authors'] = []
+        for x in r['authors']:
+            if 'role_slug' in x:
+                role = GameAuthorRole.objects.get(
+                    symbolic_id=x['role_slug']).id
+            else:
+                role = r['role']
+            res['authors'].append([role, x['name']])
+
+    if 'tags' in r:
+        res['tags'] = []
+        for x in r['tags']:
+            if 'tag_slug' in x:
+                tag = GameTag.objects.get(symbolic_id=x['tag_slug'])
+                cat = tag.category.id
+                tag = tag.id
+            else:
+                tag = x['tag']
+                cat = GameTagCategory.objects.get(symbolic_id=x['cat_slug']).id
+            res['tags'].append([cat, tag])
+
+    if 'urls' in r:
+        res['urls'] = []
+        for x in r['urls']:
+            cat = URLCategory.objects.get(symbolic_id=x['urlcat_slug']).id
+            desc = x.get('description')
+            url = x['url']
+            res['urls'].append([cat, desc, url])
+
+    return res
+
+
+def doImport(request):
+    raw_import = Import(request.GET.get('url'))
+    if ('error' in raw_import):
+        return JsonResponse({'error': raw_import['error']})
+    return JsonResponse(Importer2Json(raw_import))
+    try:
+        return Importer2Json(raw_import)
+    except:
+        return JsonResponse({'error':
+                             'Что-то поломалось, хотя не должно было.'})

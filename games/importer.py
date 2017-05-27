@@ -28,14 +28,14 @@ def CategorizeUrl(url, desc):
     purl = urlparse(url)
     cat_slug = 'unknown'
     if purl.hostname == 'ifwiki.ru':
-        cat_slug = 'other_site'
+        cat_slug = 'game_page'
         if not desc:
             desc = 'Страница на IfWiki'
         elif 'ifwiki' not in desc.lower():
             desc = desc + ' (IfWiki)'
 
     if purl.hostname == 'urq.plut.info':
-        cat_slug = 'other_site'
+        cat_slug = 'game_page'
         if not desc:
             desc = 'Страница на плуте'
         elif 'ifwiki' not in desc.lower():
@@ -48,8 +48,8 @@ def CategorizeUrl(url, desc):
 
 # Schema:
 # title: title
-# description: description, markdown-formatted
-# release-date: release-date
+# desc: description, markdown-formatted
+# release_date: release-date
 # authors[]:
 #   role_slug:
 #   role: ...         (either role_slug or role is defined)
@@ -72,7 +72,7 @@ def CategorizeUrl(url, desc):
 #   platform
 #   country
 # Url slug:
-#   other_site (ifwiki)
+#   game_page (ifwiki)
 #   download_direct
 #   download_landing
 #   unknown
@@ -119,7 +119,7 @@ def ImportFromPlut(url, html):
 
     m = PLUT_RELEASE.search(html)
     if m:
-        res['release-date'] = datetime.datetime.strptime(
+        res['release_date'] = datetime.datetime.strptime(
             m.group(1), "%Y-%m-%d").date()
 
     res['urls'] = [CategorizeUrl(url, '')]
