@@ -9,10 +9,15 @@ a {
 .content {
     margin: 50px auto 0;
     width: 1024px;
+    border: 1px solid #31322d;
+    background-color: #F2F1EB;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
 }
 
 .root {
-    background-color: #F2F1EB;
+    background-image: url("/static/f5ce5546.png");
+    background-color: #625b61;
     color: #31322D;
     font-family: 'Open Sans', sans-serif;
     font-size: 13px;
@@ -276,4 +281,3 @@ progress::-moz-progress-bar {
 progress::-webkit-progress-value {
     background-color: #00487c !important;
 }
-
