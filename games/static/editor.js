@@ -497,11 +497,29 @@
         },
         _create: function() {
             var self = this;
-            var cats = this.options.categories;
             var vals = this.options.values;
 
             var objs = [];
             this.options.objs = objs;
+
+            for (var i = 0; i < vals.length + 1; ++i) {
+                var cat = '';
+                var url = '';
+                var desc = '';
+                if (i < vals.length) {
+                    cat = vals[i][0];
+                    url = vals[i][1];
+                    desc = vals[i][2];
+                }
+                this.AddEntry(cat, url, desc);
+            }
+        },
+        AddEntry: function(cat, url, desc) {
+            var self = this;
+            cat = cat || '';
+            url = url || '';
+            desc = desc || '';
+            var objs = this.options.objs;
 
             function OnDel(obj) {
                 for (var i = 0; i < objs.length-1; ++i) {
@@ -515,34 +533,18 @@
 
             function OnInput(obj) {
                 if (obj == objs[objs.length-1]) {
-                    obj.delicon.show();
-                    var el = CreateUrlEntry(cats, '', '', '');
-                    el.delicon.hide();
-                    el.element.appendTo(self.element);
-                    objs.push(el);
-                    el.ondel = OnDel;
-                    el.onempty = OnDel;
-                    el.onchar = OnInput;
+                    self.AddEntry();
                 }
             }
 
-            for (var i = 0; i < vals.length + 1; ++i) {
-                var v = ['', '', ''];
-                if (i < vals.length) {
-                    v = vals[i];
-                }
-                var el = CreateUrlEntry(cats, v[0], v[1], v[2]);
-                if (i == vals.length) {
-                    el.delicon.hide();
-                }
-                objs.push(el);
-
-                el.ondel = OnDel;
-                el.onempty = OnDel;
-                el.onchar = OnInput;
-
-                el.element.appendTo(this.element);
-            }
+            if (objs.length > 0) objs[objs.length-1].delicon.show();
+            var el = CreateUrlEntry(this.options.categories, cat, url, desc);
+            el.delicon.hide();
+            el.element.appendTo(this.element);
+            objs.push(el);
+            el.ondel = OnDel;
+            el.onempty = OnDel;
+            el.onchar = OnInput;
         },
         isValid: function() {
             var isValid = true;
@@ -560,6 +562,31 @@
                           'url': o.url.val()});
             }
             return res;
+        },
+        merge: function(d) {
+            var o = this.options;
+            for (var i = 0; i < d.length; ++i) {
+                var cat = d[i][0];
+                var desc = d[i][1];
+                var url = d[i][2];
+/*                if (typeof(cat) == 'number') cat = o.idToCat[cat];
+                if (typeof(val) == 'number') val = o.idToVal[val];
+                var alreadyExists = false;
+                for (var j = 0; j < o.objs.length-1; ++j) {
+                    var oo = o.objs[j];
+                    if (oo.cats.suggest('txtvalue') == cat &&
+                        oo.vals.suggest('txtvalue') == val) {
+                        alreadyExists = true;
+                        break;
+                    }
+                }
+                if (alreadyExists) continue;
+                var obj = o.objs[o.objs.length-1];
+                this.addEntry();
+                obj.cats.suggest('txtvalue', cat);
+                obj.cats.trigger('creminput', o._catToId[cat]);
+                obj.vals.suggest('txtvalue', val); */
+            }
         }
     });
 
@@ -719,6 +746,9 @@ function ImportGame() {
         }
         if (data.hasOwnProperty('tags')) {
             $('#tags').propSelector('merge', data['tags']);
+        }
+        if (data.hasOwnProperty('links')) {
+            $('#links').urlUpload('merge', data['links']);
         }
     });
 }

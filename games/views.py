@@ -181,12 +181,12 @@ def Importer2Json(r):
             res['tags'].append([cat, tag])
 
     if 'urls' in r:
-        res['urls'] = []
+        res['links'] = []
         for x in r['urls']:
             cat = URLCategory.objects.get(symbolic_id=x['urlcat_slug']).id
             desc = x.get('description')
             url = x['url']
-            res['urls'].append([cat, desc, url])
+            res['links'].append([cat, desc, url])
 
     return res
 
