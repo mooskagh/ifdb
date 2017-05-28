@@ -434,6 +434,7 @@
             cats: cats,
             url: url_el,
             desc: desc_el,
+            button: button_el,
             // onempty  -- When loses focus and is empty
             // oninput - when first char appeared
             // ondel - when delete button is pressed.
@@ -565,27 +566,40 @@
         },
         merge: function(d) {
             var o = this.options;
+
+            var idToCat = {};
+            var enabledCats = {};
+            for (var i = 0; i < o.categories.length; ++i) {
+                idToCat[o.categories[i]['id']] = o.categories[i]['title'];
+                if (o.categories[i]['uploadable']) {
+                    enabledCats[o.categories[i]['id']] = true;
+                }
+            }
+
+            var cloneEnabled = false;
             for (var i = 0; i < d.length; ++i) {
                 var cat = d[i][0];
                 var desc = d[i][1];
                 var url = d[i][2];
-/*                if (typeof(cat) == 'number') cat = o.idToCat[cat];
-                if (typeof(val) == 'number') val = o.idToVal[val];
+                if (typeof(cat) == 'number') {
+                    cloneEnabled = enabledCats.hasOwnProperty(cat);
+                    cat = idToCat[cat];
+                }
                 var alreadyExists = false;
                 for (var j = 0; j < o.objs.length-1; ++j) {
                     var oo = o.objs[j];
-                    if (oo.cats.suggest('txtvalue') == cat &&
-                        oo.vals.suggest('txtvalue') == val) {
+                    if (oo.url.val()  == url) {
                         alreadyExists = true;
                         break;
                     }
                 }
                 if (alreadyExists) continue;
                 var obj = o.objs[o.objs.length-1];
-                this.addEntry();
+                this.AddEntry();
                 obj.cats.suggest('txtvalue', cat);
-                obj.cats.trigger('creminput', o._catToId[cat]);
-                obj.vals.suggest('txtvalue', val); */
+                obj.url.val(url);
+                obj.desc.val(desc);
+                obj.button.prop("disabled", !cloneEnabled);
             }
         }
     });
@@ -750,5 +764,6 @@ function ImportGame() {
         if (data.hasOwnProperty('links')) {
             $('#links').urlUpload('merge', data['links']);
         }
+        $('#import_url').val('');
     });
 }

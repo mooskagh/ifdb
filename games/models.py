@@ -95,6 +95,22 @@ class Game(models.Model):
             res.append({'category': r, 'tags': tags[r]})
         return res
 
+    def GetURLs(self):
+        urls = {}
+        cats = []
+        for x in GameURL.objects.filter(game=self):
+            category = x.category
+            if category in urls:
+                urls[category].append(x)
+            else:
+                cats.append(category)
+                urls[category] = [x]
+        cats.sort(key=lambda x: x.order)
+        res = []
+        for r in cats:
+            res.append({'category': r, 'urls': urls[r]})
+        return res
+
 
 class URL(models.Model):
     def __str__(self):

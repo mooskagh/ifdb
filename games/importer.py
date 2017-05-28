@@ -12,6 +12,13 @@ def FetchUrl(url):
         return response.read().decode('utf-8')
 
 
+MARKDOWN_SPECIAL_ESCAPED = re.compile(r'\\([\\\]\[()])')
+
+
+def MdUnescape(str):
+    return MARKDOWN_SPECIAL_ESCAPED.sub(r'\1', str)
+
+
 def Import(url):
     try:
         html = FetchUrl(url)
@@ -34,12 +41,17 @@ def CategorizeUrl(url, desc):
         elif 'ifwiki' not in desc.lower():
             desc = desc + ' (IfWiki)'
 
-    if purl.hostname == 'urq.plut.info' and purl.path.startswith('/node/'):
-        cat_slug = 'game_page'
-        if not desc:
-            desc = 'Страница на плуте'
-        elif 'ifwiki' not in desc.lower():
-            desc = desc + ' (плут)'
+    if purl.hostname == 'urq.plut.info':
+        if '/files/' in purl.path:
+            cat_slug = 'download_direct'
+            if not desc:
+                desc = 'Скачать с плута'
+        else:
+            cat_slug = 'game_page'
+            if not desc:
+                desc = 'Страница на плуте'
+            elif 'plut' not in desc.lower() and 'плут' not in desc.lower():
+                desc = desc + ' (плут)'
 
     if purl.hostname == 'yadi.sk':
         cat_slug = 'download_landing'
@@ -77,7 +89,7 @@ def CategorizeUrl(url, desc):
 #   download_landing
 #   unknown
 
-PLUT_URL = re.compile(r'https?://urq.plut.info/node/\d+')
+PLUT_URL = re.compile(r'https?://urq.plut.info/(?:node/\d+|[^/]+)')
 PLUT_TITLE = re.compile(r'<h1 class="title">(.*?)</h1>')
 PLUT_DESC = re.compile(
     r'<div class="field field-name-body field-type-text-with-summary '
@@ -96,7 +108,7 @@ PLUT_DOWNLOAD_LINK = re.compile(
     r'<td><span class="file"><img class="file-icon" [^>]+> '
     r'<a href="([^"]+)"[^>]*>([^<]*)</a>')
 
-MARKDOWN_LINK = re.compile(r'\[([^\]]*)\]\(([^)]+)\)')
+MARKDOWN_LINK = re.compile(r'\[([^\]]*)\]\((.*?[^\\])\)')
 
 
 def ParseFields(html):
@@ -130,9 +142,7 @@ def ImportFromPlut(url, html):
     for m in PLUT_DOWNLOAD_LINK.finditer(html):
         url = m.group(1)
         desc = unescape(m.group(2))
-        res['urls'].append({'urlcat_slug': 'download_direct',
-                            'description': desc,
-                            'url': url})
+        res['urls'].append(CategorizeUrl(url, desc))
 
     tags = []
     authors = []
@@ -164,7 +174,7 @@ def ImportFromPlut(url, html):
     # if 'desc' in res. Parse the rest of links
     if 'desc' in res:
         for m in MARKDOWN_LINK.finditer(res['desc']):
-            x = CategorizeUrl(m.group(2), m.group(1))
+            x = CategorizeUrl(MdUnescape(m.group(2)), MdUnescape(m.group(1)))
             if x:
                 res['urls'].append(x)
 

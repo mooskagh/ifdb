@@ -74,5 +74,28 @@
             </table>
         </div>
     {% endif %}
+    {% if tags %}
+        <div class="rightpane">
+            <hr>
+            <table>
+                {% for link in links %}
+                    {% for url in link.urls %}
+                    <tr>
+                        <td class="prop-category">
+                            {% if forloop.first %}
+                            {{ link.category.title }}:
+                            {% endif %}
+                        </td>
+                        <td class="prop-value">
+                            <a href="{{ url.url.original_url }}">
+                                {{ url.description }}
+                            </a>
+                        </td>
+                    <tr>
+                    {% endfor %}
+                {% endfor %}
+            </table>
+        </div>
+    {% endif %}
 
 {% endblock %}

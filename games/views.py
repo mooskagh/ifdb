@@ -67,6 +67,7 @@ def show_game(request, game_id):
         last_edit_date = FormatDate(game.edit_time)
         added_date = FormatDate(game.creation_time)
         authors = game.GetAuthors()
+        links = game.GetURLs()
         md = markdown.markdown(
             game.description,
             ['markdown.extensions.extra', 'markdown.extensions.meta',
@@ -80,6 +81,7 @@ def show_game(request, game_id):
             'markdown': md,
             'release_date': release_date,
             'tags': tags,
+            'links': links,
         })
     except Game.DoesNotExist:
         raise Http404()
