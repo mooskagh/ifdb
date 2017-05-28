@@ -56,7 +56,7 @@ def store_game(request):
         g.added_by = request.user
         g.save()
         g.FillUrls(j['links'], request.user)
-        g.StoreTags(j['properties'])
+        g.StoreTags(j['properties'], request.perm)
         g.StoreAuthors(j['authors'])
     except ObjectDoesNotExist:
         raise Http404()
@@ -117,8 +117,6 @@ def tags(request):
                'tags': []}
         for y in (GameTag.objects.filter(category=x).order_by('order',
                                                               'name')):
-            if not request.perm(y.show_in_edit_perm):
-                continue
             val['tags'].append({
                 'id': y.id,
                 'name': y.name,
@@ -130,8 +128,6 @@ def tags(request):
 def linktypes(request):
     res = {'categories': []}
     for x in URLCategory.objects.all():
-        if not x.allow_in_editor:
-            continue
         res['categories'].append({'id': x.id,
                                   'title': x.title,
                                   'uploadable': x.allow_cloning})

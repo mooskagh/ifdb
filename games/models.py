@@ -79,8 +79,6 @@ class Game(models.Model):
         tags = {}
         cats = []
         for x in self.tags.all():
-            if not perm(x.show_in_details_perm):
-                continue
             category = x.category
             if not perm(category.show_in_details_perm):
                 continue
@@ -178,7 +176,7 @@ class GameAuthorRole(models.Model):
 
     symbolic_id = models.SlugField(max_length=32, null=True, blank=True)
     title = models.CharField(max_length=255)
-    order = models.SmallIntegerField(default=0)
+    order = models.SmallIntegerField(default=100)
 
     @staticmethod
     def GetByNameOrId(val):
@@ -203,10 +201,10 @@ class GameTagCategory(models.Model):
 
     symbolic_id = models.SlugField(max_length=32, null=True, blank=True)
     name = models.CharField(max_length=255)
-    allow_new_tags_perm = models.CharField(max_length=255, default='@admin')
+    allow_new_tags = models.BooleanField(default=True)
     show_in_edit_perm = models.CharField(max_length=255, default='@all')
     show_in_search_perm = models.CharField(max_length=255, default='@all')
-    show_in_defails_perm = models.CharField(max_length=255, default='@all')
+    show_in_details_perm = models.CharField(max_length=255, default='@all')
     order = models.SmallIntegerField(default=0)
 
     @staticmethod
@@ -223,14 +221,14 @@ class GameTag(models.Model):
     symbolic_id = models.SlugField(max_length=32, null=True, blank=True)
     category = models.ForeignKey(GameTagCategory)
     name = models.CharField(max_length=255)
-    show_in_edit_perm = models.CharField(max_length=255, default='@all')
-    show_in_search_perm = models.CharField(max_length=255, default='@all')
-    show_in_defails_perm = models.CharField(max_length=255, default='@all')
     order = models.SmallIntegerField(default=0)
 
     @staticmethod
-    def GetByNameOrIdOrCreate(val, category, perm):
+    def GetByNameOrIdOrCreate(val, category):
         if isinstance(val, int):
             return GameTag.objects.get(id=val, category=category)
-        perm.Ensure(category.allow_new_tags_perm)
-        return GameTag.objects.get_or_create(name=val, category=category)[0]
+        if category.allow_new_tags:
+            return GameTag.objects.get_or_create(
+                name=val, category=category)[0]
+        else:
+            return GameTag.objects.get(name=val, category=category)
