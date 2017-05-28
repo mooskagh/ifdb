@@ -1,6 +1,8 @@
-EVERYONE_GROUP = '@everyone'
+from django.core.exceptions import PermissionDenied
+
+EVERYONE_GROUP = '@all'
 UNAUTH_GROUP = '@guest'
-AUTH_GROUP = '@authenticated'
+AUTH_GROUP = '@auth'
 SUPERUSER_GROUP = '@admin'
 
 
@@ -25,16 +27,31 @@ class Permissioner:
         return '%s(%s)' % ('#'
                            if self.is_admin else '$', ', '.join(self.tokens))
 
-    def HasPermission(self, expr):
+    def __call__(self, expr):
         if self.is_admin:
             return True
         valid_perms = set(expr.split(','))
         return bool(valid_perms & self.tokens)
 
+    def Ensure(self, expr):
+        if not self(expr):
+            raise PermissionDenied
+
+
+def perm_required(perm):
+    def real_decorator(f):
+        def middleware(request):
+            request.perm.Ensure(f)
+            return f(request)
+
+        return middleware
+
+    return real_decorator
+
 
 def permissioner(get_response):
     def middleware(request):
-        request.permissioner = Permissioner(request.user)
+        request.perm = Permissioner(request.user)
         return get_response(request)
 
     return middleware

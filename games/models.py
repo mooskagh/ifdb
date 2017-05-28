@@ -2,7 +2,6 @@ from datetime import datetime
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.translation import ugettext_lazy as _
-from django.core.exceptions import PermissionDenied
 
 # Create your models here.
 
@@ -16,8 +15,10 @@ class Game(models.Model):
     release_date = models.DateField(_('Release date'), null=True, blank=True)
     creation_time = models.DateTimeField(_('Added at'))
     edit_time = models.DateTimeField(_('Last edit'), null=True, blank=True)
-    is_hidden = models.BooleanField(_('Hidden'), default=False)
-    is_readonly = models.BooleanField(_('Readonly'), default=False)
+    view_perm = models.CharField(
+        _('Game view permission'), max_length=255, default='@all')
+    edit_perm = models.CharField(
+        _('Edit permission'), max_length=255, default='@auth')
     tags = models.ManyToManyField('GameTag', blank=True)
     added_by = models.ForeignKey(User)
 
@@ -26,24 +27,23 @@ class Game(models.Model):
     # (GameComments)
     # (LoadLog) // For computing popularity
     # -(GamePopularity)
-    def FillAuthors(self, authors):
+    def StoreAuthors(self, authors):
         # TODO(crem) Erase before creation.
         for role, author in authors:
             r = GameAuthorRole.GetByNameOrId(role)
-            a = Author.GetByNameOrId(author)
+            a = Author.GetByNameOrIdOrCreate(author)
             ga = GameAuthor()
             ga.game = self
             ga.author = a
             ga.role = r
             ga.save()
 
-    def FillTags(self, tags):
+    def StoreTags(self, tags, perm):
         # TODO(crem) Erase before creation.
         for category, value in tags:
             cat = GameTagCategory.GetByNameOrId(category)
-            if not cat.show_in_edit:
-                raise PermissionDenied
-            val = GameTag.GetByNameOrId(value, cat)
+            perm.Ensure(cat.show_in_edit_perm)
+            val = GameTag.GetByNameOrIdOrCreate(value, cat)
             self.tags.add(val)
         self.save()
 
@@ -75,14 +75,14 @@ class Game(models.Model):
             res.append({'role': r, 'authors': authors[r]})
         return res
 
-    def GetTags(self):
+    def GetTagsForDetails(self, perm):
         tags = {}
         cats = []
         for x in self.tags.all():
-            if not x.show_in_details:
+            if not perm(x.show_in_details_perm):
                 continue
             category = x.category
-            if not category.show_in_details:
+            if not perm(category.show_in_details_perm):
                 continue
             if category in tags:
                 tags[category].append(x)
@@ -145,7 +145,6 @@ class URLCategory(models.Model):
 
     symbolic_id = models.SlugField(max_length=32, null=True, blank=True)
     title = models.CharField(max_length=255)
-    allow_in_editor = models.BooleanField(default=True)
     allow_cloning = models.BooleanField(default=True)
     order = models.SmallIntegerField(default=0)
 
@@ -167,11 +166,10 @@ class Author(models.Model):
     name = models.CharField(max_length=255)
 
     @staticmethod
-    def GetByNameOrId(val):
+    def GetByNameOrIdOrCreate(val):
         if isinstance(val, int):
             return Author.objects.get(id=val)
-        obj, _ = Author.objects.get_or_create(name=val)
-        return obj
+        return Author.objects.get_or_create(name=val)[0]
 
 
 class GameAuthorRole(models.Model):
@@ -205,10 +203,10 @@ class GameTagCategory(models.Model):
 
     symbolic_id = models.SlugField(max_length=32, null=True, blank=True)
     name = models.CharField(max_length=255)
-    allow_new_tags = models.BooleanField(default=False)
-    show_in_edit = models.BooleanField(default=True)
-    show_in_search = models.BooleanField(default=True)
-    show_in_details = models.BooleanField(default=True)
+    allow_new_tags_perm = models.CharField(max_length=255, default='@admin')
+    show_in_edit_perm = models.CharField(max_length=255, default='@all')
+    show_in_search_perm = models.CharField(max_length=255, default='@all')
+    show_in_defails_perm = models.CharField(max_length=255, default='@all')
     order = models.SmallIntegerField(default=0)
 
     @staticmethod
@@ -225,17 +223,14 @@ class GameTag(models.Model):
     symbolic_id = models.SlugField(max_length=32, null=True, blank=True)
     category = models.ForeignKey(GameTagCategory)
     name = models.CharField(max_length=255)
-    show_in_edit = models.BooleanField(default=True)
-    show_in_search = models.BooleanField(default=True)
-    show_in_details = models.BooleanField(default=True)
+    show_in_edit_perm = models.CharField(max_length=255, default='@all')
+    show_in_search_perm = models.CharField(max_length=255, default='@all')
+    show_in_defails_perm = models.CharField(max_length=255, default='@all')
     order = models.SmallIntegerField(default=0)
 
     @staticmethod
-    def GetByNameOrId(val, category):
+    def GetByNameOrIdOrCreate(val, category, perm):
         if isinstance(val, int):
             return GameTag.objects.get(id=val, category=category)
-        if category.allow_new_tags:
-            return GameTag.objects.get_or_create(
-                name=val, category=category)[0]
-        else:
-            return GameTag.objects.get(name=val, category=category)
+        perm.Ensure(category.allow_new_tags_perm)
+        return GameTag.objects.get_or_create(name=val, category=category)[0]

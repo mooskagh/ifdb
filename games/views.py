@@ -11,6 +11,7 @@ from django.http.response import JsonResponse
 from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.views.decorators.csrf import ensure_csrf_cookie
+from ifdb.permissioner import perm_required
 import json
 import markdown
 
@@ -30,10 +31,12 @@ def index(request):
 
 @ensure_csrf_cookie
 @login_required
+@perm_required('@auth')
 def add_game(request):
     return render(request, 'games/add.html', {})
 
 
+@perm_required('@auth')
 def store_game(request):
     if request.method != 'POST':
         return render(request, 'games/error.html',
@@ -53,8 +56,8 @@ def store_game(request):
         g.added_by = request.user
         g.save()
         g.FillUrls(j['links'], request.user)
-        g.FillTags(j['properties'])
-        g.FillAuthors(j['authors'])
+        g.StoreTags(j['properties'])
+        g.StoreAuthors(j['authors'])
     except ObjectDoesNotExist:
         raise Http404()
     return redirect(reverse('show_game', kwargs={'game_id': g.id}))
@@ -72,7 +75,7 @@ def show_game(request, game_id):
             game.description,
             ['markdown.extensions.extra', 'markdown.extensions.meta',
              'markdown.extensions.smarty', 'markdown.extensions.wikilinks'])
-        tags = game.GetTags()
+        tags = game.GetTagsForDetails(request.perm)
         return render(request, 'games/game.html', {
             'added_date': added_date,
             'authors': authors,
@@ -105,14 +108,17 @@ def authors(request):
 
 def tags(request):
     res = {'categories': [], 'value': []}
-    for x in (GameTagCategory.objects.filter(show_in_edit=True).order_by(
-            'order', 'name')):
+    for x in (GameTagCategory.objects.order_by('order', 'name')):
+        if not request.perm(x.show_in_edit_perm):
+            continue
         val = {'id': x.id,
                'name': x.name,
                'allow_new_tags': x.allow_new_tags,
                'tags': []}
-        for y in (GameTag.objects.filter(
-                category=x, show_in_edit=True).order_by('order', 'name')):
+        for y in (GameTag.objects.filter(category=x).order_by('order',
+                                                              'name')):
+            if not request.perm(y.show_in_edit_perm):
+                continue
             val['tags'].append({
                 'id': y.id,
                 'name': y.name,
@@ -132,6 +138,7 @@ def linktypes(request):
     return JsonResponse(res)
 
 
+@perm_required('@auth')
 def upload(request):
     file = request.FILES['file']
     fs = FileSystemStorage()
@@ -193,6 +200,7 @@ def Importer2Json(r):
     return res
 
 
+@perm_required('@auth')
 def doImport(request):
     raw_import = Import(request.GET.get('url'))
     if ('error' in raw_import):
