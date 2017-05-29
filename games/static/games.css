@@ -15,7 +15,13 @@ a {
     border: 1px solid #31322d;
     background-color: #F2F1EB;
     padding: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+    box-shadow: -3px 4px 2px rgba(0,0,0,0.2);
+}
+
+input[type="date"],input[type="text"],input[type="password"],
+input:not([type]),textarea {
+    border: 1px solid rgba(0,0,0,.2);
+    background-color: #f8f8f8;
 }
 
 .root {
@@ -70,16 +76,32 @@ a {
     text-transform: uppercase;
 }
 
-#top-nav > div {
+#top-nav > div, #top-nav > form {
     display: inline-block;
+}
+
+#top-nav form input[type="text"],
+#top-nav form input[type="password"] {
+    width: 6em;
 }
 
 #top-nav .spacer {
     width: 60px;
 }
 
+#top-nav .halfspacer {
+    width: 15px;
+}
+
 #top-nav .loginbox {
     margin-left: 20px;
+}
+
+#top-nav input[type="submit"] {
+    background-color: #00487c;
+    border: 1px solid rgba(0,0,0,.1);
+    font-family: 'Open Sans', sans-serif;
+    font-size: 13px;
 }
 
 .header {
@@ -213,7 +235,8 @@ textarea#description {
     cursor: pointer;
 }
 
-#errorbox {
+#messagebox {
+    background-color: #F2F1EB;
     border: 1px solid #625B61;
     border-radius: 4px;
     width: 300px;
@@ -243,8 +266,8 @@ textarea#description {
     margin-top: 50px;
 }
 
-button {
-    background-color: #625B61;
+button,input[type="submit"] {
+    background-color: #00487c;
     border: none;
     color: #F2F1EB;
     text-align: center;
@@ -252,10 +275,11 @@ button {
     font-size: 14px;
     text-decoration: none;
     cursor: pointer;
+    border-radius: 2px;
 }
 
 button:disabled,button[disabled] {
-    background-color: #A29BA1;
+    background-color: #A2BCCF;
     color: #D2D1CB;
 }
 
@@ -302,6 +326,19 @@ button#submit {
 
 input::placeholder {
     color: #C2C1BB;
+}
+
+.password_error {
+    color: red;
+}
+
+.password_form {
+    width: 80%;
+    margin: 5px auto;
+}
+
+.password_form input {
+    width: 100px;
 }
 
 progress {

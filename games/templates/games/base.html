@@ -32,12 +32,25 @@
                 {% endif %}
                 <div class="spacer"></div>
                 <div class="searchbox">
-                    <input>
+                    <input placeholder="Поиск">
                     &#x1f50d;&#xFE0E;
                 </div>
-                <div class="loginbox">
-                    Войти
-                </div>
+                    {% if user.is_authenticated %}
+                        <form class="loginbox" method="post" action="{% url 'logout' %}">
+                        {% csrf_token %}
+                        Вы <b>{{ user.username }}</b>.
+                        <input type="submit" value="Выйти" />
+                        <input type="hidden" name="next" value="{{ request.path }}" />
+                        </form>
+                    {% else %}
+                        <form class="loginbox" method="post" action="{% url 'login' %}">
+                        {% csrf_token %}
+                        <input placeholder="Логин" type="text" name="username" id="id_username" required maxlength="254" />
+                        <input placeholder="Пароль" type="password" name="password" id="id_password" required />
+                        <input type="submit" value="Войти" />
+                        <input type="hidden" name="next" value="{{ request.path }}" />
+                        </form>
+                    {% endif %}
             </nav>
             <div class="content">
                 {% block content %}{% endblock %}
