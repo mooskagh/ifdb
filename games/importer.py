@@ -160,9 +160,9 @@ def ImportFromPlut(url, html):
         elif cat == 'Платформа':
             tags.append({'cat_slug': 'platform', 'tag': tag})
         elif cat == 'Страна':
-            tags.append({'cat_slug': 'country', 'tag': tag})
+            tags.append({'cat_slug': 'country', 'tag': tag.capitalize()})
         elif cat == 'Жанр':
-            tags.append({'cat_slug': 'genre', 'tag': tag})
+            tags.append({'cat_slug': 'genre', 'tag': tag.capitalize()})
         elif cat == 'Авторы':
             authors.append({'role_slug': 'author', 'name': tag})
 
