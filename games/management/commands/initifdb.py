@@ -28,7 +28,7 @@ TAGS = [
     ['os', 'os_web', 'Web (online)'],
     ['os', 'os_macos', 'MacOs'],
     ['os', 'os_linux', 'Linux'],
-    ['os', 'os_iOS', 'iOS'],
+    ['os', 'os_ioS', 'iOS'],
     ['os', 'os_android', 'Android'],
     ['os', 'os_dos', 'DOS'],
     ['os', 'os_other', 'Другая ОС'],

@@ -13,7 +13,7 @@ class Game(models.Model):
     title = models.CharField(_('Title'), max_length=255)
     description = models.TextField(_('Description'), null=True, blank=True)
     release_date = models.DateField(_('Release date'), null=True, blank=True)
-    creation_time = models.DateTimeField(_('Added at'))
+    creation_time = models.DateTimeField(_('Added at'), db_index=True)
     edit_time = models.DateTimeField(_('Last edit'), null=True, blank=True)
     view_perm = models.CharField(
         _('Game view permission'), max_length=255, default='@all')
@@ -115,7 +115,8 @@ class URL(models.Model):
         return "%s" % (self.original_url)
 
     local_url = models.CharField(null=True, blank=True, max_length=255)
-    original_url = models.CharField(null=True, blank=True, max_length=255)
+    original_url = models.CharField(
+        null=True, blank=True, max_length=255, db_index=True)
     original_filename = models.CharField(null=True, blank=True, max_length=255)
     content_type = models.CharField(null=True, blank=True, max_length=255)
     ok_to_clone = models.BooleanField(default=True)
@@ -141,8 +142,9 @@ class URLCategory(models.Model):
     def __str__(self):
         return self.title
 
-    symbolic_id = models.SlugField(max_length=32, null=True, blank=True)
-    title = models.CharField(max_length=255)
+    symbolic_id = models.SlugField(
+        max_length=32, null=True, blank=True, db_index=True)
+    title = models.CharField(max_length=255, db_index=True)
     allow_cloning = models.BooleanField(default=True)
     order = models.SmallIntegerField(default=0)
 
@@ -174,8 +176,9 @@ class GameAuthorRole(models.Model):
     def __str__(self):
         return self.title
 
-    symbolic_id = models.SlugField(max_length=32, null=True, blank=True)
-    title = models.CharField(max_length=255)
+    symbolic_id = models.SlugField(
+        max_length=32, null=True, blank=True, db_index=True)
+    title = models.CharField(max_length=255, db_index=True)
     order = models.SmallIntegerField(default=100)
 
     @staticmethod
@@ -199,8 +202,9 @@ class GameTagCategory(models.Model):
     def __str__(self):
         return self.name
 
-    symbolic_id = models.SlugField(max_length=32, null=True, blank=True)
-    name = models.CharField(max_length=255)
+    symbolic_id = models.SlugField(
+        max_length=32, null=True, blank=True, db_index=True)
+    name = models.CharField(max_length=255, db_index=True)
     allow_new_tags = models.BooleanField(default=True)
     show_in_edit_perm = models.CharField(max_length=255, default='@all')
     show_in_search_perm = models.CharField(max_length=255, default='@all')
@@ -218,9 +222,10 @@ class GameTag(models.Model):
     def __str__(self):
         return "%s: %s" % (self.category, self.name)
 
-    symbolic_id = models.SlugField(max_length=32, null=True, blank=True)
+    symbolic_id = models.SlugField(
+        max_length=32, null=True, blank=True, db_index=True)
     category = models.ForeignKey(GameTagCategory)
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_index=True)
     order = models.SmallIntegerField(default=0)
 
     @staticmethod
