@@ -41,7 +41,7 @@ def add_game(request):
 
 @perm_required(PERM_ADD_GAME)
 def store_game(request):
-    # !!!!!!!!!! PERMISSIONS TO STORE / EDIT GAME
+    # TODO !!!!!!!!!! PERMISSIONS TO STORE / EDIT GAME
     if request.method != 'POST':
         return render(request, 'games/error.html',
                       {'message': 'Что-то не так!' + ' (1)'})
@@ -93,8 +93,19 @@ def vote_game(request):
     return redirect(reverse('show_game', kwargs={'game_id': game.id}))
 
 
+def comment_game(request):
+    if request.method != 'POST':
+        return render(request, 'games/error.html',
+                      {'message': 'Что-то не так!' + ' (3)'})
+    game = Game.objects.get(id=int(request.POST.get('game_id')))
+    request.perm.Ensure(game.comment_perm)
+
+    return redirect(reverse('show_game', kwargs={'game_id': game.id}))
+
+
 def show_game(request, game_id):
     try:
+        # TODO permissions!
         game = Game.objects.get(id=game_id)
         release_date = FormatDate(game.release_date)
         last_edit_date = FormatDate(game.edit_time)

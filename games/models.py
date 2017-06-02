@@ -19,6 +19,8 @@ class Game(models.Model):
         _('Game view permission'), max_length=255, default='@all')
     edit_perm = models.CharField(
         _('Edit permission'), max_length=255, default='@auth')
+    comment_perm = models.CharField(
+        _('Comment permission'), max_length=255, default='@auth')
     tags = models.ManyToManyField('GameTag', blank=True)
     added_by = models.ForeignKey(User)
 
@@ -250,3 +252,18 @@ class GameVotes(models.Model):
     game_finished = models.BooleanField()
     play_time_mins = models.IntegerField()
     star_rating = models.SmallIntegerField()
+
+
+class GameComment(models.Model):
+    game = models.ForeignKey(Game, db_index=True)
+    user = models.ForeignKey(User, null=True, blank=True)
+    parent = models.ForeignKey('GameComment', null=True, blank=True)
+    foreign_username = models.CharField(max_length=255, null=True, blank=True)
+    foreign_id = models.CharField(
+        max_length=255, null=True, blank=True, db_index=True)
+    foreign_url = models.CharField(max_length=255, null=True, blank=True)
+    creation_time = models.DateTimeField()
+    edit_time = models.DateTimeField(null=True, blank=True)
+    subject = models.CharField(max_length=255, null=True, blank=True)
+    text = models.TextField()
+    is_deleted = models.BooleanField(default=False)

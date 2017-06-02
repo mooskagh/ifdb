@@ -26,7 +26,7 @@
         </div>
         <div class="leftpane">
             <hr>
-            <form class="comment-input" id="reply-1" action="/game/comment" method="post">
+            <form class="comment-input" id="reply-1" action="{% url 'comment_game' %}" method="post">
                 {% csrf_token %}
                 <input type="hidden" name="game_id" value="{{game.id}}" />
                 <input placeholder="Заголовок комментария" type="text" style="display: none;"/>
@@ -194,7 +194,7 @@
                 {% endif %}
             {% endif %}
             <form id="voting_form" style="display: none;" method="post"
-                action="/game/vote/">
+                action="{% url 'vote_game' %}">
                 <div class="prop-value">Оценка:</div>
                 <input type="radio" name="score" id="score1" value="1"
                 {% if votes.user_score == 1 %}checked{% endif %}
