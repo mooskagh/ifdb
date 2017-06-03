@@ -1,9 +1,9 @@
 from html import unescape
 from html2text import HTML2Text
 from mediawiki_parser import wikitextParser, preprocessorParser, apostrophes
-from mediawiki_parser.constants import html_entities
+# from mediawiki_parser.constants import html_entities
 from pijnu.library.node import Nodes
-from urllib.parse import urlparse, unquote
+from urllib.parse import urlparse, unquote, quote, urlunsplit, urlsplit
 import datetime
 import re
 import urllib
@@ -12,6 +12,7 @@ DEBG = False
 
 
 def FetchUrl(url):
+    url = quote(url.encode('utf-8'), safe='/+=&?%:@;!#$*()_-')
     print('Fetching: %s' % url)
     with urllib.request.urlopen(url) as response:
         return response.read().decode('utf-8')
@@ -24,14 +25,109 @@ def MdUnescape(str):
     return MARKDOWN_SPECIAL_ESCAPED.sub(r'\1', str)
 
 
-def Import(url):
+def DispatchImport(url):
     if PLUT_URL.match(url):
         return ImportFromPlut(url)
 
     if IFWIKI_URL.match(url):
         return ImportFromIfWiki(url)
 
-    return {'error': 'Ссылка на неизвестный ресурс.'}
+    return None
+
+
+RE_WORD = re.compile('\w+')
+MIN_SIMILARITY = 0.67
+
+
+def SimilarEnough(w1, w2):
+    s1 = set(RE_WORD.findall(w1.lower()))
+    s2 = set(RE_WORD.findall(w2.lower()))
+    if not s1:
+        return False
+
+    similarity = len(s1 & s2) / len(s1 | s2)
+    return similarity > MIN_SIMILARITY
+
+
+def HashizeUrl(url):
+    url = quote(url.encode('utf-8'), safe='/+=&?%:;@!#$*()_-')
+    purl = urlsplit(url, allow_fragments=False)
+    return urlunsplit(('', purl[1], purl[2], purl[3], ''))
+
+
+def Import(seed_url):
+    urls_checked = set()
+    urls_to_check = set([seed_url])
+    res = []
+    title = None
+
+    s_urls = set()
+    s_tags = set()
+    s_auth = set()
+
+    def MergeImport(y, x):
+        for z in ['title', 'release_date']:
+            if z not in y and z in x:
+                y[z] = x[z]
+
+        if 'desc' in x:
+            if 'desc' in y:
+                y['desc'] += '\n\n---\n\n'
+            else:
+                y['desc'] = ''
+            y['desc'] += x['desc']
+
+        for setz, field, extractor in [
+            (s_urls, 'urls', lambda xx: HashizeUrl(xx['url'])),
+            (s_tags, 'tags',
+             lambda xx: (xx.get('tag_slug'), xx.get('tag'), xx.get('cat_slug'))
+             ),
+            (s_auth, 'authors',
+             lambda v: (v.get('role_slug'), v.get('role_slug'), v.get('name'))
+             ),
+        ]:
+            if field in x:
+                if field not in y:
+                    y[field] = []
+                for z in x[field]:
+                    if extractor(z) in setz:
+                        continue
+                    setz.add(extractor(z))
+                    y[field].append(z)
+
+    while urls_to_check:
+        url = urls_to_check.pop()
+        url_hash = HashizeUrl(url)
+        if url_hash in urls_checked:
+            continue
+        urls_checked.add(url_hash)
+
+        r = DispatchImport(url)
+
+        append = False
+        if 'title' in r:
+            if title:
+                if SimilarEnough(title, r['title']):
+                    append = True
+            else:
+                title = r['title']
+                append = True
+
+        if append:
+            res.append(r)
+            if 'urls' in r:
+                for x in r['urls']:
+                    if x['urlcat_slug'] == 'game_page':
+                        urls_to_check.add(x['url'])
+    if not res:
+        return {'error': 'Ссылка на неизвестный ресурс.'}
+
+    res.sort(key=lambda x: x['priority'], reverse=True)
+
+    r = {}
+    for x in res:
+        MergeImport(r, x)
+    return r
 
 
 def CategorizeUrl(url, desc='', category=None):
@@ -161,7 +257,7 @@ def ImportFromPlut(url):
     except:
         return {'error': 'Не открывается что-то этот URL.'}
 
-    res = {}
+    res = {'priority': 50}
     m = PLUT_TITLE.search(html)
     if not m:
         return {'error': 'Не найдена игра на странице'}
@@ -240,7 +336,7 @@ def ImportFromIfWiki(url):
     except:
         return {'error': 'Не открывается что-то этот URL.'}
 
-    res = {}
+    res = {'priority': 100}
 
     context = WikiParsingContext(unquote(m.group(2)).replace('_', ' '), url)
 
@@ -602,11 +698,3 @@ def toolset_wiki(context):
             input(node.treeView() + "\n>")
 
     return locals()
-
-# import pprint
-# with open('D:/sss', 'wb') as f:
-#     f.write(
-#         pprint.pformat(
-#             Import(
-#                 'http://ifwiki.ru/%D0%A1%D0%BA%D0%B0%D0%B7%D0%BE%D1%87%D0%BA%D0%B0._%D0%A3%D1%80%D0%BA%D0%B8%D1%81%D1%82%D0%B0%D0%BD%D1%81%D0%BA%D0%B8%D0%B5_%D0%BE%D0%B1%D0%BE%D1%80%D0%BE%D1%82%D0%BD%D0%B8'))
-#         .encode('utf-8'))
