@@ -1,5 +1,5 @@
 from .models import (GameAuthorRole, Author, Game, GameTagCategory, GameTag,
-                     URLCategory, URL, GameVotes, GameComment)
+                     URLCategory, URL, GameVote, GameComment)
 from .importer import Import
 from datetime import datetime
 from dateutil.parser import parse as parse_date
@@ -26,6 +26,13 @@ def FormatDate(x):
                                  'июня', 'июля', 'августа', 'сентября',
                                  'октября', 'ноября', 'декабря'][x.month],
                          x.year)
+
+
+def FormatTime(x):
+    if not x:
+        return None
+    return "%04d-%02d-%02d %02d:%02d" % (x.year, x.month, x.day, x.hour,
+                                         x.minute)
 
 
 def index(request):
@@ -75,10 +82,10 @@ def vote_game(request):
     game = Game.objects.get(id=int(request.POST.get('game_id')))
 
     try:
-        obj = GameVotes.objects.get(game=game, user=request.user)
+        obj = GameVote.objects.get(game=game, user=request.user)
         obj.edit_time = datetime.now()
-    except GameVotes.DoesNotExist:
-        obj = GameVotes()
+    except GameVote.DoesNotExist:
+        obj = GameVote()
         obj.game = game
         obj.user = request.user
         obj.creation_time = datetime.now()
@@ -103,7 +110,7 @@ def comment_game(request):
     comment = GameComment()
     comment.game = game
     comment.user = request.user
-    # TODO handle parent, check that it's for the same game
+    comment.parent_id = request.POST.get('parent', None)
     comment.creation_time = datetime.now()
     comment.subject = request.POST.get('subject', None) or None
     comment.text = request.POST.get('text', None)
@@ -127,6 +134,7 @@ def show_game(request, game_id):
         ]) if game.description else ''
         tags = game.GetTagsForDetails(request.perm)
         votes = GetGameScore(game, request.user)
+        comments = GetGameComments(game, request.user)
         return render(request, 'games/game.html', {
             'added_date': added_date,
             'authors': authors,
@@ -137,6 +145,7 @@ def show_game(request, game_id):
             'tags': tags,
             'links': links,
             'votes': votes,
+            'comments': comments,
         })
     except Game.DoesNotExist:
         raise Http404()
@@ -297,7 +306,7 @@ def GetGameScore(game, user=None):
     res['user_score'] = ''
     res['user_finished'] = False
 
-    for v in GameVotes.objects.filter(game=game):
+    for v in GameVote.objects.filter(game=game):
         played_votes.append(v.star_rating)
         played_times.append(v.play_time_mins)
         if v.game_finished:
@@ -330,3 +339,52 @@ def GetGameScore(game, user=None):
         res['finished_mins'] = t % 60
 
     return res
+
+
+# Returns repeated:
+# user__name
+# parent__id
+#
+def GetGameComments(game, user=None):
+    res = []
+    for v in GameComment.objects.select_related('user').filter(game=game):
+        res.append({
+            'id': v.id,
+            'user_id': v.user.id if v.user else None,
+            'username': v.user.username if v.user else v.foreign_username
+            if v.foreign_username else 'Анонимоўс',
+            'parent_id': v.parent.id if v.parent else None,
+            'fusername': v.foreign_username,
+            'furl': v.foreign_username,
+            'fsite': None,  # TODO
+            'created': FormatTime(v.creation_time),
+            'edited': FormatTime(v.edit_time),
+            'subj': v.subject,
+            'text': markdown.markdown(v.text, [
+                'markdown.extensions.extra', 'markdown.extensions.meta',
+                'markdown.extensions.smarty', 'markdown.extensions.wikilinks'
+            ]),
+            # TODO: is_deleted
+        })
+
+    swap = []
+    parent_to_cluster = {}
+    clusters = []
+
+    while res:
+        for v in res:
+            if not v['parent_id']:
+                parent_to_cluster[v['id']] = len(clusters)
+                clusters.append([v])
+            elif v['parent_id'] in parent_to_cluster:
+                clusters[parent_to_cluster[v['parent_id']]].append(v)
+                parent_to_cluster[v['id']] = parent_to_cluster[v['parent_id']]
+            else:
+                swap.append(v)
+        res = swap
+
+    clusters.sort(key=lambda x: x[0]['created'])
+    for x in clusters:
+        x[1:] = sorted(x[1:], key=lambda t: t['created'])
+
+    return [x for y in clusters for x in y]

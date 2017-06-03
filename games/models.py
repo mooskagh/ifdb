@@ -7,6 +7,9 @@ from django.utils.translation import ugettext_lazy as _
 
 
 class Game(models.Model):
+    class Meta:
+        default_permissions = ()
+
     def __str__(self):
         return self.title
 
@@ -113,6 +116,9 @@ class Game(models.Model):
 
 
 class URL(models.Model):
+    class Meta:
+        default_permissions = ()
+
     def __str__(self):
         return "%s" % (self.original_url)
 
@@ -141,6 +147,9 @@ class URL(models.Model):
 
 
 class URLCategory(models.Model):
+    class Meta:
+        default_permissions = ()
+
     def __str__(self):
         return self.title
 
@@ -152,6 +161,9 @@ class URLCategory(models.Model):
 
 
 class GameURL(models.Model):
+    class Meta:
+        default_permissions = ()
+
     def __str__(self):
         return "%s (%s): %s" % (self.game, self.category, self.url)
 
@@ -162,6 +174,9 @@ class GameURL(models.Model):
 
 
 class Author(models.Model):
+    class Meta:
+        default_permissions = ()
+
     def __str__(self):
         return self.name
 
@@ -175,6 +190,9 @@ class Author(models.Model):
 
 
 class GameAuthorRole(models.Model):
+    class Meta:
+        default_permissions = ()
+
     def __str__(self):
         return self.title
 
@@ -192,6 +210,9 @@ class GameAuthorRole(models.Model):
 
 
 class GameAuthor(models.Model):
+    class Meta:
+        default_permissions = ()
+
     def __str__(self):
         return "%s -- %s (%s)" % (self.game, self.author, self.role)
 
@@ -201,6 +222,9 @@ class GameAuthor(models.Model):
 
 
 class GameTagCategory(models.Model):
+    class Meta:
+        default_permissions = ()
+
     def __str__(self):
         return self.name
 
@@ -221,6 +245,9 @@ class GameTagCategory(models.Model):
 
 
 class GameTag(models.Model):
+    class Meta:
+        default_permissions = ()
+
     def __str__(self):
         return "%s: %s" % (self.category, self.name)
 
@@ -241,9 +268,14 @@ class GameTag(models.Model):
             return GameTag.objects.get(name=val, category=category)
 
 
-class GameVotes(models.Model):
+class GameVote(models.Model):
     class Meta:
         unique_together = (('game', 'user'), )
+        default_permissions = ()
+
+
+    def __str__(self):
+        return "%s: %s (%d)" % (self.user, self.game, self.star_rating)
 
     game = models.ForeignKey(Game, db_index=True)
     user = models.ForeignKey(User, db_index=True)
@@ -255,6 +287,13 @@ class GameVotes(models.Model):
 
 
 class GameComment(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    def __str__(self):
+        return "%s: %s: %s (%s)" % (self.user, self.game, self.subject,
+                                    self.creation_time)
+
     game = models.ForeignKey(Game, db_index=True)
     user = models.ForeignKey(User, null=True, blank=True)
     parent = models.ForeignKey('GameComment', null=True, blank=True)
