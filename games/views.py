@@ -1,5 +1,5 @@
 from .models import (GameAuthorRole, Author, Game, GameTagCategory, GameTag,
-                     URLCategory, URL, GameVotes)
+                     URLCategory, URL, GameVotes, GameComment)
 from .importer import Import
 from datetime import datetime
 from dateutil.parser import parse as parse_date
@@ -99,6 +99,15 @@ def comment_game(request):
                       {'message': 'Что-то не так!' + ' (3)'})
     game = Game.objects.get(id=int(request.POST.get('game_id')))
     request.perm.Ensure(game.comment_perm)
+
+    comment = GameComment()
+    comment.game = game
+    comment.user = request.user
+    # TODO handle parent, check that it's for the same game
+    comment.creation_time = datetime.now()
+    comment.subject = request.POST.get('subject', None) or None
+    comment.text = request.POST.get('text', None)
+    comment.save()
 
     return redirect(reverse('show_game', kwargs={'game_id': game.id}))
 

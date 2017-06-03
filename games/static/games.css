@@ -45,6 +45,10 @@ a {
     min-height: 2em;
 }
 
+.comment-input textarea.active {
+    min-height: 20em;
+}
+
 .comment-subj {
     color: #31322D;
     font-weight: bold;

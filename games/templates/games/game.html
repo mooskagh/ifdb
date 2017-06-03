@@ -29,8 +29,8 @@
             <form class="comment-input" id="reply-1" action="{% url 'comment_game' %}" method="post">
                 {% csrf_token %}
                 <input type="hidden" name="game_id" value="{{game.id}}" />
-                <input placeholder="Заголовок комментария" type="text" style="display: none;"/>
-                <textarea placeholder="Добавить комментарий..." name="text" required></textarea>
+                <input placeholder="Заголовок комментария" type="text" name="subject" style="display: none;"/>
+                <textarea placeholder="Добавить комментарий... (поддерживается markdown)" name="text" required></textarea>
                 <input type="submit" value="Отправить" style="display: none;"/>
             </form>
             <div class="comment-box">
