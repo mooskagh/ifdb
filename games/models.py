@@ -1,4 +1,3 @@
-from datetime import datetime
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.translation import ugettext_lazy as _
@@ -32,39 +31,6 @@ class Game(models.Model):
     # (GameComments)
     # (LoadLog) // For computing popularity
     # -(GamePopularity)
-    def StoreAuthors(self, authors):
-        # TODO(crem) Erase before creation.
-        for role, author in authors:
-            r = GameAuthorRole.GetByNameOrId(role)
-            a = Author.GetByNameOrIdOrCreate(author)
-            ga = GameAuthor()
-            ga.game = self
-            ga.author = a
-            ga.role = r
-            ga.save()
-
-    def StoreTags(self, tags, perm):
-        # TODO(crem) Erase before creation.
-        for category, value in tags:
-            cat = GameTagCategory.GetByNameOrId(category)
-            perm.Ensure(cat.show_in_edit_perm)
-            val = GameTag.GetByNameOrIdOrCreate(value, cat)
-            self.tags.add(val)
-        self.save()
-
-    def FillUrls(self, links, user):
-        # TODO(crem) Erase before creation.
-        for link in links:
-            cat = URLCategory.objects.get(id=link['category'])
-            url = URL.GetOrCreate(link['url'], cat.allow_cloning, user)
-            game_url = GameURL()
-            game_url.game = self
-            game_url.url = url
-            game_url.category = cat
-            if link['description']:
-                game_url.description = link['description']
-            game_url.save()
-
     def GetAuthors(self):
         authors = {}
         roles = []
@@ -172,12 +138,6 @@ class Author(models.Model):
 
     name = models.CharField(max_length=255)
 
-    @staticmethod
-    def GetByNameOrIdOrCreate(val):
-        if isinstance(val, int):
-            return Author.objects.get(id=val)
-        return Author.objects.get_or_create(name=val)[0]
-
 
 class GameAuthorRole(models.Model):
     class Meta:
@@ -190,13 +150,6 @@ class GameAuthorRole(models.Model):
         max_length=32, null=True, blank=True, db_index=True)
     title = models.CharField(max_length=255, db_index=True)
     order = models.SmallIntegerField(default=100)
-
-    @staticmethod
-    def GetByNameOrId(val):
-        if isinstance(val, int):
-            return GameAuthorRole.objects.get(id=val)
-        obj, _ = GameAuthorRole.objects.get_or_create(title=val)
-        return obj
 
 
 class GameAuthor(models.Model):
@@ -227,12 +180,6 @@ class GameTagCategory(models.Model):
     show_in_details_perm = models.CharField(max_length=255, default='@all')
     order = models.SmallIntegerField(default=0)
 
-    @staticmethod
-    def GetByNameOrId(val):
-        if isinstance(val, int):
-            return GameTagCategory.objects.get(id=val)
-        return GameTagCategory.objects.get(name=val)
-
 
 class GameTag(models.Model):
     class Meta:
@@ -246,16 +193,6 @@ class GameTag(models.Model):
     category = models.ForeignKey(GameTagCategory)
     name = models.CharField(max_length=255, db_index=True)
     order = models.SmallIntegerField(default=0)
-
-    @staticmethod
-    def GetByNameOrIdOrCreate(val, category):
-        if isinstance(val, int):
-            return GameTag.objects.get(id=val, category=category)
-        if category.allow_new_tags:
-            return GameTag.objects.get_or_create(
-                name=val, category=category)[0]
-        else:
-            return GameTag.objects.get(name=val, category=category)
 
 
 class GameVote(models.Model):

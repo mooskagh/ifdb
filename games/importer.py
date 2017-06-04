@@ -8,6 +8,7 @@ import datetime
 import re
 import urllib
 
+# TODO log code when this is hit.
 DEBG = False
 
 
@@ -343,8 +344,12 @@ def ImportFromIfWiki(url):
     preproc = preprocessorParser.make_parser(toolset_preproc(context))
     parser = wikitextParser.make_parser(toolset_wiki(context))
 
-    pre_text = preproc.parse(cont)
-    output = parser.parse(pre_text.leaves())
+    try:
+        pre_text = preproc.parse(cont)
+        output = parser.parse(pre_text.leaves())
+    except:
+        # TODO(crem)  log(error) that case.
+        return {'error': 'Какая-то ошибка при парсинге. Надо сказать админам.'}
 
     res['title'] = context.title
     res['desc'] = output.leaves()
@@ -454,7 +459,7 @@ class WikiParsingContext:
         return ''
 
     def ParseTemplate(self, node):
-        # TODO(crem) node.tag == 'template'
+        # TODO(crem) assert node.tag == 'template'
         page_name = node.value[0].leaf()
 
         params = {}
@@ -699,5 +704,3 @@ def toolset_wiki(context):
             input(node.treeView() + "\n>")
 
     return locals()
-
-# TODO(Fail gracefully on exception)

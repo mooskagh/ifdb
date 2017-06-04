@@ -81,7 +81,7 @@
                         <div class="comment-body">{{ c.text|safe }}</div>
                         <div class="comment-footer">
                             <span class="comment-time">{{ c.created }}</span>
-                            {% if user.is_authenticated %} {# TODO depend on perm #}
+                            {% if comment_perm %}
                                 | <a class="reply-link" href="#">Ответить</a>
                             {% endif %}
                         </div>
