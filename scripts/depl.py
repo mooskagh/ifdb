@@ -257,6 +257,7 @@ def stage(ctx, tag):
         RunCmdStep('%s %s/manage.py collectstatic --clear' % (python_dir,
                                                               django_dir)))
     p.AddStep(StagingDiff('static/'))
+    p.AddStep(RunCmdStep('uwsgi %s/configs/uwsgi-staging.ini') % DST_DIR)
     p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
     p.AddStep(
         GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
@@ -266,7 +267,9 @@ def stage(ctx, tag):
                                                       'conf': 'staging'}]}))
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
     p.AddStep(
-        LoopStep(RunCmdStep('kill -HUP `cat /tmp/uwsgi-ifdb-staging.pid`')))
+        LoopStep(
+            RunCmdStep('kill -HUP `cat /tmp/uwsgi-ifdb-staging.pid`'),
+            'Check STAGING and reload if needed.'))
     p.AddStep(
         GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
                                                     [{'host': 'prod',
@@ -332,7 +335,10 @@ def deploy(ctx, hot):
     else:
         p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb'))
 
-    p.AddStep(LoopStep(RunCmdStep('sudo /bin/systemctl restart ifdb')))
+    p.AddStep(
+        LoopStep(
+            RunCmdStep('sudo /bin/systemctl restart ifdb'),
+            'Check STAGING and reload if needed.'))
 
     if not hot:
         p.AddStep(
@@ -343,7 +349,9 @@ def deploy(ctx, hot):
                                                           'conf': 'prod'}]}))
         p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
 
-    p.AddStep(LoopStep(Message('Break NOW if anything is wrong')))
+    p.AddStep(
+        Message('Break NOW if anything is wrong',
+                'Check PROD and break if needed.'))
 
     if not hot:
         p.AddStep(
@@ -375,9 +383,10 @@ def GitTag(ctx):
     return RunCmdStep(cmd)(ctx)
 
 
-def Message(msg):
+def Message(msg, text):
     def f(ctx):
         click.secho(msg, fg='yellow')
+        click.pause(text)
         return True
 
     f.__doc__ = "Prints message: %s" % msg
@@ -437,11 +446,11 @@ def BuildVersionStr(major, minor, bugfix):
     return res
 
 
-def LoopStep(func):
+def LoopStep(func, text='Should I?'):
     def f(ctx):
         while True:
             click.secho('Want to run [%s]' % func.__doc__, fg='yellow')
-            if not click.confirm('Should I?'):
+            if not click.confirm(text):
                 return True
             if not func(ctx):
                 return False
