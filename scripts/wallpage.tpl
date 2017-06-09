@@ -91,7 +91,7 @@ function declOfNum(number, titles) {
                         var days = Math.floor(hours / 24);
                         hours = hours % 60;
                         document.getElementById('timer').innerHTML =
-                        "Это продолжается уже <br>" +
+                        "Это началось " +
                         days + " " + declOfNum(days, ['день', 'дня', 'дней']) +
                         " " + hours + " " +
                         declOfNum(hours, ['час', 'часа', 'часов']) + " " +
@@ -99,7 +99,7 @@ function declOfNum(number, titles) {
                         declOfNum(minutes, ['минуту', 'минуты', 'минут']) +
                         " " + seconds + " " +
                         declOfNum(seconds, ['секунду', 'секунды', 'секунд']) +
-                        ".";
+                        " назад.";
                     }, 1000);
 
                     </script>

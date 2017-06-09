@@ -101,7 +101,7 @@ def CheckFromTemplate(template, dst):
         for l in diff:
             click.secho(l.rstrip(), fg='red')
 
-    f.__doc__ = "Generate file %s with template" % dst
+    f.__doc__ = "Check file %s with template" % dst
     return f
 
 
@@ -122,28 +122,34 @@ class Pipeline:
         self.steps = []
         self.start = 1
         self.end = None
+        self.list_only = False
+        self.step_by_step = False
 
-    def AddStep(self, name, func):
-        self.steps.append((name, func))
+    def AddStep(self, func):
+        self.steps.append(func)
 
     def Run(self):
+        if self.list_only:
+            for i, n in enumerate(self.steps):
+                click.secho('%2d. %s' % (i + 1, n.__doc__))
+            return
         click.clear()
+
         context = {}
-        if self.start is str:
-            self.start = zip(*self.steps)[0].index(self.start) + 1
-        if self.end is str:
-            self.end = zip(*self.tasks)[0].index(self.end) + 1
         if self.end is None:
             end = len(self.steps)
         idx = self.start - 1
         while self.start <= (idx + 1) <= end:
-            task_id, task_f = self.steps[idx]
+            task_f = self.steps[idx]
             try:
                 click.echo(
                     click.style(
-                        '[%2d/%2d]' % (idx + 1, len(self.steps)), fg='green') +
-                    ' %s - %s...' % (click.style(
-                        task_id, bold=True), task_f.__doc__))
+                        '[%2d/%2d] %s...' % (idx + 1, len(self.steps)),
+                        fg='green') + ' %s...' % task_f.__doc__)
+                if self.step_by_step:
+                    if not click.confirm('Should I run it?'):
+                        idx += 1
+                        continue
                 if task_f(context):
                     idx += 1
                     continue
@@ -155,8 +161,8 @@ class Pipeline:
                 else:
                     idx = zip(*self.steps)[0].index(jmp.whereto)
                 click.secho(
-                    '[ JMP ] Jumping to %s (%d)' %
-                    (self.steps[idx][0], idx + 1),
+                    '[ JMP ] Jumping to %d (%s)' %
+                    (idx + 1, self.steps[idx].__doc__),
                     fg='green',
                     bold=True)
                 continue
@@ -170,14 +176,15 @@ class Pipeline:
 
 
 @click.group()
+@click.option('--start', '-s', default=1, type=int)
+@click.option('--list-only', '-l', is_flag=True)
+@click.option('--steps', is_flag=True)
 @click.pass_context
-@click.option(
-   '--start', '-s', default=1, type=int)
-def cli(ctx, start):
-    p = Pipeline()
+def cli(ctx, start, list_only, steps):
+    p = ctx.obj['pipeline']
     p.start = start
-    ctx.obj['pipeline'] = p
-
+    p.list_only = list_only
+    p.step_by_step = steps
 
 
 @cli.command()
@@ -189,18 +196,20 @@ def cli(ctx, start):
 @click.pass_context
 def red(ctx, message):
     p = ctx.obj['pipeline']
-    p.AddStep('gen-wallpage', GetFromTemplate(
-        'wallpage.tpl', 'wallpage/index.html', {'message': message,
-                                                'timestamp':
-                                                int(time.time())}, False))
-    p.AddStep('cnk-nginx', CheckFromTemplate('nginx.tpl', 'nginx.conf'))
-    p.AddStep('gen-nginx', GetFromTemplate(
-        'nginx.tpl', 'nginx.conf', {'configs':
-                                    [{'host': 'prod',
-                                      'conf': 'wallpage'}, {'host': 'staging',
-                                                            'conf': 'deny'}]}))
-    p.AddStep('reload-nginx', RunCmdStep('sudo /bin/systemctl reload nginx'))
-    p.AddStep('stop-uwsgi', RunCmdStep('sudo /bin/systemctl stop ifdb'))
+    p.AddStep(
+        GetFromTemplate('wallpage.tpl', 'wallpage/index.html',
+                        {'message': message,
+                         'timestamp':
+                         int(time.time())}, False))
+    p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
+    p.AddStep(
+        GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
+                                                    [{'host': 'prod',
+                                                      'conf': 'wallpage'},
+                                                     {'host': 'staging',
+                                                      'conf': 'deny'}]}))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb'))
     p.Run()
 
 
@@ -208,14 +217,15 @@ def red(ctx, message):
 @click.pass_context
 def green(ctx):
     p = ctx.obj['pipeline']
-    p.AddStep('cnk-nginx', CheckFromTemplate('nginx.tpl', 'nginx.conf'))
-    p.AddStep('gen-nginx', GetFromTemplate(
-        'nginx.tpl', 'nginx.conf', {'configs':
-                                    [{'host': 'prod',
-                                      'conf': 'prod'}, {'host': 'staging',
-                                                        'conf': 'deny'}]}))
-    p.AddStep('stop-uwsgi', RunCmdStep('sudo /bin/systemctl start ifdb'))
-    p.AddStep('reload-nginx', RunCmdStep('sudo /bin/systemctl reload nginx'))
+    p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
+    p.AddStep(
+        GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
+                                                    [{'host': 'prod',
+                                                      'conf': 'prod'},
+                                                     {'host': 'staging',
+                                                      'conf': 'deny'}]}))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb'))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
     p.Run()
 
 
@@ -229,41 +239,202 @@ def stage(ctx, tag):
     virtualenv_dir = os.path.join(STAGING_DIR, 'virtualenv')
     python_dir = os.path.join(virtualenv_dir, 'bin/python')
 
-    p.AddStep('rm-old-staging', KillStaging)
-    p.AddStep('create-staging', CreateStaging)
-    p.AddStep('git-clone', RunCmdStep(
-        'git clone git@bitbucket.org:mooskagh/ifdb.git %s' % django_dir))
-    p.AddStep('cd-staging', ChDir(django_dir))
-    p.AddStep('git-checkout',
-              RunCmdStep('git checkout -b staging %s' % (tag or '')))
-    p.AddStep('mk-virtualenv',
-              RunCmdStep('virtualenv -p python3 %s' % virtualenv_dir))
-    p.AddStep('reqs-diff', StagingDiff('django/requirements.txt'))
-    p.AddStep('venv-pip', RunCmdStep(
-        '%s/bin/pip install -r %s/requirements.txt' % (virtualenv_dir, django_dir)))
-    p.AddStep('reqs-migr', StagingDiff('django/games/migrations/'))
-    p.AddStep('reqs-initifdb',
-              StagingDiff('django/games/management/commands/initifdb.py'))
-    p.AddStep('collect-static', RunCmdStep('%s %s/manage.py collectstatic --clear' % (python_dir, django_dir)))
-    p.AddStep('reqs-migr', StagingDiff('static/'))
-    p.AddStep('cnk-nginx', CheckFromTemplate('nginx.tpl', 'nginx.conf'))
-    p.AddStep('gen-nginx1', GetFromTemplate(
-        'nginx.tpl', 'nginx.conf', {'configs':
-                                    [{'host': 'prod',
-                                      'conf': 'prod'}, {'host': 'staging',
-                                                        'conf': 'staging'}]}))
-    p.AddStep('reload-nginx1', RunCmdStep('sudo /bin/systemctl reload nginx'))
+    p.AddStep(KillStaging)
+    p.AddStep(CreateStaging)
     p.AddStep(
-        'loop-uwsgi',
+        RunCmdStep('git clone git@bitbucket.org:mooskagh/ifdb.git %s' %
+                   django_dir))
+    p.AddStep(ChDir(django_dir))
+    p.AddStep(RunCmdStep('git checkout -b staging %s' % (tag or '')))
+    p.AddStep(RunCmdStep('virtualenv -p python3 %s' % virtualenv_dir))
+    p.AddStep(StagingDiff('django/requirements.txt'))
+    p.AddStep(
+        RunCmdStep('%s/bin/pip install -r %s/requirements.txt' % (
+            virtualenv_dir, django_dir)))
+    p.AddStep(StagingDiff('django/games/migrations/'))
+    p.AddStep(StagingDiff('django/games/management/commands/initifdb.py'))
+    p.AddStep(
+        RunCmdStep('%s %s/manage.py collectstatic --clear' % (python_dir,
+                                                              django_dir)))
+    p.AddStep(StagingDiff('static/'))
+    p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
+    p.AddStep(
+        GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
+                                                    [{'host': 'prod',
+                                                      'conf': 'prod'},
+                                                     {'host': 'staging',
+                                                      'conf': 'staging'}]}))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
+    p.AddStep(
         LoopStep(RunCmdStep('kill -HUP `cat /tmp/uwsgi-ifdb-staging.pid`')))
-    p.AddStep('gen-nginx2', GetFromTemplate(
-        'nginx.tpl', 'nginx.conf', {'configs':
-                                    [{'host': 'prod',
-                                      'conf': 'prod'}, {'host': 'staging',
-                                                        'conf': 'deny'}]}))
-    p.AddStep('reload-nginx2', RunCmdStep('sudo /bin/systemctl reload nginx'))
-    p.AddStep('kill-uwsgi', RunCmdStep('uwsgi --stop /tmp/uwsgi-ifdb-staging.pid'))
+    p.AddStep(
+        GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
+                                                    [{'host': 'prod',
+                                                      'conf': 'prod'},
+                                                     {'host': 'staging',
+                                                      'conf': 'deny'}]}))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
+    p.AddStep(RunCmdStep('uwsgi --stop /tmp/uwsgi-ifdb-staging.pid'))
     p.Run()
+
+
+@cli.command()
+@click.option('--hot', is_flag=True)
+@click.pass_context
+def deploy(ctx, hot):
+    p = ctx.obj['pipeline']
+    django_dir = os.path.join(ROOT_DIR, 'django')
+    virtualenv_dir = os.path.join(ROOT_DIR, 'virtualenv')
+    python_dir = os.path.join(virtualenv_dir, 'bin/python')
+
+    p.AddStep(
+        RunCmdStep(
+            'git diff-index --quiet HEAD --',
+            doc="Check that git doesn't have uncommited changes"))
+    p.AddStep(GetNextVersion)
+
+    if not hot:
+        p.AddStep(
+            GetFromTemplate('wallpage.tpl', 'wallpage/index.html',
+                            {'message': 'Сайт обновляется',
+                             'timestamp':
+                             int(time.time())}, False))
+        p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
+        p.AddStep(
+            GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
+                                                        [{'host': 'prod',
+                                                          'conf': 'wallpage'},
+                                                         {'host': 'staging',
+                                                          'conf': 'deny'}]}))
+        p.AddStep(StartTimer)
+        p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
+        p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb'))
+
+    p.AddStep(ChDir(django_dir))
+    p.AddStep(RunCmdStep('git pull'))
+
+    if not hot:
+        p.AddStep(
+            RunCmdStep('%s/bin/pip install -r %s/requirements.txt' % (
+                virtualenv_dir, django_dir)))
+        p.AddStep(
+            RunCmdStep('%s %s/manage.py migrate' % (python_dir, django_dir)))
+
+    p.AddStep(
+        RunCmdStep('%s %s/manage.py collectstatic --clear' % (python_dir,
+                                                              django_dir)))
+    if not hot:
+        p.AddStep(
+            RunCmdStep('%s %s/manage.py initifdb' % (python_dir, django_dir)))
+
+    if hot:
+        p.AddStep(RunCmdStep('sudo /bin/systemctl restart ifdb'))
+    else:
+        p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb'))
+
+    p.AddStep(LoopStep(RunCmdStep('sudo /bin/systemctl restart ifdb')))
+
+    if not hot:
+        p.AddStep(
+            GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
+                                                        [{'host': 'prod',
+                                                          'conf': 'wallpage'},
+                                                         {'host': 'staging',
+                                                          'conf': 'prod'}]}))
+        p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
+
+    p.AddStep(LoopStep(Message('Break NOW if anything is wrong')))
+
+    if not hot:
+        p.AddStep(
+            GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
+                                                        [{'host': 'prod',
+                                                          'conf': 'prod'},
+                                                         {'host': 'staging',
+                                                          'conf': 'deny'}]}))
+        p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
+        p.AddStep(StopTimer)
+
+    p.AddStep(GitTag)
+    p.AddStep(RunCmdStep('git push origin master'))
+    p.AddStep(WriteVersionConfig)
+    p.Run()
+
+
+def WriteVersionConfig(ctx):
+    """Write current version into config."""
+    with open(os.path.join(ROOT_DIR, 'configs/version.txt'), 'w') as f:
+        f.write(ctx['new-version'])
+    return True
+
+
+def GitTag(ctx):
+    """Adds a version tag into git."""
+    cmd = 'git tag -a %s -m "Adding tag %s"' % (ctx['new-version'],
+                                                ctx['new-version'])
+    return RunCmdStep(cmd)(ctx)
+
+
+def Message(msg):
+    def f(ctx):
+        click.secho(msg, fg='yellow')
+        return True
+
+    f.__doc__ = "Prints message: %s" % msg
+    return f
+
+
+def StartTimer(ctx):
+    """Start timer."""
+    ctx['down-time'] = int(time.time())
+    return True
+
+
+def StopTimer(ctx):
+    """Stop timer."""
+    hours = int(time.time()) - ctx['down-time']
+    sec = hours % 60
+    hours //= 60
+    min = hours % 60
+    hours //= 60
+    click.secho('Was offline for %d hours, %d minutes, %d seconds. Check prod.'
+                % (hours, min, sec))
+    click.pause()
+    return True
+
+
+def GetNextVersion(ctx):
+    """Determine Next Version"""
+    version_re = re.compile(r'v(\d+).(\d+).(\d+)?')
+    cnt = open(os.path.join(ROOT_DIR, 'configs/version.txt')).read().strip()
+    m = version_re.match(cnt)
+    if not m:
+        click.secho(
+            "version.txt contents is [%s], doesn't parse as version" % cnt,
+            fg='red')
+        return False
+    v = (int(m.group(1)), int(m.group(2)), int(m.group(2))
+         if m.group(2) else 0)
+    variants = [(v[0], v[1], v[2] + 1), (v[0], v[1] + 1, 0), (v[0] + 1, 0, 0)]
+    while True:
+        click.secho("Current version is %s. What will be the new one?" % cnt)
+        for i, n in enumerate(variants):
+            click.secho("%d. %s" % (i + 1, BuildVersionStr(*n)), fg='yellow')
+        r = click.prompt('', prompt_suffix='>>>>>>> ')
+        try:
+            r = int(r) - 1
+            if 0 <= r < len(variants):
+                ctx['new-version'] = BuildVersionStr(*v[r])
+                return True
+        except:
+            pass
+
+
+def BuildVersionStr(major, minor, bugfix):
+    res = 'v%d.%d' % (major, minor)
+    if bugfix:
+        res += '.%d' % bugfix
+    return res
 
 
 def LoopStep(func):
@@ -274,6 +445,7 @@ def LoopStep(func):
                 return True
             if not func(ctx):
                 return False
+
     f.__doc__ = "Loop: %s" % func.__doc__
     return f
 
@@ -344,14 +516,6 @@ def KillStaging(ctx):
         shutil.rmtree(d)
     return True
 
-# @cli.command()
-# @click.pass_context
-# def deploy(ctx):
-#     p = ctx.obj['pipeline']
-#     p.AddStep(
-#         'git-nochanges',
-#         RunCmdStep(
-#             'git diff-index --quiet HEAD --',
-#             doc="Check that git doesn't have uncommited changes"))
 
-cli(obj={})
+p = Pipeline()
+cli(obj={'pipeline': p})
