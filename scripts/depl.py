@@ -144,7 +144,7 @@ class Pipeline:
             try:
                 click.echo(
                     click.style(
-                        '[%2d/%2d] %s...' % (idx + 1, len(self.steps)),
+                        '[%2d/%2d]' % (idx + 1, len(self.steps)),
                         fg='green') + ' %s...' % task_f.__doc__)
                 if self.step_by_step:
                     if not click.confirm('Should I run it?'):
