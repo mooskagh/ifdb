@@ -1,3 +1,5 @@
+#!/bin/env python
+
 from django.conf import settings
 from django.template import Template, Context
 import click
@@ -28,7 +30,7 @@ IS_PROD = socket.gethostname() == 'ribby.mooskagh.com'
 TPL_DIR = os.path.dirname(os.path.realpath(__file__))
 if IS_PROD:
     ROOT_DIR = '/home/ifdb'
-    DST_DIR = '/home/ifdb/config'
+    DST_DIR = '/home/ifdb/configs'
 else:
     ROOT_DIR = 'D:/tmp'
     DST_DIR = 'D:/tmp'
@@ -169,8 +171,13 @@ class Pipeline:
 
 @click.group()
 @click.pass_context
-def cli(ctx):
-    ctx.obj['pipeline'] = Pipeline()
+@click.option(
+   '--start', '-s', default=1, type=int)
+def cli(ctx, start):
+    p = Pipeline()
+    p.start = start
+    ctx.obj['pipeline'] = p
+
 
 
 @cli.command()
@@ -220,23 +227,25 @@ def stage(ctx, tag):
 
     django_dir = os.path.join(STAGING_DIR, 'django')
     virtualenv_dir = os.path.join(STAGING_DIR, 'virtualenv')
+    python_dir = os.path.join(virtualenv_dir, 'bin/python')
 
     p.AddStep('rm-old-staging', KillStaging)
     p.AddStep('create-staging', CreateStaging)
     p.AddStep('git-clone', RunCmdStep(
         'git clone git@bitbucket.org:mooskagh/ifdb.git %s' % django_dir))
-    p.AddStep('cd-staging', django_dir)
+    p.AddStep('cd-staging', ChDir(django_dir))
     p.AddStep('git-checkout',
               RunCmdStep('git checkout -b staging %s' % (tag or '')))
     p.AddStep('mk-virtualenv',
               RunCmdStep('virtualenv -p python3 %s' % virtualenv_dir))
-    p.AddStop('reqs-diff', StagingDiff('django/requirements.txt'))
-    p.AddStop('reqs-migr', StagingDiff('django/games/migrations/'))
-    p.AddStop('reqs-initifdb',
-              StagingDiff('django/games/management/commands/initifdb.py'))
-    p.AddStop('reqs-migr', StagingDiff('static/'))
+    p.AddStep('reqs-diff', StagingDiff('django/requirements.txt'))
     p.AddStep('venv-pip', RunCmdStep(
-        '%s/bin/pip install -r %s/requirements.txt' % django_dir))
+        '%s/bin/pip install -r %s/requirements.txt' % (virtualenv_dir, django_dir)))
+    p.AddStep('reqs-migr', StagingDiff('django/games/migrations/'))
+    p.AddStep('reqs-initifdb',
+              StagingDiff('django/games/management/commands/initifdb.py'))
+    p.AddStep('collect-static', RunCmdStep('%s %s/manage.py collectstatic --clear' % (python_dir, django_dir)))
+    p.AddStep('reqs-migr', StagingDiff('static/'))
     p.AddStep('cnk-nginx', CheckFromTemplate('nginx.tpl', 'nginx.conf'))
     p.AddStep('gen-nginx1', GetFromTemplate(
         'nginx.tpl', 'nginx.conf', {'configs':
@@ -253,10 +262,7 @@ def stage(ctx, tag):
                                       'conf': 'prod'}, {'host': 'staging',
                                                         'conf': 'deny'}]}))
     p.AddStep('reload-nginx2', RunCmdStep('sudo /bin/systemctl reload nginx'))
-    p.AddStep('kill-uwsgi',
-              LoopStep(RunCmdStep('kill `cat /tmp/uwsgi-ifdb-staging.pid`')))
-
-    p.AddStep('rm-staging', KillStaging)
+    p.AddStep('kill-uwsgi', RunCmdStep('uwsgi --stop /tmp/uwsgi-ifdb-staging.pid'))
     p.Run()
 
 
@@ -268,6 +274,8 @@ def LoopStep(func):
                 return True
             if not func(ctx):
                 return False
+    f.__doc__ = "Loop: %s" % func.__doc__
+    return f
 
 
 def print_diff_files(dcmp):

@@ -64,7 +64,7 @@ server {
     }
 {% elif c.conf == 'wallpage' %}
     location / {
-        root /home/ifdb/configs/wallpage
+        root /home/ifdb/configs/wallpage;
         try_files $uri /index.html;
     }
 {% endif %}
