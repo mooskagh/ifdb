@@ -124,9 +124,24 @@ class Pipeline:
         self.end = None
         self.list_only = False
         self.step_by_step = False
+        self.context = {}
+        self.cmd_name = 'unknown'
 
     def AddStep(self, func):
         self.steps.append(func)
+
+    def StateFileName(self):
+        return os.path.join(DST_DIR, '%s_state.json' % self.cmd_name)
+
+    def MaybeLoadState(self):
+        if os.path.isfile(self.StateFileName()):
+            if click.confirm('Forgotten state found. Restore?'):
+                with open(self.StateFileName()) as f:
+                    self.context = json.loads(f.read())
+
+    def StoreState(self):
+        with open(self.StateFileName(), 'w') as f:
+            f.write(json.dumps(self.context))
 
     def Run(self):
         if self.list_only:
@@ -135,33 +150,36 @@ class Pipeline:
             return
         click.clear()
 
-        context = {}
         if self.end is None:
             end = len(self.steps)
-        idx = self.start - 1
-        while self.start <= (idx + 1) <= end:
-            task_f = self.steps[idx]
+        self.context['idx'] = self.start - 1
+
+        self.MaybeLoadState()
+
+        while self.start <= (self.context['idx'] + 1) <= end:
+            self.StoreState()
+
+            task_f = self.steps[self.context['idx']]
             try:
                 click.echo(
                     click.style(
-                        '[%2d/%2d]' % (idx + 1, len(self.steps)),
+                        '[%2d/%2d]' % (self.context['idx'] + 1, len(self.steps)
+                                       ),
                         fg='green') + ' %s...' % task_f.__doc__)
                 if self.step_by_step:
                     if not click.confirm('Should I run it?'):
                         raise click.Abort
-                if task_f(context):
-                    idx += 1
+                if task_f(self.context):
+                    self.context['idx'] += 1
                     continue
             except click.Abort:
                 raise
             except Jump as jmp:
-                if jmp.whereto is int:
-                    idx += jmp.whereto
-                else:
-                    idx = zip(*self.steps)[0].index(jmp.whereto)
+                self.context['idx'] += jmp.whereto
                 click.secho(
                     '[ JMP ] Jumping to %d (%s)' %
-                    (idx + 1, self.steps[idx].__doc__),
+                    (self.context['idx'] + 1,
+                     self.steps[self.context['idx']].__doc__),
                     fg='green',
                     bold=True)
                 continue
@@ -170,8 +188,9 @@ class Pipeline:
 
             click.secho('[ FAIL ]', fg='red', bold=True)
             if not RetryPrompt():
-                idx += 1
+                self.context['idx'] += 1
         click.secho('The pipeline has finished.', fg='green', bold=True)
+        os.remove(self.StateFileName())
 
 
 @click.group()
@@ -348,7 +367,6 @@ def deploy(ctx, hot):
             RunCmdStep('sudo /bin/systemctl restart ifdb'),
             'Check STAGING and reload if needed.'))
 
-
     if not hot:
         p.AddStep(
             GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
@@ -359,7 +377,7 @@ def deploy(ctx, hot):
         p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
         p.AddStep(StopTimer)
     p.AddStep(
-            Message('Break NOW if anything is wrong',
+        Message('Break NOW if anything is wrong',
                 'Check PROD and break if needed.'))
 
     p.AddStep(GitTag)
