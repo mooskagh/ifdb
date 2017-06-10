@@ -43,6 +43,16 @@ if IS_PROD:
     else:
         STATIC_ROOT = os.path.abspath('/home/ifdb/static')
 
+    ADMINS = [('Alexander Lyashuk', 'mooskagh+ersatzplut@gmail.com')]
+    EMAIL_USE_TLS = True
+    EMAIL_HOST = 'smtp.gmail.com'
+    EMAIL_PORT = 587
+    EMAIL_HOST_USER = 'ersatzplut@gmail.com'
+    EMAIL_HOST_PASSWORD = open('/home/ifdb/configs/gmail-pass.txt').read(
+    ).strip()
+    DEFAULT_FROM_EMAIL = 'ersatzplut@gmail.com'
+    SERVER_EMAIL = 'ersatzplut@gmail.com'
+
 else:
     SECRET_KEY = 'l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr'
     DEBUG = True

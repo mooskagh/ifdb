@@ -4,6 +4,7 @@ from pijnu.library.node import Nodes
 from urllib.parse import unquote
 import datetime
 import re
+import logging
 
 
 class IfwikiImporter:
@@ -12,9 +13,6 @@ class IfwikiImporter:
 
     def Import(self, url):
         return ImportFromIfwiki(url)
-
-# TODO log code when this is hit.
-DEBG = False
 
 
 def ImportFromIfwiki(url):
@@ -38,7 +36,7 @@ def ImportFromIfwiki(url):
         pre_text = preproc.parse(cont)
         output = parser.parse(pre_text.leaves())
     except:
-        # TODO(crem)  log(error) that case.
+        logging.error('Error while parsing %s' % url)
         return {'error': 'Какая-то ошибка при парсинге. Надо сказать админам.'}
 
     res['title'] = context.title
@@ -87,6 +85,7 @@ class WikiParsingContext:
         self.authors = []
         self.tags = []
         self.urls = [CategorizeUrl(url)]
+        self.url = url
 
     def AddUrl(self, url, desc=''):
         self.urls.append(CategorizeUrl(url, desc))
@@ -190,12 +189,12 @@ def toolset_preproc(context):
         node.value = '&%s;' % node.leaf()
 
     def substitute_numbered_entity(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
 
     def substitute_template_parameter(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
 
     def substitute_template(node):
         node.value = context.ParseTemplate(node)
@@ -333,9 +332,9 @@ def toolset_wiki(context):
             node.value = style_tags[node.value[0].value]
         elif node.value[0].value in autoclose_tags:
             node.value = autoclose_tags[node.value[0].value]
-        elif DEBG:
-            input(node.treeView() + "\n>")
         else:
+            logging.error('url: %s, title:%s\n%s' %
+                          (context.url, context.title, node.treeView()))
             node.value = ''
 
     def render_tag_close(node):
@@ -344,60 +343,70 @@ def toolset_wiki(context):
     def render_tag_autoclose(node):
         if node.value[0].value in autoclose_tags:
             node.value = autoclose_tags[node.value[0].value]
-        elif DEBG:
-            input(node.treeView() + "\n>")
-        else:
-            node.value = ''
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
+        node.value = ''
 
     def render_attribute(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
+        node.value = ''
 
     def render_table(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
+        node.value = ''
 
     def render_table_line_break(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
+        node.value = ''
 
     def render_table_header_cell(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
+        node.value = ''
 
     def render_table_normal_cell(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
+        node.value = ''
 
     def render_table_empty_cell(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
+        node.value = ''
 
     def render_table_caption(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
+        node.value = ''
 
     def render_preformatted(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
+        node.value = ''
 
     def render_source(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
+        node.value = ''
 
     def render_source_open(node):
         node.value = ''
 
     def render_source_text(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
+        node.value = ''
 
     def render_hr(node):
         node.value = '\n===\n'
 
     def render_li(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
+        node.value = ''
 
     def render_list(node):
         collapse_list(node.value)
@@ -421,7 +430,8 @@ def toolset_wiki(context):
             context.ProcessLink('|'.join([x.leaf() for x in node.value])))
 
     def render_invalid(node):
-        if DEBG:
-            input(node.treeView() + "\n>")
+        logging.error('url: %s, title:%s\n%s' %
+                      (context.url, context.title, node.treeView()))
+        node.value = ''
 
     return locals()
