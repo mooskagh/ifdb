@@ -1,4 +1,4 @@
-from urllib.parse import quote, urlunsplit, urlsplit, urlparse
+from urllib.parse import quote, urlunsplit, urlsplit, urlparse, urljoin
 import urllib
 import re
 
@@ -23,14 +23,17 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('www.youtube.com', '', '', 'video', 'Видео игры'),
     ('forum.ifiction.ru', '', '', 'forum', 'Обсуждение на форуме'),
     ('qsp.su', '', '.*=dd_download.*', 'download_direct', 'Скачать с qsp.ru'),
-    ('qsp.su', '', '.', 'game_page', 'Игра на qsp.ru'),
+    ('qsp.su', '/tools/aero/.*', '', 'play_online', 'Играть онлайн на qsp.ru'),
+    ('qsp.su', '', '', 'game_page', 'Игра на qsp.ru'),
     (r'@.*\.github\.io', '', '', 'play_online', 'Играть онлайн'),
     ('iplayif.com', '', '', 'play_online', 'Играть онлайн'),
     ('', r'.*\.(zip|rar|z5)', '', 'download_direct', 'Ссылка для скачивания'),
 ]
 
 
-def CategorizeUrl(url, desc='', category=None):
+def CategorizeUrl(url, desc='', category=None, base=None):
+    if base:
+        url = urljoin(base, url)
     purl = urlparse(url)
     cat_slug = 'unknown'
 

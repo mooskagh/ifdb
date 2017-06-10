@@ -106,7 +106,7 @@ class WikiParsingContext:
                 self.authors.append({'role_slug': t, 'name': name})
                 break
         else:
-            # TODO log that
+            logging.error('Unknown role %s' % role)
             self.authors.append({'role_slug': 'member', 'name': name})
         return display_name or name
 
@@ -140,8 +140,7 @@ class WikiParsingContext:
             elif k in GAMEINFO_IGNORE:
                 pass
             else:
-                print('BBB', k, v)  # TODO(crem) Fail
-                # TODO else log
+                logging.error('Unknown gameinfo tag: %s %s' % (k, v))
 
     def DispatchTemplate(self, name, params):
         if name == 'PAGENAME':
@@ -162,7 +161,7 @@ class WikiParsingContext:
         if name == 'Тема':
             self.tags.append({'cat_slug': 'genre', 'tag': params['1']})
             return ''
-        print('AAAAAAAAAAAAAAA', name, params)  # TODO(crem) Fail
+        logging.error('Unknown template: %s %s' % (name, params))
         return ''
 
     def ParseTemplate(self, node):

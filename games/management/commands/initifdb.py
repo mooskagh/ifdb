@@ -6,6 +6,7 @@ AUTHOR_ROLES = [
     ['artist', 'Художник'],
     ['tester', 'Тестировщик'],
     ['translator', 'Переводчик'],
+    ['porter', 'Перенёс на другую платформу'],
     ['character', 'Персонаж'],
     ['member', 'Участник (прочие)'],
 ]
@@ -21,6 +22,7 @@ TAG_CATS = [
     ['price', 'Цена', False],
     ['competition', 'Участник конкурса', True],
     ['ifid', 'IFID', True],
+    ['version', 'Версия', True],
 ]
 
 TAGS = [
