@@ -1,1 +1,2 @@
 import psycopg2
+import mdx_del_ins

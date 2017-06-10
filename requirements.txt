@@ -1,8 +1,9 @@
-click==6.6
-mediawiki_parser==0.4.1
+mdx_del_ins==1.0
 Markdown==2.6.8
+click==6.6
+html2text==2016.9.19
 Django==1.11.1
 psycopg2==2.7.1
 pijnu==20160727
-html2text==2016.9.19
+mediawiki_parser==0.4.1
 python_dateutil==2.6.0
