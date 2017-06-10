@@ -25,8 +25,8 @@
     <body>
         <div class="root">
             <nav id="top-nav">
-                <a {% current 'index' %} href="{% url 'index' %}">Главная</a>
-                <a {% current 'list_games' %} href="{% url 'list_games' %}">Игры</a>
+                <a class="{% current 'index' %}" href="{% url 'index' %}">Главная</a>
+                <a class="{% current 'list_games' %}" href="{% url 'list_games' %}">Игры</a>
                 <!--  <a href="http://ifiction.ru/">ifiction.ru</a>
                 <a href="http://forum.ifiction.ru/">Форум</a>
                 <a href="http://ifwiki.ru/">ifwiki.ru</a>
@@ -35,7 +35,7 @@
                 <a href="/">Движки</a>
                 <a href="/">Конкурсы</a> -->
                 {% if user.is_authenticated %}
-                    <a {% current 'add_game' %} href="{% url 'add_game' %}">
+                    <a class="{% current 'add_game' %}" href="{% url 'add_game' %}">
                         Добавить&nbsp;игру
                     </a>
                 {% endif %}
@@ -48,20 +48,23 @@
                     &#x1f50d;&#xFE0E;
                 </div> -->
                 {% if user.is_authenticated %}
-                    <form class="loginbox" method="post" action="{% url 'logout' %}">
+                    <form class="loginbox" method="post" action="{% url 'auth_logout' %}">
                         {% csrf_token %}
                         Вы <b>{{ user.username }}</b>.
                         <input type="submit" value="Выйти" />
                         <input type="hidden" name="next" value="{{ request.path }}" />
                     </form>
                 {% else %}
-                    <form class="loginbox" method="post" action="{% url 'login' %}">
+                    <form class="loginbox" method="post" action="{% url 'auth_login' %}">
                         {% csrf_token %}
                         <input placeholder="Логин" type="text" name="username" id="id_username" required maxlength="254" />
                         <input placeholder="Пароль" type="password" name="password" id="id_password" required />
                         <input type="submit" value="Войти" />
                         <input type="hidden" name="next" value="{{ request.path }}" />
                     </form>
+                    <a href="{% url 'registration_register' %}" class="register {% current 'registration_register' %}" >
+                        Регистрация
+                    </a>
                 {% endif %}
             </nav>
             <div class="content">

@@ -1,5 +1,4 @@
-from django.conf.urls import url
-from django.contrib.auth import views as auth_views
+from django.conf.urls import url, include
 
 from . import views
 
@@ -16,6 +15,5 @@ urlpatterns = [
     url(r'^json/gameinfo/', views.json_gameinfo, name='json_gameinfo'),
     url(r'^json/upload/', views.upload, name='upload'),
     url(r'^json/import/', views.doImport, name='import'),
-    url(r'^accounts/login/$', auth_views.LoginView.as_view(), name='login'),
-    url(r'^accounts/logout/$', auth_views.LogoutView.as_view(), name='logout'),
+    url(r'^accounts/', include('registration.backends.hmac.urls')),
 ]

@@ -394,7 +394,8 @@ textarea#description {
 }
 
 #errormessage {
-    margin-top: 50px;
+    margin-top: 30px;
+    padding: 10px;
 }
 
 button,
@@ -428,7 +429,7 @@ button#upload_button {
     padding: 2px 4px;
 }
 
-button#submit {
+button#submit, .user-registration input[type="submit"] {
     font-size: 16px;
     margin-top: 20px;
     border: none;
@@ -508,4 +509,43 @@ progress::-webkit-progress-value {
 #reply-2 {
     margin-top: 1em;
     margin-left: 4em;
+}
+
+.user-registration table {
+    text-align: left;
+}
+
+.user-registration th {
+    vertical-align: top;
+    width: 200px;
+    text-align: right;
+}
+
+.user-registration .helptext {
+    font-size: 90%;
+    color: #625B61;
+}
+
+.user-registration td,th {
+    padding: 10px;
+}
+
+.user-registration {
+    text-align: center;
+}
+
+.user-registration .errorlist {
+    color: red;
+    font-style: italic;
+}
+
+#top-nav a.register {
+    color: #00487c;
+    display: inline-block;
+    font: bold 12px/42px 'Trebuchet MS', 'Helvetica Neue', Arial, Sans-Serif;
+    height: 40px;
+    padding: 0 5px;
+    text-decoration: underline;
+    text-transform: none;
+    font-weight: normal;
 }

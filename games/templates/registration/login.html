@@ -6,7 +6,7 @@
     <div id="errorheader">
         Место ввода пароля
     </div>
-    <form method="post" action="{% url 'login' %}" class="password_form">
+    <form method="post" action="{% url 'auth_login' %}" class="password_form">
         {% if form.errors %}
             <p class="perror">
                 Пароль не подошёл.<br>Попробуй ещё повводить.
