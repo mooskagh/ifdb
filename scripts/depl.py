@@ -397,7 +397,7 @@ def deploy(ctx, hot, new_version):
 
     p.AddStep(JumpIfExists('new-version', if_false=2))
     p.AddStep(WriteVersionConfigAndGitTag)
-    p.AddStep(RunCmdStep('git push'))
+    p.AddStep(RunCmdStep('git push --tags origin release'))
 
     p.Run('deploy')
 
@@ -408,7 +408,7 @@ def JumpIfExists(var, if_true=1, if_false=1):
         if var in ctx:
             click.secho(
                 '%s exists and equal to %s, jumping %+d' %
-                (var, ctx['var'], if_true),
+                (var, ctx[var], if_true),
                 fg='yellow')
             jmp = if_true
         else:
