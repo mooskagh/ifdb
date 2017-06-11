@@ -343,7 +343,7 @@ def deploy(ctx, hot, new_version):
     p.AddStep(RunCmdStep('git pull'))
 
     if new_version:
-        p.AddStep(RunCmdStep('git fetch upstream master:master'))
+        p.AddStep(RunCmdStep('git fetch origin master:master'))
         p.AddStep(RunCmdStep('git merge --no-ff master'))
         p.AddStep(GetNextVersion)
 
