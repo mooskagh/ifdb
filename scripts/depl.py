@@ -302,8 +302,7 @@ def stage(ctx, tag):
 
 @cli.command()
 @click.option('--hot', is_flag=True)
-@click.option(
-    '--new-version/--no-new-version', prompt=True, is_flag=True)
+@click.option('--new-version/--no-new-version', prompt=True, is_flag=True)
 @click.pass_context
 def deploy(ctx, hot, new_version):
     p = ctx.obj['pipeline']
@@ -339,6 +338,7 @@ def deploy(ctx, hot, new_version):
     p.AddStep(RunCmdStep('git pull'))
 
     if new_version:
+        p.AddStep(RunCmdStep('git fetch upstream master:master'))
         p.AddStep(RunCmdStep('git merge --no-ff master'))
         p.AddStep(GetNextVersion)
 
@@ -351,12 +351,12 @@ def deploy(ctx, hot, new_version):
 
     if hot:
         p.AddStep(
-        RunCmdStep('%s %s/manage.py collectstatic' % (python_dir,
-                                                              django_dir)))
+            RunCmdStep('%s %s/manage.py collectstatic' % (python_dir,
+                                                          django_dir)))
     else:
         p.AddStep(
-        RunCmdStep('%s %s/manage.py collectstatic --clear' % (python_dir,
-                                                              django_dir)))
+            RunCmdStep('%s %s/manage.py collectstatic --clear' % (python_dir,
+                                                                  django_dir)))
     if not hot:
         p.AddStep(
             RunCmdStep('%s %s/manage.py initifdb' % (python_dir, django_dir)))
@@ -403,7 +403,7 @@ def deploy(ctx, hot, new_version):
     p.AddStep(JumpIfExists('new-version', if_false=2))
     p.AddStep(WriteVersionConfigAndGitTag)
 
-    p.AddStep(RunCmdStep('git push'))
+    p.AddStep(RunCmdStep('git push --tags origin release'))
 
     p.Run('deploy')
 
@@ -414,7 +414,7 @@ def JumpIfExists(var, if_true=1, if_false=1):
         if var in ctx:
             click.secho(
                 '%s exists and equal to %s, jumping %+d' %
-                (var, ctx['var'], if_true),
+                (var, ctx[var], if_true),
                 fg='yellow')
             jmp = if_true
         else:
@@ -482,7 +482,8 @@ def GetNextVersion(ctx):
         return None
     variants = [(v[0], v[1], v[2] + 1), (v[0], v[1] + 1, 0), (v[0] + 1, 0, 0)]
     while True:
-        click.secho("Current version is %s. What will be the new one?" % BuildVersionStr(*v))
+        click.secho("Current version is %s. What will be the new one?" %
+                    BuildVersionStr(*v))
         for i, n in enumerate(variants):
             click.secho("%d. %s" % (i + 1, BuildVersionStr(*n)), fg='yellow')
         r = click.prompt('', prompt_suffix='>>>>>>> ')
