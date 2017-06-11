@@ -397,6 +397,7 @@ def deploy(ctx, hot, new_version):
 
     p.AddStep(JumpIfExists('new-version', if_false=2))
     p.AddStep(WriteVersionConfigAndGitTag)
+
     p.AddStep(RunCmdStep('git push'))
 
     p.Run('deploy')
