@@ -302,8 +302,10 @@ def stage(ctx, tag):
 
 @cli.command()
 @click.option('--hot', is_flag=True)
+@click.option(
+    '--new-version/--no-new-version', prompt=True, is_flag=True)
 @click.pass_context
-def deploy(ctx, hot):
+def deploy(ctx, hot, new_version):
     p = ctx.obj['pipeline']
     django_dir = os.path.join(ROOT_DIR, 'django')
     virtualenv_dir = os.path.join(ROOT_DIR, 'virtualenv')
@@ -314,7 +316,7 @@ def deploy(ctx, hot):
         RunCmdStep(
             'git diff-index --quiet HEAD --',
             doc="Check that git doesn't have uncommited changes"))
-    p.AddStep(GetNextVersion)
+    p.AddStep(RunCmdStep('git fetch'))
 
     if not hot:
         p.AddStep(
@@ -333,7 +335,12 @@ def deploy(ctx, hot):
         p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
         p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb'))
 
+    p.AddStep(RunCmdStep('git checkout release'))
     p.AddStep(RunCmdStep('git pull'))
+
+    if new_version:
+        p.AddStep(RunCmdStep('git merge --no-ff master'))
+        p.AddStep(GetNextVersion)
 
     if not hot:
         p.AddStep(
@@ -381,25 +388,105 @@ def deploy(ctx, hot):
         Message('Break NOW if anything is wrong',
                 'Check PROD and break if needed.'))
 
-    p.AddStep(GitTag)
-    p.AddStep(RunCmdStep('git push --tags origin master'))
-    p.AddStep(WriteVersionConfig)
+    p.AddStep(
+        RunCmdStep(
+            'git diff-index --quiet HEAD --',
+            doc="Check that git doesn't have uncommited changes."))
+
+    p.AddStep(MaybeCreateNewBugfixVersion)
+
+    p.AddStep(JumpIfExists('new-version', if_false=2))
+    p.AddStep(WriteVersionConfigAndGitTag)
+    p.AddStep(RunCmdStep('git push'))
+
     p.Run('deploy')
 
 
-def WriteVersionConfig(ctx):
-    """Write current version into config."""
-    cnt = ctx['new-version']
-    with open(os.path.join(ROOT_DIR, 'configs/version.txt'), 'w') as f:
-        f.write(cnt)
+def JumpIfExists(var, if_true=1, if_false=1):
+    def f(ctx):
+        jmp = None
+        if var in ctx:
+            click.secho(
+                '%s exists and equal to %s, jumping %+d' %
+                (var, ctx['var'], if_true),
+                fg='yellow')
+            jmp = if_true
+        else:
+            click.secho(
+                '%s is not in context, jumping %+d' % (var, if_false),
+                fg='yellow')
+            jmp = if_false
+        if jmp == 1:
+            return True
+        else:
+            raise Jump(jmp)
+
+    f.__doc__ = "Jump %+d if %s exists else jump %+d" % (if_true, var,
+                                                         if_false)
+    return f
+
+
+def MaybeCreateNewBugfixVersion(ctx):
+    """Creates a new bugfix version if needed."""
+    if 'new-version' in ctx:
+        click.secho(
+            "New version %s already known." % ctx['new-version'], fg='yellow')
+        return True
+    if RunCmdStep('git describe --exact-match HEAD')(ctx):
+        click.secho("No changes since last version.", fg='yellow')
+        return True
+    v = GetCurrentVersion()
+    v = BuildVersionStr(v[0], v[1], v[2] + 1)
+    click.secho("New version is %s." % v, fg='yellow')
+    ctx['new-version'] = v
     return True
 
 
-def GitTag(ctx):
-    """Adds a version tag into git."""
-    cmd = 'git tag -a %s -m "Adding tag %s"' % (ctx['new-version'],
-                                                ctx['new-version'])
-    return RunCmdStep(cmd)(ctx)
+def WriteVersionConfigAndGitTag(ctx):
+    """Write current version into config."""
+    v = ctx['new-version']
+    with open(os.path.join(ROOT_DIR, 'django/version.txt'), 'w') as f:
+        f.write(v)
+    if not RunCmdStep('git add version.txt')(ctx):
+        return False
+    if not RunCmdStep('git commit -m "Change version.txt to %s."' % v)(ctx):
+        return False
+    if not RunCmdStep('git tag -a %s -m "Adding tag %s"' % (v, v))(ctx):
+        return False
+    return True
+
+
+def GetCurrentVersion():
+    version_re = re.compile(r'v(\d+)\.(\d+)(?:\.(\d+))?')
+    cnt = open(os.path.join(ROOT_DIR, 'django/version.txt')).read().strip()
+    m = version_re.match(cnt)
+    if not m:
+        click.secho(
+            "version.txt contents is [%s], doesn't parse as version" % cnt,
+            fg='red')
+        return None
+    return (int(m.group(1)), int(m.group(2)), int(m.group(2))
+            if m.group(2) else 0)
+
+
+def GetNextVersion(ctx):
+    """Determine Next Version"""
+    v = GetCurrentVersion()
+    if not v:
+        return None
+    variants = [(v[0], v[1], v[2] + 1), (v[0], v[1] + 1, 0), (v[0] + 1, 0, 0)]
+    while True:
+        click.secho("Current version is %s. What will be the new one?" % cnt)
+        for i, n in enumerate(variants):
+            click.secho("%d. %s" % (i + 1, BuildVersionStr(*n)), fg='yellow')
+        r = click.prompt('', prompt_suffix='>>>>>>> ')
+        try:
+            r = int(r) - 1
+            if 0 <= r < len(variants):
+                ctx['new-version'] = BuildVersionStr(*variants[r])
+                return True
+        except:
+            pass
 
 
 def Message(msg, text):
@@ -429,33 +516,6 @@ def StopTimer(ctx):
                 % (hours, min, sec))
     click.pause()
     return True
-
-
-def GetNextVersion(ctx):
-    """Determine Next Version"""
-    version_re = re.compile(r'v(\d+)\.(\d+)(?:\.(\d+))?')
-    cnt = open(os.path.join(ROOT_DIR, 'configs/version.txt')).read().strip()
-    m = version_re.match(cnt)
-    if not m:
-        click.secho(
-            "version.txt contents is [%s], doesn't parse as version" % cnt,
-            fg='red')
-        return False
-    v = (int(m.group(1)), int(m.group(2)), int(m.group(2))
-         if m.group(2) else 0)
-    variants = [(v[0], v[1], v[2] + 1), (v[0], v[1] + 1, 0), (v[0] + 1, 0, 0)]
-    while True:
-        click.secho("Current version is %s. What will be the new one?" % cnt)
-        for i, n in enumerate(variants):
-            click.secho("%d. %s" % (i + 1, BuildVersionStr(*n)), fg='yellow')
-        r = click.prompt('', prompt_suffix='>>>>>>> ')
-        try:
-            r = int(r) - 1
-            if 0 <= r < len(variants):
-                ctx['new-version'] = BuildVersionStr(*variants[r])
-                return True
-        except:
-            pass
 
 
 def BuildVersionStr(major, minor, bugfix):
