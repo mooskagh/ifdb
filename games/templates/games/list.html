@@ -1,14 +1,136 @@
 {% extends "./base.html" %}
 {% load static %}
+{% block scripts %}
+    <script src="/static/search.js"></script>
+{% endblock %}
 {% block content %}
-    {% for g in games %}
-        <a class="gamelist-thumb" href="{% url 'show_game' game_id=g.id %}">
-            <div class="poster-container">
-                <img class="poster" src="{% static 'duck.jpg' %}"/>
-            </div>
-            <div class="title-container">
-                {{ g.title }}
-            </div>
-        </a>
-    {% endfor %}
+    <div class="search-box">
+        <table>
+            {% for bit in search %}
+            <tr data-val="{{bit.val}}" data-type="{{bit.type}}" {% if bit.hidden %} style="display: none;" {% endif %}>
+                {% if bit.type == 'sorting' %}
+                <th>Сортировать по:</th>
+                <td>
+                    {% for i in bit.items %}
+                        {% spaceless %}
+                        <span data-item-val="{{ i.val }}" class="sort {% if i.current %}current{% endif %}">
+                            {{ i.name }}
+                            <span class="sortbutton">{% if i.desc %}▼{% endif %}{% if i.asc %}▲{% endif %}</span>
+                        </span>
+                        {% endspaceless %}
+                    {% endfor %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+            <tr>
+                <th>Искать по словам:</th>
+                <td>
+                    <input style="width:400px;"/>
+                    <label><input type="checkbox" />Только в названиях</label>
+                </td>
+            </tr>
+            <tr>
+                <th>Способ управления:</th>
+                <td>
+                    <label class="prop-value"><input type="checkbox" />Парсер</label>
+                    <label class="prop-value"><input type="checkbox" />Меню</label>
+                    <label class="prop-value"><input type="checkbox" />Не указано</label>
+                </td>
+            </tr>
+            <tr>
+                <th>Операционная система:</th>
+                <td>
+                    <label class="prop-value"><input type="checkbox" />Windows</label>
+                    <label class="prop-value"><input type="checkbox" />Web (online)</label>
+                    <label class="prop-value"><input type="checkbox" />MacOs</label>
+                    <label class="prop-value"><input type="checkbox" />Linux</label>
+                    <label class="prop-value"><input type="checkbox" />iOS</label>
+                    <label class="prop-value"><input type="checkbox" />Android</label>
+                    <label class="prop-value"><input type="checkbox" />DOS</label>
+                    <label class="prop-value"><input type="checkbox" />Другая ОС</label>
+                    <label class="prop-value"><input type="checkbox" />Не указано</label>
+                </td>
+            </tr>
+            <tr>
+                <th>Интерпретаторы:</th>
+                <td>
+                    <label class="prop-value"><input type="checkbox" />Windows</label>
+                    <label class="prop-value"><input type="checkbox" />Web (online)</label>
+                    <label class="prop-value"><input type="checkbox" />MacOs</label>
+                    <label class="prop-value"><input type="checkbox" />Linux</label>
+                    <label class="prop-value"><input type="checkbox" />iOS</label>
+                    <label class="prop-value"><input type="checkbox" />Android</label>
+                    <label class="prop-value"><input type="checkbox" />DOS</label>
+                    <label class="prop-value"><input type="checkbox" />Другая ОС</label>
+                </td>
+            </tr>
+            <tr>
+                <th>Жанры:</th>
+                <td>
+                    <label class="prop-value"><input type="checkbox" />Windows</label>
+                    <label class="prop-value"><input type="checkbox" />Web (online)</label>
+                    <label class="prop-value"><input type="checkbox" />MacOs</label>
+                    <label class="prop-value"><input type="checkbox" />Linux</label>
+                    <label class="prop-value"><input type="checkbox" />iOS</label>
+                    <label class="prop-value"><input type="checkbox" />Android</label>
+                    <label class="prop-value"><input type="checkbox" />DOS</label>
+                    <label class="prop-value"><input type="checkbox" />Другая ОС</label>
+                </td>
+            </tr>
+            <tr>
+                <th>Обязательно наличие:</th>
+                <td>
+                    <label class="prop-value"><input type="checkbox" />Видео</label>
+                    <label class="prop-value"><input type="checkbox" />Отзывов</label>
+                    <label class="prop-value"><input type="checkbox" />Обсуждений</label>
+                    <label class="prop-value"><input type="checkbox" />Комментариев</label>
+                    <label class="prop-value"><input type="checkbox" />Ссылки на игру</label>
+                </td>
+            </tr>
+            <tr>
+                <th>Тэги:</th>
+                <td>
+                </td>
+            </tr>
+            <tr>
+                <th>Дата выхода:</th>
+                <td>
+                    с <input type="date">
+                    по <input type="date">
+                    <label><input type="checkbox" />и игры с неизвестной датой</label>
+                </td>
+            </tr>
+            <tr>
+                <th>Время прохождения:</th>
+                <td>
+                    с <input type="range">
+                    по <input type="range">
+                    <label><input type="checkbox" />и игры, которые никто не прошёл</label>
+                </td>
+            </tr>
+        </table>
+        <script type="text/javascript">
+            DecorateSearchItems();
+        </script>
+    </div>
+
+    <div class="gamelist-thumb-container">
+        <div class="gamelist-message">
+            Сейчас сюда должен загрузиться список...
+        </div>
+    </div>
+
+    {% comment %}
+        {% for g in games %}
+            <a class="gamelist-thumb" href="{% url 'show_game' game_id=g.id %}">
+                <div class="poster-container">
+                    <img class="poster" src="{% static 'duck.jpg' %}"/>
+                </div>
+                <div class="title-container">
+                    {{ g.title }}
+                </div>
+            </a>
+        {% endfor %}
+    {% endcomment %}
 {% endblock %}

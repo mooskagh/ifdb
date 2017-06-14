@@ -1,0 +1,31 @@
+{% load static %}
+{% load tags %}
+{% if games %}
+{% for g in games %}
+    <a class="gamelist-thumb" href="{% url 'show_game' game_id=g.id %}">
+        <div class="poster-container">
+            <img class="poster" src="{{ g.poster|default:'/static/noposter.png' }}"/>
+        </div>
+        <div class="title-container">
+            {{ g.title }}
+        </div>
+        <div class="auxinfo">
+        {% if g.ds.creation_date %}
+            Добавлено {{ g.ds.creation_date }}.
+        {% elif g.ds.release_date %}
+            Вышла {{ g.ds.release_date }}.
+        {% elif g.ds.stars %}
+            {% for x in g.ds.stars %}
+                <img src="/static/duck{{x}}.png" />
+            {% endfor %}
+        {% elif g.ds.duration %}
+            Прохождение:
+            {{ g.ds.duration.hours|rupl:"час,часа,часов" }}
+            {{ g.ds.duration.mins|rupl:"минута,минуты,минут" }}.
+        {% endif %}
+        </div>
+    </a>
+{% endfor %}
+{% else %}
+    <div class="gamelist-message">Ничего не нашлось.</div>
+{% endif %}

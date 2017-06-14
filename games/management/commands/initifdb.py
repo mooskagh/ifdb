@@ -17,6 +17,7 @@ TAG_CATS = [
     ['genre', 'Жанр', True],
     ['platform', 'Платформа', True],
     ['country', 'Страна', True],
+    ['control', 'Управление', False],
     ['os', 'Операционная система', False],
     ['source', 'Исходный код', False],
     ['price', 'Цена', False],

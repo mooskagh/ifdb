@@ -270,38 +270,56 @@ input:not([type]),textarea {
     margin-top: 1em;
 }
 
+.gamelist-thumb-container {
+    text-align: center;
+}
+
+.gamelist-invalid {
+    opacity: 0.5;
+}
+
 a.gamelist-thumb {
     background-color: #F2F1EB;
+    border-radius: 2px;
+    border: 1px solid #7E787D;
+    box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
     box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
     color: #31322D;
-    display: block;
-    float: left;
+    display: inline-block;
     font-weight: bold;
     height: 180px;
-    margin: 10px;
+    margin: 7px;
     overflow: hidden;
-    padding: 20px;
-    text-decoration: none;
-    width: 180px;
     padding: 0;
-    border-radius: 2px;
+    text-decoration: none;
+    text-align: left;
+    width: 180px;
 }
 
 a.gamelist-thumb .poster-container {
-    height: 110px;
+    height: 100px;
     overflow: hidden;
 }
 
 a.gamelist-thumb .title-container {
-    margin: 0;
-    height: 100%;
-    padding: 5px;
     border-top: 1px solid #b1b0ab;
+    height: 50px;
+    margin: 0;
+    padding: 5px;
+    overflow: hidden;
 }
 
 a.gamelist-thumb img.poster {
     width: 100%;
 }
+
+a.gamelist-thumb .auxinfo {
+    text-align: right;
+    margin-right: 5px;
+    font-size: 80%;
+    font-style: italic;
+}
+
 
 .prop-category {
     font-size: 90%;
@@ -312,6 +330,22 @@ a.gamelist-thumb img.poster {
     color: #31322D;
     font-weight: bold;
 }
+
+.sort {
+    border:  1px solid #625b61;
+    margin: 1px;
+    padding: 3px;
+    color: #625b61;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.sort.current {
+    background-color: #00487c;
+    border: none;
+    color: #f2f1eb;
+}
+
 
 .prop-comment {
     color: #625B61;
@@ -526,7 +560,7 @@ progress::-webkit-progress-value {
     color: #625B61;
 }
 
-.user-registration td,th {
+.user-registration td,.user-registration th {
     padding: 10px;
 }
 
@@ -537,6 +571,41 @@ progress::-webkit-progress-value {
 .user-registration .errorlist {
     color: red;
     font-style: italic;
+}
+
+.search-box {
+    background-color: #F2F1EB;
+    border-radius: 2.5px;
+    border: 1px solid #31322d;
+    box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    line-height: 30px;
+    text-align: center;
+}
+
+.gamelist-message {
+    background-color: #F2F1EB;
+    border-radius: 2.5px;
+    border: 1px solid #31322d;
+    box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
+    margin: 40px auto;
+    padding: 20px;
+    text-align: center;
+    width:  300px;
+}
+
+.search-box table {
+    margin: auto;
+}
+
+.search-box table th {
+    text-align: right;
+    vertical-align: top;
+    min-width: 180px;
+}
+
+.search-box table td {
+    text-align: left;
 }
 
 #top-nav a.register {

@@ -66,7 +66,8 @@ EMAIL_PORT = 587
 EMAIL_HOST_USER = 'ersatzplut@gmail.com'
 DEFAULT_FROM_EMAIL = 'ersatzplut@gmail.com'
 SERVER_EMAIL = 'ersatzplut@gmail.com'
-
+INTERNAL_IPS = ['127.0.0.1', '10.162.0.100',
+                '2a02:168:520c:0:c0e2:2ad2:9900:9b36']
 
 # Application definition
 

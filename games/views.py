@@ -2,6 +2,8 @@ from .models import (GameAuthorRole, Author, Game, GameTagCategory, GameTag,
                      URLCategory, URL, GameURL, GameVote, GameComment,
                      GameAuthor)
 from .importer import Import
+from .search import MakeSearch
+from .tools import FormatDate, FormatTime, StarsFromRating
 from datetime import datetime
 from dateutil.parser import parse as parse_date
 from django.contrib.auth.decorators import login_required
@@ -17,22 +19,6 @@ import json
 import markdown
 
 PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
-
-
-def FormatDate(x):
-    if not x:
-        return None
-    return '%d %s %d' % (x.day, ['января', 'февраля', 'марта', 'апреля', 'мая',
-                                 'июня', 'июля', 'августа', 'сентября',
-                                 'октября', 'ноября', 'декабря'][x.month - 1],
-                         x.year)
-
-
-def FormatTime(x):
-    if not x:
-        return None
-    return "%04d-%02d-%02d %02d:%02d" % (x.year, x.month, x.day, x.hour,
-                                         x.minute)
 
 
 def index(request):
@@ -166,11 +152,16 @@ def show_game(request, game_id):
 
 def list_games(request):
     res = []
+    s = MakeSearch()
+    query = request.GET.get('q', '')
+    s.UpdateFromQuery(query)
     for x in Game.objects.all().order_by('-creation_time'):
         if not request.perm(x.view_perm):
             continue
         res.append({'id': x.id, 'title': x.title})
-    return render(request, 'games/list.html', {'games': res})
+    return render(request, 'games/list.html', {'games': res,
+                                               'query': query,
+                                               'search': s.ProduceBits()})
 
 
 @perm_required(PERM_ADD_GAME)
@@ -271,6 +262,25 @@ def json_gameinfo(request):
             g['links'].append(
                 (x.category_id, x.description or '', x.url.original_url))
     return JsonResponse(res)
+
+
+def json_search(request):
+    query = request.GET.get('q', '')
+    s = MakeSearch()
+    s.UpdateFromQuery(query)
+    games = s.Search()
+
+    posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
+        game__in=games).select_related('url'))
+
+    g2p = {}
+    for x in posters:
+        g2p[x.game_id] = x.url.local_url or x.url.original_url
+
+    for x in games:
+        x.poster = g2p.get(x.id)
+
+    return render(request, 'games/search_snippet.html', {'games': games})
 
 
 def Importer2Json(r):
@@ -374,12 +384,9 @@ def GetGameScore(game, user=None):
 
     res['played_count'] = len(played_votes)
     if played_votes:
-        avg = round(mean(played_votes) * 10)
-        res['avg_rating'] = ("%3.1f" % (avg / 10.0)).replace('.', ',')
-        res['stars'] = [10] * (avg // 10)
-        if avg % 10 != 0:
-            res['stars'].append(avg % 10)
-        res['stars'].extend([0] * (5 - len(res['stars'])))
+        avg = mean(played_votes)
+        res['avg_rating'] = ("%3.1f" % avg).replace('.', ',')
+        res['stars'] = StarsFromRating(avg)
 
         t = round(median(played_times))
         res['played_hours'] = t // 60
