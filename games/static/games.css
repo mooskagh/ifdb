@@ -327,16 +327,17 @@ a.gamelist-thumb .auxinfo {
     font-weight: bold;
 }
 
-.sort {
+.sort,.tag {
+    border-radius: 4px;
     border:  1px solid #625b61;
-    margin: 1px;
-    padding: 3px;
     color: #625b61;
     cursor: pointer;
-    border-radius: 4px;
+    margin: 1px;
+    padding: 3px;
+    white-space: nowrap;
 }
 
-.sort.current {
+.sort.current, .tag.current {
     background-color: #00487c;
     border: none;
     color: #f2f1eb;

@@ -30,72 +30,17 @@
                     </label>
                     {% endspaceless %}
                 </td>
+                {% elif bit.type == 'tags' %}
+                <th>{{ bit.cat.name}}:</th>
+                <td>
+                    {% for x in bit.items %}
+                    <span class="tag {% if x.on %}current{% endif %}" data-item-val="{{ x.id }}">{{ x.name }}</span>
+                    {% endfor %}
+                </td>
                 {% endif %}
             </tr>
             {% endfor %}
-            <tr>
-                <th>Способ управления:</th>
-                <td>
-                    <label class="prop-value"><input type="checkbox" />Парсер</label>
-                    <label class="prop-value"><input type="checkbox" />Меню</label>
-                    <label class="prop-value"><input type="checkbox" />Не указано</label>
-                </td>
-            </tr>
-            <tr>
-                <th>Операционная система:</th>
-                <td>
-                    <label class="prop-value"><input type="checkbox" />Windows</label>
-                    <label class="prop-value"><input type="checkbox" />Web (online)</label>
-                    <label class="prop-value"><input type="checkbox" />MacOs</label>
-                    <label class="prop-value"><input type="checkbox" />Linux</label>
-                    <label class="prop-value"><input type="checkbox" />iOS</label>
-                    <label class="prop-value"><input type="checkbox" />Android</label>
-                    <label class="prop-value"><input type="checkbox" />DOS</label>
-                    <label class="prop-value"><input type="checkbox" />Другая ОС</label>
-                    <label class="prop-value"><input type="checkbox" />Не указано</label>
-                </td>
-            </tr>
-            <tr>
-                <th>Интерпретаторы:</th>
-                <td>
-                    <label class="prop-value"><input type="checkbox" />Windows</label>
-                    <label class="prop-value"><input type="checkbox" />Web (online)</label>
-                    <label class="prop-value"><input type="checkbox" />MacOs</label>
-                    <label class="prop-value"><input type="checkbox" />Linux</label>
-                    <label class="prop-value"><input type="checkbox" />iOS</label>
-                    <label class="prop-value"><input type="checkbox" />Android</label>
-                    <label class="prop-value"><input type="checkbox" />DOS</label>
-                    <label class="prop-value"><input type="checkbox" />Другая ОС</label>
-                </td>
-            </tr>
-            <tr>
-                <th>Жанры:</th>
-                <td>
-                    <label class="prop-value"><input type="checkbox" />Windows</label>
-                    <label class="prop-value"><input type="checkbox" />Web (online)</label>
-                    <label class="prop-value"><input type="checkbox" />MacOs</label>
-                    <label class="prop-value"><input type="checkbox" />Linux</label>
-                    <label class="prop-value"><input type="checkbox" />iOS</label>
-                    <label class="prop-value"><input type="checkbox" />Android</label>
-                    <label class="prop-value"><input type="checkbox" />DOS</label>
-                    <label class="prop-value"><input type="checkbox" />Другая ОС</label>
-                </td>
-            </tr>
-            <tr>
-                <th>Обязательно наличие:</th>
-                <td>
-                    <label class="prop-value"><input type="checkbox" />Видео</label>
-                    <label class="prop-value"><input type="checkbox" />Отзывов</label>
-                    <label class="prop-value"><input type="checkbox" />Обсуждений</label>
-                    <label class="prop-value"><input type="checkbox" />Комментариев</label>
-                    <label class="prop-value"><input type="checkbox" />Ссылки на игру</label>
-                </td>
-            </tr>
-            <tr>
-                <th>Тэги:</th>
-                <td>
-                </td>
-            </tr>
+            {% comment %}
             <tr>
                 <th>Дата выхода:</th>
                 <td>
@@ -112,6 +57,7 @@
                     <label><input type="checkbox" />и игры, которые никто не прошёл</label>
                 </td>
             </tr>
+            {% endcomment %}
         </table>
         <script type="text/javascript">
             DecorateSearchItems();

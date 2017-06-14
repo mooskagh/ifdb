@@ -33,12 +33,12 @@ function BaseXEncoder() {
 
     this.addSet = function(x) {
         var y = x;
-        y.sort();
+        y.sort(function(a,b) {return a - b;});
         this.addInteger(y.length);
         for (var i = 0; i < y.length; ++i) {
           if (i == 0)
               this.addInteger(y[0]);
-          else if (y[i] > y[i-1])
+          else if (y[i] != y[i-1])
             this.addInteger(y[i] - y[i-1] - 1);
         }
     };
@@ -187,6 +187,24 @@ function DecorateSearchItems() {
         enc.addHeader(1, 0);
         enc.addBool(parent.find('[data-item-val]')[0].checked);
         enc.addString(text);
+    });
+
+    // Type 2: Tags.
+    $('tr[data-type="tags"]').each(function(index, element) {
+        $(element).find('[data-item-val]').click(function() {
+            $(this).toggleClass('current');
+            UpdateSearchList();
+        });
+    }).on('encode-query', function(event, enc){
+        var parent = $(event.target);
+        var items = [];
+        var text = parent.find('.current').each(function() {
+            items.push($(this).attr('data-item-val'))
+        });
+        if (items.length == 0) return;
+        var category = parent.attr('data-val');
+        enc.addHeader(2, category);
+        enc.addSet(items);
     });
 
     UpdateSearchList();

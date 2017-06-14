@@ -152,7 +152,7 @@ def show_game(request, game_id):
 
 def list_games(request):
     res = []
-    s = MakeSearch()
+    s = MakeSearch(request.perm)
     query = request.GET.get('q', '')
     s.UpdateFromQuery(query)
     for x in Game.objects.all().order_by('-creation_time'):
@@ -266,7 +266,7 @@ def json_gameinfo(request):
 
 def json_search(request):
     query = request.GET.get('q', '')
-    s = MakeSearch()
+    s = MakeSearch(request.perm)
     s.UpdateFromQuery(query)
     games = s.Search()
 

@@ -1,5 +1,5 @@
 import re
-from .models import Game
+from .models import Game, GameTag, GameTagCategory
 import statistics
 from .tools import FormatDate, FormatTime, StarsFromRating
 
@@ -55,6 +55,15 @@ class BaseXReader:
 
     def ReadBool(self):
         return self.ReadInt() != 0
+
+    def ReadSet(self):
+        res = []
+        count = self.ReadInt()
+        for i in range(count):
+            res.append(self.ReadInt())
+            if i > 0:
+                res[i] += res[i - 1] + 1
+        return set(res)
 
 
 class SearchBit:
@@ -223,8 +232,49 @@ class SB_Text(SearchBit):
         return res
 
 
+class SB_Tag(SearchBit):
+    TYPE_ID = 2
+
+    def __init__(self, cat, *args, **kwargs):
+        super().__init__(cat.id, False)  # TODO (change to true!)
+        self.cat = cat
+        self.items = set()
+
+    def ProduceDict(self):
+        res = super().ProduceDict('tags')
+        res['cat'] = self.cat
+        items = []
+        for x in (GameTag.objects.filter(category=self.cat).order_by('order')):
+            items.append({'id': x.id,
+                          'name': x.name,
+                          'on': x.id in self.items})
+        items.append({'id': 0, 'name': 'Не указано', 'on': 0 in self.items})
+        res['items'] = items
+        return res
+
+    def LoadFromQuery(self, reader):
+        self.items = reader.ReadSet()
+
+    def ModifyQuery(self, query):
+        if self.items:
+            return query.prefetch_related('tags')
+        return query
+
+    def ModifyResult(self, games):
+        if not self.items:
+            return games
+
+        res = []
+        for g in games:
+            tags = set([x.id for x in g.tags.all() if x.category == self.cat])
+            if tags & self.items or not tags and 0 in self.items:
+                res.append(g)
+        return res
+
+
 class Search:
-    def __init__(self):
+    def __init__(self, perm):
+        self.perm = perm
         self.bits = []
         self.id_to_bit = {}
 
@@ -245,11 +295,10 @@ class Search:
             self.id_to_bit[key].LoadFromQuery(reader)
 
     def Search(self):
-        # TODO  perms!
         q = Game.objects.all()
         for x in self.bits:
             q = x.ModifyQuery(q)
-        games = list(q)
+        games = [x for x in q if self.perm(x.view_perm)]
         for g in games:
             g.ds = {}
         for x in self.bits:
@@ -257,8 +306,12 @@ class Search:
         return games
 
 
-def MakeSearch():
-    s = Search()
+def MakeSearch(perm):
+    s = Search(perm)
     s.Add(SB_Sorting())
     s.Add(SB_Text())
+    for x in GameTagCategory.objects.order_by('order').all():
+        if not perm(x.show_in_search_perm):
+            continue
+        s.Add(SB_Tag(x))
     return s
