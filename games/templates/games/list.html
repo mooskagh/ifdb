@@ -20,16 +20,19 @@
                         {% endspaceless %}
                     {% endfor %}
                 </td>
+                {% elif bit.type == 'text' %}
+                <th>Искать по словам:</th>
+                <td>
+                    <input class="search-text" type="text" value="{{ bit.text }}"/>
+                    {% spaceless %}
+                    <label>
+                        <input data-item-val="0" type="checkbox" {% if bit.titles_only %}checked{% endif %}/>Только в названиях
+                    </label>
+                    {% endspaceless %}
+                </td>
                 {% endif %}
             </tr>
             {% endfor %}
-            <tr>
-                <th>Искать по словам:</th>
-                <td>
-                    <input style="width:400px;"/>
-                    <label><input type="checkbox" />Только в названиях</label>
-                </td>
-            </tr>
             <tr>
                 <th>Способ управления:</th>
                 <td>

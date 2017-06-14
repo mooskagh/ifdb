@@ -274,10 +274,6 @@ input:not([type]),textarea {
     text-align: center;
 }
 
-.gamelist-invalid {
-    opacity: 0.5;
-}
-
 a.gamelist-thumb {
     background-color: #F2F1EB;
     border-radius: 2px;
@@ -606,6 +602,10 @@ progress::-webkit-progress-value {
 
 .search-box table td {
     text-align: left;
+}
+
+.search-box .search-text {
+    width: 400px;
 }
 
 #top-nav a.register {

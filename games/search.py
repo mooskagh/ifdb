@@ -1,6 +1,16 @@
+import re
 from .models import Game
 import statistics
 from .tools import FormatDate, FormatTime, StarsFromRating
+
+RE_WORD = re.compile(r"\w(?:[-\w']+\w)?")
+
+
+def TokenizeText(text):
+    res = set()
+    for x in RE_WORD.finditer(text):
+        res.add(x.group(0).lower())
+    return res
 
 
 class BaseXReader:
@@ -42,6 +52,9 @@ class BaseXReader:
         size = self.ReadInt()
         return ''.join([chr(self.ReadInt()) for x in range(size)]).encode(
             'utf-16', 'surrogatepass').decode('utf-16')
+
+    def ReadBool(self):
+        return self.ReadInt() != 0
 
 
 class SearchBit:
@@ -177,6 +190,39 @@ class SB_Sorting(SearchBit):
             return list(list(zip(*times))[1]) + nones
 
 
+class SB_Text(SearchBit):
+    TYPE_ID = 1
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text = ''
+        self.titles_only = True
+
+    def ProduceDict(self):
+        res = super().ProduceDict('text')
+        res['text'] = self.text
+        res['titles_only'] = self.titles_only
+        return res
+
+    def LoadFromQuery(self, reader):
+        self.titles_only = reader.ReadBool()
+        self.text = reader.ReadString()
+
+    def ModifyResult(self, games):
+        if not self.text:
+            return games
+        # TODO(crem) Do something at query time.
+        query = TokenizeText(self.text or '')
+        res = []
+        for g in games:
+            tokens = TokenizeText(g.title or '')
+            if not self.titles_only:
+                tokens |= TokenizeText(g.description or '')
+            if len(tokens & query) >= 0.7 * len(query):
+                res.append(g)
+        return res
+
+
 class Search:
     def __init__(self):
         self.bits = []
@@ -214,4 +260,5 @@ class Search:
 def MakeSearch():
     s = Search()
     s.Add(SB_Sorting())
+    s.Add(SB_Text())
     return s

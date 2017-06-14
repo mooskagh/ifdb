@@ -117,14 +117,24 @@ function SrpFetcher() {
 
 function DecorateSearchItems() {
     var fetcher = new SrpFetcher();
+    var timer = null;
 
     function UpdateSearchList() {
+        if (timer) {
+            clearTimeout(timer);
+            timer = null;
+        }
         var enc = new BaseXEncoder();
         $('tr[data-val]').trigger('encode-query', [enc]);
         window.history.pushState({'dirty': 'yes!'},
                                  null, '?q=' + enc.value());
         // TODO Analytics!
         fetcher.loadResults(enc.value());
+    }
+
+    function DeferUpdate() {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(UpdateSearchList, 500);
     }
 
     $(window).on('popstate', function(){
@@ -161,5 +171,23 @@ function DecorateSearchItems() {
             enc.addInteger(val);
         }
     });
+
+    // Type 1: Text.
+    $('tr[data-type="text"]').each(function(index, element) {
+        $(element).find('[data-item-val]').click(function() {
+            if ($(element).find('input[type="text"]')[0].value != '') {
+                UpdateSearchList();
+            }
+        });
+        $(element).find('input[type="text"]').on('input', DeferUpdate);
+    }).on('encode-query', function(event, enc){
+        var parent = $(event.target);
+        var text = parent.find('input[type="text"]')[0].value;
+        if (!text) return;
+        enc.addHeader(1, 0);
+        enc.addBool(parent.find('[data-item-val]')[0].checked);
+        enc.addString(text);
+    });
+
     UpdateSearchList();
 }
