@@ -58,7 +58,6 @@ else:
         }
     }
     MEDIA_ROOT = os.path.abspath('./uploads')
-    EMAIL_HOST_PASSWORD = open('D:/tmp/gmail-pass.txt').read().strip()
     URL_CACHE_DIR = os.path.join(BASE_DIR, 'urlcache')
     DEBUG_TOOLBAR_PANELS = [
         'debug_toolbar.panels.versions.VersionsPanel',
