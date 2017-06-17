@@ -17,6 +17,7 @@ from ifdb.permissioner import perm_required
 from statistics import mean, median
 import json
 import markdown
+import logging
 
 PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
 
@@ -50,27 +51,8 @@ def store_game(request):
         return render(request, 'games/error.html',
                       {'message': 'У игры должно быть название.'})
 
-    if ('game_id' in j):
-        g = Game.objects.get(id=j['game_id'])
-        request.perm.Ensure(g.edit_perm)
-        g.edit_time = datetime.now()
-    else:
-        request.perm.Ensure(PERM_ADD_GAME)
-        g = Game()
-        g.creation_time = datetime.now()
-        g.added_by = request.user
-
-    g.title = j['title']
-    g.description = j['description'] or None
-    g.release_date = (parse_date(j['release_date'])
-                      if j['release_date'] else None)
-
-    g.save()
-    UpdateGameUrls(request, g, j['links'], 'game_id' in j)
-    UpdateGameTags(request, g, j['properties'], 'game_id' in j)
-    UpdateGameAuthors(request, g, j['authors'], 'game_id' in j)
-
-    return redirect(reverse('show_game', kwargs={'game_id': g.id}))
+    id = UpdateGame(request, j)
+    return redirect(reverse('show_game', kwargs={'game_id': id}))
 
 
 @perm_required(PERM_ADD_GAME)
@@ -215,7 +197,8 @@ def tags(request):
             'tags': []
         }
         # TODO(crem) Optimize this.
-        for y in (GameTag.objects.filter(category=x).order_by('order', 'name')):
+        for y in (GameTag.objects.filter(category=x).order_by('order',
+                                                              'name')):
             val['tags'].append({
                 'id': y.id,
                 'name': y.name,
@@ -297,7 +280,8 @@ def Importer2Json(r):
         res['authors'] = []
         for x in r['authors']:
             if 'role_slug' in x:
-                role = GameAuthorRole.objects.get(symbolic_id=x['role_slug']).id
+                role = GameAuthorRole.objects.get(
+                    symbolic_id=x['role_slug']).id
             else:
                 role = r['role']
             res['authors'].append([role, x['name']])
@@ -306,7 +290,11 @@ def Importer2Json(r):
         res['tags'] = []
         for x in r['tags']:
             if 'tag_slug' in x:
-                tag = GameTag.objects.get(symbolic_id=x['tag_slug'])
+                try:
+                    tag = GameTag.objects.get(symbolic_id=x['tag_slug'])
+                except:
+                    logging.error('Cannot fetch tag %s' % x['tag_slug'])
+                    raise
                 cat = tag.category.id
                 tag = tag.id
             else:
@@ -341,7 +329,8 @@ def doImport(request):
 def GetMarkdown(content):
     return markdown.markdown(content, [
         'markdown.extensions.extra', 'markdown.extensions.meta',
-        'markdown.extensions.smarty', 'markdown.extensions.wikilinks', 'del_ins'
+        'markdown.extensions.smarty', 'markdown.extensions.wikilinks',
+        'del_ins'
     ]) if content else ''
 
 
@@ -587,3 +576,27 @@ def UpdateGameUrls(request, game, data, update):
 
     if existing_urls:
         GameURL.objects.filter(id__in=list(existing_urls.values())).delete()
+
+
+def UpdateGame(request, j):
+    if ('game_id' in j):
+        g = Game.objects.get(id=j['game_id'])
+        request.perm.Ensure(g.edit_perm)
+        g.edit_time = datetime.now()
+    else:
+        request.perm.Ensure(PERM_ADD_GAME)
+        g = Game()
+        g.creation_time = datetime.now()
+        g.added_by = request.user
+
+    g.title = j['title']
+    g.description = j['desc'] or None
+    g.release_date = (parse_date(j['release_date'])
+                      if 'release_date' in j else None)
+
+    g.save()
+    UpdateGameUrls(request, g, j['links'], 'game_id' in j)
+    UpdateGameTags(request, g, j['tags'], 'game_id' in j)
+    UpdateGameAuthors(request, g, j['authors'], 'game_id' in j)
+
+    return g.id

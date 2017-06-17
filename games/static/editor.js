@@ -720,10 +720,10 @@ function SubmitGameJson() {
     isValid &= $('#links').urlUpload('isValid');
     if (!isValid) return;
 
-    res.description = $('#description').val();
+    res.desc = $('#description').val();
     res.release_date = $('#release_date').val();
     res.authors = $('#authors').propSelector('values');
-    res.properties = $('#tags').propSelector('values');
+    res.tags = $('#tags').propSelector('values');
     res.links = $('#links').urlUpload('values');
 
     var game_id = $('.gameedit').attr('game-id');

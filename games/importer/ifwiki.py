@@ -195,11 +195,11 @@ def toolset_preproc(context):
 
     def substitute_numbered_entity(node):
         logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+                                                 node))
 
     def substitute_template_parameter(node):
         logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+                                                 node))
 
     def substitute_template(node):
         node.value = context.ParseTemplate(node)
@@ -340,8 +340,8 @@ def toolset_wiki(context):
         elif node.value[0].value in autoclose_tags:
             node.value = autoclose_tags[node.value[0].value]
         else:
-            logging.error('url: %s, title:%s\n%s' %
-                          (context.url, context.title, node.treeView()))
+            logging.error('url: %s, title:%s\n%s' % (context.url,
+                                                     context.title, node))
             node.value = ''
 
     def render_tag_close(node):
@@ -350,53 +350,51 @@ def toolset_wiki(context):
     def render_tag_autoclose(node):
         if node.value[0].value in autoclose_tags:
             node.value = autoclose_tags[node.value[0].value]
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
         node.value = ''
 
     def render_attribute(node):
         logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+                                                 node))
         node.value = ''
 
     def render_table(node):
         logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+                                                 node))
         node.value = ''
 
     def render_table_line_break(node):
         logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+                                                 node))
         node.value = ''
 
     def render_table_header_cell(node):
         logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+                                                 node))
         node.value = ''
 
     def render_table_normal_cell(node):
         logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+                                                 node))
         node.value = ''
 
     def render_table_empty_cell(node):
         logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+                                                 node))
         node.value = ''
 
     def render_table_caption(node):
         logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+                                                 node))
         node.value = ''
 
     def render_preformatted(node):
         logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+                                                 node))
         node.value = ''
 
     def render_source(node):
         logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+                                                 node))
         node.value = ''
 
     def render_source_open(node):
@@ -404,7 +402,7 @@ def toolset_wiki(context):
 
     def render_source_text(node):
         logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+                                                 node))
         node.value = ''
 
     def render_hr(node):
@@ -412,7 +410,7 @@ def toolset_wiki(context):
 
     def render_li(node):
         logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+                                                 node))
         node.value = ''
 
     def render_list(node):
