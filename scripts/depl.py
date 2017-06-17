@@ -285,6 +285,7 @@ def stage(ctx, tag):
         RunCmdStep('%s %s/manage.py collectstatic --clear' % (python_dir,
                                                               django_dir)))
     p.AddStep(StagingDiff('static/'))
+    p.AddSet(RunCmdStep('chmod -R a+rX %s/static') % STAGING_DIR)
     p.AddStep(
         RunCmdStep('%s/bin/uwsgi %s/uwsgi-staging.ini' % (virtualenv_dir,
                                                           DST_DIR)))
