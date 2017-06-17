@@ -46,7 +46,7 @@ def ImportFromQsp(url):
 
     res['urls'] = [CategorizeUrl(url, '', base=url)]
     authors = []
-    tags = []
+    tags = [{'cat_slug': 'platform', 'tag': 'QSP'}]
 
     for m in QSP_TR.finditer(m.group(1)):
         tr = m.group(1)

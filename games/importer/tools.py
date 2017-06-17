@@ -1,4 +1,5 @@
 from urllib.parse import quote, urlunsplit, urlsplit, urlparse, urljoin
+from .enrichment import enricher
 import urllib
 import re
 
@@ -141,6 +142,7 @@ def Import(seed_url):
         urls_checked.add(url_hash)
 
         r = DispatchImport(url)
+        enricher.Enrich(r)
 
         if 'priority' not in r:
             r['priority'] = -1000

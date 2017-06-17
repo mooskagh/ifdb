@@ -43,8 +43,8 @@ if IS_PROD:
     else:
         STATIC_ROOT = os.path.abspath('/home/ifdb/static')
 
-    EMAIL_HOST_PASSWORD = open('/home/ifdb/configs/gmail-pass.txt').read(
-    ).strip()
+    EMAIL_HOST_PASSWORD = open(
+        '/home/ifdb/configs/gmail-pass.txt').read().strip()
 
 else:
     SECRET_KEY = 'l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr'
@@ -66,8 +66,9 @@ EMAIL_PORT = 587
 EMAIL_HOST_USER = 'ersatzplut@gmail.com'
 DEFAULT_FROM_EMAIL = 'ersatzplut@gmail.com'
 SERVER_EMAIL = 'ersatzplut@gmail.com'
-INTERNAL_IPS = ['127.0.0.1', '10.162.0.100',
-                '2a02:168:520c:0:c0e2:2ad2:9900:9b36']
+INTERNAL_IPS = [
+    '127.0.0.1', '10.162.0.100', '2a02:168:520c:0:c0e2:2ad2:9900:9b36'
+]
 
 # Application definition
 
@@ -117,19 +118,19 @@ WSGI_APPLICATION = 'ifdb.wsgi.application'
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME':
-        'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+            'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
         'NAME':
-        'django.contrib.auth.password_validation.MinimumLengthValidator',
+            'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
         'NAME':
-        'django.contrib.auth.password_validation.CommonPasswordValidator',
+            'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {
         'NAME':
-        'django.contrib.auth.password_validation.NumericPasswordValidator',
+            'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
 

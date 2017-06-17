@@ -22,7 +22,8 @@ def ImportFromIfwiki(url):
         fetch_url = '%s/index.php?title=%s&action=raw' % (m.group(1),
                                                           m.group(2))
         cont = FetchUrl(fetch_url) + '\n'
-    except:
+    except Exception as e:
+        logging.exception("Error while importing [%s] from Ifwiki" % url)
         return {'error': 'Не открывается что-то этот URL.'}
 
     res = {'priority': 100}
@@ -35,8 +36,8 @@ def ImportFromIfwiki(url):
     try:
         pre_text = preproc.parse(cont)
         output = parser.parse(pre_text.leaves())
-    except:
-        logging.error('Error while parsing %s' % url)
+    except Exception as e:
+        logging.exception('Error while parsing %s' % url)
         return {'error': 'Какая-то ошибка при парсинге. Надо сказать админам.'}
 
     res['title'] = context.title
@@ -54,7 +55,7 @@ def ImportFromIfwiki(url):
     return res
 
 
-IFWIKI_URL = re.compile(r'(https?://ifwiki.ru)/([^/:]+)')
+IFWIKI_URL = re.compile(r'(https?://ifwiki.ru)/([^/?]+)')
 IFWIKI_LINK_PARSE = re.compile(r'\[\[(.*?)\]\]')
 IFWIKI_LINK_INTERNALS_PARSE = re.compile(
     r'([^:\]|]+)::?([^:\]|]+)(?:\|([^\]|]+))?')
@@ -436,8 +437,7 @@ def toolset_wiki(context):
             context.ProcessLink('|'.join([x.leaf() for x in node.value])))
 
     def render_invalid(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node.treeView()))
+        logging.error('url: %s, title:%s' % (context.url, context.title))
         node.value = ''
 
     return locals()
