@@ -191,7 +191,8 @@ class SB_Sorting(SearchBit):
                 ratings.append((vote, g))
 
             ratings.sort(key=lambda x: x[0], reverse=self.desc)
-            return list(list(zip(*ratings))[1]) + nones
+            rated_games = list(list(zip(*ratings))[1]) if ratings else []
+            return rated_games + nones
 
         if self.method == self.DURATION:
             times = []
@@ -209,7 +210,8 @@ class SB_Sorting(SearchBit):
                 times.append((avg, g))
 
             times.sort(key=lambda x: x[0], reverse=self.desc)
-            return list(list(zip(*times))[1]) + nones
+            timed_games = list(list(zip(*times))[1]) if times else []
+            return timed_games + nones
 
     def IsActive(self):
         return True

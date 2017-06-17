@@ -94,10 +94,12 @@ function SrpFetcher() {
     };
 }
 
-
 function DecorateSearchItems() {
     var fetcher = new SrpFetcher();
     var timer = null;
+    var gan = (typeof ga === 'function') ? ga : function(a, b, c ,d, e, f){
+        // console.log(a, b, c, d, e, f);
+    };
 
     function UpdateSearchList() {
         if (timer) {
@@ -106,6 +108,7 @@ function DecorateSearchItems() {
         }
         var enc = new BaseXVarintEncoder();
         $('tr[data-val]').trigger('encode-query', [enc]);
+        gan('send', 'event', 'search', 'query', enc.value());
         window.history.pushState({'dirty': 'yes!'},
                                  null, '?q=' + enc.value());
         // TODO Analytics!
@@ -125,18 +128,23 @@ function DecorateSearchItems() {
     $('tr[data-type="sorting"]').each(function(index, element) {
         $(element).find('[data-item-val]').click(function() {
             var el = $(this);
+            var add = 0;
             if (el.hasClass('current')) {
                 var dir = el.find('.sortbutton');
                 if (dir.text().indexOf('▼') == -1)
                     dir.text('▼');
-                else
+                else {
                     dir.text('▲');
+                    add = 1;
+                }
             } else {
                 $(element).find('[data-item-val]').removeClass('current');
                 $(element).find('.sortbutton').empty();
                 el.addClass('current');
                 el.find('.sortbutton').text('▼');
             }
+            gan('send', 'event', 'search', 'sorting',
+                2 * el.attr('data-item-val') + add);
             UpdateSearchList();
         });
     }).on('encode-query', function(event, enc){
@@ -155,6 +163,8 @@ function DecorateSearchItems() {
     // Type 1: Text.
     $('tr[data-type="text"]').each(function(index, element) {
         $(element).find('[data-item-val]').click(function() {
+            gan('send', 'event', 'search', 'only_title',
+                $(this).prop('checked') ? 'on' : 'off');
             if ($(element).find('input[type="text"]')[0].value !== '') {
                 UpdateSearchList();
             }
@@ -173,6 +183,9 @@ function DecorateSearchItems() {
     $('tr[data-type="tags"]').each(function(index, element) {
         $(element).find('[data-item-val]').click(function() {
             $(this).toggleClass('current');
+            gan('send', 'event', 'search', 'tag',
+                $(this).hasClass('current') ? 'on' : 'off',
+                parseInt($(this).attr('data-item-val')));
             UpdateSearchList();
         });
     }).on('encode-query', function(event, enc){

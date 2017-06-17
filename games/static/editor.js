@@ -765,6 +765,11 @@ function ImportGame() {
         return;
     }
     $('#import_warning').hide();
+
+    if (typeof ga === 'function') {
+        ga('send', 'event', 'editor', 'import', url);
+    }
+
     $.getJSON('/json/import/', {'url': url}, function(data) {
         if (data.hasOwnProperty('error')) {
             $('#import_warning').show();
