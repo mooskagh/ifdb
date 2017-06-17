@@ -543,7 +543,7 @@ def GetNextVersion(ctx):
             pass
 
 
-def Message(msg, text):
+def Message(msg, text="Press any key to continue..."):
     def f(ctx):
         click.secho(msg, fg='yellow')
         click.pause(text)
