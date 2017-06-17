@@ -111,7 +111,6 @@ function DecorateSearchItems() {
         gan('send', 'event', 'search', 'query', enc.value());
         window.history.pushState({'dirty': 'yes!'},
                                  null, '?q=' + enc.value());
-        // TODO Analytics!
         fetcher.loadResults(enc.value());
     }
 
