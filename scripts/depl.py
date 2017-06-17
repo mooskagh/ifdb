@@ -325,7 +325,7 @@ def stage(ctx, tag):
 @cli.command()
 @click.option('--hot', is_flag=True)
 @click.option(
-    '---from-master/--no-from-master', default=None, is_flag=True)
+    '--from-master/--no-from-master', default=None, is_flag=True)
 @click.pass_context
 def deploy(ctx, hot, from_master):
     if from_master is None:
