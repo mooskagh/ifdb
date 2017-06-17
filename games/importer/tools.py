@@ -1,7 +1,11 @@
 from urllib.parse import quote, urlunsplit, urlsplit, urlparse, urljoin
+from .enrichment import enricher
 import urllib
+import hashlib
 import re
+import os.path
 
+URL_CACHE_DIR = None
 RE_WORD = re.compile('\w+')
 MIN_SIMILARITY = 0.67
 REGISTERED_IMPORTERS = []
@@ -18,7 +22,7 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('instead-games.ru', '.*/download/.*', '', 'download_direct',
      'Скачать с инстеда'),
     ('instead-games.ru', '', '', 'game_page', 'Страница на инстеде'),
-    ('instead.syscall.ru', '*/forum/.*', '', 'forum', 'Форум на инстеде'),
+    ('instead.syscall.ru', '.*/forum/.*', '', 'forum', 'Форум на инстеде'),
     ('youtube.com', '', '', 'video', 'Видео игры'),
     ('www.youtube.com', '', '', 'video', 'Видео игры'),
     ('forum.ifiction.ru', '', '', 'forum', 'Обсуждение на форуме'),
@@ -70,10 +74,22 @@ def SimilarEnough(w1, w2):
 
 
 def FetchUrl(url):
-    url = quote(url.encode('utf-8'), safe='/+=&?%:@;!#$*()_-')
     print('Fetching: %s' % url)
+    filename_hash = hashlib.md5(url.encode('utf-8')).hexdigest()
+    if URL_CACHE_DIR:
+        filename = os.path.join(URL_CACHE_DIR, filename_hash)
+        if os.path.isfile(filename):
+            with open(filename, 'rb') as f:
+                return f.read().decode('utf-8')
+
+    url = quote(url.encode('utf-8'), safe='/+=&?%:@;!#$*()_-')
     with urllib.request.urlopen(url) as response:
-        return response.read().decode('utf-8')
+        contents = response.read()
+        if URL_CACHE_DIR:
+            filename = os.path.join(URL_CACHE_DIR, filename_hash)
+            with open(filename, 'wb') as f:
+                f.write(contents)
+        return contents.decode('utf-8')
 
 
 def DispatchImport(url):
@@ -141,6 +157,7 @@ def Import(seed_url):
         urls_checked.add(url_hash)
 
         r = DispatchImport(url)
+        enricher.Enrich(r)
 
         if 'priority' not in r:
             r['priority'] = -1000
@@ -171,6 +188,7 @@ def Import(seed_url):
     if 'title' in r and 'error' in r:
         del r['error']
     return r
+
 
 # Schema:
 # title: title

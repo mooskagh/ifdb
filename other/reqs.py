@@ -1,3 +1,0 @@
-import psycopg2
-import django_registration
-import mdx_del_ins

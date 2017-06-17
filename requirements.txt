@@ -1,6 +1,7 @@
 click==6.6
-Django==1.11.1
+django_debug_toolbar==1.8
 django_registration==2.2
+Django==1.11.1
 html2text==2016.9.19
 Markdown==2.6.8
 mdx_del_ins==1.0
@@ -8,3 +9,4 @@ mediawiki_parser==0.4.1
 pijnu==20160727
 psycopg2==2.7.1
 python_dateutil==2.6.0
+uWSGI==2.0.15

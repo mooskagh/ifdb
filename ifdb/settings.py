@@ -43,8 +43,8 @@ if IS_PROD:
     else:
         STATIC_ROOT = os.path.abspath('/home/ifdb/static')
 
-    EMAIL_HOST_PASSWORD = open('/home/ifdb/configs/gmail-pass.txt').read(
-    ).strip()
+    EMAIL_HOST_PASSWORD = open(
+        '/home/ifdb/configs/gmail-pass.txt').read().strip()
 
 else:
     SECRET_KEY = 'l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr'
@@ -58,6 +58,22 @@ else:
     }
     MEDIA_ROOT = os.path.abspath('./uploads')
     EMAIL_HOST_PASSWORD = open('D:/tmp/gmail-pass.txt').read().strip()
+    URL_CACHE_DIR = os.path.join(BASE_DIR, 'urlcache')
+    DEBUG_TOOLBAR_PANELS = [
+        'debug_toolbar.panels.versions.VersionsPanel',
+        'debug_toolbar.panels.timer.TimerPanel',
+        'debug_toolbar.panels.settings.SettingsPanel',
+        'debug_toolbar.panels.headers.HeadersPanel',
+        'debug_toolbar.panels.request.RequestPanel',
+        'debug_toolbar.panels.sql.SQLPanel',
+        'debug_toolbar.panels.staticfiles.StaticFilesPanel',
+        'debug_toolbar.panels.templates.TemplatesPanel',
+        'debug_toolbar.panels.cache.CachePanel',
+        'debug_toolbar.panels.signals.SignalsPanel',
+        'debug_toolbar.panels.logging.LoggingPanel',
+        'debug_toolbar.panels.redirects.RedirectsPanel',
+        'ddt_request_history.panels.request_history.RequestHistoryPanel',
+    ]
 
 ADMINS = [('Alexander Lyashuk', 'mooskagh@gmail.com')]
 EMAIL_USE_TLS = True
@@ -66,7 +82,9 @@ EMAIL_PORT = 587
 EMAIL_HOST_USER = 'ersatzplut@gmail.com'
 DEFAULT_FROM_EMAIL = 'ersatzplut@gmail.com'
 SERVER_EMAIL = 'ersatzplut@gmail.com'
-
+INTERNAL_IPS = [
+    '127.0.0.1', '10.162.0.100', '2a02:168:520c:0:c0e2:2ad2:9900:9b36'
+]
 
 # Application definition
 
@@ -86,6 +104,10 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'ifdb.permissioner.permissioner',
 ]
+
+if DEBUG:
+    INSTALLED_APPS.append('debug_toolbar')
+    MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
 
 ROOT_URLCONF = 'ifdb.urls'
 
@@ -116,19 +138,19 @@ WSGI_APPLICATION = 'ifdb.wsgi.application'
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME':
-        'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+            'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
         'NAME':
-        'django.contrib.auth.password_validation.MinimumLengthValidator',
+            'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
         'NAME':
-        'django.contrib.auth.password_validation.CommonPasswordValidator',
+            'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {
         'NAME':
-        'django.contrib.auth.password_validation.NumericPasswordValidator',
+            'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
 

@@ -1,0 +1,4 @@
+uWSGI==2.0.15
+psycopg2==2.7.1
+django_registration==2.2
+mdx_del_ins==1.0

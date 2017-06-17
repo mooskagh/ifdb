@@ -1,0 +1,95 @@
+{% extends "./base.html" %}
+{% load static %}
+{% block scripts %}
+    <script src="/static/search.js"></script>
+{% endblock %}
+{% block content %}
+    <div class="search-box">
+        <table>
+            {% for bit in search %}
+            <tr data-val="{{bit.val}}" data-type="{{bit.type}}" {% if bit.hidden %} style="display: none;" {% endif %}>
+                {% if bit.type == 'sorting' %}
+                <th>Сортировать по:</th>
+                <td>
+                    {% for i in bit.items %}
+                        {% spaceless %}
+                        <span data-item-val="{{ i.val }}" class="sort {% if i.current %}current{% endif %}">
+                            {{ i.name }}
+                            <span class="sortbutton">{% if i.desc %}▼{% endif %}{% if i.asc %}▲{% endif %}</span>
+                        </span>
+                        {% endspaceless %}
+                    {% endfor %}
+                </td>
+                {% elif bit.type == 'text' %}
+                <th>Искать по словам:</th>
+                <td>
+                    <input class="search-text" type="text" value="{{ bit.text }}"/>
+                    {% spaceless %}
+                    <label>
+                        <input data-item-val="0" type="checkbox" {% if bit.titles_only %}checked{% endif %}/>Только в названиях
+                    </label>
+                    {% endspaceless %}
+                </td>
+                {% elif bit.type == 'tags' %}
+                <th>{{ bit.cat.name}}:</th>
+                <td>
+                    {% for x in bit.items %}
+                    <span class="tag {% if x.on %}current{% endif %}" data-item-val="{{ x.id }}">{{ x.name }}</span>
+                    {% endfor %}
+                </td>
+                {% elif bit.type == 'flags' %}
+                <th>{{ bit.header}}:</th>
+                <td>
+                    {% for x in bit.items %}
+                    <span class="tag {% if x.on %}current{% endif %}" data-item-val="{{ x.id }}">{{ x.name }}</span>
+                    {% endfor %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+            {% comment %}
+            <tr>
+                <th>Дата выхода:</th>
+                <td>
+                    с <input type="date">
+                    по <input type="date">
+                    <label><input type="checkbox" />и игры с неизвестной датой</label>
+                </td>
+            </tr>
+            <tr>
+                <th>Время прохождения:</th>
+                <td>
+                    с <input type="range">
+                    по <input type="range">
+                    <label><input type="checkbox" />и игры, которые никто не прошёл</label>
+                </td>
+            </tr>
+            {% endcomment %}
+        </table>
+        {% if unhide_button %}
+            <button class="extended_search">Расширенный поиск</button>
+        {% endif %}
+        <script type="text/javascript">
+            SEARCH.Decorate();
+        </script>
+    </div>
+
+    <div class="gamelist-thumb-container">
+        <div class="gamelist-message">
+            Сейчас сюда должен загрузиться список...
+        </div>
+    </div>
+
+    {% comment %}
+        {% for g in games %}
+            <a class="gamelist-thumb" href="{% url 'show_game' game_id=g.id %}">
+                <div class="poster-container">
+                    <img class="poster" src="{% static 'duck.jpg' %}"/>
+                </div>
+                <div class="title-container">
+                    {{ g.title }}
+                </div>
+            </a>
+        {% endfor %}
+    {% endcomment %}
+{% endblock %}

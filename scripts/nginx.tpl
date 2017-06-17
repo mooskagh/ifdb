@@ -50,7 +50,7 @@ server {
     }
 
     location /static {
-        alias /home/ifdb/static;
+        alias /home/ifdb/staging/static;
     }
 
     location / {

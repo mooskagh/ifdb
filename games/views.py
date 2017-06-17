@@ -2,8 +2,11 @@ from .models import (GameAuthorRole, Author, Game, GameTagCategory, GameTag,
                      URLCategory, URL, GameURL, GameVote, GameComment,
                      GameAuthor)
 from .importer import Import
+from .search import MakeSearch
+from .tools import FormatDate, FormatTime, StarsFromRating
 from datetime import datetime
 from dateutil.parser import parse as parse_date
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.files.storage import FileSystemStorage
 from django.http import Http404
@@ -14,25 +17,10 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from ifdb.permissioner import perm_required
 from statistics import mean, median
 import json
+import logging
 import markdown
 
 PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
-
-
-def FormatDate(x):
-    if not x:
-        return None
-    return '%d %s %d' % (x.day, ['января', 'февраля', 'марта', 'апреля', 'мая',
-                                 'июня', 'июля', 'августа', 'сентября',
-                                 'октября', 'ноября', 'декабря'][x.month - 1],
-                         x.year)
-
-
-def FormatTime(x):
-    if not x:
-        return None
-    return "%04d-%02d-%02d %02d:%02d" % (x.year, x.month, x.day, x.hour,
-                                         x.minute)
 
 
 def index(request):
@@ -64,27 +52,8 @@ def store_game(request):
         return render(request, 'games/error.html',
                       {'message': 'У игры должно быть название.'})
 
-    if ('game_id' in j):
-        g = Game.objects.get(id=j['game_id'])
-        request.perm.Ensure(g.edit_perm)
-        g.edit_time = datetime.now()
-    else:
-        request.perm.Ensure(PERM_ADD_GAME)
-        g = Game()
-        g.creation_time = datetime.now()
-        g.added_by = request.user
-
-    g.title = j['title']
-    g.description = j['description'] or None
-    g.release_date = (parse_date(j['release_date'])
-                      if j['release_date'] else None)
-
-    g.save()
-    UpdateGameUrls(request, g, j['links'], 'game_id' in j)
-    UpdateGameTags(request, g, j['properties'], 'game_id' in j)
-    UpdateGameAuthors(request, g, j['authors'], 'game_id' in j)
-
-    return redirect(reverse('show_game', kwargs={'game_id': g.id}))
+    id = UpdateGame(request, j)
+    return redirect(reverse('show_game', kwargs={'game_id': id}))
 
 
 @perm_required(PERM_ADD_GAME)
@@ -166,11 +135,13 @@ def show_game(request, game_id):
 
 def list_games(request):
     res = []
-    for x in Game.objects.all().order_by('-creation_time'):
-        if not request.perm(x.view_perm):
-            continue
-        res.append({'id': x.id, 'title': x.title})
-    return render(request, 'games/list.html', {'games': res})
+    s = MakeSearch(request.perm)
+    query = request.GET.get('q', '')
+    s.UpdateFromQuery(query)
+    if settings.DEBUG and request.GET.get('forcesearch', None):
+        s.Search()
+    return render(request, 'games/search.html', {'query': query,
+                                                 **s.ProduceBits()})
 
 
 @perm_required(PERM_ADD_GAME)
@@ -195,6 +166,7 @@ def upload(request):
 
     return JsonResponse({'url': url_full})
 
+
 ########################
 # Json handlers below. #
 ########################
@@ -216,10 +188,12 @@ def tags(request):
     for x in (GameTagCategory.objects.order_by('order', 'name')):
         if not request.perm(x.show_in_edit_perm):
             continue
-        val = {'id': x.id,
-               'name': x.name,
-               'allow_new_tags': x.allow_new_tags,
-               'tags': []}
+        val = {
+            'id': x.id,
+            'name': x.name,
+            'allow_new_tags': x.allow_new_tags,
+            'tags': []
+        }
         # TODO(crem) Optimize this.
         for y in (GameTag.objects.filter(category=x).order_by('order',
                                                               'name')):
@@ -234,9 +208,11 @@ def tags(request):
 def linktypes(request):
     res = {'categories': []}
     for x in URLCategory.objects.all():
-        res['categories'].append({'id': x.id,
-                                  'title': x.title,
-                                  'uploadable': x.allow_cloning})
+        res['categories'].append({
+            'id': x.id,
+            'title': x.title,
+            'uploadable': x.allow_cloning
+        })
     return res
 
 
@@ -268,9 +244,28 @@ def json_gameinfo(request):
 
         g['links'] = []
         for x in game.gameurl_set.select_related('url').all():
-            g['links'].append(
-                (x.category_id, x.description or '', x.url.original_url))
+            g['links'].append((x.category_id, x.description or '',
+                               x.url.original_url))
     return JsonResponse(res)
+
+
+def json_search(request):
+    query = request.GET.get('q', '')
+    s = MakeSearch(request.perm)
+    s.UpdateFromQuery(query)
+    games = s.Search()
+
+    posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
+        game__in=games).select_related('url'))
+
+    g2p = {}
+    for x in posters:
+        g2p[x.game_id] = x.url.local_url or x.url.original_url
+
+    for x in games:
+        x.poster = g2p.get(x.id)
+
+    return render(request, 'games/search_snippet.html', {'games': games})
 
 
 def Importer2Json(r):
@@ -293,7 +288,11 @@ def Importer2Json(r):
         res['tags'] = []
         for x in r['tags']:
             if 'tag_slug' in x:
-                tag = GameTag.objects.get(symbolic_id=x['tag_slug'])
+                try:
+                    tag = GameTag.objects.get(symbolic_id=x['tag_slug'])
+                except:
+                    logging.error('Cannot fetch tag %s' % x['tag_slug'])
+                    raise
                 cat = tag.category.id
                 tag = tag.id
             else:
@@ -318,6 +317,7 @@ def doImport(request):
     if ('error' in raw_import):
         return JsonResponse({'error': raw_import['error']})
     return JsonResponse(Importer2Json(raw_import))
+
 
 ############################################################################
 # Aux functions below
@@ -374,12 +374,9 @@ def GetGameScore(game, user=None):
 
     res['played_count'] = len(played_votes)
     if played_votes:
-        avg = round(mean(played_votes) * 10)
-        res['avg_rating'] = ("%3.1f" % (avg / 10.0)).replace('.', ',')
-        res['stars'] = [10] * (avg // 10)
-        if avg % 10 != 0:
-            res['stars'].append(avg % 10)
-        res['stars'].extend([0] * (5 - len(res['stars'])))
+        avg = mean(played_votes)
+        res['avg_rating'] = ("%3.1f" % avg).replace('.', ',')
+        res['stars'] = StarsFromRating(avg)
 
         t = round(median(played_times))
         res['played_hours'] = t // 60
@@ -402,18 +399,29 @@ def GetGameComments(game, user=None):
     res = []
     for v in GameComment.objects.select_related('user').filter(game=game):
         res.append({
-            'id': v.id,
-            'user_id': v.user.id if v.user else None,
-            'username': v.user.username if v.user else v.foreign_username
-            if v.foreign_username else 'Анонимоўс',
-            'parent_id': v.parent.id if v.parent else None,
-            'fusername': v.foreign_username,
-            'furl': v.foreign_username,
-            'fsite': None,  # TODO
-            'created': FormatTime(v.creation_time),
-            'edited': FormatTime(v.edit_time),
-            'subj': v.subject,
-            'text': GetMarkdown(v.text),
+            'id':
+                v.id,
+            'user_id':
+                v.user.id if v.user else None,
+            'username':
+                v.user.username if v.user else v.foreign_username
+                if v.foreign_username else 'Анонимоўс',
+            'parent_id':
+                v.parent.id if v.parent else None,
+            'fusername':
+                v.foreign_username,
+            'furl':
+                v.foreign_username,
+            'fsite':
+                None,  # TODO
+            'created':
+                FormatTime(v.creation_time),
+            'edited':
+                FormatTime(v.edit_time),
+            'subj':
+                v.subject,
+            'text':
+                GetMarkdown(v.text),
             # TODO: is_deleted
         })
 
@@ -566,3 +574,27 @@ def UpdateGameUrls(request, game, data, update):
 
     if existing_urls:
         GameURL.objects.filter(id__in=list(existing_urls.values())).delete()
+
+
+def UpdateGame(request, j):
+    if ('game_id' in j):
+        g = Game.objects.get(id=j['game_id'])
+        request.perm.Ensure(g.edit_perm)
+        g.edit_time = datetime.now()
+    else:
+        request.perm.Ensure(PERM_ADD_GAME)
+        g = Game()
+        g.creation_time = datetime.now()
+        g.added_by = request.user
+
+    g.title = j['title']
+    g.description = j['desc'] or None
+    g.release_date = (parse_date(j['release_date'])
+                      if j.get('release_date', None) else None)
+
+    g.save()
+    UpdateGameUrls(request, g, j['links'], 'game_id' in j)
+    UpdateGameTags(request, g, j['tags'], 'game_id' in j)
+    UpdateGameAuthors(request, g, j['authors'], 'game_id' in j)
+
+    return g.id

@@ -14,7 +14,7 @@
             <input id="import_url" placeholder="URL, например http://urq.plut.info/node/1988"/>
             <button id="import_button">Импортировать</button>
             <script type="text/javascript">
-            $('#import_button').click(ImportGame);
+            $('#import_button').click(EDITOR.ImportGame);
             </script>
         </div>
         <div class="leftpane">
@@ -36,7 +36,7 @@
         <div class="leftpane">
             <button id="submit">Сохранить</button>
             <script type="text/javascript">
-            $('#submit').click(SubmitGameJson);
+            $('#submit').click(EDITOR.SubmitGameJson);
             </script>
         </div>
         <div class="rightpane">
@@ -51,7 +51,7 @@
             <div class="fieldname">Свойства</div>
             <div id="tags"></div>
         </div>
-        <script type="text/javascript">InitEditor();</script>
+        <script type="text/javascript">EDITOR.Init();</script>
         <div style="clear: both;"></div>
     </div>
 {% endblock %}

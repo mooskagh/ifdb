@@ -15,7 +15,15 @@ urlpatterns = [
     url(r'^json/gameinfo/', views.json_gameinfo, name='json_gameinfo'),
     url(r'^json/upload/', views.upload, name='upload'),
     url(r'^json/import/', views.doImport, name='import'),
-    url(r'^accounts/', include('registration.backends.hmac.urls'
-                               if settings.REQUIRE_ACCOUNT_ACTIVATION else
-                               'registration.backends.simple.urls')),
+    url(r'^json/search/', views.json_search, name='json_search'),
+    url(r'^accounts/',
+        include('registration.backends.hmac.urls'
+                if settings.REQUIRE_ACCOUNT_ACTIVATION else
+                'registration.backends.simple.urls')),
 ]
+
+if settings.DEBUG:
+    import debug_toolbar
+    urlpatterns = [
+        url(r'^__debug__/', include(debug_toolbar.urls)),
+    ] + urlpatterns

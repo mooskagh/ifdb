@@ -1,4 +1,4 @@
-#!/home/ifdb/virtualenv/bin/python
+#!/bin/env python3
 
 from django.conf import settings
 from django.template import Template, Context
@@ -16,12 +16,10 @@ import json
 import filecmp
 import shutil
 
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.dirname(os.path.realpath(__file__))],
-    }
-]
+TEMPLATES = [{
+    'BACKEND': 'django.template.backends.django.DjangoTemplates',
+    'DIRS': [os.path.dirname(os.path.realpath(__file__))],
+}]
 settings.configure(TEMPLATES=TEMPLATES)
 django.setup()
 os.path.realpath(__file__)
@@ -57,8 +55,8 @@ def RunCmdStep(cmd_line, doc=None):
         click.secho('$ %s' % cmd_line, fg='yellow')
         r = os.system(cmd_line)
         if r != 0:
-            click.echo('Return code %d, The command was: %s' % (r, click.style(
-                cmd_line, fg='yellow')))
+            click.echo('Return code %d, The command was: %s' %
+                       (r, click.style(cmd_line, fg='yellow')))
             return False
         return True
 
@@ -91,9 +89,11 @@ def CheckFromTemplate(template, dst):
             return False
         parms = json.loads(m.group(1))
         cnt = [x.rstrip() for x in m.group(2).split('\n')]
-        tpl = [x.rstrip()
-               for x in GenerateStringFromTemplate(template, parms, False)
-               .split('\n')]
+        tpl = [
+            x.rstrip()
+            for x in GenerateStringFromTemplate(template, parms, False)
+            .split('\n')
+        ]
         diff = list(difflib.context_diff(tpl, cnt))
         if not diff:
             return True
@@ -166,8 +166,8 @@ class Pipeline:
             try:
                 click.echo(
                     click.style(
-                        '[%2d/%2d]' % (self.context['idx'] + 1, len(self.steps)
-                                       ),
+                        '[%2d/%2d]' % (self.context['idx'] + 1,
+                                       len(self.steps)),
                         fg='green') + ' %s...' % task_f.__doc__)
                 if self.step_by_step:
                     if not click.confirm('Should I run it?'):
@@ -220,15 +220,18 @@ def red(ctx, message):
     p.AddStep(
         GetFromTemplate('wallpage.tpl', 'wallpage/index.html',
                         {'message': message,
-                         'timestamp':
-                         int(time.time())}, False))
+                         'timestamp': int(time.time())}, False))
     p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
     p.AddStep(
-        GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
-                                                    [{'host': 'prod',
-                                                      'conf': 'wallpage'},
-                                                     {'host': 'staging',
-                                                      'conf': 'deny'}]}))
+        GetFromTemplate('nginx.tpl', 'nginx.conf', {
+            'configs': [{
+                'host': 'prod',
+                'conf': 'wallpage'
+            }, {
+                'host': 'staging',
+                'conf': 'deny'
+            }]
+        }))
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb'))
     p.Run('red')
@@ -240,11 +243,15 @@ def green(ctx):
     p = ctx.obj['pipeline']
     p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
     p.AddStep(
-        GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
-                                                    [{'host': 'prod',
-                                                      'conf': 'prod'},
-                                                     {'host': 'staging',
-                                                      'conf': 'deny'}]}))
+        GetFromTemplate('nginx.tpl', 'nginx.conf', {
+            'configs': [{
+                'host': 'prod',
+                'conf': 'prod'
+            }, {
+                'host': 'staging',
+                'conf': 'deny'
+            }]
+        }))
     p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
     p.Run('green')
@@ -270,45 +277,60 @@ def stage(ctx, tag):
     p.AddStep(RunCmdStep('virtualenv -p python3 %s' % virtualenv_dir))
     p.AddStep(StagingDiff('django/requirements.txt'))
     p.AddStep(
-        RunCmdStep('%s/bin/pip install -r %s/requirements.txt' % (
-            virtualenv_dir, django_dir)))
+        RunCmdStep('%s/bin/pip install -r %s/requirements.txt --no-cache-dir' %
+                   (virtualenv_dir, django_dir)))
     p.AddStep(StagingDiff('django/games/migrations/'))
     p.AddStep(StagingDiff('django/games/management/commands/initifdb.py'))
     p.AddStep(
         RunCmdStep('%s %s/manage.py collectstatic --clear' % (python_dir,
                                                               django_dir)))
     p.AddStep(StagingDiff('static/'))
-    p.AddStep(RunCmdStep('uwsgi %s/uwsgi-staging.ini' % DST_DIR))
+    p.AddStep(RunCmdStep('chmod -R a+rX %s/static' % STAGING_DIR))
+    p.AddStep(
+        RunCmdStep('%s/bin/uwsgi %s/uwsgi-staging.ini' % (virtualenv_dir,
+                                                          DST_DIR)))
     p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
     p.AddStep(
-        GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
-                                                    [{'host': 'prod',
-                                                      'conf': 'prod'},
-                                                     {'host': 'staging',
-                                                      'conf': 'staging'}]}))
+        GetFromTemplate('nginx.tpl', 'nginx.conf', {
+            'configs': [{
+                'host': 'prod',
+                'conf': 'prod'
+            }, {
+                'host': 'staging',
+                'conf': 'staging'
+            }]
+        }))
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
     p.AddStep(
         LoopStep(
             RunCmdStep('kill -HUP `cat /tmp/uwsgi-ifdb-staging.pid`'),
             'Check STAGING and reload if needed.'))
     p.AddStep(
-        GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
-                                                    [{'host': 'prod',
-                                                      'conf': 'prod'},
-                                                     {'host': 'staging',
-                                                      'conf': 'deny'}]}))
+        GetFromTemplate('nginx.tpl', 'nginx.conf', {
+            'configs': [{
+                'host': 'prod',
+                'conf': 'prod'
+            }, {
+                'host': 'staging',
+                'conf': 'deny'
+            }]
+        }))
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
-    p.AddStep(RunCmdStep('uwsgi --stop /tmp/uwsgi-ifdb-staging.pid'))
+    p.AddStep(
+        RunCmdStep('%s/bin/uwsgi --stop /tmp/uwsgi-ifdb-staging.pid' %
+                   virtualenv_dir))
     p.Run('stage')
 
 
 @cli.command()
 @click.option('--hot', is_flag=True)
-@click.option('--new-version/--no-new-version', default=None, is_flag=True)
+@click.option(
+    '--from-master/--no-from-master', default=None, is_flag=True)
 @click.pass_context
-def deploy(ctx, hot, new_version):
-    if new_version is None:
-        click.secho('Please specify --[no-]new-version!', fg='red', bold=True)
+def deploy(ctx, hot, from_master):
+    if from_master is None:
+        click.secho(
+            'Please specify --[no-]from-master!', fg='red', bold=True)
         raise click.Abort
     p = ctx.obj['pipeline']
     django_dir = os.path.join(ROOT_DIR, 'django')
@@ -324,33 +346,41 @@ def deploy(ctx, hot, new_version):
 
     if not hot:
         p.AddStep(
-            GetFromTemplate('wallpage.tpl', 'wallpage/index.html',
-                            {'message': 'Сайт обновляется',
-                             'timestamp':
-                             int(time.time())}, False))
+            GetFromTemplate('wallpage.tpl', 'wallpage/index.html', {
+                'message': 'Сайт обновляется',
+                'timestamp': int(time.time())
+            }, False))
         p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
         p.AddStep(
-            GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
-                                                        [{'host': 'prod',
-                                                          'conf': 'wallpage'},
-                                                         {'host': 'staging',
-                                                          'conf': 'deny'}]}))
+            GetFromTemplate('nginx.tpl', 'nginx.conf', {
+                'configs': [{
+                    'host': 'prod',
+                    'conf': 'wallpage'
+                }, {
+                    'host': 'staging',
+                    'conf': 'deny'
+                }]
+            }))
         p.AddStep(StartTimer)
         p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
         p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb'))
+        p.AddStep(
+            Message(
+                'uWSGI is stopped now. You can break now to do manual steps.'))
 
     p.AddStep(RunCmdStep('git checkout release'))
     p.AddStep(RunCmdStep('git pull'))
 
-    if new_version:
-        p.AddStep(RunCmdStep('git fetch upstream master:master'))
+    if from_master:
+        p.AddStep(RunCmdStep('git fetch origin master:master'))
         p.AddStep(RunCmdStep('git merge --no-ff master'))
         p.AddStep(GetNextVersion)
 
     if not hot:
         p.AddStep(
-            RunCmdStep('%s/bin/pip install -r %s/requirements.txt' % (
-                virtualenv_dir, django_dir)))
+            RunCmdStep(
+                '%s/bin/pip install -r %s/requirements.txt --no-cache-dir' % (
+                    virtualenv_dir, django_dir)))
         p.AddStep(
             RunCmdStep('%s %s/manage.py migrate' % (python_dir, django_dir)))
 
@@ -373,11 +403,15 @@ def deploy(ctx, hot, new_version):
 
     if not hot:
         p.AddStep(
-            GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
-                                                        [{'host': 'prod',
-                                                          'conf': 'wallpage'},
-                                                         {'host': 'staging',
-                                                          'conf': 'prod'}]}))
+            GetFromTemplate('nginx.tpl', 'nginx.conf', {
+                'configs': [{
+                    'host': 'prod',
+                    'conf': 'wallpage'
+                }, {
+                    'host': 'staging',
+                    'conf': 'prod'
+                }]
+            }))
         p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
 
     p.AddStep(
@@ -387,11 +421,15 @@ def deploy(ctx, hot, new_version):
 
     if not hot:
         p.AddStep(
-            GetFromTemplate('nginx.tpl', 'nginx.conf', {'configs':
-                                                        [{'host': 'prod',
-                                                          'conf': 'prod'},
-                                                         {'host': 'staging',
-                                                          'conf': 'deny'}]}))
+            GetFromTemplate('nginx.tpl', 'nginx.conf', {
+                'configs': [{
+                    'host': 'prod',
+                    'conf': 'prod'
+                }, {
+                    'host': 'staging',
+                    'conf': 'deny'
+                }]
+            }))
         p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
         p.AddStep(StopTimer)
     p.AddStep(
@@ -408,6 +446,9 @@ def deploy(ctx, hot, new_version):
     p.AddStep(JumpIfExists('new-version', if_false=2))
     p.AddStep(WriteVersionConfigAndGitTag)
 
+    if from_master:
+        p.AddStep(RunCmdStep('git fetch . release:master'))
+
     p.AddStep(RunCmdStep('git push --tags origin release'))
 
     p.Run('deploy')
@@ -418,8 +459,8 @@ def JumpIfExists(var, if_true=1, if_false=1):
         jmp = None
         if var in ctx:
             click.secho(
-                '%s exists and equal to %s, jumping %+d' %
-                (var, ctx[var], if_true),
+                '%s exists and equal to %s, jumping %+d' % (var, ctx[var],
+                                                            if_true),
                 fg='yellow')
             jmp = if_true
         else:
@@ -485,7 +526,8 @@ def GetNextVersion(ctx):
     v = GetCurrentVersion()
     if not v:
         return None
-    variants = [(v[0], v[1], v[2] + 1), (v[0], v[1] + 1, 0), (v[0] + 1, 0, 0)]
+    variants = [(v[0], v[1], v[2] + 1), (v[0], v[1] + 1, 0),
+                (v[0], v[1] + 2, 0), (v[0] + 1, 0, 0)]
     while True:
         click.secho("Current version is %s. What will be the new one?" %
                     BuildVersionStr(*v))
@@ -501,7 +543,7 @@ def GetNextVersion(ctx):
             pass
 
 
-def Message(msg, text):
+def Message(msg, text="Press any key to continue..."):
     def f(ctx):
         click.secho(msg, fg='yellow')
         click.pause(text)
@@ -524,8 +566,9 @@ def StopTimer(ctx):
     hours //= 60
     min = hours % 60
     hours //= 60
-    click.secho('Was offline for %d hours, %d minutes, %d seconds. Check prod.'
-                % (hours, min, sec))
+    click.secho(
+        'Was offline for %d hours, %d minutes, %d seconds. Check prod.' %
+        (hours, min, sec))
     click.pause()
     return True
 

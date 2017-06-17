@@ -2,3 +2,4 @@ ifdb.sublime-workspace
 __pycache__
 db.sqlite3
 upload
+urlcache
