@@ -6,6 +6,7 @@ from .search import MakeSearch
 from .tools import FormatDate, FormatTime, StarsFromRating
 from datetime import datetime
 from dateutil.parser import parse as parse_date
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.files.storage import FileSystemStorage
 from django.http import Http404
@@ -16,8 +17,8 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from ifdb.permissioner import perm_required
 from statistics import mean, median
 import json
-import markdown
 import logging
+import markdown
 
 PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
 
@@ -137,12 +138,9 @@ def list_games(request):
     s = MakeSearch(request.perm)
     query = request.GET.get('q', '')
     s.UpdateFromQuery(query)
-    for x in Game.objects.all().order_by('-creation_time'):
-        if not request.perm(x.view_perm):
-            continue
-        res.append({'id': x.id, 'title': x.title})
-    return render(request, 'games/search.html', {'games': res,
-                                                 'query': query,
+    if settings.DEBUG and request.GET.get('forcesearch', None):
+        s.Search()
+    return render(request, 'games/search.html', {'query': query,
                                                  **s.ProduceBits()})
 
 
@@ -592,7 +590,7 @@ def UpdateGame(request, j):
     g.title = j['title']
     g.description = j['desc'] or None
     g.release_date = (parse_date(j['release_date'])
-                      if 'release_date' in j else None)
+                      if j.get('release_date', None) else None)
 
     g.save()
     UpdateGameUrls(request, g, j['links'], 'game_id' in j)

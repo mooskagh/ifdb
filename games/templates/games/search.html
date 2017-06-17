@@ -37,6 +37,13 @@
                     <span class="tag {% if x.on %}current{% endif %}" data-item-val="{{ x.id }}">{{ x.name }}</span>
                     {% endfor %}
                 </td>
+                {% elif bit.type == 'flags' %}
+                <th>{{ bit.header}}:</th>
+                <td>
+                    {% for x in bit.items %}
+                    <span class="tag {% if x.on %}current{% endif %}" data-item-val="{{ x.id }}">{{ x.name }}</span>
+                    {% endfor %}
+                </td>
                 {% endif %}
             </tr>
             {% endfor %}

@@ -2,6 +2,7 @@ import re
 from .models import Game, GameTag, GameTagCategory
 import statistics
 from .tools import FormatDate, FormatTime, StarsFromRating
+from django.db.models import Q
 
 RE_WORD = re.compile(r"\w(?:[-\w']+\w)?")
 
@@ -64,6 +65,15 @@ class BaseXReader:
             if i > 0:
                 res[i] += res[i - 1] + 1
         return set(res)
+
+    def ReadFlags(self, count):
+        res = []
+        val = self.ReadInt()
+        while val:
+            res.append(val % 2 == 1)
+            val //= 2
+        res += [False] * (count - len(res))
+        return res
 
 
 class SearchBit:
@@ -285,10 +295,88 @@ class SB_Tag(SearchBit):
     def ModifyResult(self, games):
         res = []
         for g in games:
-            tags = set([x.id for x in g.tags.all() if x.category == self.cat])
+            tags = set(
+                [x.id for x in g.tags.all() if x.category_id == self.cat.id])
             if tags & self.items or not tags and 0 in self.items:
                 res.append(g)
         return res
+
+
+# !!!!NOTE!!!! If adding new flag sets, reflect that in google analytics!
+class SB_Flags(SearchBit):
+    TYPE_ID = 3
+
+    HEADER = 'Наличие ресурсов'
+
+    FIELDS = [
+        'С видео',
+        'С обзорами',
+        'С комментариями',
+        'С обсуждениями на форуме',
+        'Можно скачать',
+        'Можно поиграть онлайн',
+    ]
+
+    CATS = {
+        0: ['video'],
+        1: ['review'],
+        2: ['forum'],
+        4: ['download_direct', 'download_landing'],
+        5: ['play_online'],
+    }
+
+    CATS_ID_CACHE = {}
+
+    QUERIES = {
+        0:
+            Q(gameurl__category__symbolic_id='video'),
+        1:
+            Q(gameurl__category__symbolic_id='review'),
+        2:
+            Q(gamecomment__isnull=False),
+        3:
+            Q(gameurl__category__symbolic_id='forum'),
+        4:
+            Q(gameurl__category__symbolic_id__in=[
+                'download_direct', 'download_landing'
+            ]),
+        5:
+            Q(gameurl__category__symbolic_id='play_online'),
+    }
+
+    # Flags:
+    # 0 -- has video
+    # 1 -- has review
+    # 2 -- has forums
+    # 3 -- has comments
+    # 4 -- downloadable
+    # 5 -- playable online
+    def __init__(self):
+        super().__init__(0, True)
+        self.items = [False] * len(self.FIELDS)
+
+    def ProduceDict(self):
+        res = super().ProduceDict('flags')
+        res['header'] = self.HEADER
+        items = []
+        for i, x in enumerate(self.FIELDS):
+            items.append({'id': i, 'name': x, 'on': self.items[i]})
+        res['items'] = items
+        return res
+
+    def LoadFromQuery(self, reader):
+        self.items = reader.ReadFlags(len(self.FIELDS))
+
+    def ModifyQuery(self, query):
+        q = None
+        for i, v in enumerate(self.items):
+            if not v:
+                continue
+            q = q | self.QUERIES[i] if q else self.QUERIES[i]
+        return query.filter(q)
+
+    def IsActive(self):
+        return True in self.items
 
 
 class Search:
@@ -327,7 +415,8 @@ class Search:
         for x in self.bits:
             if x.IsActive():
                 q = x.ModifyQuery(q)
-        games = [x for x in q if self.perm(x.view_perm)]
+        print(q.query)
+        games = [x for x in q.distinct() if self.perm(x.view_perm)]
         for g in games:
             g.ds = {}
         for x in self.bits:
@@ -344,4 +433,5 @@ def MakeSearch(perm):
         if not perm(x.show_in_search_perm):
             continue
         s.Add(SB_Tag(x))
+    s.Add(SB_Flags())
     return s

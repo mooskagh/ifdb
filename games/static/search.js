@@ -44,14 +44,14 @@ function BaseXVarintEncoder() {
         }
     };
 
-    this.addBools = function(x) {
-        if (typeof(x) == 'boolean') x = [x];
+    this.addFlags = function(x) {
         var val = 0;
-        for (var i = 0; i < x.length; ++i)
-            if (x[i]) val |= 1 << i;
+        x.forEach(function(y) { val |= 1 << y });
         this.addInteger(val);
     };
-    this.addBool = this.addBools;
+    this.addBool = function(x) {
+        this.addInteger(x ? 1 : 0);
+    }
 
     this.addHeader = function(typ, val) {
         this.addInteger(val * 16 + typ);
@@ -198,6 +198,27 @@ function DecorateSearchItems() {
         var category = parent.attr('data-val');
         enc.addHeader(2, category);
         enc.addSet(items);
+    });
+
+    // Type 3: Flags.
+    $('tr[data-type="flags"]').each(function(index, element) {
+        $(element).find('[data-item-val]').click(function() {
+            $(this).toggleClass('current');
+            gan('send', 'event', 'search', 'flag',
+                $(this).hasClass('current') ? 'on' : 'off',
+                parseInt($(this).attr('data-item-val')));
+            UpdateSearchList();
+        });
+    }).on('encode-query', function(event, enc){
+        var parent = $(event.target);
+        var items = [];
+        parent.find('.current').each(function() {
+            items.push($(this).attr('data-item-val'));
+        });
+        if (items.length === 0) return;
+        var set = parent.attr('data-val');
+        enc.addHeader(3, set);
+        enc.addFlags(items);
     });
 
     // Advanced search button.

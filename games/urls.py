@@ -21,3 +21,9 @@ urlpatterns = [
                 if settings.REQUIRE_ACCOUNT_ACTIVATION else
                 'registration.backends.simple.urls')),
 ]
+
+if settings.DEBUG:
+    import debug_toolbar
+    urlpatterns = [
+        url(r'^__debug__/', include(debug_toolbar.urls)),
+    ] + urlpatterns

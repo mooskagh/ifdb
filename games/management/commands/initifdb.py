@@ -26,7 +26,9 @@ TAG_CATS = [
     ['control', 'Управление', False, {}],
     ['os', 'Операционная система', False, {}],
     ['competition', 'Участник конкурса', True, {}],
-    ['tag', 'Тэг', True, {}],
+    ['tag', 'Тэг', True, {
+        'search': '@admin'
+    }],
     ['ifid', 'IFID', True, {
         'search': '@admin'
     }],
