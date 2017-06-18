@@ -449,7 +449,7 @@ def deploy(ctx, hot, from_master):
     if from_master:
         p.AddStep(RunCmdStep('git fetch . release:master'))
 
-    p.AddStep(RunCmdStep('git push --tags origin release'))
+    p.AddStep(RunCmdStep('git push --all origin'))
 
     p.Run('deploy')
 

@@ -18,13 +18,14 @@ function GetCookie(name) {
 
 (function($) {
     "use strict";
+
     function ReverseDict(d) {
         var res = {};
         for (var key in d) {
             if (d.hasOwnProperty(key)) {
                 res[d[key]] = parseInt(key);
-                }
             }
+        }
         return res;
     }
 
@@ -92,12 +93,12 @@ function GetCookie(name) {
             if (ops.showAll) {
                 var wasOpen = false;
                 button.on("mousedown", function() {
-                    wasOpen = input.autocomplete("widget").is(":visible");
-                })
-                .click(function() {
-                    if (!wasOpen)
-                        input.autocomplete('search', '');
-                });
+                        wasOpen = input.autocomplete("widget").is(":visible");
+                    })
+                    .click(function() {
+                        if (!wasOpen)
+                            input.autocomplete('search', '');
+                    });
             }
             if (ops.minLength === 0) {
                 this.element.focus(function() {
@@ -154,9 +155,9 @@ function GetCookie(name) {
     });
 
     function CreatePair(catToId, valToId, cat, val,
-                        allowAllCat, showAllVal,
-                        catsToValsToId, allowNewValCats,
-                        catPlaceholder, valPlaceholder) {
+        allowAllCat, showAllVal,
+        catsToValsToId, allowNewValCats,
+        catPlaceholder, valPlaceholder) {
         var entry = $('<div class="entry"></div>');
 
         var cats = $('<span class="narrow-list"/>')
@@ -188,9 +189,9 @@ function GetCookie(name) {
             cats: cats,
             vals: vals,
             delicon: delicon
-            // onempty  -- When loses focus and is empty
-            // oninput - when first char appeared
-            // ondel - when delete button is pressed.
+                // onempty  -- When loses focus and is empty
+                // oninput - when first char appeared
+                // ondel - when delete button is pressed.
         };
 
         obj.Destroy = function() {
@@ -301,7 +302,7 @@ function GetCookie(name) {
             var objs = ops.objs;
 
             function OnDel(obj) {
-                for (var i = 0; i < objs.length-1; ++i) {
+                for (var i = 0; i < objs.length - 1; ++i) {
                     if (obj === objs[i]) {
                         obj.Destroy();
                         objs.splice(i, 1);
@@ -311,16 +312,16 @@ function GetCookie(name) {
             }
 
             function OnInput(obj) {
-                if (obj == objs[objs.length-1]) {
+                if (obj == objs[objs.length - 1]) {
                     self.addEntry();
                 }
             }
 
-            if (objs.length > 0) objs[objs.length-1].delicon.show();
+            if (objs.length > 0) objs[objs.length - 1].delicon.show();
             var el = CreatePair(ops._catToId, ops._valToId,
-                            cats, vals, ops.allowNewCat, ops.showAllVals,
-                            ops.catToVals, ops.allowNewValCats,
-                            ops.catPlaceholder, ops.valPlaceholder);
+                cats, vals, ops.allowNewCat, ops.showAllVals,
+                ops.catToVals, ops.allowNewValCats,
+                ops.catPlaceholder, ops.valPlaceholder);
             el.delicon.hide();
             el.element.appendTo(self.element);
             objs.push(el);
@@ -331,7 +332,7 @@ function GetCookie(name) {
 
         isValid: function() {
             var isValid = true;
-            for (var i = 0; i < this.options.objs.length-1; ++i) {
+            for (var i = 0; i < this.options.objs.length - 1; ++i) {
                 isValid &= this.options.objs[i].IsValid();
             }
             return isValid;
@@ -339,7 +340,7 @@ function GetCookie(name) {
 
         values: function() {
             var res = [];
-            for (var i = 0; i < this.options.objs.length-1; ++i) {
+            for (var i = 0; i < this.options.objs.length - 1; ++i) {
                 var o = this.options.objs[i];
                 res.push([o.cats.suggest('value'), o.vals.suggest('value')]);
             }
@@ -353,7 +354,7 @@ function GetCookie(name) {
                 if (typeof(cat) == 'number') cat = o.idToCat[cat];
                 if (typeof(val) == 'number') val = o.idToVal[val];
                 var alreadyExists = false;
-                for (var j = 0; j < o.objs.length-1; ++j) {
+                for (var j = 0; j < o.objs.length - 1; ++j) {
                     var oo = o.objs[j];
                     if (oo.cats.suggest('txtvalue') == cat &&
                         oo.vals.suggest('txtvalue') == val) {
@@ -362,7 +363,7 @@ function GetCookie(name) {
                     }
                 }
                 if (alreadyExists) continue;
-                var obj = o.objs[o.objs.length-1];
+                var obj = o.objs[o.objs.length - 1];
                 this.addEntry();
                 obj.cats.suggest('txtvalue', cat);
                 obj.cats.trigger('creminput', o._catToId[cat]);
@@ -409,7 +410,9 @@ function GetCookie(name) {
         file_el.appendTo(entry);
         progress.appendTo(entry);
 
-        button_el.click(function(){file_el.click();});
+        button_el.click(function() {
+            file_el.click();
+        });
         file_el.change(function() {
             if (file_el.val() === '') return;
             progress.show();
@@ -427,14 +430,14 @@ function GetCookie(name) {
                 xhr: function() {
                     var myXhr = $.ajaxSettings.xhr();
                     if (myXhr.upload) {
-                    myXhr.upload.addEventListener('progress', function(e) {
-                        if (e.lengthComputable) {
-                            $('progress').attr({
-                                value: e.loaded,
-                                max: e.total,
+                        myXhr.upload.addEventListener('progress', function(e) {
+                            if (e.lengthComputable) {
+                                $('progress').attr({
+                                    value: e.loaded,
+                                    max: e.total,
                                 });
                             }
-                        } , false);
+                        }, false);
                     }
                     return myXhr;
                 },
@@ -542,7 +545,7 @@ function GetCookie(name) {
             var objs = this.options.objs;
 
             function OnDel(obj) {
-                for (var i = 0; i < objs.length-1; ++i) {
+                for (var i = 0; i < objs.length - 1; ++i) {
                     if (obj === objs[i]) {
                         obj.Destroy();
                         objs.splice(i, 1);
@@ -552,12 +555,12 @@ function GetCookie(name) {
             }
 
             function OnInput(obj) {
-                if (obj == objs[objs.length-1]) {
+                if (obj == objs[objs.length - 1]) {
                     self.AddEntry();
                 }
             }
 
-            if (objs.length > 0) objs[objs.length-1].delicon.show();
+            if (objs.length > 0) objs[objs.length - 1].delicon.show();
             var el = CreateUrlEntry(this.options.categories, cat, url, desc);
             el.delicon.hide();
             el.element.appendTo(this.element);
@@ -568,14 +571,14 @@ function GetCookie(name) {
         },
         isValid: function() {
             var isValid = true;
-            for (var i = 0; i < this.options.objs.length-1; ++i) {
+            for (var i = 0; i < this.options.objs.length - 1; ++i) {
                 isValid &= this.options.objs[i].IsValid();
             }
             return isValid;
         },
         values: function() {
             var res = [];
-            for (var i = 0; i < this.options.objs.length-1; ++i) {
+            for (var i = 0; i < this.options.objs.length - 1; ++i) {
                 var o = this.options.objs[i];
                 res.push([o.cats.suggest('value'), o.desc.val(), o.url.val()]);
             }
@@ -603,15 +606,15 @@ function GetCookie(name) {
                     cat = idToCat[cat];
                 }
                 var alreadyExists = false;
-                for (var j = 0; j < o.objs.length-1; ++j) {
+                for (var j = 0; j < o.objs.length - 1; ++j) {
                     var oo = o.objs[j];
-                    if (oo.url.val()  == url) {
+                    if (oo.url.val() == url) {
                         alreadyExists = true;
                         break;
                     }
                 }
                 if (alreadyExists) continue;
-                var obj = o.objs[o.objs.length-1];
+                var obj = o.objs[o.objs.length - 1];
                 this.AddEntry();
                 obj.cats.suggest('txtvalue', cat);
                 obj.url.val(url);
@@ -624,166 +627,176 @@ function GetCookie(name) {
 })(jQuery);
 
 /*exported EDITOR*/
-var EDITOR = (function(){
-"use strict";
+var EDITOR = (function() {
+    "use strict";
 
-function BuildAuthors(element, data) {
-    var cats = {};
-    var vals = {};
-    var vs = [];
+    function BuildAuthors(element, data) {
+        var cats = {};
+        var vals = {};
+        var vs = [];
 
-    data.roles.forEach(function(v) { cats[v.id] = v.title; });
-    data.authors.forEach(function(v) { vals[v.id] = v.name; });
-    data.value.forEach(function(v) { vs.push([v.role, v.author]); });
+        data.roles.forEach(function(v) {
+            cats[v.id] = v.title;
+        });
+        data.authors.forEach(function(v) {
+            vals[v.id] = v.name;
+        });
+        data.value.forEach(function(v) {
+            vs.push([v.role, v.author]);
+        });
 
-    element.propSelector({
-        idToCat: cats,
-        idToVal: vals,
-        values: vs,
-        catPlaceholder: 'Роль',
-        valPlaceholder: 'Имя',
-    });
-}
+        element.propSelector({
+            idToCat: cats,
+            idToVal: vals,
+            values: vs,
+            catPlaceholder: 'Роль',
+            valPlaceholder: 'Имя',
+        });
+    }
 
-function BuildTags(element, data) {
-    var cats = {};
-    var cats2vals = {};
-    var openCats = [];
-    var vs = [];
+    function BuildTags(element, data) {
+        var cats = {};
+        var cats2vals = {};
+        var openCats = [];
+        var vs = [];
 
-    for (var i = 0; i < data.categories.length; ++i) {
-        var v = data.categories[i];
-        cats[v.id] = v.name;
-        var catVals = {};
-        for (var j = 0; j < v.tags.length; ++j) {
-            var w = v.tags[j];
-            catVals[w.name] = w.id;
+        for (var i = 0; i < data.categories.length; ++i) {
+            var v = data.categories[i];
+            cats[v.id] = v.name;
+            var catVals = {};
+            for (var j = 0; j < v.tags.length; ++j) {
+                var w = v.tags[j];
+                catVals[w.name] = w.id;
+            }
+            cats2vals[v.id] = catVals;
+            if (v.allow_new_tags) {
+                openCats.push(v.id);
+            }
         }
-        cats2vals[v.id] = catVals;
-        if (v.allow_new_tags) {
-            openCats.push(v.id);
+        element.propSelector({
+            idToCat: cats,
+            catToVals: cats2vals,
+            allowNewValCats: openCats,
+            values: vs,
+            showAllVals: true,
+            allowNewCat: false,
+            catPlaceholder: 'Категория',
+            valPlaceholder: 'Свойство',
+        });
+    }
+
+    function BuildLinks(element, data) {
+        element.urlUpload({
+            'categories': data.categories
+        });
+    }
+
+    function InitEditor() {
+        var params = {};
+        var game_id = $('.gameedit').attr('game-id');
+        if (game_id) params.game_id = game_id;
+
+        $.getJSON('/json/gameinfo/', params, function(data) {
+            BuildAuthors($('#authors'), data.authortypes);
+            BuildTags($('#tags'), data.tagtypes);
+            BuildLinks($('#links'), data.linktypes);
+
+            if (data.hasOwnProperty('gamedata')) UpdateFields(data.gamedata);
+        });
+    }
+
+    function PostRedirect(url, data) {
+        var form = $('<form method="POST" style="display:none;" />');
+        form.attr('action', url);
+        var input = $('<input type="hidden" name="json"/>');
+        input.val(JSON.stringify(data));
+        input.appendTo(form);
+        $('<input type="hidden" name="csrfmiddlewaretoken"/>')
+            .val(GetCookie('csrftoken'))
+            .appendTo(form);
+        form.appendTo(document.body);
+        form.submit();
+    }
+
+    function SubmitGameJson() {
+        var res = {};
+        res.title = $("#title").val();
+        var isValid = true;
+        if (res.title === '') {
+            $("#title_warning").show();
+            isValid = false;
+        }
+        isValid &= $('#authors').propSelector('isValid');
+        isValid &= $('#tags').propSelector('isValid');
+        isValid &= $('#links').urlUpload('isValid');
+        if (!isValid) return;
+
+        res.desc = $('#description').val();
+        res.release_date = $('#release_date').val();
+        res.authors = $('#authors').propSelector('values');
+        res.tags = $('#tags').propSelector('values');
+        res.links = $('#links').urlUpload('values');
+
+        var game_id = $('.gameedit').attr('game-id');
+        if (game_id) res.game_id = game_id;
+        PostRedirect('/game/store/', res);
+    }
+
+    function UpdateFields(data) {
+        if (data.hasOwnProperty('title')) {
+            $('#title').val(data.title);
+        }
+        if (data.hasOwnProperty('desc')) {
+            var oldVal = $('#description').val();
+            if (oldVal) {
+                data.desc +=
+                    '\n\n----- Previous content: \n\n' + data.desc;
+            }
+            $('#description').val(data.desc);
+        }
+        if (data.hasOwnProperty('release_date')) {
+            $('#release_date').val(data.release_date);
+        }
+        if (data.hasOwnProperty('authors')) {
+            $('#authors').propSelector('merge', data.authors);
+        }
+        if (data.hasOwnProperty('tags')) {
+            $('#tags').propSelector('merge', data.tags);
+        }
+        if (data.hasOwnProperty('links')) {
+            $('#links').urlUpload('merge', data.links);
         }
     }
-    element.propSelector({
-        idToCat: cats,
-        catToVals: cats2vals,
-        allowNewValCats: openCats,
-        values: vs,
-        showAllVals: true,
-        allowNewCat: false,
-        catPlaceholder: 'Категория',
-        valPlaceholder: 'Свойство',
-    });
-}
 
-function BuildLinks(element, data) {
-    element.urlUpload({'categories': data.categories});
-}
-
-function InitEditor() {
-    var params = {};
-    var game_id = $('.gameedit').attr('game-id');
-    if (game_id) params.game_id = game_id;
-
-    $.getJSON('/json/gameinfo/', params, function(data) {
-        BuildAuthors($('#authors'), data.authortypes);
-        BuildTags($('#tags'), data.tagtypes);
-        BuildLinks($('#links'), data.linktypes);
-
-        if (data.hasOwnProperty('gamedata')) UpdateFields(data.gamedata);
-    });
-}
-
-function PostRedirect(url, data) {
-    var form = $('<form method="POST" style="display:none;" />');
-    form.attr('action', url);
-    var input = $('<input type="hidden" name="json"/>');
-    input.val(JSON.stringify(data));
-    input.appendTo(form);
-    $('<input type="hidden" name="csrfmiddlewaretoken"/>')
-        .val(GetCookie('csrftoken'))
-        .appendTo(form);
-    form.appendTo(document.body);
-    form.submit();
-}
-
-function SubmitGameJson() {
-    var res = {};
-    res.title = $("#title").val();
-    var isValid = true;
-    if (res.title === '') {
-        $("#title_warning").show();
-        isValid = false;
-    }
-    isValid &= $('#authors').propSelector('isValid');
-    isValid &= $('#tags').propSelector('isValid');
-    isValid &= $('#links').urlUpload('isValid');
-    if (!isValid) return;
-
-    res.desc = $('#description').val();
-    res.release_date = $('#release_date').val();
-    res.authors = $('#authors').propSelector('values');
-    res.tags = $('#tags').propSelector('values');
-    res.links = $('#links').urlUpload('values');
-
-    var game_id = $('.gameedit').attr('game-id');
-    if (game_id) res.game_id = game_id;
-    PostRedirect('/game/store/', res);
-}
-
-function UpdateFields(data) {
-    if (data.hasOwnProperty('title')) {
-        $('#title').val(data.title);
-    }
-    if (data.hasOwnProperty('desc')) {
-        var oldVal = $('#description').val();
-        if (oldVal) {
-            data.desc +=
-                '\n\n----- Previous content: \n\n' + data.desc;
-        }
-        $('#description').val(data.desc);
-    }
-    if (data.hasOwnProperty('release_date')) {
-        $('#release_date').val(data.release_date);
-    }
-    if (data.hasOwnProperty('authors')) {
-        $('#authors').propSelector('merge', data.authors);
-    }
-    if (data.hasOwnProperty('tags')) {
-        $('#tags').propSelector('merge', data.tags);
-    }
-    if (data.hasOwnProperty('links')) {
-        $('#links').urlUpload('merge', data.links);
-    }
-}
-
-function ImportGame() {
-    var url = $('#import_url').val();
-    if (!url) {
-        $('#import_warning').show();
-        $('#import_warning').text('А укажите URL');
-        return;
-    }
-    $('#import_warning').hide();
-
-    if (typeof ga === 'function') {
-        ga('send', 'event', 'editor', 'import', url);
-    }
-
-    $.getJSON('/json/import/', {'url': url}, function(data) {
-        if (data.hasOwnProperty('error')) {
+    function ImportGame() {
+        var url = $('#import_url').val();
+        if (!url) {
             $('#import_warning').show();
-            $('#import_warning').text(data.error);
+            $('#import_warning').text('А укажите URL');
             return;
         }
-        UpdateFields(data);
-        $('#import_url').val('');
-    });
-}
+        $('#import_warning').hide();
 
-var res = {};
-res.Init = InitEditor;
-res.SubmitGameJson = SubmitGameJson;
-res.ImportGame = ImportGame;
-return res;
+        if (typeof ga === 'function') {
+            ga('send', 'event', 'editor', 'import', url);
+        }
+
+        $.getJSON('/json/import/', {
+            'url': url
+        }, function(data) {
+            if (data.hasOwnProperty('error')) {
+                $('#import_warning').show();
+                $('#import_warning').text(data.error);
+                return;
+            }
+            UpdateFields(data);
+            $('#import_url').val('');
+        });
+    }
+
+    var res = {};
+    res.Init = InitEditor;
+    res.SubmitGameJson = SubmitGameJson;
+    res.ImportGame = ImportGame;
+    return res;
 }());
