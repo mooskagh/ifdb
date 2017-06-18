@@ -379,6 +379,19 @@ class SB_Flags(SearchBit):
         return True in self.items
 
 
+# [int:0] - Sorting. + [int: sort type, lowest bit for direction]
+# [int:1] [int:type] text input [bool:flags] [sting]
+#         { type 0 -> text search, flag:0 -> only titles }
+# [int:2] - Tag [int:category] [set:values]
+# [int:3] [int:0] - BitEncoded + [bools:flags]
+# [int:4] [int:0] - Duration [int:min or 0] [int:max or 0]
+#                   [bool:games without duration]
+# [int:5] [int:0 for release] -
+#         Date [int:min:days since 1900 or 0] [int:max:days or 0]
+#         [bool:games without duration]
+#     Possibly merge int:4 and int:5 into range input.
+
+
 class Search:
     def __init__(self, perm):
         self.perm = perm
