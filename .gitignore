@@ -1,5 +1,6 @@
-ifdb.sublime-workspace
+/db.sqlite3
+/ifdb.sublime-workspace
+/uploads
+/urlcache
+/urqw
 __pycache__
-db.sqlite3
-upload
-urlcache

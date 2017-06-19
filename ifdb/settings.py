@@ -37,6 +37,7 @@ if IS_PROD:
             'PORT': '',
         }
     }
+    URQW_PATH = os.path.abspath('/home/ifdb/urqw')
     MEDIA_ROOT = os.path.abspath('/home/ifdb/uploads')
     if 'staging' in BASE_DIR:
         STATIC_ROOT = os.path.abspath('/home/ifdb/staging/static')
@@ -63,7 +64,9 @@ else:
             'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
         }
     }
-    MEDIA_ROOT = os.path.abspath('./uploads')
+
+    URQW_PATH = os.path.join(BASE_DIR, 'urqw')
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'uploads')
     URL_CACHE_DIR = os.path.join(BASE_DIR, 'urlcache')
     DEBUG_TOOLBAR_PANELS = [
         'debug_toolbar.panels.versions.VersionsPanel',

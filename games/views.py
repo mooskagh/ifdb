@@ -100,7 +100,6 @@ def comment_game(request):
 
     return redirect(reverse('show_game', kwargs={'game_id': game.id}))
 
-
 def show_game(request, game_id):
     try:
         game = Game.objects.get(id=game_id)
