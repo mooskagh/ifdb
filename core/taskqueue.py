@@ -97,7 +97,8 @@ def Worker():
              .filter(Q(dependency=None) | Q(dependency__success=True)).filter(
                  Q(scheduled_time=None) | Q(
                      scheduled_time__lte=datetime.datetime.now())).order_by(
-                         'priority', 'enqueue_time'))[:1]
+                         'priority', 'enqueue_time'))
+        logging.info('%d tasks waiting' % t.count())
         if t:
             t = t[0]
             t.pending = False
@@ -132,14 +133,20 @@ def Worker():
                             pass
             continue
         else:
-            t = (TaskQueueElement.objects.filter(
-                pending=True
-            ).filter(Q(dependency=None) | Q(dependency__success=True)).filter(
-                scheduled_time__isnull=False).order_by('scheduled_time'))[:1]
+            t = (TaskQueueElement.objects.filter(pending=True).filter(
+                Q(dependency=None) | Q(dependency__success=True)).filter(
+                    scheduled_time__isnull=False).order_by('scheduled_time')
+                 )[:1]
             if t:
-                delta = int(t.scheduled_time - datetime.datetime.now() + 1)
+                t = t[0]
+                delta = int((t.scheduled_time - datetime.datetime.now()
+                             ).total_seconds()) + 1
+                logging.info('All tasks pending, waiting for %d seconds' %
+                             delta)
                 if IsPosix():
                     signal.alert(delta)
+            else:
+                logging.info('Done everything!')
 
         if IsPosix():
             signal.pause()

@@ -50,7 +50,6 @@ class Command(BaseCommand):
     help = 'Populates games'
 
     def handle(self, *args, **options):
-        games.importer.tools.URL_CACHE_DIR = settings.URL_CACHE_DIR
         fake_request = FakeRequest(USER)
 
         for url in URLS:

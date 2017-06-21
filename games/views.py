@@ -19,6 +19,8 @@ from statistics import mean, median
 import json
 import logging
 import markdown
+from core.taskqueue import Enqueue
+from .uploads import CloneFile
 
 PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
 
@@ -559,6 +561,8 @@ def UpdateGameUrls(request, game, data, update):
                 url.creator = request.user
                 url.ok_to_clone = cat_to_cloneable[c]
                 url.save()
+                if url.ok_to_clone:
+                    Enqueue(CloneFile, url.id, name='CloneGame(%d)' % url.id)
                 url_to_id[u] = url.id
 
         objs = []

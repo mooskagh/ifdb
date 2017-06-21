@@ -10,11 +10,7 @@ from urllib.parse import quote
 
 
 def FetchUrlToString(url):
-    try:
-        return FetchUrlToFileLike(url).read().decode('utf-8')
-    except Exception as e:
-        logging.exception(e)
-        raise
+    return FetchUrlToFileLike(url).read().decode('utf-8')
 
 
 def _ResponseInfoToMetadata(url, response):
@@ -27,7 +23,7 @@ def _ResponseInfoToMetadata(url, response):
 
 
 def FetchUrlToFileLike(url):
-    print('Fetching: %s' % url)
+    logging.info('Fetching: %s' % url)
     url = quote(url.encode('utf-8'), safe='/+=&?%:@;!#$*()_-')
     if not settings.CRAWLER_CACHE_DIR:
         response = urllib.request.urlopen(url)
