@@ -608,7 +608,8 @@ function GetCookie(name) {
                 var alreadyExists = false;
                 for (var j = 0; j < o.objs.length - 1; ++j) {
                     var oo = o.objs[j];
-                    if (oo.url.val() == url) {
+                    if (oo.url.val() == url &&
+                        oo.cats.suggest('value') == cat) {
                         alreadyExists = true;
                         break;
                     }

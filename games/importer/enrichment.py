@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlsplit
 
 
 class RuleBase:
@@ -19,6 +20,23 @@ class HasTag(RuleBase):
             for y in self.tags:
                 if y.match(x.get('tag', '').lower()):
                     return True
+        return False
+
+
+class IsFromSite(RuleBase):
+    def __init__(self, cat, site):
+        self.cat = cat
+        self.site = site
+
+    def Match(self, game):
+        if 'urls' not in game:
+            return False
+
+        for x in game['urls']:
+            if x['urlcat_slug'] == self.cat:
+                if self.site == urlsplit(x['url']).netloc:
+                    return True
+
         return False
 
 
@@ -48,6 +66,25 @@ class And(RuleBase):
         return True
 
 
+class Or(RuleBase):
+    def __init__(self, *subrules):
+        self.subrules = subrules
+
+    def Match(self, game):
+        for x in self.subrules:
+            if x.Match(game):
+                return True
+        return False
+
+
+class Not(RuleBase):
+    def __init__(self, subrule):
+        self.subrule = subrule
+
+    def Match(self, game):
+        return not self.subrule.Match(game)
+
+
 class ActionBase:
     pass
 
@@ -63,6 +100,24 @@ class AddTag(ActionBase):
                 vals_to_apply.discard(x['tag_slug'])
         for x in vals_to_apply:
             game['tags'].append({'tag_slug': x})
+
+
+class CloneUrl(ActionBase):
+    def __init__(self, fr, to):
+        self.fr = fr
+        self.to = to
+
+    def Apply(self, game):
+        urls = set()
+        for x in game.setdefault('urls', []):
+            if x['urlcat_slug'] == self.fr:
+                urls.add(x['url'])
+        for x in urls:
+            game['urls'].append({
+                'urlcat_slug': self.to,
+                'description': 'Запустить в UrqW',
+                'url': x
+            })
 
 
 class Enricher:
@@ -138,3 +193,10 @@ enricher.AddRule(HasTag('platform', 'dosurq'), AddTag('os_dos'))
 enricher.AddRule(
     And(HasTag('platform', 'qsp'), HasUrlCategory('play_online')),
     AddTag('os_web'))
+enricher.AddRule(
+    And(
+        Or(
+            HasTag('platform', '.*urq.*'),
+            IsFromSite('game_page', 'urq.plut.info')),
+        Not(HasTag('platform', 'fireurq'))),
+    CloneUrl('download_direct', 'urqw'))

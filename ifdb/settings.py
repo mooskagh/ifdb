@@ -52,7 +52,9 @@ if IS_PROD:
     SERVER_EMAIL = 'ersatzplut@gmail.com'
     EMAIL_HOST_PASSWORD = open('/home/ifdb/configs/gmail-pass.txt').read(
     ).strip()
-    CRAWLER_CACHE_DIR = None
+    CRAWLER_CACHE_DIR = '/home/ifdb/tmp/urlcache/'
+    TMP_DIR = '/home/ifdb/tmp/tmp/'
+    PATH_TO_7Z = '7z'
 
 else:
     SECRET_KEY = 'l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr'
@@ -68,6 +70,7 @@ else:
     URQW_PATH = os.path.join(BASE_DIR, 'urqw')
     MEDIA_ROOT = os.path.join(BASE_DIR, 'uploads')
     CRAWLER_CACHE_DIR = os.path.join(BASE_DIR, 'urlcache')
+    TMP_DIR = os.path.join(BASE_DIR, 'tmp')
     DEBUG_TOOLBAR_PANELS = [
         'debug_toolbar.panels.versions.VersionsPanel',
         'debug_toolbar.panels.timer.TimerPanel',
@@ -82,6 +85,7 @@ else:
         'debug_toolbar.panels.logging.LoggingPanel',
         'debug_toolbar.panels.redirects.RedirectsPanel',
     ]
+    PATH_TO_7Z = 'C:/Program Files/7-Zip/7z.exe'
 
 ADMINS = [('Alexander Lyashuk', 'mooskagh@gmail.com')]
 INTERNAL_IPS = [

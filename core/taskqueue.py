@@ -26,7 +26,7 @@ def NotifyWorker():
             pass
 
 
-def _EnqueueCreate(func, argv, name, on_fail, priority, retries, retry_minutes,
+def _EnqueueCreate(func, argv, name, onfail, priority, retries, retry_minutes,
                    dependency, kwarg):
     t = TaskQueueElement()
     t.name = name
@@ -36,10 +36,10 @@ def _EnqueueCreate(func, argv, name, on_fail, priority, retries, retry_minutes,
         'argv': argv,
         'kwarg': kwarg,
     })
-    if on_fail:
-        t.on_fail = json.dumps({
-            'module': on_fail.__module__,
-            'name': on_fail.__name__
+    if onfail:
+        t.onfail = json.dumps({
+            'module': onfail.__module__,
+            'name': onfail.__name__
         })
     t.retries_left = retries
     t.retry_minutes = retry_minutes
@@ -51,13 +51,13 @@ def _EnqueueCreate(func, argv, name, on_fail, priority, retries, retry_minutes,
 def Enqueue(func,
             *argv,
             name=None,
-            on_fail=None,
+            onfail=None,
             priority=100,
             retries=3,
             retry_minutes=2000,
             dependency=None,
             **kwarg):
-    t = _EnqueueCreate(func, argv, name, on_fail, priority, retries,
+    t = _EnqueueCreate(func, argv, name, onfail, priority, retries,
                        retry_minutes, dependency, kwarg)
     t.save()
     NotifyWorker()
@@ -123,14 +123,14 @@ def Worker():
                 else:
                     t.fail = True
                     t.save()
-                    if t.on_fail:
-                        call = json.loads(t.on_fail)
+                    if t.onfail_json:
+                        call = json.loads(t.onfail_json)
                         i = importlib.import_module(call['module'])
                         func = getattr(i, call['name'])
                         try:
-                            func(t)
-                        except:
-                            pass
+                            func(t, call)
+                        except Exception as e:
+                            logging.exception(e)
             continue
         else:
             t = (TaskQueueElement.objects.filter(pending=True).filter(

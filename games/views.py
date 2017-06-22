@@ -20,7 +20,7 @@ import json
 import logging
 import markdown
 from core.taskqueue import Enqueue
-from .uploads import CloneFile
+from .uploads import CloneFile, RecodeGame, MarkBroken
 
 PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
 
@@ -101,6 +101,7 @@ def comment_game(request):
     comment.save()
 
     return redirect(reverse('show_game', kwargs={'game_id': game.id}))
+
 
 def show_game(request, game_id):
     try:
@@ -553,6 +554,7 @@ def UpdateGameUrls(request, game, data, update):
         for c in URLCategory.objects.filter(id__in=cats_to_check):
             cat_to_cloneable[c.id] = c.allow_cloning
 
+        game_to_task = {}
         for u, c in urls_to_add:
             if u not in url_to_id:
                 url = URL()
@@ -562,7 +564,11 @@ def UpdateGameUrls(request, game, data, update):
                 url.ok_to_clone = cat_to_cloneable[c]
                 url.save()
                 if url.ok_to_clone:
-                    Enqueue(CloneFile, url.id, name='CloneGame(%d)' % url.id)
+                    game_to_task[url.id] = Enqueue(
+                        CloneFile,
+                        url.id,
+                        name='CloneGame(%d)' % url.id,
+                        onfail=MarkBroken)
                 url_to_id[u] = url.id
 
         objs = []
@@ -572,7 +578,15 @@ def UpdateGameUrls(request, game, data, update):
             obj.url_id = url_to_id[url]
             obj.game = game
             obj.description = desc or None
-            objs.append(obj)
+            if URLCategory.IsRecodable(cat):
+                obj.save()
+                Enqueue(
+                    RecodeGame,
+                    obj.id,
+                    name='RecodeGame(%d)' % obj.id,
+                    dependency=game_to_task.get(url_to_id[url]))
+            else:
+                objs.append(obj)
         GameURL.objects.bulk_create(objs)
 
     if existing_urls:

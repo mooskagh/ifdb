@@ -428,7 +428,6 @@ class Search:
         for x in self.bits:
             if x.IsActive():
                 q = x.ModifyQuery(q)
-        print(q.query)
         games = [x for x in q.distinct() if self.perm(x.view_perm)]
         for g in games:
             g.ds = {}

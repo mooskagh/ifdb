@@ -111,7 +111,8 @@ def Import(seed_url):
             y['desc'] += x['desc']
 
         for setz, field, extractor in [
-            (s_urls, 'urls', lambda xx: HashizeUrl(xx['url'])),
+            (s_urls, 'urls',
+             lambda xx: (HashizeUrl(xx['url']), xx['urlcat_slug'])),
             (s_tags, 'tags',
              lambda xx: (xx.get('tag_slug'), xx.get('tag'), xx.get('cat_slug'))
              ),
@@ -167,6 +168,7 @@ def Import(seed_url):
     if 'title' in r and 'error' in r:
         del r['error']
     return r
+
 
 # Schema:
 # title: title

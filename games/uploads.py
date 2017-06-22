@@ -1,9 +1,16 @@
-import re
-from .models import URL
+from .models import URL, RecodedGameURL, GameURL
 from core.crawler import FetchUrlToFileLike
+from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from urllib.parse import unquote
+import datetime
 import logging
+import os.path
+import re
+import shutil
+import subprocess
+import tempfile
+import zipfile
 
 FILENAME_RE = re.compile(
     r'^.*?\b((?:%[0-9a-f]{2}|[$:+()_\w\d\.])+\.[\w\d]{2,4})\b[^/]*$')
@@ -27,7 +34,77 @@ def CloneFile(id):
     logging.info('Stored as %s' % filename)
 
     url.local_url = fs.url(filename)
+    url.local_filename = filename
     url.original_filename = f.metadata['filename']
     url.content_type = f.metadata['content-type']
     url.file_size = fs.size(filename)
     url.save()
+
+
+def MarkBroken(task, context):
+    id = context['argv'][0]
+    url = URL.objects.get(id=id)
+    logging.warn('Found broken link at url: %s' % url.original_url)
+    url.is_broken = True
+    url.save()
+
+
+def RecodeGame(game_url_id):
+    game_url = GameURL.objects.select_related('url', 'category').get(
+        id=game_url_id)
+    metadata = {
+        'url': game_url.url.original_url,
+        'filename': game_url.url.original_filename
+    }
+    filename = ComeUpWithFilename(metadata)
+    if game_url.category.symbolic_id != 'urqw':
+        logging.error(
+            'Requested recoding of unknown category %s' % game_url.category)
+        return
+
+    if os.path.splitext(filename)[1].lower() in ['.zip', '.qsz', '.qst']:
+        # Already in supported format.
+        recoded_url = RecodedGameURL()
+        recoded_url.original = game_url
+        recoded_url.recoding_date = datetime.datetime.now()
+        recoded_url.save()
+        return
+
+    url = game_url.url
+
+    tmp_dir = tempfile.mkdtemp(dir=settings.TMP_DIR)
+    fs = FileSystemStorage()
+    logging.info("Unpacking %s into %s" % (fs.path(url.local_filename),
+                                           tmp_dir))
+    try:
+        subprocess.check_output(
+            '"%s" x %s "-o%s"' % (settings.PATH_TO_7Z,
+                                  fs.path(url.local_filename), tmp_dir),
+            stderr=subprocess.STDOUT,
+            shell=True)
+    except subprocess.CalledProcessError as x:
+        logging.error(x.output)
+        raise
+    new_filename = fs.generate_filename("urqw/%s.zip" % url.local_filename)
+    with zipfile.ZipFile(
+            fs.open(new_filename, 'wb'), 'w', zipfile.ZIP_DEFLATED,
+            allowZip64=True) as z:
+
+        def RaiseError(x):
+            logging.exception(x)
+            raise x
+
+        for root, _, filenames in os.walk(tmp_dir, onerror=RaiseError):
+            for name in filenames:
+                name = os.path.join(root, name)
+                name = os.path.normpath(name)
+                relpath = os.path.relpath(name, tmp_dir)
+                z.write(name, relpath)
+
+    shutil.rmtree(tmp_dir)
+    recoded_url = RecodedGameURL()
+    recoded_url.original = game_url
+    recoded_url.recoded_filename = new_filename
+    recoded_url.recoded_url = fs.url(new_filename)
+    recoded_url.recoding_date = datetime.datetime.now()
+    recoded_url.save()

@@ -89,6 +89,7 @@ class URL(models.Model):
         return "%s" % (self.original_url)
 
     local_url = models.CharField(null=True, blank=True, max_length=255)
+    local_filename = models.CharField(null=True, blank=True, max_length=255)
     original_url = models.CharField(
         null=True, blank=True, max_length=255, db_index=True)
     original_filename = models.CharField(null=True, blank=True, max_length=255)
@@ -102,18 +103,23 @@ class URL(models.Model):
     creator = models.ForeignKey(User, null=True, blank=True)
 
 
-class RecodedURL(models.Model):
-    original = models.ForeignKey(URL)
-    recoded_url = models.CharField(null=True, blank=True, max_length=255)
-    interpreter = models.CharField(max_length=32)
-
-
 class URLCategory(models.Model):
     class Meta:
         default_permissions = ()
 
     def __str__(self):
         return self.title
+
+    RECODABLE_CATS = None
+
+    @staticmethod
+    def IsRecodable(id):
+        if URLCategory.RECODABLE_CATS is None:
+            URLCategory.RECODABLE_CATS = set([
+                x.id
+                for x in URLCategory.objects.filter(symbolic_id__in=['urqw'])
+            ])
+        return id in URLCategory.RECODABLE_CATS
 
     symbolic_id = models.SlugField(
         max_length=32, null=True, blank=True, db_index=True, unique=True)
@@ -133,6 +139,13 @@ class GameURL(models.Model):
     url = models.ForeignKey(URL)
     category = models.ForeignKey(URLCategory)
     description = models.CharField(null=True, blank=True, max_length=255)
+
+
+class RecodedGameURL(models.Model):
+    original = models.ForeignKey(GameURL)
+    recoded_filename = models.CharField(null=True, blank=True, max_length=255)
+    recoded_url = models.CharField(null=True, blank=True, max_length=255)
+    recoding_date = models.DateTimeField()
 
 
 class Author(models.Model):
@@ -239,5 +252,3 @@ class GameComment(models.Model):
     subject = models.CharField(max_length=255, null=True, blank=True)
     text = models.TextField()
     is_deleted = models.BooleanField(default=False)
-
-
