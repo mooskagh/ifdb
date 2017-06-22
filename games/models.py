@@ -102,6 +102,12 @@ class URL(models.Model):
     creator = models.ForeignKey(User, null=True, blank=True)
 
 
+class RecodedURL(models.Model):
+    original = models.ForeignKey(URL)
+    recoded_url = models.CharField(null=True, blank=True, max_length=255)
+    interpreter = models.CharField(max_length=32)
+
+
 class URLCategory(models.Model):
     class Meta:
         default_permissions = ()
