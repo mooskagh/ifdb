@@ -690,6 +690,6 @@ progress::-webkit-progress-value {
     color: #31322D;
     display: inline-block;
     font-weight: bold;
-    margin-right: 0.5em;
+    margin-right: 0.4em;
     text-transform: uppercase;
 }
