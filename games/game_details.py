@@ -3,12 +3,12 @@ from .tools import FormatDate, RenderMarkdown
 from urllib.parse import urlparse, parse_qs
 
 
-def PartitionLinks(links, partitions):
+def Partition(links, catname, partitions):
     rest = []
     cats = {x: None for y in partitions for x in y}
     for x in links:
-        if x['category'].symbolic_id in cats:
-            cats[x['category'].symbolic_id] = x
+        if x[catname].symbolic_id in cats:
+            cats[x[catname].symbolic_id] = x
         else:
             rest.append(x)
 
@@ -61,10 +61,12 @@ class GameDetailsBuilder:
         release_date = FormatDate(self.game.release_date)
         last_edit_date = FormatDate(self.game.edit_time)
         added_date = FormatDate(self.game.creation_time)
-        authors = self.GetAuthors()
-        links = self.GetURLs()
-        media, links = PartitionLinks(links, [('poster', 'video',
-                                               'scrrenshot')])
+        authors, participants = Partition(self.GetAuthors(), 'role',
+                                          [('author',)])
+        if authors:
+            authors = authors[0]['authors']
+        media, links = Partition(self.GetURLs(), 'category',
+                                 [('poster', 'video', 'scrrenshot')])
         media = AnnotateMedia(media)
         md = RenderMarkdown(self.game.description)
         tags = self.GetTagsForDetails()
@@ -76,6 +78,7 @@ class GameDetailsBuilder:
             'delete_perm': False,
             'added_date': added_date,
             'authors': authors,
+            'participants': participants,
             'game': self.game,
             'last_edit_date': last_edit_date,
             'markdown': md,

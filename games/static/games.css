@@ -263,8 +263,12 @@ textarea {
     color: #31322D;
     font-weight: bold;
     font-size: 2.5em;
-    margin-bottom: 3em;
+    margin-bottom: 0;
     margin-top: 1em;
+}
+
+.game-author {
+    margin-bottom: 3em;
 }
 
 .gamelist-thumb-container {
@@ -680,4 +684,12 @@ progress::-webkit-progress-value {
     position: absolute;
     right: 0;
     top: 0;
+}
+
+.game-author span {
+    color: #31322D;
+    display: inline-block;
+    font-weight: bold;
+    margin-right: 0.5em;
+    text-transform: uppercase;
 }

@@ -34,6 +34,14 @@
         <div class="content-box-inner">
             <div class="leftpane">
                 <h1 class="game-title">{{ game.title }}</h1>
+                <div class="game-author">
+                {% if authors %}
+                    {% if authors|length == 1 %}Автор:{% else %}Авторы:{% endif %}
+                    {% for x in authors %}
+                        <span>{{ x.name }}{% if not forloop.last %}, {% endif %}</span>
+                    {% endfor %}
+                {% endif %}
+                </div>
             </div>
             {% if media %}
             <div class="leftpane slider-container">
@@ -145,10 +153,10 @@
                 <hr>
             </div>
         {% endif %}
-        {% if authors %}
+        {% if participants %}
             <div class="rightpane">
                 <table>
-                    {% for role in authors %}
+                    {% for role in participants %}
                         {% for author in role.authors %}
                             <tr>
                                 <td class="prop-category">
