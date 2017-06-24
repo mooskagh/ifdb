@@ -27,58 +27,8 @@ class Game(models.Model):
     added_by = models.ForeignKey(User)
 
     # -(GameContestEntry)
-    # (GameRatings)
-    # (GameComments)
     # (LoadLog) // For computing popularity
     # -(GamePopularity)
-    def GetAuthors(self):
-        authors = {}
-        roles = []
-        for x in GameAuthor.objects.filter(game=self):
-            if x.role in authors:
-                authors[x.role].append(x.author)
-            else:
-                roles.append(x.role)
-                authors[x.role] = [x.author]
-        roles.sort(key=lambda x: x.order)
-        res = []
-        for r in roles:
-            res.append({'role': r, 'authors': authors[r]})
-        return res
-
-    def GetTagsForDetails(self, perm):
-        tags = {}
-        cats = []
-        for x in self.tags.all():
-            category = x.category
-            if not perm(category.show_in_details_perm):
-                continue
-            if category in tags:
-                tags[category].append(x)
-            else:
-                cats.append(category)
-                tags[category] = [x]
-        cats.sort(key=lambda x: x.order)
-        res = []
-        for r in cats:
-            res.append({'category': r, 'tags': tags[r]})
-        return res
-
-    def GetURLs(self):
-        urls = {}
-        cats = []
-        for x in GameURL.objects.filter(game=self):
-            category = x.category
-            if category in urls:
-                urls[category].append(x)
-            else:
-                cats.append(category)
-                urls[category] = [x]
-        cats.sort(key=lambda x: x.order)
-        res = []
-        for r in cats:
-            res.append({'category': r, 'urls': urls[r]})
-        return res
 
 
 class URL(models.Model):

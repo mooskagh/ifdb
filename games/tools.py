@@ -1,3 +1,6 @@
+import markdown
+
+
 def FormatDate(x):
     if not x:
         return None
@@ -21,3 +24,11 @@ def StarsFromRating(rating):
         res.append(avg % 10)
     res.extend([0] * (5 - len(res)))
     return res
+
+
+def RenderMarkdown(content):
+    return markdown.markdown(content, [
+        'markdown.extensions.extra', 'markdown.extensions.meta',
+        'markdown.extensions.smarty', 'markdown.extensions.wikilinks',
+        'del_ins'
+    ]) if content else ''
