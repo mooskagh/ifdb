@@ -1,11 +1,9 @@
 from urllib.parse import quote, urlunsplit, urlsplit, urlparse, urljoin
 from .enrichment import enricher
-import urllib
-import hashlib
+from core.crawler import FetchUrlToString
 import re
 import os.path
 
-URL_CACHE_DIR = None
 RE_WORD = re.compile('\w+')
 MIN_SIMILARITY = 0.67
 REGISTERED_IMPORTERS = []
@@ -26,6 +24,7 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('youtube.com', '', '', 'video', 'Видео игры'),
     ('www.youtube.com', '', '', 'video', 'Видео игры'),
     ('forum.ifiction.ru', '', '', 'forum', 'Обсуждение на форуме'),
+    ('ifhub.club', '', '', 'review', 'Обзор на ifhub.club'),
     ('qsp.su', '', '.*=dd_download.*', 'download_direct', 'Скачать с qsp.ru'),
     ('qsp.su', '/tools/aero/.*', '', 'play_online', 'Играть онлайн на qsp.ru'),
     ('qsp.su', '', '', 'game_page', 'Игра на qsp.ru'),
@@ -73,25 +72,6 @@ def SimilarEnough(w1, w2):
     return similarity > MIN_SIMILARITY
 
 
-def FetchUrl(url):
-    print('Fetching: %s' % url)
-    filename_hash = hashlib.md5(url.encode('utf-8')).hexdigest()
-    if URL_CACHE_DIR:
-        filename = os.path.join(URL_CACHE_DIR, filename_hash)
-        if os.path.isfile(filename):
-            with open(filename, 'rb') as f:
-                return f.read().decode('utf-8')
-
-    url = quote(url.encode('utf-8'), safe='/+=&?%:@;!#$*()_-')
-    with urllib.request.urlopen(url) as response:
-        contents = response.read()
-        if URL_CACHE_DIR:
-            filename = os.path.join(URL_CACHE_DIR, filename_hash)
-            with open(filename, 'wb') as f:
-                f.write(contents)
-        return contents.decode('utf-8')
-
-
 def DispatchImport(url):
     for x in REGISTERED_IMPORTERS:
         if x.Match(url):
@@ -132,7 +112,8 @@ def Import(seed_url):
             y['desc'] += x['desc']
 
         for setz, field, extractor in [
-            (s_urls, 'urls', lambda xx: HashizeUrl(xx['url'])),
+            (s_urls, 'urls',
+             lambda xx: (HashizeUrl(xx['url']), xx['urlcat_slug'])),
             (s_tags, 'tags',
              lambda xx: (xx.get('tag_slug'), xx.get('tag'), xx.get('cat_slug'))
              ),

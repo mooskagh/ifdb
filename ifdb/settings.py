@@ -37,15 +37,24 @@ if IS_PROD:
             'PORT': '',
         }
     }
+    URQW_PATH = os.path.abspath('/home/ifdb/urqw')
     MEDIA_ROOT = os.path.abspath('/home/ifdb/uploads')
     if 'staging' in BASE_DIR:
         STATIC_ROOT = os.path.abspath('/home/ifdb/staging/static')
     else:
         STATIC_ROOT = os.path.abspath('/home/ifdb/static')
 
-    EMAIL_HOST_PASSWORD = open(
-        '/home/ifdb/configs/gmail-pass.txt').read().strip()
-    URL_CACHE_DIR = None
+    EMAIL_USE_TLS = True
+    EMAIL_HOST = 'smtp.gmail.com'
+    EMAIL_PORT = 587
+    EMAIL_HOST_USER = 'ersatzplut@gmail.com'
+    DEFAULT_FROM_EMAIL = 'ersatzplut@gmail.com'
+    SERVER_EMAIL = 'ersatzplut@gmail.com'
+    EMAIL_HOST_PASSWORD = open('/home/ifdb/configs/gmail-pass.txt').read(
+    ).strip()
+    CRAWLER_CACHE_DIR = '/home/ifdb/tmp/urlcache/'
+    TMP_DIR = '/home/ifdb/tmp/tmp/'
+    PATH_TO_7Z = '7z'
 
 else:
     SECRET_KEY = 'l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr'
@@ -57,9 +66,11 @@ else:
             'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
         }
     }
-    MEDIA_ROOT = os.path.abspath('./uploads')
-    EMAIL_HOST_PASSWORD = open('D:/tmp/gmail-pass.txt').read().strip()
-    URL_CACHE_DIR = os.path.join(BASE_DIR, 'urlcache')
+
+    URQW_PATH = os.path.join(BASE_DIR, 'urqw')
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'uploads')
+    CRAWLER_CACHE_DIR = os.path.join(BASE_DIR, 'urlcache')
+    TMP_DIR = os.path.join(BASE_DIR, 'tmp')
     DEBUG_TOOLBAR_PANELS = [
         'debug_toolbar.panels.versions.VersionsPanel',
         'debug_toolbar.panels.timer.TimerPanel',
@@ -73,16 +84,10 @@ else:
         'debug_toolbar.panels.signals.SignalsPanel',
         'debug_toolbar.panels.logging.LoggingPanel',
         'debug_toolbar.panels.redirects.RedirectsPanel',
-        'ddt_request_history.panels.request_history.RequestHistoryPanel',
     ]
+    PATH_TO_7Z = 'C:/Program Files/7-Zip/7z.exe'
 
 ADMINS = [('Alexander Lyashuk', 'mooskagh@gmail.com')]
-EMAIL_USE_TLS = True
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_HOST_USER = 'ersatzplut@gmail.com'
-DEFAULT_FROM_EMAIL = 'ersatzplut@gmail.com'
-SERVER_EMAIL = 'ersatzplut@gmail.com'
 INTERNAL_IPS = [
     '127.0.0.1',
     '10.162.0.100',
@@ -96,9 +101,14 @@ INTERNAL_IPS = [
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin', 'django.contrib.auth',
-    'django.contrib.contenttypes', 'django.contrib.sessions',
-    'django.contrib.messages', 'django.contrib.staticfiles', 'games'
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'games',
+    'core',
 ]
 
 MIDDLEWARE = [
@@ -145,19 +155,19 @@ WSGI_APPLICATION = 'ifdb.wsgi.application'
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME':
-            'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
         'NAME':
-            'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
         'NAME':
-            'django.contrib.auth.password_validation.CommonPasswordValidator',
+        'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {
         'NAME':
-            'django.contrib.auth.password_validation.NumericPasswordValidator',
+        'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
 

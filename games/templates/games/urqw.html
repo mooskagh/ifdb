@@ -1,0 +1,112 @@
+{% extends "./base.html" %}
+{% load static %}
+
+{% block scripts %}
+    <link href="{% static 'urqw/vendor/bootstrap.min.css' %}" rel="stylesheet">
+    <link href="{% static 'urqw/style.css' %}" rel="stylesheet">
+    <script src="{% static 'urqw/vendor/bootstrap.min.js' %}"></script>
+    <script src="{% static 'urqw/vendor/jszip.min.js' %}"></script>
+    <script src="{% static 'urqw/vendor/jszip-utils.min.js' %}"></script>
+    <script src="{% static 'urqw/lang/ruRu.js' %}"></script>
+    <script src="{% static 'urqw/tools.js' %}"></script>
+    <script src="{% static 'urqw/Player/Player.js' %}"></script>
+    <script src="{% static 'urqw/Player/Engine.js' %}"></script>
+    <script src="{% static 'urqw/Quest.js' %}"></script>
+    <script src="{% static 'urqw/Parser.js' %}"></script>
+    <script src="{% static 'urqw/RPN.js' %}"></script>
+    <script src="{% static 'urqw/Client.js' %}"></script>
+    <script src="{% static 'urqw/ctrl.js' %}"></script>
+    <script src="{% static 'urqw/main.js' %}"></script>
+{% endblock %}
+{% block content %}
+    <div class="content-box">
+        <h1 class="game-title">{{ game.title }}</h1>
+        <div class="game-author">
+        {% if authors %}
+            {% if authors|length == 1 %}Автор:{% else %}Авторы:{% endif %}
+            {% for x in authors %}
+                <span>{{ x.name }}{% if not forloop.last %}, {% endif %}</span>
+            {% endfor %}
+        {% endif %}
+        </div>
+       <span class="game-auxinfo">
+           Игра выполняется при помощи плеера UrqW.
+           Исходный текст плеера доступен по адресу
+           <a href="https://github.com/narmiel/UrqW">https://github.com/narmiel/UrqW</a>.
+        </span>
+    </div>
+    <br>
+
+    <div class="content-box">
+        <div id="logo" style="text-align: center">
+            <img style="opacity: 0.75" width="150" height="150" src="{% static 'urqw/logo.svg' %}">
+        </div>
+
+        <div id="message" class="page-header" style="display: none;">
+            <h3>Подождите...</h3>
+        </div>
+
+        <div id="game" style="display: none">
+            <nav class="navbar navbar-default">
+                <a class="navbar-brand " href="//github.com/narmiel/UrqW">
+                    <span style="margin-right: 5px;"><img style="opacity: 0.65;" height="24" width="24" alt="Brand" src="{% static 'urqw/logo.svg' %}"></span><span class="hidden-xs"> UrqW</span>
+                </a>
+
+                <ul class="nav navbar-nav">
+                    <li><a title="Управление громкостью" id="mute" href="#"><span class="glyphicon glyphicon-volume-up" aria-hidden="true"><span class="hint sr-only">Убавить звук</span></span></a></li>
+                    <li><a title="Перезапустить игру" id="restart" href="#"><span class="glyphicon glyphicon-refresh" aria-hidden="true"><span class="hint sr-only">Перезапустить игру</span></span></a></li>
+                    <li><a title="Сохранить игру" id="save" href="#"><span class="glyphicon glyphicon-floppy-disk" aria-hidden="true"><span class="hint sr-only">Сохранить игру</span></span></a></li>
+                    <li><a title="Загрузить игру" id="load" href="#"><span class="glyphicon glyphicon-folder-open" aria-hidden="true"><span class="hint sr-only">Загрузить игру</span></span></a></li>
+                </ul>
+                <ul class="nav navbar-nav navbar-right">
+                    <li class="dropdown">
+                        <a href="#" class="dropdown-toggle hidden-xs" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Инвентарь <span class="caret"></span></a>
+                        <a href="#" class="dropdown-toggle visible-xs" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false"><span class="glyphicon glyphicon-th-list"></span></a>
+                        <ul id="inventory" class="dropdown-menu dropdown-menu-left">
+                            <li><a href="#" class="item_use">(Пусто)</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </nav>
+            <hr>
+
+            <div id="textfield"></div>
+            <div class="list-group" id="buttons"></div>
+
+            <div id="input" class="input-group" style="display: none;">
+                <input type="text" class="form-control">
+                    <span class="input-group-btn">
+                      <button id="input_enter" class="btn btn-default" type="button">Ок</button>
+                    </span>
+            </div>
+            <div id="info" style="display: none;" class="well well-sm"></div>
+        </div>
+
+        <div id="saveslots" style="display: none">
+            <div class="page-header text-right">
+                <button id="return_to_game" class="btn btn-default btn-sm" type="button">
+                    Назад к игре
+                </button>
+            </div>
+
+            <div class="list-group">
+            </div>
+        </div>
+    </div>
+    <div id="additionalstyle">
+        <style></style>
+    </div>
+
+    <script>
+        {% if format == '.zip' or format == '.qsz' %}
+            URQW.loadZip('{{ data.GetUrl|escapejs }}');
+        {% elif format == '.qst' %}
+            URQW.loadText('{{ data.GetUrl|escapejs }}');
+        {% elif format == 'error' %}
+            URQW.showError('{{ data|escapejs }}');
+        {% else %}
+            URQW.showError('Неизвестный формат: {{ format|escapejs }}.');
+        {% endif %}
+    </script>
+
+{% endblock %}

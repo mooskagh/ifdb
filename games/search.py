@@ -315,15 +315,8 @@ class SB_Flags(SearchBit):
         'С обсуждениями на форуме',
         'Можно скачать',
         'Можно поиграть онлайн',
+        'Можно поиграть прямо на этом сайте (UrqW)',
     ]
-
-    CATS = {
-        0: ['video'],
-        1: ['review'],
-        2: ['forum'],
-        4: ['download_direct', 'download_landing'],
-        5: ['play_online'],
-    }
 
     CATS_ID_CACHE = {}
 
@@ -342,6 +335,8 @@ class SB_Flags(SearchBit):
             ]),
         5:
             Q(gameurl__category__symbolic_id='play_online'),
+        6:
+            Q(gameurl__category__symbolic_id='urqw'),
     }
 
     # Flags:
@@ -379,6 +374,19 @@ class SB_Flags(SearchBit):
         return True in self.items
 
 
+# [int:0] - Sorting. + [int: sort type, lowest bit for direction]
+# [int:1] [int:type] text input [bool:flags] [sting]
+#         { type 0 -> text search, flag:0 -> only titles }
+# [int:2] - Tag [int:category] [set:values]
+# [int:3] [int:0] - BitEncoded + [bools:flags]
+# [int:4] [int:0] - Duration [int:min or 0] [int:max or 0]
+#                   [bool:games without duration]
+# [int:5] [int:0 for release] -
+#         Date [int:min:days since 1900 or 0] [int:max:days or 0]
+#         [bool:games without duration]
+#     Possibly merge int:4 and int:5 into range input.
+
+
 class Search:
     def __init__(self, perm):
         self.perm = perm
@@ -410,12 +418,13 @@ class Search:
             key = reader.ReadInt()
             self.id_to_bit[key].LoadFromQuery(reader)
 
-    def Search(self):
+    def Search(self, *, prefetch_related=None):
         q = Game.objects.all()
+        if prefetch_related:
+            q = q.prefetch_related(*prefetch_related)
         for x in self.bits:
             if x.IsActive():
                 q = x.ModifyQuery(q)
-        print(q.query)
         games = [x for x in q.distinct() if self.perm(x.view_perm)]
         for g in games:
             g.ds = {}

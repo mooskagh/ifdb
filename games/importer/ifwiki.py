@@ -1,4 +1,5 @@
-from .tools import FetchUrl, CategorizeUrl
+from .tools import CategorizeUrl
+from core.crawler import FetchUrlToString
 from mediawiki_parser import wikitextParser, preprocessorParser, apostrophes
 from pijnu.library.node import Nodes
 from urllib.parse import unquote
@@ -21,7 +22,7 @@ def ImportFromIfwiki(url):
     try:
         fetch_url = '%s/index.php?title=%s&action=raw' % (m.group(1),
                                                           m.group(2))
-        cont = FetchUrl(fetch_url) + '\n'
+        cont = FetchUrlToString(fetch_url) + '\n'
     except Exception as e:
         logging.exception("Error while importing [%s] from Ifwiki" % url)
         return {'error': 'Не открывается что-то этот URL.'}

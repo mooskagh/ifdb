@@ -12,6 +12,7 @@ urlpatterns = [
     url(r'^game/comment/', views.comment_game, name='comment_game'),
     url(r'^game/$', views.list_games, name='list_games'),
     url(r'^game/(?P<game_id>\d+)/', views.show_game, name='show_game'),
+    url(r'^game/urqw/(?P<gameurl_id>\d+)/', views.play_urqw, name='play_urqw'),
     url(r'^json/gameinfo/', views.json_gameinfo, name='json_gameinfo'),
     url(r'^json/upload/', views.upload, name='upload'),
     url(r'^json/import/', views.doImport, name='import'),

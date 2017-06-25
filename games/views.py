@@ -1,6 +1,6 @@
 from .models import (GameAuthorRole, Author, Game, GameTagCategory, GameTag,
                      URLCategory, URL, GameURL, GameVote, GameComment,
-                     GameAuthor)
+                     GameAuthor, RecodedGameURL)
 from .importer import Import
 from .search import MakeSearch
 from .tools import FormatDate, FormatTime, StarsFromRating
@@ -16,9 +16,12 @@ from django.urls import reverse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from ifdb.permissioner import perm_required
 from statistics import mean, median
+import os.path
 import json
 import logging
-import markdown
+from core.taskqueue import Enqueue
+from .uploads import CloneFile, RecodeGame, MarkBroken
+from .game_details import GameDetailsBuilder
 
 PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
 
@@ -103,32 +106,8 @@ def comment_game(request):
 
 def show_game(request, game_id):
     try:
-        game = Game.objects.get(id=game_id)
-        request.perm.Ensure(game.view_perm)
-        release_date = FormatDate(game.release_date)
-        last_edit_date = FormatDate(game.edit_time)
-        added_date = FormatDate(game.creation_time)
-        authors = game.GetAuthors()
-        links = game.GetURLs()
-        md = GetMarkdown(game.description)
-        tags = game.GetTagsForDetails(request.perm)
-        votes = GetGameScore(game, request.user)
-        comments = GetGameComments(game, request.user)
-        return render(request, 'games/game.html', {
-            'edit_perm': request.perm(game.edit_perm),
-            'comment_perm': request.perm(game.comment_perm),
-            'delete_perm': False,
-            'added_date': added_date,
-            'authors': authors,
-            'game': game,
-            'last_edit_date': last_edit_date,
-            'markdown': md,
-            'release_date': release_date,
-            'tags': tags,
-            'links': links,
-            'votes': votes,
-            'comments': comments,
-        })
+        g = GameDetailsBuilder(game_id, request)
+        return render(request, 'games/game.html', g.GetGameDict())
     except Game.DoesNotExist:
         raise Http404()
 
@@ -139,9 +118,38 @@ def list_games(request):
     query = request.GET.get('q', '')
     s.UpdateFromQuery(query)
     if settings.DEBUG and request.GET.get('forcesearch', None):
-        s.Search()
+        json_search(request)
     return render(request, 'games/search.html', {'query': query,
                                                  **s.ProduceBits()})
+
+
+def play_urqw(request, gameurl_id):
+    game = None
+    try:
+        o_u = GameURL.objects.get(pk=gameurl_id)
+        game = o_u.game
+    except GameURL.DoesNotExist:
+        raise Http404()
+
+    if o_u.category.symbolic_id != 'urqw':
+        raise Http404()
+
+    request.perm.Ensure(o_u.game.view_perm)
+    gameinfo = GameDetailsBuilder(o_u.game.id, request).GetGameDict()
+
+    try:
+        data = RecodedGameURL.objects.get(pk=gameurl_id)
+        format = os.path.splitext(data.recoded_filename or
+                                  o_u.url.local_filename)[1].lower()
+    except RecodedGameURL.DoesNotExist:
+        format = 'error'
+        data = (
+            "Сервер ещё не подготовил эту игру к запуску. Попробуйте завтра.")
+
+    return render(request, 'games/urqw.html',
+                  {'data': data,
+                   'format': format,
+                   **gameinfo})
 
 
 @perm_required(PERM_ADD_GAME)
@@ -253,17 +261,21 @@ def json_search(request):
     query = request.GET.get('q', '')
     s = MakeSearch(request.perm)
     s.UpdateFromQuery(query)
-    games = s.Search()
+    games = s.Search(
+        prefetch_related=['gameauthor_set__author', 'gameauthor_set__role'])
 
     posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
         game__in=games).select_related('url'))
 
     g2p = {}
     for x in posters:
-        g2p[x.game_id] = x.url.local_url or x.url.original_url
+        g2p[x.game_id] = x.url.GetUrl()
 
     for x in games:
         x.poster = g2p.get(x.id)
+        x.authors = [
+            x for x in x.gameauthor_set.all() if x.role.symbolic_id == 'author'
+        ]
 
     return render(request, 'games/search_snippet.html', {'games': games})
 
@@ -322,130 +334,6 @@ def doImport(request):
 ############################################################################
 # Aux functions below
 ############################################################################
-
-
-def GetMarkdown(content):
-    return markdown.markdown(content, [
-        'markdown.extensions.extra', 'markdown.extensions.meta',
-        'markdown.extensions.smarty', 'markdown.extensions.wikilinks',
-        'del_ins'
-    ]) if content else ''
-
-
-################################################
-# Returns:
-# - avg_rating
-# - stars[5]
-# - played_count
-# - finished_count
-# - played_hours
-# - played_mins
-# - finished_hours
-# - finished_mins
-# - user_played
-# - user_hours
-# - user_mins
-# - user_score
-def GetGameScore(game, user=None):
-    res = {'user_played': False}
-    if user and not user.is_authenticated:
-        user = None
-    finished_votes = []
-    finished_times = []
-    played_votes = []
-    played_times = []
-    res['user_hours'] = '0'
-    res['user_mins'] = ''
-    res['user_score'] = ''
-    res['user_finished'] = False
-
-    for v in GameVote.objects.filter(game=game):
-        played_votes.append(v.star_rating)
-        played_times.append(v.play_time_mins)
-        if v.game_finished:
-            finished_votes.append(v.star_rating)
-            finished_times.append(v.play_time_mins)
-        if v.user == user:
-            res['user_played'] = True
-            res['user_hours'] = v.play_time_mins // 60
-            res['user_mins'] = v.play_time_mins % 60
-            res['user_score'] = v.star_rating
-            res['user_finished'] = v.game_finished
-
-    res['played_count'] = len(played_votes)
-    if played_votes:
-        avg = mean(played_votes)
-        res['avg_rating'] = ("%3.1f" % avg).replace('.', ',')
-        res['stars'] = StarsFromRating(avg)
-
-        t = round(median(played_times))
-        res['played_hours'] = t // 60
-        res['played_mins'] = t % 60
-
-    res['finished_count'] = len(finished_votes)
-    if finished_votes:
-        t = round(median(finished_times))
-        res['finished_hours'] = t // 60
-        res['finished_mins'] = t % 60
-
-    return res
-
-
-# Returns repeated:
-# user__name
-# parent__id
-#
-def GetGameComments(game, user=None):
-    res = []
-    for v in GameComment.objects.select_related('user').filter(game=game):
-        res.append({
-            'id':
-                v.id,
-            'user_id':
-                v.user.id if v.user else None,
-            'username':
-                v.user.username if v.user else v.foreign_username
-                if v.foreign_username else 'Анонимоўс',
-            'parent_id':
-                v.parent.id if v.parent else None,
-            'fusername':
-                v.foreign_username,
-            'furl':
-                v.foreign_username,
-            'fsite':
-                None,  # TODO
-            'created':
-                FormatTime(v.creation_time),
-            'edited':
-                FormatTime(v.edit_time),
-            'subj':
-                v.subject,
-            'text':
-                GetMarkdown(v.text),
-            # TODO: is_deleted
-        })
-
-    swap = []
-    parent_to_cluster = {}
-    clusters = []
-
-    while res:
-        for v in res:
-            if not v['parent_id']:
-                parent_to_cluster[v['id']] = len(clusters)
-                clusters.append([v])
-            elif v['parent_id'] in parent_to_cluster:
-                clusters[parent_to_cluster[v['parent_id']]].append(v)
-                parent_to_cluster[v['id']] = parent_to_cluster[v['parent_id']]
-            else:
-                swap.append(v)
-        res = swap
-
-    clusters.sort(key=lambda x: x[0]['created'])
-    for x in clusters:
-        x[1:] = sorted(x[1:], key=lambda t: t['created'])
-
-    return [x for y in clusters for x in y]
 
 
 def UpdateGameAuthors(request, game, authors, update):
@@ -552,6 +440,7 @@ def UpdateGameUrls(request, game, data, update):
         for c in URLCategory.objects.filter(id__in=cats_to_check):
             cat_to_cloneable[c.id] = c.allow_cloning
 
+        game_to_task = {}
         for u, c in urls_to_add:
             if u not in url_to_id:
                 url = URL()
@@ -560,6 +449,12 @@ def UpdateGameUrls(request, game, data, update):
                 url.creator = request.user
                 url.ok_to_clone = cat_to_cloneable[c]
                 url.save()
+                if url.ok_to_clone:
+                    game_to_task[url.id] = Enqueue(
+                        CloneFile,
+                        url.id,
+                        name='CloneGame(%d)' % url.id,
+                        onfail=MarkBroken)
                 url_to_id[u] = url.id
 
         objs = []
@@ -569,7 +464,15 @@ def UpdateGameUrls(request, game, data, update):
             obj.url_id = url_to_id[url]
             obj.game = game
             obj.description = desc or None
-            objs.append(obj)
+            if URLCategory.IsRecodable(cat):
+                obj.save()
+                Enqueue(
+                    RecodeGame,
+                    obj.id,
+                    name='RecodeGame(%d)' % obj.id,
+                    dependency=game_to_task.get(url_to_id[url]))
+            else:
+                objs.append(obj)
         GameURL.objects.bulk_create(objs)
 
     if existing_urls:

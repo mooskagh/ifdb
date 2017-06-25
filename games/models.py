@@ -27,58 +27,8 @@ class Game(models.Model):
     added_by = models.ForeignKey(User)
 
     # -(GameContestEntry)
-    # (GameRatings)
-    # (GameComments)
     # (LoadLog) // For computing popularity
     # -(GamePopularity)
-    def GetAuthors(self):
-        authors = {}
-        roles = []
-        for x in GameAuthor.objects.filter(game=self):
-            if x.role in authors:
-                authors[x.role].append(x.author)
-            else:
-                roles.append(x.role)
-                authors[x.role] = [x.author]
-        roles.sort(key=lambda x: x.order)
-        res = []
-        for r in roles:
-            res.append({'role': r, 'authors': authors[r]})
-        return res
-
-    def GetTagsForDetails(self, perm):
-        tags = {}
-        cats = []
-        for x in self.tags.all():
-            category = x.category
-            if not perm(category.show_in_details_perm):
-                continue
-            if category in tags:
-                tags[category].append(x)
-            else:
-                cats.append(category)
-                tags[category] = [x]
-        cats.sort(key=lambda x: x.order)
-        res = []
-        for r in cats:
-            res.append({'category': r, 'tags': tags[r]})
-        return res
-
-    def GetURLs(self):
-        urls = {}
-        cats = []
-        for x in GameURL.objects.filter(game=self):
-            category = x.category
-            if category in urls:
-                urls[category].append(x)
-            else:
-                cats.append(category)
-                urls[category] = [x]
-        cats.sort(key=lambda x: x.order)
-        res = []
-        for r in cats:
-            res.append({'category': r, 'urls': urls[r]})
-        return res
 
 
 class URL(models.Model):
@@ -88,7 +38,11 @@ class URL(models.Model):
     def __str__(self):
         return "%s" % (self.original_url)
 
+    def GetUrl(self):
+        return self.local_url or self.original_url
+
     local_url = models.CharField(null=True, blank=True, max_length=255)
+    local_filename = models.CharField(null=True, blank=True, max_length=255)
     original_url = models.CharField(
         null=True, blank=True, max_length=255, db_index=True)
     original_filename = models.CharField(null=True, blank=True, max_length=255)
@@ -109,6 +63,17 @@ class URLCategory(models.Model):
     def __str__(self):
         return self.title
 
+    RECODABLE_CATS = None
+
+    @staticmethod
+    def IsRecodable(id):
+        if URLCategory.RECODABLE_CATS is None:
+            URLCategory.RECODABLE_CATS = set([
+                x.id
+                for x in URLCategory.objects.filter(symbolic_id__in=['urqw'])
+            ])
+        return id in URLCategory.RECODABLE_CATS
+
     symbolic_id = models.SlugField(
         max_length=32, null=True, blank=True, db_index=True, unique=True)
     title = models.CharField(max_length=255, db_index=True)
@@ -127,6 +92,17 @@ class GameURL(models.Model):
     url = models.ForeignKey(URL)
     category = models.ForeignKey(URLCategory)
     description = models.CharField(null=True, blank=True, max_length=255)
+
+
+class RecodedGameURL(models.Model):
+    def GetUrl(self):
+        return self.recoded_url or self.original.url.GetUrl()
+
+    original = models.OneToOneField(
+        GameURL, on_delete=models.CASCADE, primary_key=True)
+    recoded_filename = models.CharField(null=True, blank=True, max_length=255)
+    recoded_url = models.CharField(null=True, blank=True, max_length=255)
+    recoding_date = models.DateTimeField()
 
 
 class Author(models.Model):

@@ -16,9 +16,15 @@ Including another URLconf
 from django.conf.urls import include, url
 from django.contrib import admin
 from django.http.response import HttpResponseRedirect
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     url(r'^$', lambda r: HttpResponseRedirect('index/')),
     url(r'^adminz/', admin.site.urls, name='admin'),
     url(r'^', include('games.urls'), name='games'),
 ]
+
+if settings.DEBUG:
+    urlpatterns = static(
+        settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + urlpatterns

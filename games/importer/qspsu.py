@@ -1,4 +1,5 @@
-from .tools import FetchUrl, CategorizeUrl
+from .tools import CategorizeUrl
+from core.crawler import FetchUrlToString
 from html import unescape
 from html2text import HTML2Text
 import datetime
@@ -35,7 +36,7 @@ QSP_ADD_DATE = re.compile(r'Добавлено: (\d+)\.(\d+)\.(\d+)&nbsp;&nbsp;'
 
 def ImportFromQsp(url):
     try:
-        html = FetchUrl(url)
+        html = FetchUrlToString(url)
     except:
         return {'error': 'Не открывается что-то этот URL.'}
 

@@ -1,6 +1,7 @@
 import re
 from html import unescape
-from .tools import FetchUrl, CategorizeUrl
+from .tools import CategorizeUrl
+from core.crawler import FetchUrlToString
 from html2text import HTML2Text
 import datetime
 
@@ -50,8 +51,8 @@ def ParseFields(html):
 
 def ImportFromPlut(url):
     try:
-        html = FetchUrl(url)
-    except:
+        html = FetchUrlToString(url)
+    except Exception as e:
         return {'error': 'Не открывается что-то этот URL.'}
 
     res = {'priority': 50}

@@ -449,7 +449,7 @@ def deploy(ctx, hot, from_master):
     if from_master:
         p.AddStep(RunCmdStep('git fetch . release:master'))
 
-    p.AddStep(RunCmdStep('git push --tags origin release'))
+    p.AddStep(RunCmdStep('git push --all origin'))
 
     p.Run('deploy')
 
@@ -543,10 +543,10 @@ def GetNextVersion(ctx):
             pass
 
 
-def Message(msg, text="Press any key to continue..."):
+def Message(msg, text="Press Enter to continue..."):
     def f(ctx):
         click.secho(msg, fg='yellow')
-        click.pause(text)
+        click.prompt(text)
         return True
 
     f.__doc__ = "Prints message: %s" % msg
