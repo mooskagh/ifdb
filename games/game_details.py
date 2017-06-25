@@ -42,8 +42,7 @@ def AnnotateMedia(media):
                 val['type'] = 'youtube'
                 val['id'] = purl.path[1:]
             else:
-                logging.error(
-                    'Unknown video url: %s' % y.original_url)
+                logging.error('Unknown video url: %s' % y.original_url)
                 val['type'] = 'unknown'
                 val['url'] = y.GetUrl()
         else:
@@ -55,10 +54,10 @@ def AnnotateMedia(media):
 
 class GameDetailsBuilder:
     def __init__(self, game_id, request):
-        if isinstance(game_id, Game):
-            self.game = game_id
-        else:
-            self.game = Game.objects.get(id=game_id)
+        self.game = Game.objects.prefetch_related(
+            'gameauthor_set__role', 'gameauthor_set__author',
+            'gameurl_set__category', 'gameurl_set__url',
+            'tags__category').select_related().get(id=game_id)
         self.request = request
         request.perm.Ensure(self.game.view_perm)
 

@@ -135,7 +135,7 @@ def play_urqw(request, gameurl_id):
         raise Http404()
 
     request.perm.Ensure(o_u.game.view_perm)
-    gameinfo = GameDetailsBuilder(o_u.game, request).GetGameDict()
+    gameinfo = GameDetailsBuilder(o_u.game.id, request).GetGameDict()
 
     try:
         # TODO() select related !important
