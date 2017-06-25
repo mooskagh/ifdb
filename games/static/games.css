@@ -284,7 +284,7 @@ a.gamelist-thumb {
     color: #31322D;
     display: inline-block;
     font-weight: bold;
-    height: 180px;
+    height: 200px;
     margin: 7px;
     overflow: hidden;
     padding: 0;
@@ -303,6 +303,17 @@ a.gamelist-thumb .title-container {
     height: 50px;
     margin: 0;
     padding: 5px;
+    overflow: hidden;
+}
+
+a.gamelist-thumb .search-author {
+    font-size: 90%;
+    font-weight: bold;
+    padding: 2px 5px;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
     overflow: hidden;
 }
 

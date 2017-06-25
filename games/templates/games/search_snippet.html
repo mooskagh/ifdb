@@ -9,11 +9,16 @@
         <div class="title-container">
             {{ g.title }}
         </div>
+        <div class="search-author">
+            {% for x in g.authors %}
+                {{x.author.name}}{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        </div>
         <div class="auxinfo">
         {% if g.ds.creation_date %}
             Добавлено {{ g.ds.creation_date }}.
         {% elif g.ds.release_date %}
-            Вышла {{ g.ds.release_date }}.
+            Игра вышла {{ g.ds.release_date }}.
         {% elif g.ds.stars %}
             {% for x in g.ds.stars %}
                 <img src="/static/duck{{x}}.png" />

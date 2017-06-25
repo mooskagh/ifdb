@@ -418,8 +418,10 @@ class Search:
             key = reader.ReadInt()
             self.id_to_bit[key].LoadFromQuery(reader)
 
-    def Search(self):
+    def Search(self, *, prefetch_related=None):
         q = Game.objects.all()
+        if prefetch_related:
+            q = q.prefetch_related(*prefetch_related)
         for x in self.bits:
             if x.IsActive():
                 q = x.ModifyQuery(q)

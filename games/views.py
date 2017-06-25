@@ -253,17 +253,21 @@ def json_search(request):
     query = request.GET.get('q', '')
     s = MakeSearch(request.perm)
     s.UpdateFromQuery(query)
-    games = s.Search()
+    games = s.Search(
+        prefetch_related=['gameauthor_set__author', 'gameauthor_set__role'])
 
     posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
         game__in=games).select_related('url'))
 
     g2p = {}
     for x in posters:
-        g2p[x.game_id] = x.url.local_url or x.url.original_url
+        g2p[x.game_id] = x.url.GetUrl()
 
     for x in games:
         x.poster = g2p.get(x.id)
+        x.authors = [
+            x for x in x.gameauthor_set.all() if x.role.symbolic_id == 'author'
+        ]
 
     return render(request, 'games/search_snippet.html', {'games': games})
 
