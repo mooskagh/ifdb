@@ -19,6 +19,8 @@ def Partition(links, catname, partitions):
             if cats[y]:
                 r.append(cats[y])
         res.append(r)
+    print(cats)
+    print(res + [rest])
     return res + [rest]
 
 
@@ -53,7 +55,10 @@ def AnnotateMedia(media):
 
 class GameDetailsBuilder:
     def __init__(self, game_id, request):
-        self.game = Game.objects.get(id=game_id)
+        if isinstance(game_id, Game):
+            self.game = game_id
+        else:
+            self.game = Game.objects.get(id=game_id)
         self.request = request
         request.perm.Ensure(self.game.view_perm)
 
@@ -62,11 +67,12 @@ class GameDetailsBuilder:
         last_edit_date = FormatDate(self.game.edit_time)
         added_date = FormatDate(self.game.creation_time)
         authors, participants = Partition(self.GetAuthors(), 'role',
-                                          [('author',)])
-        if authors:
-            authors = authors[0]['authors']
-        media, links = Partition(self.GetURLs(), 'category',
-                                 [('poster', 'video', 'scrrenshot')])
+                                          [('author', )])
+        if authors: authors = authors[0]['authors']
+        media, urqw, links = Partition(self.GetURLs(), 'category',
+                                       [('poster', 'video', 'screenshot'),
+                                        ('urqw', )])
+        if urqw: urqw = urqw[0]['urls']
         media = AnnotateMedia(media)
         md = RenderMarkdown(self.game.description)
         tags = self.GetTagsForDetails()
@@ -86,6 +92,7 @@ class GameDetailsBuilder:
             'tags': tags,
             'links': links,
             'media': media,
+            'urqw': urqw,
             'votes': votes,
             'comments': comments,
         }

@@ -62,7 +62,8 @@ def RecodeGame(game_url_id):
             'Requested recoding of unknown category %s' % game_url.category)
         return
 
-    if os.path.splitext(filename)[1].lower() in ['.zip', '.qsz', '.qst']:
+    ext = os.path.splitext(filename)[1].lower()
+    if ext in ['.zip', '.qsz']:
         # Already in supported format.
         recoded_url = RecodedGameURL()
         recoded_url.original = game_url
@@ -70,8 +71,24 @@ def RecodeGame(game_url_id):
         recoded_url.save()
         return
 
-    url = game_url.url
+    if ext in ['.qst']:
+        url = game_url.url
+        fs = FileSystemStorage()
+        with fs.open(url.local_filename, 'rb') as fi:
+            new_filename = fs.generate_filename("urqw/%s" % url.local_filename)
+            with fs.open(new_filename, 'wb') as fo:
+                fo.write(fi.read().decode('cp1251').encode('utf-8'))
 
+        recoded_url = RecodedGameURL()
+        recoded_url.original = game_url
+        recoded_url.recoded_filename = new_filename
+        recoded_url.recoded_url = fs.url(new_filename)
+        recoded_url.recoding_date = datetime.datetime.now()
+        recoded_url.save()
+        return
+
+    # Trying to treat the archive as an non-zip archive
+    url = game_url.url
     tmp_dir = tempfile.mkdtemp(dir=settings.TMP_DIR)
     fs = FileSystemStorage()
     logging.info("Unpacking %s into %s" % (fs.path(url.local_filename),
@@ -87,7 +104,9 @@ def RecodeGame(game_url_id):
         raise
     new_filename = fs.generate_filename("urqw/%s.zip" % url.local_filename)
     with zipfile.ZipFile(
-            fs.open(new_filename, 'wb'), 'w', zipfile.ZIP_DEFLATED,
+            fs.open(new_filename, 'wb'),
+            'w',
+            zipfile.ZIP_DEFLATED,
             allowZip64=True) as z:
 
         def RaiseError(x):

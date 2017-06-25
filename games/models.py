@@ -95,7 +95,11 @@ class GameURL(models.Model):
 
 
 class RecodedGameURL(models.Model):
-    original = models.ForeignKey(GameURL)
+    def GetUrl(self):
+        return self.recoded_url or self.original.url.GetUrl()
+
+    original = models.OneToOneField(
+        GameURL, on_delete=models.CASCADE, primary_key=True)
     recoded_filename = models.CharField(null=True, blank=True, max_length=255)
     recoded_url = models.CharField(null=True, blank=True, max_length=255)
     recoding_date = models.DateTimeField()

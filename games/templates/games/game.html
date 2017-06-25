@@ -42,6 +42,12 @@
                     {% endfor %}
                 {% endif %}
                 </div>
+                {% if urqw %}
+                    Играть на этом сайте:
+                    {% for x in urqw %}
+                        <a href="{% url 'play_urqw' gameurl_id=x.pk %}" class="button-like">{{x.description}}</a>
+                    {% endfor %}
+                {% endif %}
             </div>
             {% if media %}
             <div class="leftpane slider-container">

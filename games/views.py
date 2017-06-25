@@ -1,6 +1,6 @@
 from .models import (GameAuthorRole, Author, Game, GameTagCategory, GameTag,
                      URLCategory, URL, GameURL, GameVote, GameComment,
-                     GameAuthor)
+                     GameAuthor, RecodedGameURL)
 from .importer import Import
 from .search import MakeSearch
 from .tools import FormatDate, FormatTime, StarsFromRating
@@ -16,6 +16,7 @@ from django.urls import reverse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from ifdb.permissioner import perm_required
 from statistics import mean, median
+import os.path
 import json
 import logging
 from core.taskqueue import Enqueue
@@ -120,6 +121,27 @@ def list_games(request):
         s.Search()
     return render(request, 'games/search.html', {'query': query,
                                                  **s.ProduceBits()})
+
+
+def play_urqw(request, gameurl_id):
+    try:
+        # TODO() select related !important
+        # TODO() Show sensible error if object is not ready yet
+        u = RecodedGameURL.objects.get(pk=gameurl_id)
+    except Game.DoesNotExist:
+        raise Http404()
+    request.perm.Ensure(u.original.game.view_perm)
+    if u.original.category.symbolic_id != 'urqw':
+        raise Http404()
+    format = os.path.splitext(u.recoded_filename or
+                              u.original.url.local_filename)[1].lower()
+
+    gameinfo = GameDetailsBuilder(u.original.game, request).GetGameDict()
+
+    return render(request, 'games/urqw.html',
+                  {'url': u,
+                   'format': format,
+                   **gameinfo})
 
 
 @perm_required(PERM_ADD_GAME)
