@@ -1,0 +1,11 @@
+[Unit]
+Description=Ifdb Uwsgi server
+After=syslog.target
+
+[Service]
+ExecStart=/home/ifdb/virtualenv/bin/uwsgi --ini /home/ifdb/configs/uwsgi.ini
+Restart=always
+KillSignal=SIGQUIT
+
+[Install]
+WantedBy=multi-user.target
