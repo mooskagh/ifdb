@@ -164,6 +164,7 @@ def upload(request):
     url.local_url = file_url
     url.original_url = url_full
     url.original_filename = file.name
+    url.local_filename = filename
     url.content_type = file.content_type
     url.ok_to_clone = False
     url.is_uploaded = True

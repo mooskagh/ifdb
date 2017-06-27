@@ -85,7 +85,7 @@ else:
         'debug_toolbar.panels.logging.LoggingPanel',
         'debug_toolbar.panels.redirects.RedirectsPanel',
     ]
-    EXTRACTOR_PATH = '"C:/Program Files/7-Zip/7z.exe" "%s" "-O%s"'
+    EXTRACTOR_PATH = '"C:/Program Files/7-Zip/7z.exe" x "%s" "-O%s"'
 
 ADMINS = [('Alexander Lyashuk', 'mooskagh@gmail.com')]
 INTERNAL_IPS = [
