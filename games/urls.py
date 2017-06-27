@@ -1,6 +1,8 @@
-from django.conf.urls import url, include
-from django.conf import settings
 from . import views
+from core.forms import RegistrationForm
+from django.conf import settings
+from django.conf.urls import url, include
+from registration.backends.hmac.views import RegistrationView
 
 urlpatterns = [
     url(r'^index/$', views.index, name='index'),
@@ -17,6 +19,10 @@ urlpatterns = [
     url(r'^json/upload/', views.upload, name='upload'),
     url(r'^json/import/', views.doImport, name='import'),
     url(r'^json/search/', views.json_search, name='json_search'),
+    url(
+        r'^accounts/register/$',
+        RegistrationView.as_view(form_class=RegistrationForm),
+        name='registration_register', ),
     url(r'^accounts/',
         include('registration.backends.hmac.urls'
                 if settings.REQUIRE_ACCOUNT_ACTIVATION else

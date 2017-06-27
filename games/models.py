@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 
 # Create your models here.
@@ -24,7 +24,7 @@ class Game(models.Model):
     comment_perm = models.CharField(
         _('Comment permission'), max_length=255, default='@auth')
     tags = models.ManyToManyField('GameTag', blank=True)
-    added_by = models.ForeignKey(User)
+    added_by = models.ForeignKey(settings.AUTH_USER_MODEL)
 
     # -(GameContestEntry)
     # (LoadLog) // For computing popularity
@@ -53,7 +53,8 @@ class URL(models.Model):
     creation_date = models.DateTimeField()
     use_count = models.IntegerField(default=0)
     file_size = models.IntegerField(null=True, blank=True)
-    creator = models.ForeignKey(User, null=True, blank=True)
+    creator = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True)
 
 
 class URLCategory(models.Model):
@@ -187,7 +188,7 @@ class GameVote(models.Model):
         return "%s: %s (%d)" % (self.user, self.game, self.star_rating)
 
     game = models.ForeignKey(Game, db_index=True)
-    user = models.ForeignKey(User, db_index=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, db_index=True)
     creation_time = models.DateTimeField()
     edit_time = models.DateTimeField(null=True, blank=True)
     game_finished = models.BooleanField()
@@ -204,7 +205,7 @@ class GameComment(models.Model):
                                     self.creation_time)
 
     game = models.ForeignKey(Game, db_index=True)
-    user = models.ForeignKey(User, null=True, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True)
     parent = models.ForeignKey('GameComment', null=True, blank=True)
     foreign_username = models.CharField(max_length=255, null=True, blank=True)
     foreign_id = models.CharField(

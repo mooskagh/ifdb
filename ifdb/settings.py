@@ -92,7 +92,6 @@ ADMINS = [('Alexander Lyashuk', 'mooskagh@gmail.com')]
 
 class PrefixList(list):
     def __contains__(self, key):
-        print(key)
         for x in self:
             if key.startswith(x):
                 return True
@@ -168,10 +167,10 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME':
             'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
-    {
-        'NAME':
-            'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    # {
+    #     'NAME':
+    #         'django.contrib.auth.password_validation.NumericPasswordValidator',
+    # },
 ]
 
 # Internationalization
@@ -187,12 +186,14 @@ USE_L10N = True
 
 USE_TZ = False
 
+AUTH_USER_MODEL = 'core.User'
+
 FILE_UPLOAD_PERMISSIONS = 0o640
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o2750
 STATIC_URL = '/static/'
 MEDIA_URL = '/uploads/'
 
-REQUIRE_ACCOUNT_ACTIVATION = False
+REQUIRE_ACCOUNT_ACTIVATION = True
 ACCOUNT_ACTIVATION_DAYS = 7
 INCLUDE_AUTH_URLS = True
 REGISTRATION_OPEN = True
