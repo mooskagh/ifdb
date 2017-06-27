@@ -1,6 +1,10 @@
 from django.db import models
 
+
 class TaskQueueElement(models.Model):
+    class Meta:
+        default_permissions = ()
+
     def __str__(self):
         def StatusStr():
             if self.fail:

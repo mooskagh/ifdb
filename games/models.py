@@ -95,6 +95,12 @@ class GameURL(models.Model):
 
 
 class RecodedGameURL(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    def __str__(self):
+        return "%s (%s)" % (self.original.url.original_url, self.recoded_url)
+
     def GetUrl(self):
         return self.recoded_url or self.original.url.GetUrl()
 
