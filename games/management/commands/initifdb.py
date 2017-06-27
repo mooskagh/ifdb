@@ -60,13 +60,14 @@ URL_CATS = [
     ['download_landing', 'Скачать (ссылка на сайт)', False],
     ['urqw', 'Открыть при помощи UrqW', True],
     ['play_online', 'Играть онлайн', False],
-    ['unknown', 'Прочее', False],
     ['poster', 'Постер', True],
     ['screenshot', 'Скриншот', True],
     ['project_page', 'Официальная страница', False],
     ['forum', 'Обсуждение (форум)', False],
     ['review', 'Обзор', False],
     ['video', 'Видео прохождения', False],
+    ['other', 'Прочее', False],
+    ['unknown', 'Категория не назначена', False],
 ]
 
 
