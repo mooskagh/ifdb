@@ -315,7 +315,6 @@ class SB_Flags(SearchBit):
         'С обсуждениями на форуме',
         'Можно скачать',
         'Можно поиграть онлайн',
-        'Можно поиграть прямо на этом сайте (UrqW)',
     ]
 
     CATS_ID_CACHE = {}
@@ -334,9 +333,9 @@ class SB_Flags(SearchBit):
                 'download_direct', 'download_landing'
             ]),
         5:
-            Q(gameurl__category__symbolic_id='play_online'),
-        6:
-            Q(gameurl__category__symbolic_id='urqw'),
+            Q(gameurl__category__symbolic_id__in=[
+                'play_online', 'play_in_interpreter'
+            ]),
     }
 
     # Flags:

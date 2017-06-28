@@ -37,7 +37,7 @@
     </div>
     <br>
 
-    <div class="content-box">
+    <div class="content-box" id="game-container">
         <div id="logo" style="text-align: center">
             <img style="opacity: 0.75" width="150" height="150" src="{% static 'urqw/logo.svg' %}">
         </div>
@@ -98,6 +98,9 @@
     </div>
 
     <script>
+        {% if conf.variant %}
+            URQW.setMode('{{conf.variant|escapejs }}');
+        {% endif %}
         {% if format == '.zip' or format == '.qsz' %}
             URQW.loadZip('{{ data.GetUrl|escapejs }}');
         {% elif format == '.qst' %}

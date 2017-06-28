@@ -199,4 +199,4 @@ enricher.AddRule(
             HasTag('platform', '.*urq.*'),
             IsFromSite('game_page', 'urq.plut.info')),
         Not(HasTag('platform', 'fireurq'))),
-    CloneUrl('download_direct', 'urqw'))
+    CloneUrl('download_direct', 'play_in_interpreter'))

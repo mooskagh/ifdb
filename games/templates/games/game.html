@@ -47,8 +47,8 @@
                     <div class="game-info">
                         Играть:
                         {% for x in online %}
-                            {% if x.category.symbolic_id == 'urqw' %}
-                                <a href="{% url 'play_urqw' gameurl_id=x.pk %}" class="button-like">{{x.description}}</a>
+                            {% if x.category.symbolic_id == 'play_in_interpreter' %}
+                                <a href="{% url 'play_in_interpreter' gameurl_id=x.pk %}" class="button-like">{{x.description}}</a>
                             {% else %}
                                 <a href="{{ x.url.GetUrl }}" class="button-like">{{x.description}}</a>
                             {% endif %}
@@ -64,14 +64,6 @@
                     </div>
                     {% endif %}
                 </div>
-                {% comment %}
-                {% if urqw %}
-                    Играть на этом сайте:
-                    {% for x in urqw %}
-                        <a href="{% url 'play_urqw' gameurl_id=x.pk %}" class="button-like">{{x.description}}</a>
-                    {% endfor %}
-                {% endif %}
-                {% endcomment %}
             </div>
             {% if media %}
             <div class="leftpane slider-container">

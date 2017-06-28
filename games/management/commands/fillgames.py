@@ -1,12 +1,12 @@
 from django.conf import settings
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from games.importer import Import
 from games.views import UpdateGame, Importer2Json
 from ifdb.permissioner import Permissioner
 import games.importer.tools
 
-USER = 'crem'
+USER = 'бездушный робот'
 URLS = [
     'http://ifwiki.ru/%D0%9F%D0%BE%D1%80%D1%83%D1%87%D0%B8%D0%BA_%D0%A0%D0%B6%D0%B5%D0%B2%D1%81%D0%BA%D0%B8%D0%B9_1:_%D0%9D%D0%B0_%D0%B1%D0%B0%D0%BB%D1%83',
     'http://ifwiki.ru/%D0%97%D0%B0%D0%B2%D0%B8%D1%81%D0%B8%D0%BC%D0%BE%D1%81%D1%82%D1%8C',
@@ -48,7 +48,7 @@ URLS = [
 
 class FakeRequest:
     def __init__(self, username):
-        self.user = User.objects.get(username=username)
+        self.user = get_user_model().objects.get(username=username)
         self.perm = Permissioner(self.user)
 
 

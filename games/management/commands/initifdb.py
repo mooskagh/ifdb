@@ -58,7 +58,10 @@ URL_CATS = [
     ['game_page', 'Эта игра на другом сайте', False],
     ['download_direct', 'Скачать (прямая ссылка)', True],
     ['download_landing', 'Скачать (ссылка на сайт)', False],
-    ['urqw', 'Открыть при помощи UrqW', True],
+    [
+        'play_in_interpreter', 'Открыть в интерпретаторе игр (UrqW и т.д.)',
+        True
+    ],
     ['play_online', 'Играть онлайн', False],
     ['poster', 'Постер', True],
     ['screenshot', 'Скриншот', True],

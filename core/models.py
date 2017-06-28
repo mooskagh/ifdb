@@ -21,7 +21,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         abstract = False
 
     def __str__(self):
-        return self.email
+        return self.username or self.email
 
     email = models.EmailField(
         _('email address'),

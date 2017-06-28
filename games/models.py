@@ -64,16 +64,15 @@ class URLCategory(models.Model):
     def __str__(self):
         return self.title
 
-    RECODABLE_CATS = None
+    RECODABLE_CAT = None
 
     @staticmethod
     def IsRecodable(id):
-        if URLCategory.RECODABLE_CATS is None:
-            URLCategory.RECODABLE_CATS = set([
-                x.id
-                for x in URLCategory.objects.filter(symbolic_id__in=['urqw'])
-            ])
-        return id in URLCategory.RECODABLE_CATS
+        if URLCategory.RECODABLE_CAT is None:
+            URLCategory.RECODABLE_CAT = URLCategory.objects.get(
+                symbolic_id='play_in_interpreter').id
+
+        return id == URLCategory.RECODABLE_CAT
 
     symbolic_id = models.SlugField(
         max_length=32, null=True, blank=True, db_index=True, unique=True)
@@ -110,6 +109,9 @@ class RecodedGameURL(models.Model):
     recoded_filename = models.CharField(null=True, blank=True, max_length=255)
     recoded_url = models.CharField(null=True, blank=True, max_length=255)
     recoding_date = models.DateTimeField()
+    is_playable = models.NullBooleanField()
+    configuration_json = models.CharField(
+        null=True, blank=True, max_length=255)
 
 
 class Author(models.Model):

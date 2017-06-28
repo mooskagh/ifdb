@@ -67,7 +67,8 @@ class GameDetailsBuilder:
         authors, participants = Partition(self.GetAuthors(), [('author', )])
         media, online, download, links = Partition(
             self.GetURLs(), [('poster', 'video', 'screenshot'),
-                             ('urqw', 'play_online'), ('download_direct', )])
+                             ('play_in_interpreter',
+                              'play_online'), ('download_direct', )])
         media = AnnotateMedia(media)
         md = RenderMarkdown(self.game.description)
         tags = self.GetTagsForDetails()

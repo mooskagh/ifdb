@@ -37,7 +37,6 @@ if IS_PROD:
             'PORT': '',
         }
     }
-    URQW_PATH = os.path.abspath('/home/ifdb/urqw')
     MEDIA_ROOT = os.path.abspath('/home/ifdb/uploads')
     if 'staging' in BASE_DIR:
         STATIC_ROOT = os.path.abspath('/home/ifdb/staging/static')
@@ -67,7 +66,6 @@ else:
         }
     }
 
-    URQW_PATH = os.path.join(BASE_DIR, 'urqw')
     MEDIA_ROOT = os.path.join(BASE_DIR, 'uploads')
     CRAWLER_CACHE_DIR = os.path.join(BASE_DIR, 'urlcache')
     TMP_DIR = os.path.join(BASE_DIR, 'tmp')

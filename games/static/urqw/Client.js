@@ -35,7 +35,7 @@ function Client() {
      * @type {boolean}
      */
     this.firstRender = true;
-    
+
 }
 
 
@@ -62,7 +62,7 @@ Client.prototype.render = function (data) {
         backColor = 'rgb(' + blue + ', ' + green  + ', ' + red + ')';
     }
 
-    $('body').css('background-color', backColor);
+    $('#game-container').css('background-color', backColor);
 
     this.drawText();
     if (data.status == PLAYER_STATUS_END) {
@@ -218,7 +218,7 @@ Client.prototype.drawInventory = function () {
             }
         }
     }
-    
+
     if (this.crtlInventory.find('> li').length == 0) {
         this.crtlInventory.append('<li><a href="#" class="item_use">(Пусто)</a></li>');
     }

@@ -1,11 +1,14 @@
 from .models import TaskQueueElement
 from django.db.models import Q
 from django.utils import timezone
+from django.conf import settings
+import datetime
 import importlib
 import json
 import logging
 import os
 import signal
+import sys
 import time
 
 # TODO Build more robust filename
@@ -119,6 +122,12 @@ def Worker():
                 t.save()
             except Exception as e:
                 logging.exception(e)
+                while settings.DEBUG:
+                    r = input("Continue? [yes/no]> ")
+                    if r.lower() in ['yes', 'y']:
+                        break
+                    if r.lower() in ['no', 'n']:
+                        sys.exit(1)
                 if t.retries_left > 0:
                     t.pending = True
                     t.retries_left -= 1

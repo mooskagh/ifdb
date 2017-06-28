@@ -221,8 +221,8 @@ Player.prototype.setVar = function(variable, value) {
     } else
     if (variable.toLowerCase() === 'urq_mode') {
         if (value == 'dosurq') {
-            Game.setVar('style_backcolor', '#000');
-            Game.setVar('style_textcolor', '#FFF');
+            Game.setVar('style_backcolor', '#31322d');
+            Game.setVar('style_textcolor', '#f2f1eb');
         }
     } else
 
@@ -290,7 +290,7 @@ Player.prototype.playMusic = function(src, loop) {
 
 
 /**
- * 
+ *
  */
 Player.prototype.getUseActions = function() {
     var useActions = [];
@@ -314,8 +314,8 @@ Player.prototype.getUseActions = function() {
     for (var itemName in Game.items) {
         for (var labelName in Game.useLabels) {
             shortLabelName = labelName.substr(4);
-            
-            if ((itemName.toLowerCase() + '_' == shortLabelName.substr(0, itemName.length + 1).toLowerCase()) 
+
+            if ((itemName.toLowerCase() + '_' == shortLabelName.substr(0, itemName.length + 1).toLowerCase())
                 || (itemName.toLowerCase() == shortLabelName.toLowerCase())
             ) {
                 action = labelName;
@@ -334,7 +334,7 @@ Player.prototype.getUseActions = function() {
             useActions[itemName] = [{quantity: Game.items[itemName]}];
         }
     }
-    
+
     return useActions;
 };
 

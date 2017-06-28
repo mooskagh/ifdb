@@ -123,7 +123,7 @@ def list_games(request):
                                                  **s.ProduceBits()})
 
 
-def play_urqw(request, gameurl_id):
+def play_in_interpreter(request, gameurl_id):
     game = None
     try:
         o_u = GameURL.objects.get(pk=gameurl_id)
@@ -131,25 +131,25 @@ def play_urqw(request, gameurl_id):
     except GameURL.DoesNotExist:
         raise Http404()
 
-    if o_u.category.symbolic_id != 'urqw':
+    if o_u.category.symbolic_id != 'play_in_interpreter':
         raise Http404()
 
     request.perm.Ensure(o_u.game.view_perm)
     gameinfo = GameDetailsBuilder(o_u.game.id, request).GetGameDict()
 
+    res = {**gameinfo}
+
     try:
-        data = RecodedGameURL.objects.get(pk=gameurl_id)
-        format = os.path.splitext(data.recoded_filename or
-                                  o_u.url.local_filename)[1].lower()
+        res['data'] = data = RecodedGameURL.objects.get(pk=gameurl_id)
+        res['format'] = os.path.splitext(data.recoded_filename or
+                                         o_u.url.local_filename)[1].lower()
+        res['conf'] = json.loads(data.configuration_json)
     except RecodedGameURL.DoesNotExist:
-        format = 'error'
-        data = (
+        res['format'] = 'error'
+        res['data'] = (
             "Сервер ещё не подготовил эту игру к запуску. Попробуйте завтра.")
 
-    return render(request, 'games/urqw.html',
-                  {'data': data,
-                   'format': format,
-                   **gameinfo})
+    return render(request, 'games/interpreter.html', res)
 
 
 @perm_required(PERM_ADD_GAME)
