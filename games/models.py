@@ -94,7 +94,7 @@ class GameURL(models.Model):
     description = models.CharField(null=True, blank=True, max_length=255)
 
 
-class RecodedGameURL(models.Model):
+class InterpretedGameUrl(models.Model):
     class Meta:
         default_permissions = ()
 

@@ -1,6 +1,6 @@
 from .models import (GameAuthorRole, Author, Game, GameTagCategory, GameTag,
                      URLCategory, URL, GameURL, GameVote, GameComment,
-                     GameAuthor, RecodedGameURL)
+                     GameAuthor, InterpretedGameUrl)
 from .importer import Import
 from .search import MakeSearch
 from .tools import FormatDate, FormatTime, StarsFromRating
@@ -140,11 +140,11 @@ def play_in_interpreter(request, gameurl_id):
     res = {**gameinfo}
 
     try:
-        res['data'] = data = RecodedGameURL.objects.get(pk=gameurl_id)
+        res['data'] = data = InterpretedGameUrl.objects.get(pk=gameurl_id)
         res['format'] = os.path.splitext(data.recoded_filename or
                                          o_u.url.local_filename)[1].lower()
         res['conf'] = json.loads(data.configuration_json)
-    except RecodedGameURL.DoesNotExist:
+    except InterpretedGameUrl.DoesNotExist:
         res['format'] = 'error'
         res['data'] = (
             "Сервер ещё не подготовил эту игру к запуску. Попробуйте завтра.")

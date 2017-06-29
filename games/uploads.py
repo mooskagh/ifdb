@@ -1,4 +1,4 @@
-from .models import URL, RecodedGameURL, GameURL, GameTagCategory
+from .models import URL, InterpretedGameUrl, GameURL, GameTagCategory
 from core.crawler import FetchUrlToFileLike
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
@@ -94,7 +94,7 @@ def RecodeGame(game_url_id):
     ext = os.path.splitext(filename)[1].lower()
     if ext in ['.zip', '.qsz']:
         # Already in supported format.
-        recoded_url = RecodedGameURL()
+        recoded_url = InterpretedGameUrl()
         recoded_url.configuration_json = json.dumps(configuration)
         recoded_url.original = game_url
         recoded_url.recoding_date = timezone.now()
@@ -110,7 +110,7 @@ def RecodeGame(game_url_id):
             with fs.open(new_filename, 'wb') as fo:
                 fo.write(fi.read().decode('cp1251').encode('utf-8'))
 
-        recoded_url = RecodedGameURL()
+        recoded_url = InterpretedGameUrl()
         recoded_url.configuration_json = json.dumps(configuration)
         recoded_url.original = game_url
         recoded_url.recoded_filename = new_filename
@@ -152,7 +152,7 @@ def RecodeGame(game_url_id):
                 z.write(name, relpath)
 
     shutil.rmtree(tmp_dir)
-    recoded_url = RecodedGameURL()
+    recoded_url = InterpretedGameUrl()
     recoded_url.configuration_json = json.dumps(configuration)
     recoded_url.original = game_url
     recoded_url.recoded_filename = new_filename
