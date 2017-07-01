@@ -70,6 +70,8 @@ class ImportedGame:
         self.is_error = 'title' not in self.content
 
         if self.is_error:
+            logging.warn("Was unable to fetch: %s\n%s" % (self.seed_urls,
+                                                          self.content))
             return False
 
         self.seed_urls = [
@@ -100,7 +102,7 @@ class ImportedGame:
                 return
         game = Importer2Json(self.content)
         if self.game:
-            game['game_id'] == self.game.id
+            game['game_id'] = self.game.id
         logging.info("Updating %s" % self)
         UpdateGame(request, game, update_edit_time=False)
 
@@ -180,7 +182,8 @@ class GameSet:
 
 def ImportGames():
     gameset = GameSet()
-    for x in Game.objects.all():
+    for x in Game.objects.prefetch_related('gameurl_set__category',
+                                           'gameurl_set__url').all():
         gameset.AddGame(ImportedGame(x))
 
     candidates = set(GetUrlCandidates())

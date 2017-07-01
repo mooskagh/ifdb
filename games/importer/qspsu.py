@@ -15,7 +15,34 @@ class QspsuImporter:
         return ImportFromQsp(url)
 
     def GetUrlCandidates(self):
-        return []
+        return GetCandidates()
+
+
+QSP_LISTING_TITLE_RE = re.compile(r'<h3><a href="([^"]+)"')
+
+
+def GetCandidates():
+    limitstart = 0
+    res = []
+
+    while True:
+        r = FetchUrlToString(
+            r'http://qsp.su/index.php?option=com_sobi2&Itemid=55&'
+            r'limitstart=' + str(limitstart),
+            use_cache=False)
+
+        found = False
+
+        for m in QSP_LISTING_TITLE_RE.finditer(r):
+            res.append(unescape(m.group(1)))
+            found = True
+
+        if not found:
+            break
+
+        limitstart += 10
+
+    return res
 
 
 QSP_RE = re.compile(
