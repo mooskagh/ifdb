@@ -480,11 +480,12 @@ def UpdateGameUrls(request, game, data, update):
         GameURL.objects.filter(id__in=list(existing_urls.values())).delete()
 
 
-def UpdateGame(request, j):
+def UpdateGame(request, j, update_edit_time=True):
     if ('game_id' in j):
         g = Game.objects.get(id=j['game_id'])
         request.perm.Ensure(g.edit_perm)
-        g.edit_time = timezone.now()
+        if update_edit_time:
+            g.edit_time = timezone.now()
     else:
         request.perm.Ensure(PERM_ADD_GAME)
         g = Game()

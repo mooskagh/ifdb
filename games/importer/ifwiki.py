@@ -108,6 +108,7 @@ IFWIKI_LINK_INTERNALS_PARSE = re.compile(
     r'^(?:([^:\]|]*)::?)?([^:\]|]+)(?:\|([^\]|]+))??(?:\|([^\]|]+))?$')
 
 IFWIKI_ROLES = [
+    ('автор', 'author'),
     ('Автор', 'author'),
     ('ifwiki-en', 'author'),
     ('Переводчик', 'translator'),

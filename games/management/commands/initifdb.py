@@ -72,7 +72,6 @@ URL_CATS = [
     ['play_online', 'Играть онлайн', False],
     ['poster', 'Постер', True],
     ['screenshot', 'Скриншот', True],
-    ['project_page', 'Официальная страница', False],
     ['forum', 'Обсуждение (форум)', False],
     ['review', 'Обзор', False],
     ['video', 'Видео прохождения', False],

@@ -9,6 +9,14 @@ MIN_SIMILARITY = 0.67
 REGISTERED_IMPORTERS = []
 
 URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
+    ('qsp.su', '^$', '^$', None, None),
+    ('urq.plut.info', '^$', '^$', None, None),
+    ('rilarhiv.ru', '^$', '^$', None, None),
+    ('ifwiki.ru', '^$', '^$', None, None),
+    ('www.youtube.com', '^$', '^$', None, None),
+    ('youtube.com', '^$', '^$', None, None),
+    ('apero.ru', '^$', '^$', None, None),
+    ('storymaze.ru', '^$', '^$', None, None),
     ('', r'.*screenshot.*\.(png|jpg|gif|bmp|jpeg)', '', 'screenshot',
      'Скриншот'),
     ('', r'.*\.(png|jpg|gif|bmp|jpeg)', '', 'poster', 'Обложка'),
@@ -37,6 +45,16 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('storymaze.ru', '', '', 'play_online', 'Играть онлайн'),
     ('', r'.*\.(zip|rar|z5)', '', 'download_direct', 'Ссылка для скачивания'),
 ]
+
+
+def GetBagOfWords(x):
+    return set(RE_WORD.findall(x.lower()))
+
+
+def ComputeSimilarity(s1, s2):
+    if not s1:
+        return 0.0
+    return len(s1 & s2) / len(s1 | s2)
 
 
 def CategorizeUrl(url, desc='', category=None, base=None):
@@ -74,13 +92,9 @@ def CategorizeUrl(url, desc='', category=None, base=None):
 
 
 def SimilarEnough(w1, w2):
-    s1 = set(RE_WORD.findall(w1.lower()))
-    s2 = set(RE_WORD.findall(w2.lower()))
-    if not s1:
-        return False
-
-    similarity = len(s1 & s2) / len(s1 | s2)
-    return similarity > MIN_SIMILARITY
+    s1 = GetBagOfWords(w1)
+    s2 = GetBagOfWords(w2)
+    return ComputeSimilarity(s1, s2) > MIN_SIMILARITY
 
 
 def DispatchImport(url):
@@ -91,15 +105,22 @@ def DispatchImport(url):
     return {'error': 'Ссылка на неизвестный ресурс.'}
 
 
+def GetUrlCandidates():
+    res = []
+    for x in REGISTERED_IMPORTERS:
+        res.extend(x.GetUrlCandidates())
+    return res
+
+
 def HashizeUrl(url):
     url = quote(url.encode('utf-8'), safe='/+=&?%:;@!#$*()_-')
     purl = urlsplit(url, allow_fragments=False)
     return urlunsplit(('', purl[1], purl[2], purl[3], ''))
 
 
-def Import(seed_url):
+def Import(*seed_url):
     urls_checked = set()
-    urls_to_check = set([seed_url])
+    urls_to_check = set(seed_url)
     res = []
     title = None
 
@@ -121,6 +142,9 @@ def Import(seed_url):
             else:
                 y['desc'] = ''
             y['desc'] += x['desc']
+
+        if 'urls' in x:
+            x['urls'] = [z for z in x['urls'] if z['urlcat_slug']]
 
         for setz, field, extractor in [
             (s_urls, 'urls',

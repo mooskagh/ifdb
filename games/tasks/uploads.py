@@ -1,4 +1,4 @@
-from .models import URL, InterpretedGameUrl, GameURL, GameTagCategory
+from games.models import URL, InterpretedGameUrl, GameURL, GameTagCategory
 from core.crawler import FetchUrlToFileLike
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
