@@ -21,7 +21,7 @@ TAG_CATS = [
     ['state', 'Стадия разработки', False, {
         'search': '@admin'
     }],
-    ['genre', 'Жанр', True, {}],
+    ['genre', 'Жанр', False, {}],
     ['platform', 'Платформа', True, {}],
     ['country', 'Страна', True, {
         'search': '@admin'
@@ -58,7 +58,26 @@ TAGS = [
     ['os', 'os_other', 'Другая ОС'],
     ['control', 'parser', 'Парсерная'],
     ['control', 'menu', 'Менюшная'],
-    ['tag', 'ifwiki_featured', 'Избранная на ifwiki'],
+    ['tag', 'ifwiki_featured', 'избранная на ifwiki'],
+    ['genre', 'g_action', 'Боевик'],
+    ['genre', 'g_adult', '18+'],
+    ['genre', 'g_adventure', 'Приключения'],
+    ['genre', 'g_detective', 'Детектив'],
+    ['genre', 'g_drama', 'Драма'],
+    ['genre', 'g_dystopy', 'Дистопия'],
+    ['genre', 'g_experimental', 'Экспериментальное'],
+    ['genre', 'g_fairytale', 'Сказка'],
+    ['genre', 'g_fantasy', 'Фэнтези'],
+    ['genre', 'g_historical', 'Историческое'],
+    ['genre', 'g_horror', 'Ужасы'],
+    ['genre', 'g_humor', 'Юмор'],
+    ['genre', 'g_kids', 'Детское'],
+    ['genre', 'g_mystic', 'Мистика'],
+    ['genre', 'g_puzzle', 'Головоломка'],
+    ['genre', 'g_romance', 'Романтика'],
+    ['genre', 'g_rpg', 'RPG'],
+    ['genre', 'g_scifi', 'Фантастика'],
+    ['genre', 'g_simulation', 'Симулятор'],
 ]
 
 URL_CATS = [

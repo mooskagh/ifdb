@@ -131,7 +131,7 @@ def ImportFromPlut(url):
         elif cat == 'Страна':
             tags.append({'cat_slug': 'country', 'tag': tag.capitalize()})
         elif cat == 'Жанр':
-            tags.append({'cat_slug': 'genre', 'tag': tag.capitalize()})
+            tags.append({'cat_slug': 'tag', 'tag': tag.lower()})
         elif cat == 'Авторы':
             authors.append({'role_slug': 'author', 'name': tag})
 

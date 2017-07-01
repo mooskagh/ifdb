@@ -135,14 +135,20 @@ class CloneUrl(ActionBase):
 class Enricher:
     def __init__(self):
         self.rules = []
+        self.funcs = []
 
     def AddRule(self, rule, action):
         self.rules.append((rule, action))
+
+    def AddFunction(self, f):
+        self.funcs.append(f)
 
     def Enrich(self, game):
         for rule, action in self.rules:
             if rule.Match(game):
                 action.Apply(game)
+        for f in self.funcs:
+            f(game)
 
 
 enricher = Enricher()
@@ -214,3 +220,94 @@ enricher.AddRule(
     CloneUrl('download_direct', 'play_in_interpreter'))
 enricher.AddRule(
     Not(HasTag('language', '.*')), AddRawTag('language', 'русский'))
+
+tag_to_genre = {
+    '18+': ('g_adult', True),
+    'action': ('g_action', False),
+    'horror': ('g_horror', False),
+    'rpg': ('g_rpg', True),
+    'боевик': ('g_action', True),
+    'викторина': ('g_puzzle', False),
+    'головоломка': ('g_puzzle', True),
+    'головоломки': ('g_puzzle', True),
+    'детектив': ('g_detective', True),
+    'детская': ('g_kids', True),
+    'детское': ('g_kids', True),
+    'дистопия': ('g_dystopy', True),
+    'доисторическое': ('g_historical', True),
+    'дорожное приключение': ('g_adventure', True),
+    'драма': ('g_drama', True),
+    'историческое': ('g_historical', True),
+    'казка': ('g_fairytale', True),
+    'космос': ('g_scifi', False),
+    'логическая': ('g_puzzle', True),
+    'мистика': ('g_mystic', True),
+    'містыка': ('g_mystic', True),
+    'научная фантастика': ('g_scifi', False),
+    'непонятное': ('g_experimental', False),
+    'паззл': ('g_puzzle', True),
+    'паззлы': ('g_puzzle', True),
+    'пазл': ('g_puzzle', True),
+    'пазлы': ('g_puzzle', True),
+    'постапокалипсис': ('g_dystopy', False),
+    'постапокалиптика': ('g_dystopy', False),
+    'преступление': ('g_detective', False),
+    'приключение': ('g_adventure', True),
+    'приключения': ('g_adventure', True),
+    'рамантыка': ('g_romance', True),
+    'ребус': ('g_puzzle', False),
+    'роботы': ('g_scifi', False),
+    'романтика': ('g_romance', True),
+    'рпг': ('g_rpg', True),
+    'секс': ('g_adult', False),
+    'симулятор': ('g_simulation', True),
+    'сказка': ('g_fairytale', True),
+    'сюр': ('g_experimental', False),
+    'сюрреализм': ('g_experimental', False),
+    'триллер': ('g_horror', False),
+    'убийство': ('g_detective', False),
+    'ужас': ('g_horror', True),
+    'ужасы': ('g_horror', True),
+    'фантастика': ('g_scifi', True),
+    'фентези': ('g_fantasy', True),
+    'фэнтези': ('g_fantasy', True),
+    'хоррор': ('g_horror', False),
+    'черный юмор': ('g_humor', False),
+    'чёрный юмор': ('g_humor', False),
+    'чёрти что': ('g_experimental', False),
+    'шутер': ('g_action', False),
+    'экспериментальное': ('g_experimental', True),
+    'экшн': ('g_action', False),
+    'эротика': ('g_adult', False),
+    'юмор': ('g_humor', True),
+}
+
+
+def LowerCaseTags(game):
+    for x in game.get('tags', []):
+        if x.get('cat_slug') == 'tag' and 'tag' in x:
+            x['tag'] = x['tag'].lower()
+
+
+def TagsToGenre(game):
+    res = []
+    for x in game.get('tags', []):
+        if x.get('cat_slug') != 'tag':
+            continue
+        v = x.get('tag', '').lower()
+        t2g = tag_to_genre.get(v)
+        if t2g:
+            if t2g[1]:
+                x.clear()
+                v = x
+            else:
+                v = {}
+                res.append(v)
+            v['cat_slug'] = 'genre'
+            v['tag_slug'] = t2g[0]
+    if 'tags' in game:
+        game['tags'].extend(res)
+
+
+enricher.AddFunction(LowerCaseTags)
+enricher.AddFunction(TagsToGenre)

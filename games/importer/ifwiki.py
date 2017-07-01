@@ -43,7 +43,7 @@ def GetUrlList():
         else:
             keystart = res[-1]['sortkey']
 
-    def batch(iterable, n=100):
+    def batch(iterable, n=40):
         l = len(iterable)
         for ndx in range(0, l, n):
             yield iterable[ndx:min(ndx + n, l)]
@@ -173,7 +173,7 @@ class WikiParsingContext:
                 self.AddUrl('/files/' + WikiQuote(name), display_name,
                             'screenshot', self.url)
             elif role == 'Тема':
-                self.tags.append({'cat_slug': 'genre', 'tag': name})
+                self.tags.append({'cat_slug': 'tag', 'tag': name})
             elif not role:
                 self.authors.append({'role_slug': default_role, 'name': name})
             else:
@@ -205,7 +205,7 @@ class WikiParsingContext:
                 self.tags.append({'cat_slug': 'language', 'tag': v})
             elif k == 'темы':
                 for t in [x.strip() for x in v.split(',')]:
-                    self.tags.append({'cat_slug': 'genre', 'tag': t})
+                    self.tags.append({'cat_slug': 'tag', 'tag': t})
             elif k == 'обложка':
                 self.AddUrl('/files/' + WikiQuote(v), 'Обложка', 'poster',
                             self.url)
@@ -246,7 +246,7 @@ class WikiParsingContext:
                 self.AddUrl(params['архив'])
             return '[%s %s]' % (params['на'], params.get('1') or 'ссылка')
         if name == 'Тема':
-            self.tags.append({'cat_slug': 'genre', 'tag': params['1']})
+            self.tags.append({'cat_slug': 'tag', 'tag': params['1']})
             return ''
         if name == 'ns:6':
             return 'Media'
