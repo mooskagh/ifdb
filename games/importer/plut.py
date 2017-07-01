@@ -16,6 +16,36 @@ class PlutImporter:
     def GetUrlCandidates(self):
         return []
 
+    def GetUrlCandidates(self):
+        return GetCandidates()
+
+
+PLUT_LISTING_TITLE_RE = re.compile(
+    r'<td class="views-field views-field-title" >\s*<a href="([^"]+)"')
+
+
+def GetCandidates():
+    page = 0
+    res = []
+
+    while True:
+        r = FetchUrlToString(
+            r'https://urq.plut.info/games?page=' + str(page),
+            use_cache=False)
+
+        found = False
+
+        for m in PLUT_LISTING_TITLE_RE.finditer(r):
+            res.append('https://urq.plut.info' + unescape(m.group(1)))
+            found = True
+
+        if not found:
+            break
+
+        page += 1
+
+    return res
+
 
 PLUT_URL = re.compile(r'https?://urq.plut.info/(?:node/\d+|[^/]+)')
 PLUT_TITLE = re.compile(r'<h1 class="title">(.*?)</h1>')
