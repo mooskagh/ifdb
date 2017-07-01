@@ -10,8 +10,8 @@ from django.utils import timezone
 from urllib.parse import quote
 
 
-def FetchUrlToString(url):
-    return FetchUrlToFileLike(url).read().decode('utf-8')
+def FetchUrlToString(url, use_cache=True):
+    return FetchUrlToFileLike(url, use_cache).read().decode('utf-8')
 
 
 def _ResponseInfoToMetadata(url, response):
@@ -23,10 +23,10 @@ def _ResponseInfoToMetadata(url, response):
     }
 
 
-def FetchUrlToFileLike(url):
+def FetchUrlToFileLike(url, use_cache=True):
     logging.info('Fetching: %s' % url)
     url = quote(url.encode('utf-8'), safe='/+=&?%:@;!#$*()_-')
-    if not settings.CRAWLER_CACHE_DIR:
+    if not settings.CRAWLER_CACHE_DIR or not use_cache:
         response = urllib.request.urlopen(url)
         response.metadata = _ResponseInfoToMetadata(url, response.info())
         return response

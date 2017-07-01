@@ -14,6 +14,9 @@ class QspsuImporter:
     def Import(self, url):
         return ImportFromQsp(url)
 
+    def GetUrlCandidates(self):
+        return []
+
 
 QSP_RE = re.compile(
     r'http://qsp\.su/index\.php\?option=com_sobi2&.*&sobi2Id=\d+.*')

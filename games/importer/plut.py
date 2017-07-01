@@ -13,6 +13,9 @@ class PlutImporter:
     def Import(self, url):
         return ImportFromPlut(url)
 
+    def GetUrlCandidates(self):
+        return []
+
 
 PLUT_URL = re.compile(r'https?://urq.plut.info/(?:node/\d+|[^/]+)')
 PLUT_TITLE = re.compile(r'<h1 class="title">(.*?)</h1>')

@@ -6,10 +6,7 @@ from urllib.parse import unquote, quote
 import datetime
 import re
 import logging
-
-
-def WikiQuote(name):
-    return quote(name.replace(' ', '_'))
+import json
 
 
 class IfwikiImporter:
@@ -18,6 +15,54 @@ class IfwikiImporter:
 
     def Import(self, url):
         return ImportFromIfwiki(url)
+
+    def GetUrlCandidates(self):
+        return GetUrlList()
+
+
+def GetUrlList():
+    keystart = ''
+    ids = set()
+
+    while True:
+        r = json.loads(
+            FetchUrlToString(
+                r'http://ifwiki.ru/api.php?action=query&list=categorymembers&'
+                r'cmtitle=%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0'
+                r'%B8%D1%8F:%D0%98%D0%B3%D1%80%D1%8B&rawcontinue=1&'
+                r'cmlimit=2000&format=json&cmsort=sortkey&'
+                r'cmprop=ids|title|sortkey&cmstarthexsortkey=' + keystart,
+                use_cache=False))
+        res = r['query']['categorymembers']
+
+        for x in res:
+            ids.add(x['pageid'])
+
+        if len(res) <= 300:
+            break
+        else:
+            keystart = res[-1]['sortkey']
+
+    def batch(iterable, n=100):
+        l = len(iterable)
+        for ndx in range(0, l, n):
+            yield iterable[ndx:min(ndx + n, l)]
+
+    res = []
+    for batch in batch(list(ids)):
+        pageidlist = '|'.join(["%d" % x for x in batch])
+        r = json.loads(
+            FetchUrlToString(
+                r'http://ifwiki.ru/api.php?action=query&prop=info&format=json&'
+                r'inprop=url&pageids=' + pageidlist,
+                use_cache=False))
+        for _, v in r['query']['pages'].items():
+            res.append(v['fullurl'])
+    return res
+
+
+def WikiQuote(name):
+    return quote(name.replace(' ', '_'))
 
 
 def ImportFromIfwiki(url):
