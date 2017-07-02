@@ -261,6 +261,11 @@ var SEARCH = (function() {
                     parseInt($(this).attr('data-item-val')));
                 UpdateSearchList();
             });
+            $(element).find('.show-all').click(function(){
+                $(this).hide();
+                $(element).find('[data-item-val]').show();
+                return false;
+            });
         }).on('encode-query', function(event, enc) {
             var parent = $(event.target);
             var items = [];

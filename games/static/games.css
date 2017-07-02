@@ -686,6 +686,11 @@ progress::-webkit-progress-value {
     width: 400px;
 }
 
+.search-box a {
+    font-weight: bold;
+    font-size: 90%;
+}
+
 #top-nav a.register {
     color: #00487c;
     display: inline-block;

@@ -282,13 +282,21 @@ class SB_Tag(SearchBit):
         res = super().ProduceDict('tags')
         res['cat'] = self.cat
         items = []
-        for x in (GameTag.objects.filter(category=self.cat).annotate(
-                Count('game')).order_by('-game__count')):
+        for x in (GameTag.objects.select_related('category').filter(
+                category=self.cat).annotate(
+                    Count('game')).order_by('-game__count')):
             items.append({
                 'id': x.id,
                 'name': x.name,
-                'on': x.id in self.items
+                'on': x.id in self.items,
+                'tag': x,
             })
+
+        if len(items) > 10 and items[0]['tag'].category.allow_new_tags:
+            for x in items[6:]:
+                x['hidden'] = True
+            items.append({'show_all': True})
+
         items.append({'id': 0, 'name': 'Не указано', 'on': 0 in self.items})
         res['items'] = items
         return res
