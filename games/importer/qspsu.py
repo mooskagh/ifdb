@@ -100,7 +100,8 @@ def ImportFromQsp(url):
             elif key == 'description':
                 tt = HTML2Text()
                 tt.body_width = 0
-                res['desc'] = tt.handle(val)
+                res['desc'] = (
+                    tt.handle(val) + '\n\n_(описание взято с сайта qsp.su)_')
             else:
                 logging.error('Unknown field in QSP: [%s] [%s]' % (key, val))
         for n in QSP_LINK.finditer(tr):

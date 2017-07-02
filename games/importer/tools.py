@@ -135,10 +135,7 @@ def Import(*seed_url):
 
         if 'desc' in x:
             if 'desc' in y:
-                if 'header' in x:
-                    y['desc'] += x['header']
-                else:
-                    y['desc'] += '\n\n---\n\n'
+                y['desc'] += '\n\n---\n\n'
             else:
                 y['desc'] = ''
             y['desc'] += x['desc']

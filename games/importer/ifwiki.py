@@ -91,8 +91,7 @@ def ImportFromIfwiki(url):
         return {'error': 'Какая-то ошибка при парсинге. Надо сказать админам.'}
 
     res['title'] = context.title
-    res['desc'] = output.leaves()
-    res['header'] = '\n\n---\n**=== Описание с ifwiki ===**\n\n'
+    res['desc'] = output.leaves() + '\n\n_(описание взято с сайта ifwiki.ru)_'
     if context.release_date:
         res['release_date'] = context.release_date
     res['authors'] = context.authors

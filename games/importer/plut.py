@@ -30,8 +30,7 @@ def GetCandidates():
 
     while True:
         r = FetchUrlToString(
-            r'https://urq.plut.info/games?page=' + str(page),
-            use_cache=False)
+            r'https://urq.plut.info/games?page=' + str(page), use_cache=False)
 
         found = False
 
@@ -98,8 +97,8 @@ def ImportFromPlut(url):
     if m:
         tt = HTML2Text()
         tt.body_width = 0
-        res['desc'] = tt.handle(m.group(1))
-        res['header'] = '\n\n---\n**=== Описание с плута ===**\n\n'
+        res['desc'] = (tt.handle(m.group(1)) +
+                       '\n\n_(описание взято с сайта urq.plut.info)_')
 
     m = PLUT_RELEASE.search(html)
     if m:
