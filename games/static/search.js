@@ -111,13 +111,18 @@ var SEARCH = (function() {
 
             var start = el.attr('data-start');
             el.remove();
-            $(window).scroll(function() {
-                if  ($(window).scrollTop() >=
-                     $(document).height() - 2 * $(window).height()) {
-                    $(window).off('scroll');
-                    loadAppendResults(query, start);
-                }
-            });
+            if ($(window).scrollTop() >=
+                $(document).height() - 2 * $(window).height()) {
+                loadAppendResults(query, start);
+            } else {
+                $(window).scroll(function() {
+                    if  ($(window).scrollTop() >=
+                        $(document).height() - 2 * $(window).height()) {
+                        $(window).off('scroll');
+                        loadAppendResults(query, start);
+                    }
+                });
+            }
         }
 
         function renderResults(data, query) {
