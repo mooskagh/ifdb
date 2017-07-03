@@ -13,6 +13,38 @@ class PlutImporter:
     def Import(self, url):
         return ImportFromPlut(url)
 
+    def GetUrlCandidates(self):
+        return []
+
+    def GetUrlCandidates(self):
+        return GetCandidates()
+
+
+PLUT_LISTING_TITLE_RE = re.compile(
+    r'<td class="views-field views-field-title" >\s*<a href="([^"]+)"')
+
+
+def GetCandidates():
+    page = 0
+    res = []
+
+    while True:
+        r = FetchUrlToString(
+            r'https://urq.plut.info/games?page=' + str(page), use_cache=False)
+
+        found = False
+
+        for m in PLUT_LISTING_TITLE_RE.finditer(r):
+            res.append('https://urq.plut.info' + unescape(m.group(1)))
+            found = True
+
+        if not found:
+            break
+
+        page += 1
+
+    return res
+
 
 PLUT_URL = re.compile(r'https?://urq.plut.info/(?:node/\d+|[^/]+)')
 PLUT_TITLE = re.compile(r'<h1 class="title">(.*?)</h1>')
@@ -65,8 +97,8 @@ def ImportFromPlut(url):
     if m:
         tt = HTML2Text()
         tt.body_width = 0
-        res['desc'] = tt.handle(m.group(1))
-        res['header'] = '\n\n---\n**=== Описание с плута ===**\n\n'
+        res['desc'] = (tt.handle(m.group(1)) +
+                       '\n\n_(описание взято с сайта urq.plut.info)_')
 
     m = PLUT_RELEASE.search(html)
     if m:
@@ -98,14 +130,12 @@ def ImportFromPlut(url):
         elif cat == 'Страна':
             tags.append({'cat_slug': 'country', 'tag': tag.capitalize()})
         elif cat == 'Жанр':
-            tags.append({'cat_slug': 'genre', 'tag': tag.capitalize()})
+            tags.append({'cat_slug': 'tag', 'tag': tag.lower()})
         elif cat == 'Авторы':
             authors.append({'role_slug': 'author', 'name': tag})
 
-    if tags:
-        res['tags'] = tags
-    if authors:
-        res['authors'] = authors
+    res['tags'] = tags
+    res['authors'] = authors
 
     # if 'desc' in res. Parse the rest of links
     if 'desc' in res:

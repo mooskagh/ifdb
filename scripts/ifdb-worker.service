@@ -1,0 +1,14 @@
+[Unit]
+Description=Ifdb Worker
+After=syslog.target
+
+[Service]
+User=ifdb
+Group=ifdb
+WorkingDirectory=/home/ifdb/tmp/
+ExecStart=/home/ifdb/virtualenv/bin/python /home/ifdb/django/manage.py ifdbworker
+Restart=always
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

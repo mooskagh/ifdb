@@ -65,25 +65,87 @@ var SEARCH = (function() {
 
     function SrpFetcher() {
         var queryCache = {};
+        var self = this;
 
-        function renderResults(data) {
+        function appendResults(data, query) {
+            $('.gamelist-thumb-container').append(data);
+            maybeLoadMore(query);
+        }
+
+        function loadAppendResults(query, start) {
+            if (self.xhr) {
+                self.xhr.abort();
+                self.xhr = null;
+            }
+            var fullQuery = query + '&' + start;
+
+            if (queryCache.hasOwnProperty(fullQuery)) {
+                appendResults(queryCache[fullQuery], query);
+            } else {
+                self.xhr = $.ajax({
+                    url: '/json/search/',
+                    type: 'GET',
+                    data: {
+                        'q': query,
+                        'start': start,
+                    },
+                    cache: true,
+                    dataType: 'html',
+                }).done(function(data) {
+                    queryCache[fullQuery] = data;
+                    appendResults(data, query);
+                }).fail(function(xhr, textstatus) {
+                    if (textstatus != "abort") {
+                        renderResults(
+                        '<div class="gamelist-message">Ошибка какая-то.</div>');
+                    }
+                });
+            }
+        }
+
+        function maybeLoadMore(query) {
+            $(window).off('scroll');
+
+            var el = $('#load-more');
+            if (el.length == 0) return;
+
+            var start = el.attr('data-start');
+            el.remove();
+            if ($(window).scrollTop() >=
+                $(document).height() - 2 * $(window).height()) {
+                loadAppendResults(query, start);
+            } else {
+                $(window).scroll(function() {
+                    if  ($(window).scrollTop() >=
+                        $(document).height() - 2 * $(window).height()) {
+                        $(window).off('scroll');
+                        loadAppendResults(query, start);
+                    }
+                });
+            }
+        }
+
+        function renderResults(data, query) {
             $('.gamelist-thumb-container').html(data).animate({
                 opacity: 1
-            }, 50);
+            }, 50, function() {
+                if (query !== undefined) maybeLoadMore(query);
+            });
         }
 
         this.loadResults = function(query) {
-            if (this.xhr) {
-                this.xhr.abort();
-                this.xhr = null;
+            $(window).off('scroll');
+            if (self.xhr) {
+                self.xhr.abort();
+                self.xhr = null;
             }
             if (queryCache.hasOwnProperty(query)) {
-                renderResults(queryCache[query]);
+                renderResults(queryCache[query], query);
             } else {
                 $('.gamelist-thumb-container').animate({
                     opacity: 0.5
                 }, 50);
-                this.xhr = $.ajax({
+                self.xhr = $.ajax({
                     url: '/json/search/',
                     type: 'GET',
                     data: {
@@ -93,7 +155,7 @@ var SEARCH = (function() {
                     dataType: 'html',
                 }).done(function(data) {
                     queryCache[query] = data;
-                    renderResults(data);
+                    renderResults(data, query);
                 }).fail(function(xhr, textstatus) {
                     if (textstatus != "abort") {
                         renderResults(
@@ -198,6 +260,11 @@ var SEARCH = (function() {
                     $(this).hasClass('current') ? 'on' : 'off',
                     parseInt($(this).attr('data-item-val')));
                 UpdateSearchList();
+            });
+            $(element).find('.show-all').click(function(){
+                $(this).hide();
+                $(element).find('[data-item-val]').show();
+                return false;
             });
         }).on('encode-query', function(event, enc) {
             var parent = $(event.target);

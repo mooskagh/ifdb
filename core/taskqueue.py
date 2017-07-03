@@ -1,11 +1,14 @@
 from .models import TaskQueueElement
 from django.db.models import Q
+from django.utils import timezone
+from django.conf import settings
 import datetime
 import importlib
 import json
 import logging
 import os
 import signal
+import sys
 import time
 
 # TODO Build more robust filename
@@ -43,7 +46,7 @@ def _EnqueueCreate(func, argv, name, onfail, priority, retries, retry_minutes,
         })
     t.retries_left = retries
     t.retry_minutes = retry_minutes
-    t.enqueue_time = datetime.datetime.now()
+    t.enqueue_time = timezone.now()
     t.dependency = dependency
     return t
 
@@ -101,13 +104,13 @@ def Worker():
         t = (TaskQueueElement.objects.filter(pending=True)
              .filter(Q(dependency=None) | Q(dependency__success=True)).filter(
                  Q(scheduled_time=None) | Q(
-                     scheduled_time__lte=datetime.datetime.now())).order_by(
+                     scheduled_time__lte=timezone.now())).order_by(
                          'priority', 'enqueue_time'))
         logging.info('%d tasks waiting' % t.count())
         if t:
             t = t[0]
             t.pending = False
-            t.start_time = datetime.datetime.now()
+            t.start_time = timezone.now()
             t.save()
             call = json.loads(t.command_json)
             i = importlib.import_module(call['module'])
@@ -115,15 +118,21 @@ def Worker():
             try:
                 func(*call['argv'], **call['kwarg'])
                 t.success = True
-                t.finish_time = datetime.datetime.now()
+                t.finish_time = timezone.now()
                 t.save()
             except Exception as e:
                 logging.exception(e)
+                while False and settings.DEBUG:
+                    r = input("Continue? [yes/no/all]> ")
+                    if r.lower() in ['yes', 'y']:
+                        break
+                    if r.lower() in ['no', 'n']:
+                        sys.exit(1)
                 if t.retries_left > 0:
                     t.pending = True
                     t.retries_left -= 1
-                    t.scheduled_time = datetime.datetime.now(
-                    ) + datetime.timedelta(minutes=t.retry_minutes)
+                    t.scheduled_time = timezone.now() + datetime.timedelta(
+                        minutes=t.retry_minutes)
                     t.save()
                 else:
                     t.fail = True
@@ -138,16 +147,16 @@ def Worker():
                             logging.exception(e)
             continue
         else:
-            t = (TaskQueueElement.objects.filter(pending=True).filter(
-                Q(dependency=None) | Q(dependency__success=True)).filter(
-                    scheduled_time__isnull=False).order_by('scheduled_time')
-                 )[:1]
+            t = (TaskQueueElement.objects.filter(
+                pending=True
+            ).filter(Q(dependency=None) | Q(dependency__success=True)).filter(
+                scheduled_time__isnull=False).order_by('scheduled_time'))[:1]
             if t:
                 t = t[0]
-                delta = int((t.scheduled_time - datetime.datetime.now()
-                             ).total_seconds()) + 1
-                logging.info('All tasks pending, waiting for %d seconds' %
-                             delta)
+                delta = int(
+                    (t.scheduled_time - timezone.now()).total_seconds()) + 1
+                logging.info(
+                    'All tasks pending, waiting for %d seconds' % delta)
                 if IsPosix():
                     signal.alarm(delta)
             else:

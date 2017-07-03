@@ -31,6 +31,9 @@
         </div>
     </a>
 {% endfor %}
-{% else %}
-    <div class="gamelist-message">Ничего не нашлось.</div>
+{% elif start == 0 %}
+    <div class="gamelist-message nothing-found">Ничего не нашлось.</div>
+{% endif %}
+{% if has_more %}
+    <div id="load-more" data-start="{{ next }}">
 {% endif %}

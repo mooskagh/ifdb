@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 
 # Create your models here.
@@ -24,7 +24,7 @@ class Game(models.Model):
     comment_perm = models.CharField(
         _('Comment permission'), max_length=255, default='@auth')
     tags = models.ManyToManyField('GameTag', blank=True)
-    added_by = models.ForeignKey(User)
+    added_by = models.ForeignKey(settings.AUTH_USER_MODEL)
 
     # -(GameContestEntry)
     # (LoadLog) // For computing popularity
@@ -44,7 +44,7 @@ class URL(models.Model):
     local_url = models.CharField(null=True, blank=True, max_length=255)
     local_filename = models.CharField(null=True, blank=True, max_length=255)
     original_url = models.CharField(
-        null=True, blank=True, max_length=255, db_index=True)
+        null=True, blank=True, max_length=2048, db_index=True)
     original_filename = models.CharField(null=True, blank=True, max_length=255)
     content_type = models.CharField(null=True, blank=True, max_length=255)
     ok_to_clone = models.BooleanField(default=True)
@@ -53,7 +53,8 @@ class URL(models.Model):
     creation_date = models.DateTimeField()
     use_count = models.IntegerField(default=0)
     file_size = models.IntegerField(null=True, blank=True)
-    creator = models.ForeignKey(User, null=True, blank=True)
+    creator = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True)
 
 
 class URLCategory(models.Model):
@@ -63,16 +64,15 @@ class URLCategory(models.Model):
     def __str__(self):
         return self.title
 
-    RECODABLE_CATS = None
+    RECODABLE_CAT = None
 
     @staticmethod
     def IsRecodable(id):
-        if URLCategory.RECODABLE_CATS is None:
-            URLCategory.RECODABLE_CATS = set([
-                x.id
-                for x in URLCategory.objects.filter(symbolic_id__in=['urqw'])
-            ])
-        return id in URLCategory.RECODABLE_CATS
+        if URLCategory.RECODABLE_CAT is None:
+            URLCategory.RECODABLE_CAT = URLCategory.objects.get(
+                symbolic_id='play_in_interpreter').id
+
+        return id == URLCategory.RECODABLE_CAT
 
     symbolic_id = models.SlugField(
         max_length=32, null=True, blank=True, db_index=True, unique=True)
@@ -94,7 +94,13 @@ class GameURL(models.Model):
     description = models.CharField(null=True, blank=True, max_length=255)
 
 
-class RecodedGameURL(models.Model):
+class InterpretedGameUrl(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    def __str__(self):
+        return "%s (%s)" % (self.original.url.original_url, self.recoded_url)
+
     def GetUrl(self):
         return self.recoded_url or self.original.url.GetUrl()
 
@@ -103,6 +109,9 @@ class RecodedGameURL(models.Model):
     recoded_filename = models.CharField(null=True, blank=True, max_length=255)
     recoded_url = models.CharField(null=True, blank=True, max_length=255)
     recoding_date = models.DateTimeField()
+    is_playable = models.NullBooleanField()
+    configuration_json = models.CharField(
+        null=True, blank=True, max_length=255)
 
 
 class Author(models.Model):
@@ -169,7 +178,6 @@ class GameTag(models.Model):
         max_length=32, null=True, blank=True, db_index=True, unique=True)
     category = models.ForeignKey(GameTagCategory)
     name = models.CharField(max_length=255, db_index=True)
-    order = models.SmallIntegerField(default=0)
 
 
 class GameVote(models.Model):
@@ -181,7 +189,7 @@ class GameVote(models.Model):
         return "%s: %s (%d)" % (self.user, self.game, self.star_rating)
 
     game = models.ForeignKey(Game, db_index=True)
-    user = models.ForeignKey(User, db_index=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, db_index=True)
     creation_time = models.DateTimeField()
     edit_time = models.DateTimeField(null=True, blank=True)
     game_finished = models.BooleanField()
@@ -198,7 +206,7 @@ class GameComment(models.Model):
                                     self.creation_time)
 
     game = models.ForeignKey(Game, db_index=True)
-    user = models.ForeignKey(User, null=True, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True)
     parent = models.ForeignKey('GameComment', null=True, blank=True)
     foreign_username = models.CharField(max_length=255, null=True, blank=True)
     foreign_id = models.CharField(

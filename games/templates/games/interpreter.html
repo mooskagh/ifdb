@@ -20,7 +20,28 @@
 {% endblock %}
 {% block content %}
     <div class="content-box">
-        <h1 class="game-title">{{ game.title }}</h1>
+        {% if conf.interpreter == 'urqw' %}
+        <form class="interpreter-details" method="post"
+              action="{% url 'store_interpreter_params' gameurl_id=data.pk %}">
+            {% csrf_token %}
+            <table>
+                {{ form }}
+            </table>
+            {% if can_edit %}
+                <input type="submit" value="Сохранить" />
+                <div class="game-auxinfo">
+                    Сохранение изменит настройки для всех пользователей
+                    <br>и перезагрузит эту страницу.
+                </div>
+            {% endif %}
+        </form>
+        {% endif %}
+
+        <h1 class="game-title">
+            <a href="{% url 'show_game' game_id=game.id %}">
+                {{ game.title }}
+            </a>
+        </h1>
         <div class="game-author">
         {% if authors %}
             {% if authors|length == 1 %}Автор:{% else %}Авторы:{% endif %}
@@ -37,7 +58,7 @@
     </div>
     <br>
 
-    <div class="content-box">
+    <div class="content-box" id="game-container">
         <div id="logo" style="text-align: center">
             <img style="opacity: 0.75" width="150" height="150" src="{% static 'urqw/logo.svg' %}">
         </div>
@@ -98,6 +119,9 @@
     </div>
 
     <script>
+        {% if conf.variant %}
+            URQW.setMode('{{conf.variant|escapejs }}');
+        {% endif %}
         {% if format == '.zip' or format == '.qsz' %}
             URQW.loadZip('{{ data.GetUrl|escapejs }}');
         {% elif format == '.qst' %}

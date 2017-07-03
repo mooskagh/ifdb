@@ -1,63 +1,9 @@
-from django.conf import settings
-from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
-from games.importer import Import
-from games.views import UpdateGame, Importer2Json
-from ifdb.permissioner import Permissioner
-import games.importer.tools
-
-USER = 'crem'
-URLS = [
-    'http://ifwiki.ru/%D0%9F%D0%BE%D1%80%D1%83%D1%87%D0%B8%D0%BA_%D0%A0%D0%B6%D0%B5%D0%B2%D1%81%D0%BA%D0%B8%D0%B9_1:_%D0%9D%D0%B0_%D0%B1%D0%B0%D0%BB%D1%83',
-    'http://ifwiki.ru/%D0%97%D0%B0%D0%B2%D0%B8%D1%81%D0%B8%D0%BC%D0%BE%D1%81%D1%82%D1%8C',
-    'http://qsp.su/index.php?option=com_sobi2&sobi2Task=sobi2Details&catid=0&sobi2Id=49&Itemid=55',
-    'https://urq.plut.info/node/857',
-    'https://urq.plut.info/node/62',
-    'http://qsp.su/index.php?option=com_sobi2&sobi2Task=sobi2Details&catid=0&sobi2Id=43&Itemid=55',
-    'https://urq.plut.info/node/1988',
-    'https://urq.plut.info/node/56',
-    'http://ifwiki.ru/%D0%A6%D0%B2%D0%B5%D1%82%D0%BE%D1%85%D0%B8%D0%BC%D0%B8%D1%8F',
-    'http://qsp.su/index.php?option=com_sobi2&sobi2Task=sobi2Details&catid=0&sobi2Id=101&Itemid=55',
-    'http://qsp.su/index.php?option=com_sobi2&sobi2Task=sobi2Details&sobi2Id=150&Itemid=55',
-    'http://ifwiki.ru/%D0%9A%D0%B0%D0%BA_%D1%8F_%D1%81%D1%82%D0%B0%D0%BB_%D0%BF%D0%B8%D1%80%D0%B0%D1%82%D0%BE%D0%BC',
-    'http://ifwiki.ru/%D0%92_%D0%B3%D0%BB%D1%83%D0%B1%D0%B8%D0%BD%D0%B5',
-    'http://qsp.su/index.php?option=com_sobi2&sobi2Task=sobi2Details&catid=0&sobi2Id=39&Itemid=55',
-    'http://ifwiki.ru/%D0%92%D0%BA%D1%83%D1%81_%D0%BF%D0%B0%D0%BB%D1%8C%D1%86%D0%B5%D0%B2',
-    'https://urq.plut.info/sorry',
-    'http://ifwiki.ru/%D0%98%D1%81%D0%BF%D1%8B%D1%82%D0%B0%D0%BD%D0%B8%D0%B5',
-    'https://urq.plut.info/node/292',
-    'http://qsp.su/index.php?option=com_sobi2&sobi2Task=sobi2Details&sobi2Id=130&Itemid=55',
-    'http://ifwiki.ru/%D0%9B%D0%BE%D0%B3%D0%BE%D0%B2%D0%BE_%D0%93%D0%B8%D0%B4%D1%80%D1%8B',
-    'https://urq.plut.info/node/55',
-    'https://urq.plut.info/300000euro',
-    'http://qsp.su/index.php?option=com_sobi2&sobi2Task=sobi2Details&sobi2Id=187&Itemid=55',
-    'https://urq.plut.info/node/46',
-    'https://urq.plut.info/node/1221',
-    'https://urq.plut.info/node/236',
-    'http://ifwiki.ru/%D0%92%D0%BB%D1%8E%D0%B1%D0%BB%D1%91%D0%BD%D0%BD%D1%8B%D0%B9_%D0%BC%D0%B5%D0%BD%D0%B5%D1%81%D1%82%D1%80%D0%B5%D0%BB%D1%8C',
-    'http://ifwiki.ru/%D0%9F%D0%B5%D1%80%D0%B5%D1%85%D0%BE%D0%B4',
-    'https://urq.plut.info/node/48',
-    'http://ifwiki.ru/%D0%A0%D0%BE%D1%81%D0%BE%D0%BC%D0%B0%D1%85%D0%B0',
-    'http://qsp.su/index.php?option=com_sobi2&sobi2Task=sobi2Details&catid=0&sobi2Id=30&Itemid=55',
-    'http://qsp.su/index.php?option=com_sobi2&sobi2Task=sobi2Details&sobi2Id=214&Itemid=55',
-    'https://urq.plut.info/knights',
-    'https://urq.plut.info/Dat-Navire',
-    'http://ifwiki.ru/%D0%9F%D0%BE%D0%B4%D0%B7%D0%B5%D0%BC%D0%B5%D0%BB%D1%8C%D0%B5_%D1%81%D0%BE%D0%BA%D1%80%D0%BE%D0%B2%D0%B8%D1%89',
-]
-
-
-class FakeRequest:
-    def __init__(self, username):
-        self.user = User.objects.get(username=username)
-        self.perm = Permissioner(self.user)
+from games.tasks.game_importer import ImportGames
 
 
 class Command(BaseCommand):
     help = 'Populates games'
 
     def handle(self, *args, **options):
-        fake_request = FakeRequest(USER)
-
-        for url in URLS:
-            game = Importer2Json(Import(url))
-            UpdateGame(fake_request, game)
+        ImportGames()

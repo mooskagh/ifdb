@@ -1,3 +1,4 @@
+exit
 rmdir /s games\static\urqw
 pause
 mkdir games\static\urqw

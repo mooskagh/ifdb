@@ -37,7 +37,6 @@ if IS_PROD:
             'PORT': '',
         }
     }
-    URQW_PATH = os.path.abspath('/home/ifdb/urqw')
     MEDIA_ROOT = os.path.abspath('/home/ifdb/uploads')
     if 'staging' in BASE_DIR:
         STATIC_ROOT = os.path.abspath('/home/ifdb/staging/static')
@@ -50,8 +49,8 @@ if IS_PROD:
     EMAIL_HOST_USER = 'ersatzplut@gmail.com'
     DEFAULT_FROM_EMAIL = 'ersatzplut@gmail.com'
     SERVER_EMAIL = 'ersatzplut@gmail.com'
-    EMAIL_HOST_PASSWORD = open('/home/ifdb/configs/gmail-pass.txt').read(
-    ).strip()
+    EMAIL_HOST_PASSWORD = open(
+        '/home/ifdb/configs/gmail-pass.txt').read().strip()
     CRAWLER_CACHE_DIR = '/home/ifdb/tmp/urlcache/'
     TMP_DIR = '/home/ifdb/tmp/tmp/'
     EXTRACTOR_PATH = '/bin/unar "%s" -o "%s"'
@@ -60,14 +59,23 @@ else:
     SECRET_KEY = 'l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr'
     DEBUG = True
     ALLOWED_HOSTS = []
+    # DATABASES = {
+    #     'default': {
+    #         'ENGINE': 'django.db.backends.sqlite3',
+    #         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    #     }
+    # }
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'NAME': 'ifdbdev',
+            'USER': 'ifdbdev',
+            'PASSWORD': 'ifdb',
+            'HOST': 'localhost',
+            'PORT': '',
         }
     }
 
-    URQW_PATH = os.path.join(BASE_DIR, 'urqw')
     MEDIA_ROOT = os.path.join(BASE_DIR, 'uploads')
     CRAWLER_CACHE_DIR = os.path.join(BASE_DIR, 'urlcache')
     TMP_DIR = os.path.join(BASE_DIR, 'tmp')
@@ -85,18 +93,20 @@ else:
         'debug_toolbar.panels.logging.LoggingPanel',
         'debug_toolbar.panels.redirects.RedirectsPanel',
     ]
-    PATH_TO_7Z = 'C:/Program Files/7-Zip/7z.exe'
+    EXTRACTOR_PATH = '"C:/Program Files/7-Zip/7z.exe" x "%s" "-O%s"'
 
 ADMINS = [('Alexander Lyashuk', 'mooskagh@gmail.com')]
-INTERNAL_IPS = [
-    '127.0.0.1',
-    '10.162.0.100',
-    '2a02:168:520c:0:1d5c:bdaf:bdcc:bc8b',
-    '2a02:168:520c:0:41b9:a756:c814:893',
-    '2a02:168:520c:0:b425:4df2:99a1:26c3',
-    '2a02:168:520c:0:c0e2:2ad2:9900:9b36',
-    '2a02:168:520c:0:c832:576b:e3ea:f98a',
-]
+
+
+class PrefixList(list):
+    def __contains__(self, key):
+        for x in self:
+            if key.startswith(x):
+                return True
+        return False
+
+
+INTERNAL_IPS = PrefixList(['127.', '10.162.', '2a02:168:520c:'])
 
 # Application definition
 
@@ -155,20 +165,20 @@ WSGI_APPLICATION = 'ifdb.wsgi.application'
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME':
-        'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+            'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
         'NAME':
-        'django.contrib.auth.password_validation.MinimumLengthValidator',
+            'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
         'NAME':
-        'django.contrib.auth.password_validation.CommonPasswordValidator',
+            'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
-    {
-        'NAME':
-        'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    # {
+    #     'NAME':
+    #         'django.contrib.auth.password_validation.NumericPasswordValidator',
+    # },
 ]
 
 # Internationalization
@@ -184,12 +194,14 @@ USE_L10N = True
 
 USE_TZ = False
 
+AUTH_USER_MODEL = 'core.User'
+
 FILE_UPLOAD_PERMISSIONS = 0o640
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o2750
 STATIC_URL = '/static/'
 MEDIA_URL = '/uploads/'
 
-REQUIRE_ACCOUNT_ACTIVATION = False
+REQUIRE_ACCOUNT_ACTIVATION = True
 ACCOUNT_ACTIVATION_DAYS = 7
 INCLUDE_AUTH_URLS = True
 REGISTRATION_OPEN = True

@@ -6,26 +6,30 @@ import json
 import logging
 import os.path
 import urllib.request
+from django.utils import timezone
 from urllib.parse import quote
 
 
-def FetchUrlToString(url):
-    return FetchUrlToFileLike(url).read().decode('utf-8')
+def FetchUrlToString(url, use_cache=True):
+    return FetchUrlToFileLike(url, use_cache).read().decode('utf-8')
 
 
 def _ResponseInfoToMetadata(url, response):
-    return {
+    res = {
         'url': url,
-        'time': str(datetime.datetime.now()),
+        'time': str(timezone.now()),
         'filename': response.get_filename(),
         'content-type': response.get_content_type(),
     }
+    if res['filename']:
+        res['filename'] = res['filename'].lstrip('"')
+    return res
 
 
-def FetchUrlToFileLike(url):
+def FetchUrlToFileLike(url, use_cache=True):
     logging.info('Fetching: %s' % url)
     url = quote(url.encode('utf-8'), safe='/+=&?%:@;!#$*()_-')
-    if not settings.CRAWLER_CACHE_DIR:
+    if not settings.CRAWLER_CACHE_DIR or not use_cache:
         response = urllib.request.urlopen(url)
         response.metadata = _ResponseInfoToMetadata(url, response.info())
         return response
@@ -34,8 +38,8 @@ def FetchUrlToFileLike(url):
     filename = os.path.join(settings.CRAWLER_CACHE_DIR, urlhash)
     metadata_filename = os.path.join(settings.CRAWLER_CACHE_DIR,
                                      "%s.meta" % urlhash)
-    listing_filename = os.path.join(settings.CRAWLER_CACHE_DIR, "%s.list" %
-                                    datetime.datetime.today().date())
+    listing_filename = os.path.join(settings.CRAWLER_CACHE_DIR,
+                                    "%s.list" % timezone.now().date())
 
     if os.path.isfile(metadata_filename):
         with open(metadata_filename, 'r') as f:

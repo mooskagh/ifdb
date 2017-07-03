@@ -233,7 +233,8 @@ def red(ctx, message):
             }]
         }))
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
-    p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb'))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-uwsgi'))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-worker'))
     p.Run('red')
 
 
@@ -252,8 +253,9 @@ def green(ctx):
                 'conf': 'deny'
             }]
         }))
-    p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb'))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-uwsgi'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-worker'))
     p.Run('green')
 
 
@@ -280,6 +282,7 @@ def stage(ctx, tag):
         RunCmdStep('%s/bin/pip install -r %s/requirements.txt --no-cache-dir' %
                    (virtualenv_dir, django_dir)))
     p.AddStep(StagingDiff('django/games/migrations/'))
+    p.AddStep(StagingDiff('django/core/migrations/'))
     p.AddStep(StagingDiff('django/games/management/commands/initifdb.py'))
     p.AddStep(
         RunCmdStep('%s %s/manage.py collectstatic --clear' % (python_dir,
@@ -324,13 +327,11 @@ def stage(ctx, tag):
 
 @cli.command()
 @click.option('--hot', is_flag=True)
-@click.option(
-    '--from-master/--no-from-master', default=None, is_flag=True)
+@click.option('--from-master/--no-from-master', default=None, is_flag=True)
 @click.pass_context
 def deploy(ctx, hot, from_master):
     if from_master is None:
-        click.secho(
-            'Please specify --[no-]from-master!', fg='red', bold=True)
+        click.secho('Please specify --[no-]from-master!', fg='red', bold=True)
         raise click.Abort
     p = ctx.obj['pipeline']
     django_dir = os.path.join(ROOT_DIR, 'django')
@@ -363,10 +364,11 @@ def deploy(ctx, hot, from_master):
             }))
         p.AddStep(StartTimer)
         p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
-        p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb'))
+        p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-uwsgi'))
         p.AddStep(
             Message(
                 'uWSGI is stopped now. You can break now to do manual steps.'))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-worker'))
 
     p.AddStep(RunCmdStep('git checkout release'))
     p.AddStep(RunCmdStep('git pull'))
@@ -397,9 +399,10 @@ def deploy(ctx, hot, from_master):
             RunCmdStep('%s %s/manage.py initifdb' % (python_dir, django_dir)))
 
     if hot:
-        p.AddStep(RunCmdStep('sudo /bin/systemctl restart ifdb'))
+        p.AddStep(RunCmdStep('sudo /bin/systemctl restart ifdb-uwsgi'))
     else:
-        p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb'))
+        p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-uwsgi'))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-worker'))
 
     if not hot:
         p.AddStep(
@@ -416,7 +419,7 @@ def deploy(ctx, hot, from_master):
 
     p.AddStep(
         LoopStep(
-            RunCmdStep('sudo /bin/systemctl restart ifdb'),
+            RunCmdStep('sudo /bin/systemctl restart ifdb-uwsgi'),
             'Check STAGING and reload if needed.'))
 
     if not hot:
@@ -438,7 +441,7 @@ def deploy(ctx, hot, from_master):
 
     p.AddStep(
         RunCmdStep(
-            'git diff-index --quiet HEAD --',
+            'git diff-index --exit-code HEAD --',
             doc="Check that git doesn't have uncommited changes."))
 
     p.AddStep(MaybeCreateNewBugfixVersion)
@@ -450,6 +453,7 @@ def deploy(ctx, hot, from_master):
         p.AddStep(RunCmdStep('git fetch . release:master'))
 
     p.AddStep(RunCmdStep('git push --all origin'))
+    p.AddStep(RunCmdStep('git push --tags origin'))
 
     p.Run('deploy')
 

@@ -2,10 +2,11 @@ from .tools import CategorizeUrl
 from core.crawler import FetchUrlToString
 from mediawiki_parser import wikitextParser, preprocessorParser, apostrophes
 from pijnu.library.node import Nodes
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 import datetime
 import re
 import logging
+import json
 
 
 class IfwikiImporter:
@@ -14,6 +15,59 @@ class IfwikiImporter:
 
     def Import(self, url):
         return ImportFromIfwiki(url)
+
+    def GetUrlCandidates(self):
+        return GetUrlList()
+
+
+CATEGORY_STR = (
+    r'ifwiki.ru/%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D1%8F:')
+
+
+def GetUrlList():
+    keystart = ''
+    ids = set()
+
+    while True:
+        r = json.loads(
+            FetchUrlToString(
+                r'http://ifwiki.ru/api.php?action=query&list=categorymembers&'
+                r'cmtitle=%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0'
+                r'%B8%D1%8F:%D0%98%D0%B3%D1%80%D1%8B&rawcontinue=1&'
+                r'cmlimit=2000&format=json&cmsort=sortkey&'
+                r'cmprop=ids|title|sortkey&cmstarthexsortkey=' + keystart,
+                use_cache=False))
+        res = r['query']['categorymembers']
+
+        for x in res:
+            ids.add(x['pageid'])
+
+        if len(res) <= 300:
+            break
+        else:
+            keystart = res[-1]['sortkey']
+
+    def batch(iterable, n=40):
+        l = len(iterable)
+        for ndx in range(0, l, n):
+            yield iterable[ndx:min(ndx + n, l)]
+
+    res = []
+    for batch in batch(list(ids)):
+        pageidlist = '|'.join(["%d" % x for x in batch])
+        r = json.loads(
+            FetchUrlToString(
+                r'http://ifwiki.ru/api.php?action=query&prop=info&format=json&'
+                r'inprop=url&pageids=' + pageidlist,
+                use_cache=False))
+        for _, v in r['query']['pages'].items():
+            if CATEGORY_STR not in v['fullurl']:
+                res.append(v['fullurl'])
+    return res
+
+
+def WikiQuote(name):
+    return quote(name.replace(' ', '_'))
 
 
 def ImportFromIfwiki(url):
@@ -42,16 +96,12 @@ def ImportFromIfwiki(url):
         return {'error': 'Какая-то ошибка при парсинге. Надо сказать админам.'}
 
     res['title'] = context.title
-    res['desc'] = output.leaves()
-    res['header'] = '\n\n---\n**=== Описание с ifwiki ===**\n\n'
+    res['desc'] = output.leaves() + '\n\n_(описание взято с сайта ifwiki.ru)_'
     if context.release_date:
         res['release_date'] = context.release_date
-    if context.authors:
-        res['authors'] = context.authors
-    if context.tags:
-        res['tags'] = context.tags
-    if context.urls:
-        res['urls'] = context.urls
+    res['authors'] = context.authors
+    res['tags'] = context.tags
+    res['urls'] = context.urls
 
     return res
 
@@ -59,24 +109,33 @@ def ImportFromIfwiki(url):
 IFWIKI_URL = re.compile(r'(https?://ifwiki.ru)/([^/?]+)')
 IFWIKI_LINK_PARSE = re.compile(r'\[\[(.*?)\]\]')
 IFWIKI_LINK_INTERNALS_PARSE = re.compile(
-    r'([^:\]|]+)::?([^:\]|]+)(?:\|([^\]|]+))?')
+    r'^(?:([^:\]|]*)::?)?([^:\]|]+)(?:\|([^\]|]+))??(?:\|([^\]|]+))?$')
 
 IFWIKI_ROLES = [
+    ('автор', 'author'),
     ('Автор', 'author'),
     ('ifwiki-en', 'author'),
     ('Переводчик', 'translator'),
     ('Персонаж', 'character'),
+    ('Тестировщик', 'tester'),
+    ('Участник', 'member'),
+    ('Иллюстратор', 'artist'),
+    ('Программист', 'programmer'),
+    ('Композитор', 'composer'),
 ]
 IFWIKI_IGNORE_ROLES = ['Категория']
 
 IFWIKI_COMPETITIONS = {
-    'Конкурс': '',
-    'ЛОК': 'ЛОК-',
-    'ЗОК': 'ЗОК-',
-    'КРИЛ': 'КРИЛ-',
-    'goldhamster': 'Золотой Хомяк ',
-    'qspcompo': 'QSP-Compo '
+    'Конкурс': '{_1}',
+    'ЛОК': 'ЛОК-{_1}',
+    'ЗОК': 'ЗОК-{_1}',
+    'КРИЛ': 'КРИЛ-{_1}',
+    'goldhamster': 'Золотой Хомяк {_1}',
+    'qspcompo': 'QSP-Compo {_1}',
+    'Проект 31': 'Проект 31',
+    'Ludum Dare': 'Ludum Dare {_1}',
 }
+
 IFWIKI_IGNORE = ['ЗаглушкаТекста', 'ЗаглушкаСсылок']
 
 GAMEINFO_IGNORE = ['ширинаобложки', 'высотаобложки']
@@ -91,16 +150,17 @@ class WikiParsingContext:
         self.urls = [CategorizeUrl(url)]
         self.url = url
 
-    def AddUrl(self, url, desc=''):
-        self.urls.append(CategorizeUrl(url, desc))
+    def AddUrl(self, url, desc='', category=None, base=None):
+        self.urls.append(CategorizeUrl(url, desc, category, base))
 
-    def ProcessLink(self, text):
+    def ProcessLink(self, text, default_role='member'):
         m = IFWIKI_LINK_INTERNALS_PARSE.match(text)
         if not m:
             return text  # Internal link without a category.
         role = m.group(1)
         name = m.group(2)
-        display_name = m.group(3)
+        typ = m.group(3)
+        display_name = m.group(4)
 
         if role in IFWIKI_IGNORE_ROLES:
             return ''
@@ -110,15 +170,30 @@ class WikiParsingContext:
                 self.authors.append({'role_slug': t, 'name': name})
                 break
         else:
-            logging.error('Unknown role %s' % role)
-            self.authors.append({'role_slug': 'member', 'name': name})
-        return display_name or name
+            if role in ['Медиа', 'Media']:
+                self.AddUrl('/files/' + WikiQuote(name), display_name, 'poster'
+                            if typ == 'thumb' else 'download_direct', self.url)
+            elif role in ['Изображение']:
+                self.AddUrl('/files/' + WikiQuote(name), display_name,
+                            'screenshot', self.url)
+            elif role == 'Тема':
+                self.tags.append({'cat_slug': 'tag', 'tag': name})
+            elif not role:
+                self.authors.append({'role_slug': default_role, 'name': name})
+            else:
+                logging.error('Unknown role %s' % role)
+                self.authors.append({'role_slug': 'member', 'name': name})
+        if display_name:
+            return display_name
+        if role:
+            return "%s:%s" % (role, name)
+        return name
 
     def ProcessGameinfo(self, params):
         for k, v in params.items():
             if k == 'автор':
                 for m in IFWIKI_LINK_PARSE.finditer(v):
-                    self.ProcessLink(m.group(1))
+                    self.ProcessLink(m.group(1), 'author')
             elif k == 'название':
                 self.title = v
             elif k == 'вышла':
@@ -130,18 +205,17 @@ class WikiParsingContext:
                     pass
             elif k == 'платформа':
                 self.tags.append({'cat_slug': 'platform', 'tag': v})
+            elif k == 'язык':
+                self.tags.append({'cat_slug': 'language', 'tag': v})
             elif k == 'темы':
                 for t in [x.strip() for x in v.split(',')]:
-                    self.tags.append({'cat_slug': 'genre', 'tag': t})
+                    self.tags.append({'cat_slug': 'tag', 'tag': t})
             elif k == 'обложка':
-                self.urls.append({
-                    'urlcat_slug': 'poster',
-                    'description': 'Обложка',
-                    'url': 'http://ifwiki.ru/files/%s' % v
-                })
+                self.AddUrl('/files/' + WikiQuote(v), 'Обложка', 'poster',
+                            self.url)
             elif k == 'IFID':
                 self.tags.append({'cat_slug': 'ifid', 'tag': v})
-            elif k == '1' and not v.strip():
+            elif k in ['1', '2'] and not v.strip():
                 pass
             elif k in GAMEINFO_IGNORE:
                 pass
@@ -155,18 +229,32 @@ class WikiParsingContext:
             self.ProcessGameinfo(params)
             return ''
         if name in IFWIKI_COMPETITIONS:
+            p = {**params}
+            for k, v in params.items():
+                if k[0] in '0123456789':
+                    p["_%s" % k] = v
             self.tags.append({
                 'cat_slug': 'competition',
-                'tag': '%s%s' % (IFWIKI_COMPETITIONS[name], params['1'])
+                'tag': (IFWIKI_COMPETITIONS[name].format(**p))
             })
+            return ''
+        if name == 'Избранная игра':
+            self.tags.append({'tag_slug': 'ifwiki_featured'})
             return ''
         if name == 'РИЛФайл':
             self.AddUrl(params['1'])
             return '[%s Ссылка на РилАрхив]' % params['1']
-        if name in IFWIKI_IGNORE:
-            return ''
+        if name == 'Ссылка':
+            self.AddUrl(params['на'], desc=params.get('1'))
+            if 'архив' in params:
+                self.AddUrl(params['архив'])
+            return '[%s %s]' % (params['на'], params.get('1') or 'ссылка')
         if name == 'Тема':
-            self.tags.append({'cat_slug': 'genre', 'tag': params['1']})
+            self.tags.append({'cat_slug': 'tag', 'tag': params['1']})
+            return ''
+        if name == 'ns:6':
+            return 'Media'
+        if name in IFWIKI_IGNORE:
             return ''
         logging.error('Unknown template: %s %s' % (name, params))
         return ''
@@ -195,17 +283,27 @@ def toolset_preproc(context):
         node.value = '&%s;' % node.leaf()
 
     def substitute_numbered_entity(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logging.error('O url: %s, title:%s\n%s' % (context.url, context.title,
+                                                   node))
 
     def substitute_template_parameter(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logging.error('N url: %s, title:%s\n%s' % (context.url, context.title,
+                                                   node))
 
     def substitute_template(node):
         node.value = context.ParseTemplate(node)
 
     return locals()
+
+
+def BuildLeaves(node):
+    res = []
+    for x in node.value:
+        if isinstance(x.value, str):
+            res.append(x.value)
+        else:
+            res.extend(BuildLeaves(x))
+    return res
 
 
 def toolset_wiki(context):
@@ -215,7 +313,13 @@ def toolset_wiki(context):
         'italic': '_',
         'italic_close': '_',
         'strike': '~~',
-        'strike_close': '~~'
+        'strike_close': '~~',
+        'blockquote': '\n> ',
+        'span': '',
+    }
+
+    style_tags_close = {
+        'blockquote': '\n\n',
     }
 
     autoclose_tags = {
@@ -341,12 +445,15 @@ def toolset_wiki(context):
         elif node.value[0].value in autoclose_tags:
             node.value = autoclose_tags[node.value[0].value]
         else:
-            logging.error('url: %s, title:%s\n%s' % (context.url,
-                                                     context.title, node))
+            logging.error('A url: %s, title:%s\n%s' % (context.url,
+                                                       context.title, node))
             node.value = ''
 
     def render_tag_close(node):
-        render_tag_open(node)
+        if node.value[0].value in style_tags_close:
+            node.value = style_tags_close[node.value[0].value]
+        else:
+            render_tag_open(node)
 
     def render_tag_autoclose(node):
         if node.value[0].value in autoclose_tags:
@@ -354,64 +461,64 @@ def toolset_wiki(context):
         node.value = ''
 
     def render_attribute(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logging.error('B url: %s, title:%s\n%s' % (context.url, context.title,
+                                                   node))
         node.value = ''
 
     def render_table(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logging.error('C url: %s, title:%s\n%s' % (context.url, context.title,
+                                                   node))
         node.value = ''
 
     def render_table_line_break(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logging.error('D url: %s, title:%s\n%s' % (context.url, context.title,
+                                                   node))
         node.value = ''
 
     def render_table_header_cell(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logging.error('E url: %s, title:%s\n%s' % (context.url, context.title,
+                                                   node))
         node.value = ''
 
     def render_table_normal_cell(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logging.error('F url: %s, title:%s\n%s' % (context.url, context.title,
+                                                   node))
         node.value = ''
 
     def render_table_empty_cell(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logging.error('G url: %s, title:%s\n%s' % (context.url, context.title,
+                                                   node))
         node.value = ''
 
     def render_table_caption(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logging.error('H url: %s, title:%s\n%s' % (context.url, context.title,
+                                                   node))
         node.value = ''
 
     def render_preformatted(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logging.error('I url: %s, title:%s\n%s' % (context.url, context.title,
+                                                   node))
         node.value = ''
 
     def render_source(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logging.error('J url: %s, title:%s\n%s' % (context.url, context.title,
+                                                   node))
         node.value = ''
 
     def render_source_open(node):
         node.value = ''
 
     def render_source_text(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logging.error('K url: %s, title:%s\n%s' % (context.url, context.title,
+                                                   node))
         node.value = ''
 
     def render_hr(node):
         node.value = '\n===\n'
 
     def render_li(node):
-        logging.error('url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logging.error('L url: %s, title:%s\n%s' % (context.url, context.title,
+                                                   node))
         node.value = ''
 
     def render_list(node):
@@ -432,11 +539,13 @@ def toolset_wiki(context):
             node.value = '<%s>' % (url)
 
     def render_internal_link(node):
+        BuildLeaves(node)
         node.value = '**%s**' % (
-            context.ProcessLink('|'.join([x.leaf() for x in node.value])))
+            context.ProcessLink('|'.join(BuildLeaves(node))))
 
     def render_invalid(node):
-        logging.error('url: %s, title:%s' % (context.url, context.title))
+        logging.warning('Invalid line, url: %s, title:%s' % (context.url,
+                                                             context.title))
         node.value = ''
 
     return locals()

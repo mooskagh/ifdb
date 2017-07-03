@@ -1,14 +1,50 @@
 {% extends "./base.html" %}
 {% block content %}
     <div class="content-box">
-        Тут пока ничего нету, но сверху
-        ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑ должна работать ссылка "ИГРЫ".
-        Чтобы добавлять игры/комментить/голосовать, надо залогиниться.
-        Регистрация пока безо всяких активаций на емейл.
-        <br><br>
-        Советы/багрепорты приветствуются.
-        <br><br>
-        База будет обнуляться, поэтому смело вводите мусор в целях
-        тестирования (и не утруждайтесь "настоящим" заполнением базы).
+        <h2>Последние добавленные</h2>
+        <div class="gamelist-thumb-container">
+            {% for g in top %}
+                <a class="gamelist-thumb-index" href="{% url 'show_game' game_id=g.id %}">
+                    <div class="poster-container">
+                        <img class="poster" src="{{ g.poster|default:'/static/noposter.png' }}"/>
+                    </div>
+                    <div class="title-container">
+                        {{ g.title }}
+                    </div>
+                    <div class="search-author">
+                        {% for x in g.authors %}
+                            {{x.author.name}}{% if not forloop.last %},{% endif %}
+                        {% endfor %}
+                    </div>
+                </a>
+            {% endfor %}
+        </div>
+        <h2>Лучшие игры за всё время</h2>
+        <div class="gamelist-thumb-container">
+            {% for g in best %}
+                <a class="gamelist-thumb-index" href="{% url 'show_game' game_id=g.id %}">
+                    <div class="poster-container">
+                        <img class="poster" src="{{ g.poster|default:'/static/noposter.png' }}"/>
+                    </div>
+                    <div class="title-container">
+                        {{ g.title }}
+                    </div>
+                    <div class="search-author">
+                        {% for x in g.authors %}
+                            {{x.author.name}}{% if not forloop.last %},{% endif %}
+                        {% endfor %}
+                    </div>
+                    <div class="thumb-index-rating">
+                        {% for x in g.ds.stars %}
+                            <img src="/static/duck{{x}}.png" />
+                        {% endfor %}
+                    </div>
+                </a>
+            {% endfor %}
+        </div>
+        <h2>Последние комментарии</h2>
+        Попозже будет.
+        <h2>Последние добавленные видео</h2>
+        И это. Возможно.
     </div>
 {% endblock %}

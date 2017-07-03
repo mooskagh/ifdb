@@ -8,7 +8,9 @@ AUTHOR_ROLES = [
     ['translator', 'Переводчик'],
     ['porter', 'Перенёс на другую платформу'],
     ['character', 'Персонаж'],
+    ['programmer', 'Программист'],
     ['member', 'Участник (прочие)'],
+    ['composer', 'Композитор'],
 ]
 
 TAG_CATS = [
@@ -18,7 +20,7 @@ TAG_CATS = [
     ['state', 'Стадия разработки', False, {
         'search': '@admin'
     }],
-    ['genre', 'Жанр', True, {}],
+    ['genre', 'Жанр', False, {}],
     ['platform', 'Платформа', True, {}],
     ['country', 'Страна', True, {
         'search': '@admin'
@@ -26,7 +28,8 @@ TAG_CATS = [
     ['control', 'Управление', False, {}],
     ['os', 'Операционная система', False, {}],
     ['competition', 'Участник конкурса', True, {}],
-    ['tag', 'Тэг', True, {
+    ['tag', 'Тэг', True, {}],
+    ['language', 'Язык', True, {
         'search': '@admin'
     }],
     ['ifid', 'IFID', True, {
@@ -52,21 +55,44 @@ TAGS = [
     ['os', 'os_other', 'Другая ОС'],
     ['control', 'parser', 'Парсерная'],
     ['control', 'menu', 'Менюшная'],
+    ['tag', 'ifwiki_featured', 'избранная на ifwiki'],
+    ['genre', 'g_action', 'Боевик'],
+    ['genre', 'g_adult', '18+'],
+    ['genre', 'g_adventure', 'Приключения'],
+    ['genre', 'g_detective', 'Детектив'],
+    ['genre', 'g_drama', 'Драма'],
+    ['genre', 'g_dystopy', 'Дистопия'],
+    ['genre', 'g_experimental', 'Экспериментальное'],
+    ['genre', 'g_fairytale', 'Сказка'],
+    ['genre', 'g_fantasy', 'Фэнтези'],
+    ['genre', 'g_historical', 'Историческое'],
+    ['genre', 'g_horror', 'Ужасы'],
+    ['genre', 'g_humor', 'Юмор'],
+    ['genre', 'g_kids', 'Детское'],
+    ['genre', 'g_mystic', 'Мистика'],
+    ['genre', 'g_puzzle', 'Головоломка'],
+    ['genre', 'g_romance', 'Романтика'],
+    ['genre', 'g_rpg', 'RPG'],
+    ['genre', 'g_scifi', 'Фантастика'],
+    ['genre', 'g_simulation', 'Симулятор'],
 ]
 
 URL_CATS = [
     ['game_page', 'Эта игра на другом сайте', False],
     ['download_direct', 'Скачать (прямая ссылка)', True],
     ['download_landing', 'Скачать (ссылка на сайт)', False],
-    ['urqw', 'Открыть при помощи UrqW', False],
+    [
+        'play_in_interpreter', 'Открыть в интерпретаторе игр (UrqW и т.д.)',
+        True
+    ],
     ['play_online', 'Играть онлайн', False],
-    ['unknown', 'Прочее', False],
     ['poster', 'Постер', True],
     ['screenshot', 'Скриншот', True],
-    ['project_page', 'Официальная страница', False],
     ['forum', 'Обсуждение (форум)', False],
     ['review', 'Обзор', False],
     ['video', 'Видео прохождения', False],
+    ['other', 'Прочее', False],
+    ['unknown', 'Категория не назначена', False],
 ]
 
 

@@ -1,6 +1,7 @@
 from .models import Game
-from .tools import FormatDate, RenderMarkdown
+from .tools import FormatDate, FormatTime, StarsFromRating, RenderMarkdown
 from urllib.parse import urlparse, parse_qs
+from statistics import mean, median
 
 
 def Partition(links, partitions):
@@ -67,7 +68,8 @@ class GameDetailsBuilder:
         authors, participants = Partition(self.GetAuthors(), [('author', )])
         media, online, download, links = Partition(
             self.GetURLs(), [('poster', 'video', 'screenshot'),
-                             ('urqw', 'play_online'), ('download_direct', )])
+                             ('play_in_interpreter',
+                              'play_online'), ('download_direct', )])
         media = AnnotateMedia(media)
         md = RenderMarkdown(self.game.description)
         tags = self.GetTagsForDetails()

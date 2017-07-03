@@ -394,7 +394,7 @@ function GetCookie(name) {
             });
 
         var desc_el = $(
-            '<input class="descinput" placeholder="Описание (опционально)">');
+            '<input class="descinput" placeholder="Описание">');
         var url_el = $('<input class="urlinput" placeholder="URL">');
         var or_el = $('<span>или</span>');
         var button_el = $('<button id="upload_button">Закачать</button>');
@@ -494,21 +494,29 @@ function GetCookie(name) {
         url_el.on('input', function() {
             url_el.removeClass('invalidinput');
         });
+        desc_el.on('input', function() {
+            desc_el.removeClass('invalidinput');
+        });
 
         delicon.click(function() {
             if (obj.delicon) obj.ondel(obj);
         });
 
         obj.IsValid = function() {
-            var a1 = cats.suggest('isValid');
-            var a2 = true;
+            var valid = cats.suggest('isValid');
             if (url_el.val() === '') {
                 url_el.addClass('invalidinput');
-                a2 = false;
+                valid = false;
             } else {
                 url_el.removeClass('invalidinput');
             }
-            return a1 && a2;
+            if (desc_el.val() === '') {
+                desc_el.addClass('invalidinput');
+                valid = false;
+            } else {
+                desc_el.removeClass('invalidinput');
+            }
+            return valid;
         };
 
         return obj;

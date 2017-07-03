@@ -9,12 +9,23 @@ MIN_SIMILARITY = 0.67
 REGISTERED_IMPORTERS = []
 
 URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
+    ('qsp.su', '^$', '^$', None, None),
+    ('urq.plut.info', '^$', '^$', None, None),
+    ('rilarhiv.ru', '^$', '^$', None, None),
+    ('ifwiki.ru', '^$', '^$', None, None),
+    ('www.youtube.com', '^$', '^$', None, None),
+    ('youtube.com', '^$', '^$', None, None),
+    ('apero.ru', '^$', '^$', None, None),
+    ('storymaze.ru', '^$', '^$', None, None),
     ('', r'.*screenshot.*\.(png|jpg|gif|bmp|jpeg)', '', 'screenshot',
      'Скриншот'),
     ('', r'.*\.(png|jpg|gif|bmp|jpeg)', '', 'poster', 'Обложка'),
+    ('ifwiki.ru', '/files/.*', '', 'download_direct', 'Скачать с IfWiki'),
     ('ifwiki.ru', '', '', 'game_page', 'Страница на IfWiki'),
+    ('ludumdare.com', '', '', 'game_page', 'Страница на Ludum Dare'),
     ('urq.plut.info', '.*/files/.*', '', 'download_direct', 'Скачать с плута'),
     ('urq.plut.info', '', '', 'game_page', 'Страница на плуте'),
+    ('store.steampowered.com', '', '', 'game_page', 'Страница на стиме'),
     ('yadi.sk', '', '', 'download_landing', 'Скачать с Яндекс.диска'),
     ('rilarhiv.ru', '', '', 'download_direct', 'Скачать с РилАрхива'),
     ('instead-games.ru', '.*/download/.*', '', 'download_direct',
@@ -30,8 +41,20 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('qsp.su', '', '', 'game_page', 'Игра на qsp.ru'),
     (r'@.*\.github\.io', '', '', 'play_online', 'Играть онлайн'),
     ('iplayif.com', '', '', 'play_online', 'Играть онлайн'),
+    ('apero.ru', '', '', 'play_online', 'Играть онлайн'),
+    ('storymaze.ru', '', '', 'play_online', 'Играть онлайн'),
     ('', r'.*\.(zip|rar|z5)', '', 'download_direct', 'Ссылка для скачивания'),
 ]
+
+
+def GetBagOfWords(x):
+    return set(RE_WORD.findall(x.lower()))
+
+
+def ComputeSimilarity(s1, s2):
+    if not s1:
+        return 0.0
+    return len(s1 & s2) / len(s1 | s2)
 
 
 def CategorizeUrl(url, desc='', category=None, base=None):
@@ -43,7 +66,7 @@ def CategorizeUrl(url, desc='', category=None, base=None):
     for (host, path, query, slug, ddesc) in URL_CATEGORIZER_RULES:
         if host:
             if host.startswith('@'):
-                if not re.match(host[1:], purl.hostname):
+                if purl.hostname and not re.match(host[1:], purl.hostname):
                     continue
             elif host != purl.hostname:
                 continue
@@ -56,6 +79,15 @@ def CategorizeUrl(url, desc='', category=None, base=None):
             desc = ddesc
         break
 
+    if cat_slug == 'unknown':
+        if desc.lower() == 'играть онлайн':
+            cat_slug = 'play_online'
+        elif 'скачать' in desc.lower():
+            cat_slug = 'download_landing'
+
+    if not desc:
+        desc = url
+
     if category:
         cat_slug = category
 
@@ -63,13 +95,9 @@ def CategorizeUrl(url, desc='', category=None, base=None):
 
 
 def SimilarEnough(w1, w2):
-    s1 = set(RE_WORD.findall(w1.lower()))
-    s2 = set(RE_WORD.findall(w2.lower()))
-    if not s1:
-        return False
-
-    similarity = len(s1 & s2) / len(s1 | s2)
-    return similarity > MIN_SIMILARITY
+    s1 = GetBagOfWords(w1)
+    s2 = GetBagOfWords(w2)
+    return ComputeSimilarity(s1, s2) > MIN_SIMILARITY
 
 
 def DispatchImport(url):
@@ -80,15 +108,22 @@ def DispatchImport(url):
     return {'error': 'Ссылка на неизвестный ресурс.'}
 
 
+def GetUrlCandidates():
+    res = []
+    for x in REGISTERED_IMPORTERS:
+        res.extend(x.GetUrlCandidates())
+    return res
+
+
 def HashizeUrl(url):
     url = quote(url.encode('utf-8'), safe='/+=&?%:;@!#$*()_-')
     purl = urlsplit(url, allow_fragments=False)
     return urlunsplit(('', purl[1], purl[2], purl[3], ''))
 
 
-def Import(seed_url):
+def Import(*seed_url):
     urls_checked = set()
-    urls_to_check = set([seed_url])
+    urls_to_check = set(seed_url)
     res = []
     title = None
 
@@ -103,13 +138,13 @@ def Import(seed_url):
 
         if 'desc' in x:
             if 'desc' in y:
-                if 'header' in x:
-                    y['desc'] += x['header']
-                else:
-                    y['desc'] += '\n\n---\n\n'
+                y['desc'] += '\n\n---\n\n'
             else:
                 y['desc'] = ''
             y['desc'] += x['desc']
+
+        if 'urls' in x:
+            x['urls'] = [z for z in x['urls'] if z['urlcat_slug']]
 
         for setz, field, extractor in [
             (s_urls, 'urls',
@@ -138,14 +173,13 @@ def Import(seed_url):
         urls_checked.add(url_hash)
 
         r = DispatchImport(url)
-        enricher.Enrich(r)
 
         if 'priority' not in r:
             r['priority'] = -1000
 
         append = False
         if 'title' in r:
-            if title:
+            if title and url not in seed_url:
                 if SimilarEnough(title, r['title']):
                     append = True
             else:
@@ -168,6 +202,8 @@ def Import(seed_url):
         MergeImport(r, x)
     if 'title' in r and 'error' in r:
         del r['error']
+
+    enricher.Enrich(r)
     return r
 
 

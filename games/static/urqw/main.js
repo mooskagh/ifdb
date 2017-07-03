@@ -1,32 +1,15 @@
-/**
- * @author narmiel
- *
- * Загрузка
- */
-
-/**
- * @type {Quest}
- */
 Game = null;
-
-/**
- * @type {Player}
- */
 GlobalPlayer = null;
-
-/**
- * Files
- */
 files = null;
-
 quest = []; // todo
-
-/**
- *
- */
 var mode;
 
+
 var URQW = (function() {
+    function setMode(new_mode) {
+        mode = new_mode;
+    }
+
     function loadTextFromUrl(url) {
         $('#message').show();
         $.ajax({
@@ -140,5 +123,6 @@ var URQW = (function() {
 
     return {'loadZip': loadZipFromUrl,
             'loadText': loadTextFromUrl,
-            'showError': loadFailed};
+            'showError': loadFailed,
+            'setMode': setMode};
 }());

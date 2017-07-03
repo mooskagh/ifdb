@@ -2,7 +2,7 @@ import re
 from .models import Game, GameTag, GameTagCategory
 import statistics
 from .tools import FormatDate, FormatTime, StarsFromRating
-from django.db.models import Q
+from django.db.models import Q, Count, prefetch_related_objects
 
 RE_WORD = re.compile(r"\w(?:[-\w']+\w)?")
 
@@ -84,6 +84,9 @@ class SearchBit:
     def Id(self):
         return self.val * 16 + self.TYPE_ID
 
+    def NeedsFullSet(self):
+        return True
+
     def ProduceDict(self, typ):
         return {
             'id': self.Id(),
@@ -163,6 +166,9 @@ class SB_Sorting(SearchBit):
         if self.method in [self.RATING, self.DURATION]:
             return query.prefetch_related('gamevote_set')
         return query
+
+    def NeedsFullSet(self):
+        return self.method not in [self.CREATION_DATE]
 
     def ModifyResult(self, games):
         r = self.desc
@@ -248,6 +254,9 @@ class SB_Text(SearchBit):
     def IsActive(self):
         return bool(self.text)
 
+    def NeedsFullSet(self):
+        return True
+
     def ModifyResult(self, games):
         # TODO(crem) Do something at query time.
         query = TokenizeText(self.text or '')
@@ -273,12 +282,21 @@ class SB_Tag(SearchBit):
         res = super().ProduceDict('tags')
         res['cat'] = self.cat
         items = []
-        for x in (GameTag.objects.filter(category=self.cat).order_by('order')):
+        for x in (GameTag.objects.select_related('category').filter(
+                category=self.cat).annotate(
+                    Count('game')).order_by('-game__count')):
             items.append({
                 'id': x.id,
                 'name': x.name,
-                'on': x.id in self.items
+                'on': x.id in self.items,
+                'tag': x,
             })
+
+        if len(items) > 10 and items[0]['tag'].category.allow_new_tags:
+            for x in items[6:]:
+                x['hidden'] = True
+            items.append({'show_all': True})
+
         items.append({'id': 0, 'name': 'Не указано', 'on': 0 in self.items})
         res['items'] = items
         return res
@@ -289,10 +307,14 @@ class SB_Tag(SearchBit):
     def ModifyQuery(self, query):
         return query.prefetch_related('tags')
 
+    def NeedsFullSet(self):
+        return True
+
     def IsActive(self):
         return bool(self.items)
 
     def ModifyResult(self, games):
+        # TODO This should absolutely be in ModifyQuery!
         res = []
         for g in games:
             tags = set(
@@ -306,48 +328,8 @@ class SB_Tag(SearchBit):
 class SB_Flags(SearchBit):
     TYPE_ID = 3
 
-    HEADER = 'Наличие ресурсов'
-
-    FIELDS = [
-        'С видео',
-        'С обзорами',
-        'С комментариями',
-        'С обсуждениями на форуме',
-        'Можно скачать',
-        'Можно поиграть онлайн',
-        'Можно поиграть прямо на этом сайте (UrqW)',
-    ]
-
-    CATS_ID_CACHE = {}
-
-    QUERIES = {
-        0:
-            Q(gameurl__category__symbolic_id='video'),
-        1:
-            Q(gameurl__category__symbolic_id='review'),
-        2:
-            Q(gamecomment__isnull=False),
-        3:
-            Q(gameurl__category__symbolic_id='forum'),
-        4:
-            Q(gameurl__category__symbolic_id__in=[
-                'download_direct', 'download_landing'
-            ]),
-        5:
-            Q(gameurl__category__symbolic_id='play_online'),
-        6:
-            Q(gameurl__category__symbolic_id='urqw'),
-    }
-
-    # Flags:
-    # 0 -- has video
-    # 1 -- has review
-    # 2 -- has forums
-    # 3 -- has comments
-    # 4 -- downloadable
-    # 5 -- playable online
     def __init__(self):
-        super().__init__(0, True)
+        super().__init__(self.VAL_ID, True)
         self.items = [False] * len(self.FIELDS)
 
     def ProduceDict(self):
@@ -367,11 +349,82 @@ class SB_Flags(SearchBit):
         for i, v in enumerate(self.items):
             if not v:
                 continue
+            if i in self.ANNOTATIONS:
+                query = query.annotate(self.ANNOTATIONS[i])
             q = q | self.QUERIES[i] if q else self.QUERIES[i]
         return query.filter(q)
 
+    def NeedsFullSet(self):
+        return False
+
     def IsActive(self):
         return True in self.items
+
+
+class SB_UserFlags(SB_Flags):
+    HEADER = 'Наличие ресурсов'
+    VAL_ID = 0
+
+    FIELDS = [
+        'С видео',
+        'С обзорами',
+        'С комментариями',
+        'С обсуждениями на форуме',
+        'Можно скачать',
+        'Можно поиграть онлайн',
+    ]
+
+    ANNOTATIONS = {}
+
+    QUERIES = {
+        0:
+            Q(gameurl__category__symbolic_id='video'),
+        1:
+            Q(gameurl__category__symbolic_id='review'),
+        2:
+            Q(gamecomment__isnull=False),
+        3:
+            Q(gameurl__category__symbolic_id='forum'),
+        4:
+            Q(gameurl__category__symbolic_id__in=[
+                'download_direct', 'download_landing'
+            ]),
+        5: (Q(gameurl__category__symbolic_id='play_online') |
+            Q(gameurl__interpretedgameurl__is_playable=True)),
+    }
+
+
+class SB_AuxFlags(SB_Flags):
+    HEADER = 'Для садовников'
+    VAL_ID = 1
+
+    FIELDS = [
+        'С файлами без категорий',
+        'Без авторов',
+        'Без даты выпуска',
+        'UrqW -- проверенные',
+        'UrqW -- непроверенные',
+        'UrqW -- неработающие',
+    ]
+
+    ANNOTATIONS = {
+        1: (Count('gameauthor')),
+    }
+
+    QUERIES = {
+        0:
+            Q(gameurl__category__symbolic_id='unknown'),
+        1:
+            Q(gameauthor__count=0),
+        2:
+            Q(release_date__isnull=True),
+        3:
+            Q(gameurl__interpretedgameurl__is_playable=True),
+        4: (Q(gameurl__interpretedgameurl__isnull=False) & Q(
+            gameurl__interpretedgameurl__is_playable__isnull=True)),
+        5:
+            Q(gameurl__interpretedgameurl__is_playable=False),
+    }
 
 
 # [int:0] - Sorting. + [int: sort type, lowest bit for direction]
@@ -385,6 +438,19 @@ class SB_Flags(SearchBit):
 #         Date [int:min:days since 1900 or 0] [int:max:days or 0]
 #         [bool:games without duration]
 #     Possibly merge int:4 and int:5 into range input.
+
+
+def LimitListlike(q, start, limit):
+    if start is None:
+        if limit is None:
+            return q
+        else:
+            return q[:limit]
+    else:
+        if limit is None:
+            return q[start:]
+        else:
+            return q[start:start + limit]
 
 
 class Search:
@@ -418,19 +484,36 @@ class Search:
             key = reader.ReadInt()
             self.id_to_bit[key].LoadFromQuery(reader)
 
-    def Search(self, *, prefetch_related=None):
+    def Search(self, *, prefetch_related=None, start=None, limit=None):
+        need_full_query = False
+        partial_query = start is not None or limit is not None
+
         q = Game.objects.all()
-        if prefetch_related:
-            q = q.prefetch_related(*prefetch_related)
         for x in self.bits:
             if x.IsActive():
                 q = x.ModifyQuery(q)
-        games = [x for x in q.distinct() if self.perm(x.view_perm)]
+                if x.NeedsFullSet(): need_full_query = True
+
+        two_stage_fetch = need_full_query and partial_query
+        if prefetch_related and not two_stage_fetch:
+            q = q.prefetch_related(*prefetch_related)
+        q = q.distinct()
+
+        if not two_stage_fetch:
+            q = LimitListlike(q, start, limit)
+
+        games = [x for x in q if self.perm(x.view_perm)]
         for g in games:
             g.ds = {}
         for x in self.bits:
             if x.IsActive():
                 games = x.ModifyResult(games)
+
+        if two_stage_fetch:
+            games = LimitListlike(games, start, limit)
+            if prefetch_related:
+                prefetch_related_objects(games, *prefetch_related)
+
         return games
 
 
@@ -442,5 +525,6 @@ def MakeSearch(perm):
         if not perm(x.show_in_search_perm):
             continue
         s.Add(SB_Tag(x))
-    s.Add(SB_Flags())
+    s.Add(SB_UserFlags())
+    s.Add(SB_AuxFlags())
     return s
