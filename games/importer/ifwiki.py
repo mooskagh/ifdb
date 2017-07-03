@@ -20,6 +20,10 @@ class IfwikiImporter:
         return GetUrlList()
 
 
+CATEGORY_STR = (
+    r'ifwiki.ru/%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D1%8F:')
+
+
 def GetUrlList():
     keystart = ''
     ids = set()
@@ -57,7 +61,8 @@ def GetUrlList():
                 r'inprop=url&pageids=' + pageidlist,
                 use_cache=False))
         for _, v in r['query']['pages'].items():
-            res.append(v['fullurl'])
+            if CATEGORY_STR not in v['fullurl']:
+                res.append(v['fullurl'])
     return res
 
 
