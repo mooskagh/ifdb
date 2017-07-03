@@ -85,6 +85,9 @@ def CategorizeUrl(url, desc='', category=None, base=None):
         elif 'скачать' in desc.lower():
             cat_slug = 'download_landing'
 
+    if not desc:
+        desc = url
+
     if category:
         cat_slug = category
 
