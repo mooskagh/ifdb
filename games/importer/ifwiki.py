@@ -229,7 +229,6 @@ class WikiParsingContext:
             self.ProcessGameinfo(params)
             return ''
         if name in IFWIKI_COMPETITIONS:
-            print(name)
             p = {**params}
             for k, v in params.items():
                 if k[0] in '0123456789':
