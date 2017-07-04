@@ -68,8 +68,12 @@ def GetUrlList():
     return res
 
 
+def CapitalizeFirstLetter(x):
+    return x[:1].upper() + x[1:]
+
+
 def WikiQuote(name):
-    return quote(name.replace(' ', '_'))
+    return quote(CapitalizeFirstLetter(name.replace(' ', '_')))
 
 
 def ImportFromIfwiki(url):
