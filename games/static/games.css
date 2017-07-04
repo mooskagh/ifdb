@@ -389,7 +389,8 @@ a.gamelist-thumb .search-author {
     white-space: nowrap;
 }
 
-a.gamelist-thumb img.poster {
+a.gamelist-thumb img.poster,
+a.gamelist-thumb-index img.poster {
     width: 100%;
 }
 

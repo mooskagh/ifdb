@@ -2,13 +2,13 @@
 
 {% block content %}
     <div class="content-box">
-        <h2> Ну что ж, давайте зарегестрируемся!</h2>
+        <h2> Ну что ж, давайте зарегистрируемся!</h2>
         <form class="user-registration" method="post">
             {% csrf_token %}
             <table>
                {{ form.as_table }}
             </table>
-            <input type="submit" value="Зарегестрироваться"/>
+            <input type="submit" value="Зарегистрироваться"/>
         </form>
     </div>
 {% endblock %}
