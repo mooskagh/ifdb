@@ -115,6 +115,9 @@ logging.config.dictConfig({
         'require_debug_false': {
             '()': 'django.utils.log.RequireDebugFalse',
         },
+        'require_debug_true': {
+            '()': 'django.utils.log.RequireDebugTrue',
+        },
     },
     'handlers': {
         'debug': {
@@ -124,6 +127,7 @@ logging.config.dictConfig({
             'backupCount': 5,
             'filename': os.path.join(LOG_DIR, 'all.DEBUG'),
             'formatter': 'google',
+            'filters': ['require_debug_true'],
         },
         'warnings': {
             'level': 'WARN',
