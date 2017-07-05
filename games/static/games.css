@@ -296,45 +296,38 @@ textarea {
 }
 
 a.gamelist-thumb {
-    background-color: #F2F1EB;
     border-radius: 2px;
-    border: 1px solid #7E787D;
     box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
     box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
-    color: #31322D;
     display: inline-block;
     font-weight: bold;
-    height: 200px;
     margin: 7px;
     overflow: hidden;
     padding: 0;
     text-decoration: none;
     text-align: left;
+}
+
+a.gamelist-thumb-search {
+    background-color: #F2F1EB;
+    border: 1px solid #7E787D;
+    color: #31322D;
+    height: 200px;
     width: 180px;
 }
 
 a.gamelist-thumb-index {
     background-color: #625b61;
-    border-radius: 2px;
     border: 1px solid #7E787D;
-    box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
     color: #f2f1eb;
-    display: inline-block;
-    font-weight: bold;
     height: 150px;
-    margin: 7px;
-    overflow: hidden;
-    padding: 0;
-    text-decoration: none;
-    text-align: left;
     width: 150px;
     position: relative;
 }
 
 a.gamelist-thumb-index .thumb-index-rating {
     position: absolute;
-    top: 5px;
+    top: 50px;
     left: 5px;
 }
 
@@ -344,7 +337,7 @@ a.gamelist-thumb-index .poster-container {
 }
 
 
-a.gamelist-thumb .poster-container {
+a.gamelist-thumb-search .poster-container {
     height: 100px;
     overflow: hidden;
 }
@@ -353,28 +346,15 @@ a.gamelist-thumb .title-container {
     border-top: 1px solid #b1b0ab;
     height: 50px;
     margin: 0;
-    padding: 5px;
     overflow: hidden;
 }
 
 a.gamelist-thumb-index .title-container {
-    border-top: 1px solid #b1b0ab;
-    height: 50px;
-    margin: 0;
     padding: 3px;
-    overflow: hidden;
 }
 
-a.gamelist-thumb-index .search-author {
-    display: block;
-    font-size: 90%;
-    font-weight: bold;
-    height: 16px;
-    overflow: hidden;
-    padding: 2px 5px;
-    text-align: right;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+a.gamelist-thumb-search .title-container {
+    padding: 5px;
 }
 
 a.gamelist-thumb .search-author {
@@ -389,8 +369,7 @@ a.gamelist-thumb .search-author {
     white-space: nowrap;
 }
 
-a.gamelist-thumb img.poster,
-a.gamelist-thumb-index img.poster {
+a.gamelist-thumb img.poster {
     width: 100%;
 }
 

@@ -2,7 +2,7 @@
 {% load tags %}
 {% if games %}
 {% for g in games %}
-    <a class="gamelist-thumb" href="{% url 'show_game' game_id=g.id %}">
+    <a class="gamelist-thumb gamelist-thumb-search" href="{% url 'show_game' game_id=g.id %}">
         <div class="poster-container">
             <img class="poster" src="{{ g.poster|default:'/static/noposter.png' }}"/>
         </div>
