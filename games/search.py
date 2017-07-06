@@ -405,10 +405,12 @@ class SB_AuxFlags(SB_Flags):
         'UrqW -- проверенные',
         'UrqW -- непроверенные',
         'UrqW -- неработающие',
+        'С участниками без роли',
     ]
 
     ANNOTATIONS = {
         1: (Count('gameauthor')),
+        7: (Count('gameurl__url__gameurl')),
     }
 
     QUERIES = {
@@ -424,6 +426,8 @@ class SB_AuxFlags(SB_Flags):
             gameurl__interpretedgameurl__is_playable__isnull=True)),
         5:
             Q(gameurl__interpretedgameurl__is_playable=False),
+        6:
+            Q(gameauthor__role__symbolic_id='member'),
     }
 
 
