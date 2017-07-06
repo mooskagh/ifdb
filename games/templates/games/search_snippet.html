@@ -23,6 +23,7 @@
             {% for x in g.ds.stars %}
                 <img src="/static/duck{{x}}.png" />
             {% endfor %}
+            ({{ g.ds.scores|rupl:"голос,голоса,голосов" }})
         {% elif g.ds.duration %}
             Прохождение:
             {{ g.ds.duration.hours|rupl:"час,часа,часов" }}

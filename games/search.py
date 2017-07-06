@@ -203,6 +203,7 @@ class SB_Sorting(SearchBit):
                     continue
                 avg = statistics.mean(votes)
                 g.ds['stars'] = StarsFromRating(avg)
+                g.ds['scores'] = len(votes)
                 vote = DiscountRating(avg, len(votes))
                 ratings.append((vote, g))
 
