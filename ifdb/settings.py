@@ -122,9 +122,7 @@ logging.config.dictConfig({
     'handlers': {
         'debug': {
             'level': 0,
-            'class': 'logging.handlers.RotatingFileHandler',
-            'maxBytes': 50000000,
-            'backupCount': 5,
+            'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'all.DEBUG'),
             'formatter': 'google',
             'filters': ['require_debug_true'],

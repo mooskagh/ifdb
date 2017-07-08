@@ -562,21 +562,25 @@ def UpdateGameTags(request, game, tags, update):
 
 
 def UpdateGameUrls(request, game, data, update):
-    existing_urls = {}  # (cat_id, gameurl_desc, url_text) -> gameurl_id
+    existing_urls = {}  # (cat_id, url_text) -> (gameurl, gameurl_desc)
     if update:
         for x in game.gameurl_set.select_related('url').all():
-            existing_urls[(x.category_id, x.description or '',
-                           x.url.original_url)] = x.id
+            existing_urls[(x.category_id,
+                           x.url.original_url)] = (x, x.description or '')
 
     records_to_add = []  # (cat_id, gameurl_desc, url_text)
     urls_to_add = []  # (url_text, cat_id)
     for x in data:
-        t = tuple(x)
+        t = (x[0], x[2])
         if t in existing_urls:
+            if x[1] != existing_urls[t][1]:
+                url = existing_urls[t][0]
+                url.description = x[1]
+                url.save()
             del existing_urls[t]
         else:
-            records_to_add.append(t)
-            urls_to_add.append((t[2], int(t[0])))
+            records_to_add.append(tuple(x))
+            urls_to_add.append((x[2], int(x[0])))
 
     if records_to_add:
         url_to_id = {}
@@ -628,7 +632,8 @@ def UpdateGameUrls(request, game, data, update):
         GameURL.objects.bulk_create(objs)
 
     if existing_urls:
-        GameURL.objects.filter(id__in=list(existing_urls.values())).delete()
+        GameURL.objects.filter(
+            id__in=[x[0].id for x in existing_urls.values()]).delete()
 
 
 def UpdateGame(request, j, update_edit_time=True):
