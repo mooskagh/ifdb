@@ -123,9 +123,9 @@
             URQW.setMode('{{conf.variant|escapejs }}');
         {% endif %}
         {% if format == '.zip' or format == '.qsz' %}
-            URQW.loadZip('{{ data.GetUrl|escapejs }}');
+            URQW.loadZip('{{ data.GetRecodedUrl|escapejs }}');
         {% elif format == '.qst' %}
-            URQW.loadText('{{ data.GetUrl|escapejs }}');
+            URQW.loadText('{{ data.GetRecodedUrl|escapejs }}');
         {% elif format == 'error' %}
             URQW.showError('{{ data|escapejs }}');
         {% else %}

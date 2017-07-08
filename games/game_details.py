@@ -34,7 +34,7 @@ def AnnotateMedia(media):
         val = {}
         if y.category.symbolic_id in ['poster', 'screenshot']:
             val['type'] = 'img'
-            val['img'] = y.url.GetUrl()
+            val['img'] = y.GetLocalUrl()
         elif y.category.symbolic_id == 'video':
             idd = ExtractYoutubeId(y.url.original_url)
             if idd:

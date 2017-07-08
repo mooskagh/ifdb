@@ -275,7 +275,7 @@ textarea {
     margin: 2px;
 }
 
-.game-header .game-info span {
+span.gameinfo-author {
     color: #31322D;
     display: inline-block;
     font-weight: bold;
@@ -598,10 +598,24 @@ input[type="submit"],
     border-radius: 2px;
 }
 
+.button-like a {
+    border: none;
+    color: #F2F1EB;
+    text-align: center;
+    font-size: 14px;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+
 .button-like {
     font-family: Arial;
     padding: 1px 6px;
     white-space: nowrap;
+}
+
+.button-like img {
+    vertical-align: top;
 }
 
 button:disabled,

@@ -41,7 +41,7 @@ def SnippetFromSearchForIndex(request, query):
 
     g2p = {}
     for x in posters:
-        g2p[x.game_id] = x.url.GetUrl()
+        g2p[x.game_id] = x.GetLocalUrl()
 
     for x in games:
         x.poster = g2p.get(x.id)
@@ -409,7 +409,7 @@ def json_search(request):
 
     g2p = {}
     for x in posters:
-        g2p[x.game_id] = x.url.GetUrl()
+        g2p[x.game_id] = x.GetLocalUrl()
 
     for x in games:
         x.poster = g2p.get(x.id)

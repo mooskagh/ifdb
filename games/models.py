@@ -38,8 +38,11 @@ class URL(models.Model):
     def __str__(self):
         return "%s" % (self.original_url)
 
-    def GetUrl(self):
+    def GetLocalUrl(self):
         return self.local_url or self.original_url
+
+    def HasLocalUrl(self):
+        return self.local_url is not None
 
     local_url = models.CharField(null=True, blank=True, max_length=255)
     local_filename = models.CharField(null=True, blank=True, max_length=255)
@@ -88,9 +91,12 @@ class GameURL(models.Model):
     def __str__(self):
         return "%s (%s): %s" % (self.game, self.category, self.url)
 
+    def HasLocalUrl(self):
+        return self.category.allow_cloning and self.url.HasLocalUrl()
+
     def GetLocalUrl(self):
         if self.category.allow_cloning:
-            return self.url.GetUrl()
+            return self.url.GetLocalUrl()
         else:
             return self.url.original_url
 
@@ -110,8 +116,8 @@ class InterpretedGameUrl(models.Model):
     def __str__(self):
         return "%s (%s)" % (self.original.url.original_url, self.recoded_url)
 
-    def GetUrl(self):
-        return self.recoded_url or self.original.url.GetUrl()
+    def GetRecodedUrl(self):
+        return self.recoded_url or self.original.GetLocalUrl()
 
     original = models.OneToOneField(
         GameURL, on_delete=models.CASCADE, primary_key=True)
