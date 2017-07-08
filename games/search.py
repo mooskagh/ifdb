@@ -1,5 +1,5 @@
 import re
-from .models import Game, GameTag, GameTagCategory
+from .models import Game, GameTag, GameTagCategory, URL
 import statistics
 from .tools import FormatDate, FormatTime, StarsFromRating
 from django.db.models import Q, Count, prefetch_related_objects
@@ -408,6 +408,7 @@ class SB_AuxFlags(SB_Flags):
         'UrqW -- неработающие',
         'С участниками без роли',
         'Редактированные людьми',
+        'Со ссылками, общими с другими играми',
     ]
 
     ANNOTATIONS = {
@@ -431,6 +432,10 @@ class SB_AuxFlags(SB_Flags):
             Q(gameauthor__role__symbolic_id='member'),
         7:
             Q(edit_time__isnull=False),
+        8:
+            Q(gameurl__url__in=URL.objects.annotate(
+                Count('gameurl__game', distinct=True)).filter(
+                    gameurl__game__count__gt=1))
     }
 
 
