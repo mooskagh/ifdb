@@ -115,20 +115,21 @@ class AddRawTag(ActionBase):
 
 
 class CloneUrl(ActionBase):
-    def __init__(self, fr, to):
+    def __init__(self, fr, to, desc):
         self.fr = fr
         self.to = to
+        self.desc = desc
 
     def Apply(self, game):
-        urls = set()
+        urls = {}
         for x in game.setdefault('urls', []):
             if x['urlcat_slug'] == self.fr:
-                urls.add(x['url'])
-        for x in urls:
+                urls[x['url']] = self.desc.format(**x)
+        for url, desc in urls.items():
             game['urls'].append({
                 'urlcat_slug': self.to,
-                'description': 'Запустить в UrqW',
-                'url': x
+                'description': desc,
+                'url': url,
             })
 
 
@@ -217,7 +218,8 @@ enricher.AddRule(
             HasTag('platform', '.*urq.*'),
             IsFromSite('game_page', 'urq.plut.info')),
         Not(HasTag('platform', 'fireurq'))),
-    CloneUrl('download_direct', 'play_in_interpreter'))
+    CloneUrl('download_direct', 'play_in_interpreter',
+             'Открыть в UrqW: {description:.30}'))
 enricher.AddRule(
     Not(HasTag('language', '.*')), AddRawTag('language', 'русский'))
 
