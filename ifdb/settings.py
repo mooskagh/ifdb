@@ -53,7 +53,7 @@ if IS_PROD:
         '/home/ifdb/configs/gmail-pass.txt').read().strip()
     CRAWLER_CACHE_DIR = '/home/ifdb/tmp/urlcache/'
     TMP_DIR = '/home/ifdb/tmp/tmp/'
-    LOG_DIR = '/home/ifdb/tmp/logs/'
+    LOG_DIR = '/home/ifdb/logs/'
     EXTRACTOR_PATH = '/bin/unar "%s" -o "%s"'
     WORKER_PID_FILE = os.path.join(TMP_DIR, 'ifdbworker.pid')
 
