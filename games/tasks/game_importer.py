@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from games.importer.tools import (Import, GetUrlCandidates, HashizeUrl,
                                   GetBagOfWords, ComputeSimilarity)
-from games.models import Game
+from games.models import Game, URL
 from games.views import UpdateGame, Importer2Json
 from ifdb.permissioner import Permissioner
 from logging import getLogger
@@ -183,17 +183,25 @@ class GameSet:
 
 
 def ImportGames():
+    existing_urls = set(
+        [HashizeUrl(x.original_url) for x in URL.objects.all()])
+    logger.info("Fetched %d existing urls" % len(existing_urls))
+
     gameset = GameSet()
     for x in Game.objects.prefetch_related('gameurl_set__category',
                                            'gameurl_set__url').all():
         gameset.AddGame(ImportedGame(x))
 
     candidates = set(GetUrlCandidates())
+    logger.info("%d Url candidates to check" % len(candidates))
 
     while candidates:
         u = candidates.pop()
         if gameset.HasUrl(u):
             logger.debug('Url %s already existed.' % u)
+            continue
+        if HashizeUrl(u) in existing_urls:
+            logger.warn('Url %s is known, yet no games had it. Deleted?')
             continue
 
         g = ImportedGame()

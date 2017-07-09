@@ -121,45 +121,46 @@ logging.config.dictConfig({
     },
     'handlers': {
         'debug': {
-            'level': 0,
             'class': 'logging.FileHandler',
+            'delay': True,
             'filename': os.path.join(LOG_DIR, 'all.DEBUG'),
-            'formatter': 'google',
             'filters': ['require_debug_true'],
+            'formatter': 'google',
+            'level': 0,
         },
         'warnings': {
-            'level': 'WARN',
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'all.WARN'),
             'formatter': 'google',
+            'level': 'WARN',
         },
         'mail_admins': {
-            'level': 'ERROR',
             'class': 'django.utils.log.AdminEmailHandler',
             'filters': ['require_debug_false'],
+            'level': 'ERROR',
         },
         'crawler': {
-            'level': 'INFO',
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'crawler.INFO'),
             'formatter': 'google',
+            'level': 'INFO',
         },
         'web': {
-            'level': 'INFO',
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'web.INFO'),
             'formatter': 'google',
+            'level': 'INFO',
         },
         'worker': {
-            'level': 'INFO',
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'worker.INFO'),
             'formatter': 'google',
+            'level': 'INFO',
         },
         'console': {
-            'level': 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'google',
+            'level': 'INFO',
         }
     },
     'loggers': {
@@ -168,18 +169,18 @@ logging.config.dictConfig({
             'handlers': ['debug', 'warnings', 'mail_admins', 'console'],
         },
         'django': {
-            'level': 0,
             'handlers': ['web'],
+            'level': 0,
             'propagate': True,
         },
         'web': {
-            'level': 0,
             'handlers': ['web'],
+            'level': 0,
             'propagate': True,
         },
         'crawler': {
-            'level': 0,
             'handlers': ['crawler'],
+            'level': 0,
             'propagate': True,
         },
         'MARKDOWN': {
@@ -187,8 +188,8 @@ logging.config.dictConfig({
             'propagate': True,
         },
         'worker': {
-            'level': 0,
             'handlers': ['worker'],
+            'level': 0,
             'propagate': True,
         },
     },
