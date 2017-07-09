@@ -89,7 +89,8 @@ class GameURL(models.Model):
         default_permissions = ()
 
     def __str__(self):
-        return "%s (%s): %s" % (self.game, self.category, self.url)
+        return "%s (%s): %s" % (self.game.title, self.category,
+                                self.url.original_url)
 
     def HasLocalUrl(self):
         return self.category.allow_cloning and self.url.HasLocalUrl()
