@@ -1,17 +1,18 @@
-from games.models import URL, InterpretedGameUrl, GameURL, GameTagCategory
 from core.crawler import FetchUrlToFileLike
 from django.conf import settings
-from django.core.files.storage import FileSystemStorage
-from urllib.parse import unquote
 from django.utils import timezone
-import logging
+from games.models import URL, InterpretedGameUrl, GameURL, GameTagCategory
+from logging import getLogger
+from urllib.parse import unquote
+import json
 import os.path
 import re
 import shutil
 import subprocess
 import tempfile
-import json
 import zipfile
+
+logger = getLogger('crawler')
 
 FILENAME_RE = re.compile(
     r'^.*?\b((?:%[0-9a-f]{2}|[$:+()_\w\d\.])+\.[\w\d]{2,4})\b[^/]*$')
@@ -38,9 +39,9 @@ def ComeUpWithFilename(metadata):
 def CloneFile(id):
     url = URL.objects.get(id=id)
     f = FetchUrlToFileLike(url.original_url)
-    fs = FileSystemStorage()
+    fs = settings.BACKUPS_FS
     filename = fs.save(ComeUpWithFilename(f.metadata), f, max_length=64)
-    logging.info('Stored as %s' % filename)
+    logger.info('Stored as %s' % filename)
 
     url.local_url = fs.url(filename)
     url.local_filename = filename
@@ -53,7 +54,7 @@ def CloneFile(id):
 def MarkBroken(task, context):
     id = context['argv'][0]
     url = URL.objects.get(id=id)
-    logging.warn('Found broken link at url: %s' % url.original_url)
+    logger.warn('Found broken link at url: %s' % url.original_url)
     url.is_broken = True
     url.save()
 
@@ -80,15 +81,15 @@ def RecodeGame(game_url_id):
     }
     filename = ComeUpWithFilename(metadata)
     if game_url.category.symbolic_id != 'play_in_interpreter':
-        logging.error(
+        logger.error(
             'Requested recoding of unknown category %s' % game_url.category)
         return
 
     configuration = GetConfiguration(game_url)
 
     if configuration.get('interpreter') != 'urqw':
-        logging.error('Recoding for unknown interpreter: %s' %
-                      configuration.get('interpreter'))
+        logger.error('Recoding for unknown interpreter: %s' %
+                     configuration.get('interpreter'))
         return
 
     ext = os.path.splitext(filename)[1].lower()
@@ -103,10 +104,9 @@ def RecodeGame(game_url_id):
 
     if ext in ['.qst']:
         url = game_url.url
-        fs = FileSystemStorage()
-        with fs.open(url.local_filename, 'rb') as fi:
-            new_filename = fs.generate_filename(
-                "recode/%s" % url.local_filename)
+        with url.GetFs().open(url.local_filename, 'rb') as fi:
+            fs = settings.RECODES_FS
+            new_filename = fs.generate_filename(url.local_filename)
             with fs.open(new_filename, 'wb') as fo:
                 fo.write(fi.read().decode('cp1251').encode('utf-8'))
 
@@ -122,18 +122,19 @@ def RecodeGame(game_url_id):
     # Trying to treat the archive as an non-zip archive
     url = game_url.url
     tmp_dir = tempfile.mkdtemp(dir=settings.TMP_DIR)
-    fs = FileSystemStorage()
-    logging.info("Unpacking %s into %s" % (fs.path(url.local_filename),
-                                           tmp_dir))
+    logger.info("Unpacking %s into %s" % (url.local_filename, tmp_dir))
     try:
         subprocess.check_output(
-            settings.EXTRACTOR_PATH % (fs.path(url.local_filename), tmp_dir),
+            settings.EXTRACTOR_PATH % (url.GetFs().path(url.local_filename),
+                                       tmp_dir),
             stderr=subprocess.STDOUT,
             shell=True)
     except subprocess.CalledProcessError as x:
-        logging.error(x.output)
+        logger.warn(x.output, exc_info=True)
+        shutil.rmtree(tmp_dir)
         raise
-    new_filename = fs.generate_filename("recode/%s.zip" % url.local_filename)
+    fs = settings.RECODES_FS
+    new_filename = fs.generate_filename("%s.zip" % url.local_filename)
     with zipfile.ZipFile(
             fs.open(new_filename, 'wb'),
             'w',
@@ -141,7 +142,7 @@ def RecodeGame(game_url_id):
             allowZip64=True) as z:
 
         def RaiseError(x):
-            logging.exception(x)
+            logger.exception(x)
             raise x
 
         for root, _, filenames in os.walk(tmp_dir, onerror=RaiseError):

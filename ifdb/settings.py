@@ -13,14 +13,13 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 import os
 import socket
 import os.path
+import logging.config
+from django.core.files.storage import FileSystemStorage
 
 IS_PROD = socket.gethostname() == 'ribby.mooskagh.com'
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/1.10/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
 if IS_PROD:
@@ -37,7 +36,8 @@ if IS_PROD:
             'PORT': '',
         }
     }
-    MEDIA_ROOT = os.path.abspath('/home/ifdb/uploads')
+    MEDIA_ROOT = os.path.abspath('/home/ifdb/files')
+
     if 'staging' in BASE_DIR:
         STATIC_ROOT = os.path.abspath('/home/ifdb/staging/static')
     else:
@@ -53,7 +53,9 @@ if IS_PROD:
         '/home/ifdb/configs/gmail-pass.txt').read().strip()
     CRAWLER_CACHE_DIR = '/home/ifdb/tmp/urlcache/'
     TMP_DIR = '/home/ifdb/tmp/tmp/'
+    LOG_DIR = '/home/ifdb/logs/'
     EXTRACTOR_PATH = '/bin/unar "%s" -o "%s"'
+    WORKER_PID_FILE = os.path.join(TMP_DIR, 'ifdbworker.pid')
 
 else:
     SECRET_KEY = 'l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr'
@@ -76,7 +78,8 @@ else:
         }
     }
 
-    MEDIA_ROOT = os.path.join(BASE_DIR, 'uploads')
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'files')
+
     CRAWLER_CACHE_DIR = os.path.join(BASE_DIR, 'urlcache')
     TMP_DIR = os.path.join(BASE_DIR, 'tmp')
     DEBUG_TOOLBAR_PANELS = [
@@ -94,6 +97,104 @@ else:
         'debug_toolbar.panels.redirects.RedirectsPanel',
     ]
     EXTRACTOR_PATH = '"C:/Program Files/7-Zip/7z.exe" x "%s" "-O%s"'
+    LOG_DIR = os.path.join(BASE_DIR, 'tmp/logs')
+
+LOGGING_CONFIG = None
+
+logging.config.dictConfig({
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'google': {
+            'format': ('%(levelname).1s%(asctime)s.%(msecs)03d %(name)s '
+                       '%(filename)s:%(lineno)d] %(message)s'),
+            'datefmt':
+                '%m%d %H:%M:%S',
+        }
+    },
+    'filters': {
+        'require_debug_false': {
+            '()': 'django.utils.log.RequireDebugFalse',
+        },
+        'require_debug_true': {
+            '()': 'django.utils.log.RequireDebugTrue',
+        },
+    },
+    'handlers': {
+        'debug': {
+            'class': 'logging.FileHandler',
+            'delay': True,
+            'filename': os.path.join(LOG_DIR, 'all.DEBUG'),
+            'filters': ['require_debug_true'],
+            'formatter': 'google',
+            'level': 0,
+        },
+        'warnings': {
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'all.WARN'),
+            'formatter': 'google',
+            'level': 'WARN',
+        },
+        'mail_admins': {
+            'class': 'django.utils.log.AdminEmailHandler',
+            'filters': ['require_debug_false'],
+            'level': 'ERROR',
+        },
+        'crawler': {
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'crawler.INFO'),
+            'formatter': 'google',
+            'level': 'INFO',
+        },
+        'web': {
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'web.INFO'),
+            'formatter': 'google',
+            'level': 'INFO',
+        },
+        'worker': {
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'worker.INFO'),
+            'formatter': 'google',
+            'level': 'INFO',
+        },
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'google',
+            'level': 'INFO',
+        }
+    },
+    'loggers': {
+        '': {
+            'level': 0,
+            'handlers': ['debug', 'warnings', 'mail_admins', 'console'],
+        },
+        'django': {
+            'handlers': ['web'],
+            'level': 0,
+            'propagate': True,
+        },
+        'web': {
+            'handlers': ['web'],
+            'level': 0,
+            'propagate': True,
+        },
+        'crawler': {
+            'handlers': ['crawler'],
+            'level': 0,
+            'propagate': True,
+        },
+        'MARKDOWN': {
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'worker': {
+            'handlers': ['worker'],
+            'level': 0,
+            'propagate': True,
+        },
+    },
+})
 
 ADMINS = [('Alexander Lyashuk', 'mooskagh@gmail.com')]
 
@@ -185,21 +286,23 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/1.10/topics/i18n/
 
 LANGUAGE_CODE = 'ru-ru'
-
 TIME_ZONE = 'UTC'
-
 USE_I18N = True
-
 USE_L10N = True
-
 USE_TZ = False
 
 AUTH_USER_MODEL = 'core.User'
-
 FILE_UPLOAD_PERMISSIONS = 0o640
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o2750
 STATIC_URL = '/static/'
-MEDIA_URL = '/uploads/'
+MEDIA_URL = '/f/'
+
+UPLOADS_FS = FileSystemStorage(
+    os.path.join(MEDIA_ROOT, 'uploads'), os.path.join(MEDIA_URL, 'uploads'))
+BACKUPS_FS = FileSystemStorage(
+    os.path.join(MEDIA_ROOT, 'backups'), os.path.join(MEDIA_URL, 'backups'))
+RECODES_FS = FileSystemStorage(
+    os.path.join(MEDIA_ROOT, 'recodes'), os.path.join(MEDIA_URL, 'recodes'))
 
 REQUIRE_ACCOUNT_ACTIVATION = True
 ACCOUNT_ACTIVATION_DAYS = 7

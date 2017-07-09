@@ -39,7 +39,7 @@
                     {% if authors %}
                         {% if authors|length == 1 %}Автор:{% else %}Авторы:{% endif %}
                         {% for x in authors %}
-                            <span>{{ x.name }}{% if not forloop.last %}, {% endif %}</span>
+                            <span class="gameinfo-author">{{ x.name }}{% if not forloop.last %}, {% endif %}</span>
                         {% endfor %}
                     {% endif %}
                     </div>
@@ -50,7 +50,14 @@
                             {% if x.category.symbolic_id == 'play_in_interpreter' %}
                                 <a href="{% url 'play_in_interpreter' gameurl_id=x.pk %}" class="button-like">{{x.description}}</a>
                             {% else %}
-                                <a href="{{ x.url.GetUrl }}" class="button-like">{{x.description}}</a>
+                                <span class="button-like">
+                                    <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}">
+                                        {% if x.url.is_broken %}
+                                            <img src="{% static 'brokenlink.svg' %}"/>
+                                        {% endif %}
+                                        {{x.description}}
+                                    </a>
+                                </span>
                             {% endif %}
                         {% endfor %}
                     </div>
@@ -59,7 +66,17 @@
                     <div class="game-info">
                         Скачать:
                         {% for x in download %}
-                            <a href="{{ x.url.GetUrl }}" class="button-like" download>{{x.description}}</a>
+                            <span class="button-like">
+                                <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}" download>
+                                    {% if x.url.is_broken %}
+                                        <img src="{% static 'brokenlink.svg' %}"/>
+                                    {% endif %}
+                                    {{x.description}}
+                                </a>
+                                {% if x.HasLocalUrl %}
+                                    <a title="Скачать резервную копию" href="{{ x.GetLocalUrl }}"><img src="{% static 'localbackup.svg' %}"/></a>
+                                {% endif %}
+                            </span>
                         {% endfor %}
                     </div>
                     {% endif %}
@@ -359,7 +376,8 @@
                     name="hours" value="{{votes.user_hours}}" required>
                     <script type="text/javascript">
                     $('.vote-timeselect.hours').click(function(event) {
-                    $('#hours').val($(this).text());
+                        $('#hours').val($(this).text());
+                        if (!$('#minutes').val()) { $('#minutes').val('0'); }
                     })
                     </script>
                     часов и<br>
@@ -374,7 +392,8 @@
                     name="minutes" value="{{votes.user_mins}}" required>
                     <script type="text/javascript">
                     $('.vote-timeselect.minutes').click(function(event) {
-                    $('#minutes').val($(this).text());
+                        $('#minutes').val($(this).text());
+                        if (!$('#hours').val()) { $('#hours').val('0'); }
                     })
                     </script>
                     минут.<br>
@@ -406,7 +425,10 @@
                                     {% endif %}
                                 </td>
                                 <td class="prop-value">
-                                    <a href="{{ url.url.original_url }}">
+                                    <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ url.GetRemoteUrl }}">
+                                        {% if x.url.is_broken %}
+                                            <img src="{% static 'brokenlink.svg' %}"/>
+                                        {% endif %}
                                         {{ url.description }}
                                     </a>
                                 </td>

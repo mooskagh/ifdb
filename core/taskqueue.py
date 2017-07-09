@@ -1,18 +1,17 @@
 from .models import TaskQueueElement
+from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
-from django.conf import settings
+from logging import getLogger
+from croniter import croniter
 import datetime
 import importlib
 import json
-import logging
 import os
 import signal
-import sys
 import time
 
-# TODO Build more robust filename
-PID_FILE = '/tmp/ifdbworker.pid'
+logger = getLogger('worker')
 
 
 def IsPosix():
@@ -22,7 +21,7 @@ def IsPosix():
 def NotifyWorker():
     if IsPosix():
         try:
-            with open(PID_FILE, 'r') as f:
+            with open(settings.WORKER_PID_FILE, 'r') as f:
                 pid = int(f.read())
                 os.kill(pid, signal.SIGUSR1)
         except:
@@ -91,7 +90,7 @@ def Worker():
         do_exit = True
 
     if IsPosix():
-        with open(PID_FILE, 'w') as f:
+        with open(settings.WORKER_PID_FILE, 'w') as f:
             f.write(str(os.getpid()))
         signal.signal(signal.SIGTERM, exit_handler)
         signal.signal(signal.SIGINT, exit_handler)
@@ -106,9 +105,10 @@ def Worker():
                  Q(scheduled_time=None) | Q(
                      scheduled_time__lte=timezone.now())).order_by(
                          'priority', 'enqueue_time'))
-        logging.info('%d tasks waiting' % t.count())
+        logger.info('%d tasks waiting' % t.count())
         if t:
             t = t[0]
+            logger.info('Running %s' % t)
             t.pending = False
             t.start_time = timezone.now()
             t.save()
@@ -117,17 +117,18 @@ def Worker():
             func = getattr(i, call['name'])
             try:
                 func(*call['argv'], **call['kwarg'])
-                t.success = True
+                if t.cron:
+                    iter = croniter(t.cron, timezone.now())
+                    t.scheduled_time = iter.get_next(datetime.datetime)
+                    logger.info("Next run at %s" % t.scheduled_time)
+                    t.pending = True
+                else:
+                    t.success = True
                 t.finish_time = timezone.now()
                 t.save()
             except Exception as e:
-                logging.exception(e)
-                while False and settings.DEBUG:
-                    r = input("Continue? [yes/no/all]> ")
-                    if r.lower() in ['yes', 'y']:
-                        break
-                    if r.lower() in ['no', 'n']:
-                        sys.exit(1)
+                logger.warning(
+                    "Failure when running task %s:" % t, exc_info=True)
                 if t.retries_left > 0:
                     t.pending = True
                     t.retries_left -= 1
@@ -135,6 +136,9 @@ def Worker():
                         minutes=t.retry_minutes)
                     t.save()
                 else:
+                    logger.error(
+                        "Failure when running CRON task %s:" % t,
+                        exc_info=True)
                     t.fail = True
                     t.save()
                     if t.onfail_json:
@@ -144,7 +148,7 @@ def Worker():
                         try:
                             func(t, call)
                         except Exception as e:
-                            logging.exception(e)
+                            logger.exception(e)
             continue
         else:
             t = (TaskQueueElement.objects.filter(
@@ -155,12 +159,12 @@ def Worker():
                 t = t[0]
                 delta = int(
                     (t.scheduled_time - timezone.now()).total_seconds()) + 1
-                logging.info(
+                logger.info(
                     'All tasks pending, waiting for %d seconds' % delta)
                 if IsPosix():
                     signal.alarm(delta)
             else:
-                logging.info('Done everything!')
+                logger.info('Done everything!')
 
         if IsPosix():
             signal.pause()

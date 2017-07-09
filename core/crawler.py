@@ -1,14 +1,15 @@
 from django.conf import settings
+from django.utils import timezone
+from logging import getLogger
+from urllib.parse import quote
 import datetime
 import hashlib
-import shutil
 import json
-import logging
 import os.path
+import shutil
 import urllib.request
-from django.utils import timezone
-from urllib.parse import quote
 
+logger = getLogger('crawler')
 
 def FetchUrlToString(url, use_cache=True):
     return FetchUrlToFileLike(url, use_cache).read().decode('utf-8')
@@ -27,7 +28,7 @@ def _ResponseInfoToMetadata(url, response):
 
 
 def FetchUrlToFileLike(url, use_cache=True):
-    logging.info('Fetching: %s' % url)
+    logger.info('Fetching: %s' % url)
     url = quote(url.encode('utf-8'), safe='/+=&?%:@;!#$*()_-')
     if not settings.CRAWLER_CACHE_DIR or not use_cache:
         response = urllib.request.urlopen(url)

@@ -4,7 +4,7 @@
         <h2>Последние добавленные</h2>
         <div class="gamelist-thumb-container">
             {% for g in top %}
-                <a class="gamelist-thumb-index" href="{% url 'show_game' game_id=g.id %}">
+                <a class="gamelist-thumb gamelist-thumb-index" href="{% url 'show_game' game_id=g.id %}">
                     <div class="poster-container">
                         <img class="poster" src="{{ g.poster|default:'/static/noposter.png' }}"/>
                     </div>
@@ -22,7 +22,7 @@
         <h2>Лучшие игры за всё время</h2>
         <div class="gamelist-thumb-container">
             {% for g in best %}
-                <a class="gamelist-thumb-index" href="{% url 'show_game' game_id=g.id %}">
+                <a class="gamelist-thumb gamelist-thumb-index" href="{% url 'show_game' game_id=g.id %}">
                     <div class="poster-container">
                         <img class="poster" src="{{ g.poster|default:'/static/noposter.png' }}"/>
                     </div>
@@ -43,8 +43,39 @@
             {% endfor %}
         </div>
         <h2>Последние комментарии</h2>
-        Попозже будет.
+        <div class="gamelist-thumb-container">
+            {% for x in comments %}
+            <a class="index-comment" href="{% url 'show_game' game_id=x.id %}">
+                <div class="index-comment-date">{{ x.lag }}</div>
+                <div class="index-comment-username">{{ x.username }}</div>
+                <div class="index-comment-game">{{ x.game }}</div>
+                <div class="index-comment-subj">{{ x.subject }}</div>
+            </a>
+            {% endfor %}
+        </div>
         <h2>Последние добавленные видео</h2>
-        И это. Возможно.
+        <div class="gamelist-thumb-container">
+        {% for x in videos %}
+            <a class="gamelist-thumb gamelist-thumb-index" href="{% url 'show_game' game_id=x.id %}">
+                <div class="poster-container">
+                    <img class="poster" src="{{ x.thumb|default:'/static/noposter.png' }}"/>
+                </div>
+                <div class="title-container">
+                    {{ x.game }}
+                </div>
+                <div class="title-container-date">{{ x.lag }}</div>
+            </a>
+        {% endfor %}
+        </div>
+        <h2>Последние добавленные обзоры</h2>
+        <div class="gamelist-thumb-container">
+            {% for x in reviews %}
+            <a class="index-comment" href="{% url 'show_game' game_id=x.id %}">
+                <div class="index-comment-date">{{ x.lag }}</div>
+                <div class="index-comment-game">{{ x.game }}</div>
+                <div class="index-comment-subj">{{ x.desc }}</div>
+            </a>
+            {% endfor %}
+        </div>
     </div>
 {% endblock %}

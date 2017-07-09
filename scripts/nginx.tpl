@@ -32,8 +32,8 @@ server {
     client_max_body_size 512M;
 
 {% if c.conf == 'prod' %}
-    location /uploads  {
-        alias /home/ifdb/uploads;
+    location /f  {
+        alias /home/ifdb/files;
     }
 
     location /static {
@@ -45,8 +45,8 @@ server {
         include     /home/ifdb/configs/uwsgi_params;
     }
 {% elif c.conf == 'staging' %}
-    location /uploads  {
-        alias /home/ifdb/uploads;
+    location /f  {
+        alias /home/ifdb/files;
     }
 
     location /static {

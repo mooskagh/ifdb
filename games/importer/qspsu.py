@@ -2,9 +2,11 @@ from .tools import CategorizeUrl
 from core.crawler import FetchUrlToString
 from html import unescape
 from html2text import HTML2Text
+from logging import getLogger
 import datetime
-import logging
 import re
+
+logger = getLogger('crawler')
 
 
 class QspsuImporter:
@@ -103,7 +105,7 @@ def ImportFromQsp(url):
                 res['desc'] = (
                     tt.handle(val) + '\n\n_(описание взято с сайта qsp.su)_')
             else:
-                logging.error('Unknown field in QSP: [%s] [%s]' % (key, val))
+                logger.error('Unknown field in QSP: [%s] [%s]' % (key, val))
         for n in QSP_LINK.finditer(tr):
             res['urls'].append(CategorizeUrl(n.group(1), n.group(2)))
         for n in QSP_DOWNLOAD_LINK.finditer(tr):

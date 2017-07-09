@@ -26,13 +26,11 @@ os.path.realpath(__file__)
 
 IS_PROD = socket.gethostname() == 'ribby.mooskagh.com'
 TPL_DIR = os.path.dirname(os.path.realpath(__file__))
-if IS_PROD:
-    ROOT_DIR = '/home/ifdb'
-    DST_DIR = '/home/ifdb/configs'
-else:
-    ROOT_DIR = 'D:/tmp'
-    DST_DIR = 'D:/tmp'
+ROOT_DIR = '/home/ifdb'
+
+CONFIGS_DIR = os.path.join(ROOT_DIR, 'configs')
 STAGING_DIR = os.path.join(ROOT_DIR, 'staging')
+BACKUPS_DIR = os.path.join(ROOT_DIR, 'backups')
 
 
 class Jump(BaseException):
@@ -70,7 +68,7 @@ def RunCmdStep(cmd_line, doc=None):
 def GetFromTemplate(template, dst, params, gen_header=True):
     def f(context):
         cnt = GenerateStringFromTemplate(template, params, gen_header)
-        with open(os.path.join(DST_DIR, dst), 'w') as fo:
+        with open(os.path.join(CONFIGS_DIR, dst), 'w') as fo:
             fo.write(cnt)
         return True
 
@@ -80,7 +78,7 @@ def GetFromTemplate(template, dst, params, gen_header=True):
 
 def CheckFromTemplate(template, dst):
     def f(ctx):
-        with open(os.path.join(DST_DIR, dst)) as f:
+        with open(os.path.join(CONFIGS_DIR, dst)) as f:
             cnt = f.read()
 
         m = re.match(r'# Gen-hdr: ([^\n]+)\n(.*)', cnt, re.DOTALL)
@@ -131,7 +129,7 @@ class Pipeline:
         self.steps.append(func)
 
     def StateFileName(self):
-        return os.path.join(DST_DIR, '%s_state.json' % self.cmd_name)
+        return os.path.join(CONFIGS_DIR, '%s_state.json' % self.cmd_name)
 
     def MaybeLoadState(self):
         if os.path.isfile(self.StateFileName()):
@@ -208,6 +206,11 @@ def cli(ctx, start, list, steps):
     p.step_by_step = steps
 
 
+##############################################################################
+# Red
+##############################################################################
+
+
 @cli.command()
 @click.option(
     '--message',
@@ -238,6 +241,11 @@ def red(ctx, message):
     p.Run('red')
 
 
+##############################################################################
+# Green
+##############################################################################
+
+
 @cli.command()
 @click.pass_context
 def green(ctx):
@@ -257,6 +265,11 @@ def green(ctx):
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-worker'))
     p.Run('green')
+
+
+##############################################################################
+# Stage
+##############################################################################
 
 
 @cli.command()
@@ -284,6 +297,7 @@ def stage(ctx, tag):
     p.AddStep(StagingDiff('django/games/migrations/'))
     p.AddStep(StagingDiff('django/core/migrations/'))
     p.AddStep(StagingDiff('django/games/management/commands/initifdb.py'))
+    p.AddStep(StagingDiff('django/scripts/nginx.tpl'))
     p.AddStep(
         RunCmdStep('%s %s/manage.py collectstatic --clear' % (python_dir,
                                                               django_dir)))
@@ -291,7 +305,7 @@ def stage(ctx, tag):
     p.AddStep(RunCmdStep('chmod -R a+rX %s/static' % STAGING_DIR))
     p.AddStep(
         RunCmdStep('%s/bin/uwsgi %s/uwsgi-staging.ini' % (virtualenv_dir,
-                                                          DST_DIR)))
+                                                          CONFIGS_DIR)))
     p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
     p.AddStep(
         GetFromTemplate('nginx.tpl', 'nginx.conf', {
@@ -325,6 +339,11 @@ def stage(ctx, tag):
     p.Run('stage')
 
 
+##############################################################################
+# Deploy
+##############################################################################
+
+
 @cli.command()
 @click.option('--hot', is_flag=True)
 @click.option('--from-master/--no-from-master', default=None, is_flag=True)
@@ -338,6 +357,9 @@ def deploy(ctx, hot, from_master):
     virtualenv_dir = os.path.join(ROOT_DIR, 'virtualenv')
     python_dir = os.path.join(virtualenv_dir, 'bin/python')
 
+    p.AddStep(
+        RunCmdStep("pg_dump ifdb > %s" % os.path.join(
+            BACKUPS_DIR, 'database', time.strftime("%Y%m%d_%H%M"))))
     p.AddStep(ChDir(django_dir))
     p.AddStep(
         RunCmdStep(
@@ -365,10 +387,13 @@ def deploy(ctx, hot, from_master):
         p.AddStep(StartTimer)
         p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
         p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-uwsgi'))
+
+    p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-worker'))
+
+    if not hot:
         p.AddStep(
             Message(
                 'uWSGI is stopped now. You can break now to do manual steps.'))
-    p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-worker'))
 
     p.AddStep(RunCmdStep('git checkout release'))
     p.AddStep(RunCmdStep('git pull'))

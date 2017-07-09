@@ -1,10 +1,12 @@
-import logging
+from django.contrib.auth import get_user_model
 from games.importer.tools import (Import, GetUrlCandidates, HashizeUrl,
                                   GetBagOfWords, ComputeSimilarity)
-from games.models import Game
-from django.contrib.auth import get_user_model
-from ifdb.permissioner import Permissioner
+from games.models import Game, URL
 from games.views import UpdateGame, Importer2Json
+from ifdb.permissioner import Permissioner
+from logging import getLogger
+
+logger = getLogger('worker')
 
 URLCATS_TO_HASH = [
     'game_page', 'download_direct', 'download_landing', 'play_online'
@@ -70,8 +72,8 @@ class ImportedGame:
         self.is_error = 'title' not in self.content
 
         if self.is_error:
-            logging.warn("Was unable to fetch: %s\n%s" % (self.seed_urls,
-                                                          self.content))
+            logger.warn("Was unable to fetch: %s\n%s" % (self.seed_urls,
+                                                         self.content))
             return False
 
         self.seed_urls = [
@@ -98,12 +100,12 @@ class ImportedGame:
     def Store(self, request):
         if not self.content:
             if not self.Fetch():
-                logging.error("Failed to fetch %s" % self)
+                logger.warn("Failed to fetch %s" % self)
                 return
         game = Importer2Json(self.content)
         if self.game:
             game['game_id'] = self.game.id
-        logging.info("Updating %s" % self)
+        logger.info("Updating %s" % self)
         UpdateGame(request, game, update_edit_time=False)
 
     def __str__(self):
@@ -123,8 +125,8 @@ class GameSet:
     def AddGame(self, game):
         for u in game.HashizedUrls():
             if u in self.url_to_game:
-                logging.error("Game [%s] has the same URL [%s] has game [%s]" %
-                              (game, u, self.url_to_game[u]))
+                logger.warn("Game [%s] has the same URL [%s] has game [%s]" %
+                            (game, u, self.url_to_game[u]))
             else:
                 self.url_to_game[u] = game
 
@@ -148,9 +150,9 @@ class GameSet:
                     similar_games.add(x)
 
         if len(similar_games) > 1:
-            logging.error("Found %d similar games while importing [%s]:\n%s" %
-                          (len(similar_games), game,
-                           '\n'.join([str(x) for x in similar_games])))
+            logger.warn("Found %d similar games while importing [%s]:\n%s" %
+                        (len(similar_games), game,
+                         '\n'.join([str(x) for x in similar_games])))
 
         best_game = None
         best_similariry = 0.0
@@ -162,7 +164,7 @@ class GameSet:
 
         if best_game is None or best_similariry <= SIMILAR_TITLES_LOWCONF:
             if len(similar_games) > 0:
-                logging.error(
+                logger.error(
                     "Similar games are too dissimilar (%.2f) [%s]:\n%s" %
                     (best_similariry, game,
                      '\n'.join([str(x) for x in similar_games])))
@@ -171,8 +173,8 @@ class GameSet:
             return
 
         for x in game.SeedUrls():
-            logging.error("Found games with similarity %.2f merging:\n%s\n%s" %
-                          (best_similariry, game, best_game))
+            logger.info("Found games with similarity %.2f merging:\n%s\n%s" %
+                        (best_similariry, game, best_game))
             if x not in best_game.HashizedUrls():
                 best_game.AddUrl(x)
 
@@ -181,17 +183,25 @@ class GameSet:
 
 
 def ImportGames():
+    existing_urls = set(
+        [HashizeUrl(x.original_url) for x in URL.objects.all()])
+    logger.info("Fetched %d existing urls" % len(existing_urls))
+
     gameset = GameSet()
     for x in Game.objects.prefetch_related('gameurl_set__category',
                                            'gameurl_set__url').all():
         gameset.AddGame(ImportedGame(x))
 
     candidates = set(GetUrlCandidates())
+    logger.info("%d Url candidates to check" % len(candidates))
 
     while candidates:
         u = candidates.pop()
         if gameset.HasUrl(u):
-            logging.debug('Url %s already existed.' % u)
+            logger.debug('Url %s already existed.' % u)
+            continue
+        if HashizeUrl(u) in existing_urls:
+            logger.warn('Url %s is known, yet no games had it. Deleted?')
             continue
 
         g = ImportedGame()
@@ -208,5 +218,20 @@ def ImportGames():
             x.Store(fake_request)
         else:
             new_urls = '\n'.join(x.NewUrls())
-            logging.error('New URLs for existing non-updateable game:'
-                          '\n%s\nNew urls are:\n%s' % (x, new_urls))
+            logger.error('New URLs for existing non-updateable game:'
+                         '\n%s\nNew urls are:\n%s' % (x, new_urls))
+
+
+def ForceReimport():
+    gameset = GameSet()
+    for x in Game.objects.prefetch_related('gameurl_set__category',
+                                           'gameurl_set__url').all():
+        gameset.AddGame(ImportedGame(x))
+
+    fake_request = FakeRequest(USER)
+
+    for x in gameset.Games():
+        if x.IsUpdateable():
+            x.Store(fake_request)
+        else:
+            logger.warn("Unable to reimport non-updateable game %s" % x)

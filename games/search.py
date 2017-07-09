@@ -1,5 +1,5 @@
 import re
-from .models import Game, GameTag, GameTagCategory
+from .models import Game, GameTag, GameTagCategory, URL
 import statistics
 from .tools import FormatDate, FormatTime, StarsFromRating
 from django.db.models import Q, Count, prefetch_related_objects
@@ -203,6 +203,7 @@ class SB_Sorting(SearchBit):
                     continue
                 avg = statistics.mean(votes)
                 g.ds['stars'] = StarsFromRating(avg)
+                g.ds['scores'] = len(votes)
                 vote = DiscountRating(avg, len(votes))
                 ratings.append((vote, g))
 
@@ -221,7 +222,7 @@ class SB_Sorting(SearchBit):
                 if not plays:
                     nones.append(g)
                     continue
-                avg = statistics.median(plays)
+                avg = int(statistics.median(plays) + 0.5)
                 g.ds['duration'] = {'hours': avg // 60, 'mins': avg % 60}
                 times.append((avg, g))
 
@@ -405,6 +406,10 @@ class SB_AuxFlags(SB_Flags):
         'UrqW -- проверенные',
         'UrqW -- непроверенные',
         'UrqW -- неработающие',
+        'С участниками без роли',
+        'Редактированные людьми',
+        'Со ссылками, общими с другими играми',
+        'С битыми ссылками',
     ]
 
     ANNOTATIONS = {
@@ -424,6 +429,16 @@ class SB_AuxFlags(SB_Flags):
             gameurl__interpretedgameurl__is_playable__isnull=True)),
         5:
             Q(gameurl__interpretedgameurl__is_playable=False),
+        6:
+            Q(gameauthor__role__symbolic_id='member'),
+        7:
+            Q(edit_time__isnull=False),
+        8:
+            Q(gameurl__url__in=URL.objects.annotate(
+                Count('gameurl__game', distinct=True)).filter(
+                    gameurl__game__count__gt=1)),
+        9:
+            Q(gameurl__url__is_broken=True),
     }
 
 
@@ -484,7 +499,12 @@ class Search:
             key = reader.ReadInt()
             self.id_to_bit[key].LoadFromQuery(reader)
 
-    def Search(self, *, prefetch_related=None, start=None, limit=None):
+    def Search(self,
+               *,
+               prefetch_related=None,
+               start=None,
+               limit=None,
+               annotate=None):
         need_full_query = False
         partial_query = start is not None or limit is not None
 
@@ -497,6 +517,10 @@ class Search:
         two_stage_fetch = need_full_query and partial_query
         if prefetch_related and not two_stage_fetch:
             q = q.prefetch_related(*prefetch_related)
+        if isinstance(annotate, dict):
+            q = q.annotate(**annotate)
+        elif isinstance(annotate, list):
+            q = q.annotate(*annotate)
         q = q.distinct()
 
         if not two_stage_fetch:

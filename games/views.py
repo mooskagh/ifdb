@@ -1,5 +1,5 @@
 import json
-import logging
+from logging import getLogger
 import os.path
 import timeit
 from .game_details import GameDetailsBuilder
@@ -7,71 +7,114 @@ from .importer import Import
 from .models import *
 from .search import MakeSearch
 from .tasks.uploads import CloneFile, RecodeGame, MarkBroken
-from .tools import FormatDate, FormatTime, StarsFromRating
+from .tools import (FormatDate, FormatTime, StarsFromRating, FormatLag,
+                    ExtractYoutubeId)
 from core.taskqueue import Enqueue
 from dateutil.parser import parse as parse_date
 from django import forms
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import SuspiciousOperation
-from django.core.files.storage import FileSystemStorage
 from django.http import Http404
 from django.http.response import JsonResponse
 from django.shortcuts import render, redirect
+from django.db.models import Count, Exists, OuterRef, Q
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from ifdb.permissioner import perm_required
 
 PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
+logger = getLogger('web')
+
+
+def SnippetFromSearchForIndex(request, query, prefetch=[]):
+    s = MakeSearch(request.perm)
+    s.UpdateFromQuery(query)
+    games = s.Search(
+        prefetch_related=[
+            'gameauthor_set__author', 'gameauthor_set__role', *prefetch
+        ],
+        start=0,
+        limit=20)[:5]
+
+    posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
+        game__in=games).select_related('url'))
+
+    g2p = {}
+    for x in posters:
+        g2p[x.game_id] = x.GetLocalUrl()
+
+    for x in games:
+        x.poster = g2p.get(x.id)
+        x.authors = [
+            x for x in x.gameauthor_set.all() if x.role.symbolic_id == 'author'
+        ]
+    return games
+
+
+def LastComments(request):
+    games = set()
+    # TODO Game permissions!
+    comments = GameComment.objects.select_related().order_by(
+        '-creation_time')[:100]
+    res = []
+    for x in comments:
+        if x.game.id in games: continue
+        games.add(x.game.id)
+        res.append({
+            'lag':
+                FormatLag((x.creation_time - timezone.now()).total_seconds()),
+            'username':
+                x.user,
+            'game':
+                x.game.title,
+            'id':
+                x.game.id,
+            'subject':
+                x.subject or '...',
+        })
+        if len(res) == 4: break
+    return res
+
+
+def LastUrlCat(request, cat, limit):
+    games = set()
+    urls = GameURL.objects.select_related().filter(
+        category__symbolic_id=cat).order_by('-url__creation_date')[:30]
+
+    res = []
+    for x in urls:
+        if x.game.id in games: continue
+        games.add(x.game.id)
+        res.append({
+            'lag':
+                FormatLag(
+                    (x.url.creation_date - timezone.now()).total_seconds()),
+            'url':
+                x.url.original_url,
+            'game':
+                x.game.title,
+            'id':
+                x.game.id,
+            'desc':
+                x.description,
+        })
+        if len(res) == limit: break
+    return res
 
 
 def index(request):
     res = {}
-
-    s = MakeSearch(request.perm)
-    s.UpdateFromQuery('00')
-    games = s.Search(
-        prefetch_related=['gameauthor_set__author', 'gameauthor_set__role'],
-        start=0,
-        limit=20)[:5]
-
-    posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
-        game__in=games).select_related('url'))
-
-    g2p = {}
-    for x in posters:
-        g2p[x.game_id] = x.url.GetUrl()
-
-    for x in games:
-        x.poster = g2p.get(x.id)
-        x.authors = [
-            x for x in x.gameauthor_set.all() if x.role.symbolic_id == 'author'
-        ]
-
-    res['top'] = games
-
-    s = MakeSearch(request.perm)
-    s.UpdateFromQuery('04')
-    games = s.Search(
-        prefetch_related=['gameauthor_set__author', 'gameauthor_set__role'],
-        start=0,
-        limit=20)[:5]
-
-    posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
-        game__in=games).select_related('url'))
-
-    g2p = {}
-    for x in posters:
-        g2p[x.game_id] = x.url.GetUrl()
-
-    for x in games:
-        x.poster = g2p.get(x.id)
-        x.authors = [
-            x for x in x.gameauthor_set.all() if x.role.symbolic_id == 'author'
-        ]
-
-    res['best'] = games
+    res['top'] = SnippetFromSearchForIndex(request, '00')
+    res['best'] = SnippetFromSearchForIndex(request, '04')
+    res['comments'] = LastComments(request)
+    res['videos'] = LastUrlCat(request, 'video', 5)
+    for x in res['videos']:
+        idd = ExtractYoutubeId(x['url'])
+        if idd:
+            x['thumb'] = 'https://img.youtube.com/vi/%s/default.jpg' % idd
+    res['reviews'] = LastUrlCat(request, 'review', 4)
 
     return render(request, 'games/index.html', res)
 
@@ -163,15 +206,23 @@ def list_games(request):
     s = MakeSearch(request.perm)
     query = request.GET.get('q', '')
     s.UpdateFromQuery(query)
-    if settings.DEBUG and request.GET.get('forcesearch', None):
-        json_search(request)
     return render(request, 'games/search.html', {'query': query,
                                                  **s.ProduceBits()})
 
 
+class ChoiceField(forms.ChoiceField):
+    def bound_data(self, data, initial):
+        return data
+
+
+class NullBooleanField(forms.NullBooleanField):
+    def bound_data(self, data, initial):
+        return data
+
+
 class UrqwInterpreterForm(forms.Form):
-    does_work = forms.NullBooleanField(label="Работоспособность игры")
-    variant = forms.ChoiceField(
+    does_work = NullBooleanField(label="Работоспособность игры")
+    variant = ChoiceField(
         label="Вариант URQ",
         required=False,
         choices=[
@@ -248,7 +299,7 @@ def play_in_interpreter(request, gameurl_id):
 @perm_required(PERM_ADD_GAME)
 def upload(request):
     file = request.FILES['file']
-    fs = FileSystemStorage()
+    fs = settings.UPLOADS_FS
     filename = fs.save(file.name, file, max_length=64)
     file_url = fs.url(filename)
     url_full = request.build_absolute_uri(file_url)
@@ -361,20 +412,51 @@ def json_search(request):
     games = s.Search(
         prefetch_related=['gameauthor_set__author', 'gameauthor_set__role'],
         start=start,
-        limit=limit)
+        limit=limit,
+        annotate={
+            'gamecomment__count':
+                Count('gamecomment'),
+            'hasvideo':
+                Exists(
+                    GameURL.objects.filter(
+                        category__symbolic_id='video', game=OuterRef('pk'))),
+            'isparser':
+                Exists(
+                    GameTag.objects.filter(
+                        symbolic_id='parser', game=OuterRef('pk'))),
+            'playonline':
+                Exists(
+                    GameURL.objects.filter(game=OuterRef('pk')).filter(
+                        Q(category__symbolic_id='play_online') | Q(
+                            interpretedgameurl__is_playable=True))),
+            'downloadable':
+                Exists(
+                    GameURL.objects.filter(
+                        category__symbolic_id__in=[
+                            'download_direct', 'download_landing'
+                        ],
+                        game=OuterRef('pk'))),
+        })
 
     posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
         game__in=games).select_related('url'))
 
     g2p = {}
     for x in posters:
-        g2p[x.game_id] = x.url.GetUrl()
+        g2p[x.game_id] = x.GetLocalUrl()
 
     for x in games:
         x.poster = g2p.get(x.id)
         x.authors = [
             x for x in x.gameauthor_set.all() if x.role.symbolic_id == 'author'
         ]
+        x.icons = {}
+        x.icons['hascomments'] = x.gamecomment__count > 0
+        x.icons['hasvideo'] = x.hasvideo
+        x.icons['isparser'] = x.isparser
+        x.icons['playonline'] = x.playonline
+        x.icons['downloadable'] = x.downloadable
+
     res = render(request, 'games/search_snippet.html', {
         'games': games,
         'start': start,
@@ -386,8 +468,8 @@ def json_search(request):
     elapsed_time = timeit.default_timer() - start_time
 
     if elapsed_time > 1.0:
-        logging.error("Time for search query [%s] was %f" % (query,
-                                                             elapsed_time))
+        logger.error("Time for search query [%s] was %f" % (query,
+                                                            elapsed_time))
     return res
 
 
@@ -414,7 +496,7 @@ def Importer2Json(r):
                 try:
                     tag = GameTag.objects.get(symbolic_id=x['tag_slug'])
                 except:
-                    logging.error('Cannot fetch tag %s' % x['tag_slug'])
+                    logger.error('Cannot fetch tag %s' % x['tag_slug'])
                     raise
                 cat = tag.category.id
                 tag = tag.id
@@ -521,21 +603,25 @@ def UpdateGameTags(request, game, tags, update):
 
 
 def UpdateGameUrls(request, game, data, update):
-    existing_urls = {}  # (cat_id, gameurl_desc, url_text) -> gameurl_id
+    existing_urls = {}  # (cat_id, url_text) -> (gameurl, gameurl_desc)
     if update:
         for x in game.gameurl_set.select_related('url').all():
-            existing_urls[(x.category_id, x.description or '',
-                           x.url.original_url)] = x.id
+            existing_urls[(x.category_id,
+                           x.url.original_url)] = (x, x.description or '')
 
     records_to_add = []  # (cat_id, gameurl_desc, url_text)
     urls_to_add = []  # (url_text, cat_id)
     for x in data:
-        t = tuple(x)
+        t = (x[0], x[2])
         if t in existing_urls:
+            if x[1] != existing_urls[t][1]:
+                url = existing_urls[t][0]
+                url.description = x[1]
+                url.save()
             del existing_urls[t]
         else:
-            records_to_add.append(t)
-            urls_to_add.append((t[2], int(t[0])))
+            records_to_add.append(tuple(x))
+            urls_to_add.append((x[2], int(x[0])))
 
     if records_to_add:
         url_to_id = {}
@@ -587,7 +673,8 @@ def UpdateGameUrls(request, game, data, update):
         GameURL.objects.bulk_create(objs)
 
     if existing_urls:
-        GameURL.objects.filter(id__in=list(existing_urls.values())).delete()
+        GameURL.objects.filter(
+            id__in=[x[0].id for x in existing_urls.values()]).delete()
 
 
 def UpdateGame(request, j, update_edit_time=True):

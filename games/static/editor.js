@@ -32,7 +32,7 @@ function GetCookie(name) {
     $.widget("crem.suggest", {
         options: {
             optToId: {},
-            minLength: 1,
+            minLength: 2,
             id: -1,
             showAll: false,
             allowNew: true,
@@ -141,6 +141,8 @@ function GetCookie(name) {
 
         allowNew: function(newVal) {
             this.input.prop("readonly", !newVal);
+            this.input.autocomplete("option", "minLength",
+                                    this.options.minLength);
         },
 
         isValid: function() {
@@ -172,7 +174,7 @@ function GetCookie(name) {
 
         var vals = $('<span class="wide-list"/>')
             .suggest({
-                minLength: catsToValsToId ? 0 : 1,
+                minLength: catsToValsToId ? 0 : 2,
                 optToId: catsToValsToId ? [] : valToId,
                 id: val,
                 showAll: showAllVal,
@@ -225,6 +227,7 @@ function GetCookie(name) {
             if (!allowNew && !valToId.hasOwnProperty(v)) {
                 vals.suggest('txtvalue', '');
             }
+            vals.suggest('option', 'minLength', allowNew ? 2 : 0)
             vals.suggest('allowNew', allowNew);
             vals.suggest('optToId', valToId);
         }

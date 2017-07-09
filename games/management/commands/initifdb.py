@@ -64,6 +64,7 @@ TAGS = [
     ['genre', 'g_dystopy', 'Дистопия'],
     ['genre', 'g_experimental', 'Экспериментальное'],
     ['genre', 'g_fairytale', 'Сказка'],
+    ['genre', 'g_fanfic', 'Фанфик'],
     ['genre', 'g_fantasy', 'Фэнтези'],
     ['genre', 'g_historical', 'Историческое'],
     ['genre', 'g_horror', 'Ужасы'],

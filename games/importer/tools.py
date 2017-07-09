@@ -1,12 +1,11 @@
 from urllib.parse import quote, urlunsplit, urlsplit, urlparse, urljoin
 from .enrichment import enricher
-from core.crawler import FetchUrlToString
 import re
-import os.path
 
 RE_WORD = re.compile('\w+')
 MIN_SIMILARITY = 0.67
 REGISTERED_IMPORTERS = []
+
 
 URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('qsp.su', '^$', '^$', None, None),
@@ -15,6 +14,7 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('ifwiki.ru', '^$', '^$', None, None),
     ('www.youtube.com', '^$', '^$', None, None),
     ('youtube.com', '^$', '^$', None, None),
+    ('youtu.be', '^$', '^$', None, None),
     ('apero.ru', '^$', '^$', None, None),
     ('storymaze.ru', '^$', '^$', None, None),
     ('', r'.*screenshot.*\.(png|jpg|gif|bmp|jpeg)', '', 'screenshot',
@@ -33,6 +33,7 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('instead-games.ru', '', '', 'game_page', 'Страница на инстеде'),
     ('instead.syscall.ru', '.*/forum/.*', '', 'forum', 'Форум на инстеде'),
     ('youtube.com', '', '', 'video', 'Видео игры'),
+    ('youtu.be', '', '', 'video', 'Видео игры'),
     ('www.youtube.com', '', '', 'video', 'Видео игры'),
     ('forum.ifiction.ru', '', '', 'forum', 'Обсуждение на форуме'),
     ('ifhub.club', '', '', 'review', 'Обзор на ifhub.club'),
@@ -43,12 +44,14 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('iplayif.com', '', '', 'play_online', 'Играть онлайн'),
     ('apero.ru', '', '', 'play_online', 'Играть онлайн'),
     ('storymaze.ru', '', '', 'play_online', 'Играть онлайн'),
+    ('hyperbook.ru', '/download.php', '', 'download_direct',
+     'Скачать с hyperbook.ru'),
     ('', r'.*\.(zip|rar|z5)', '', 'download_direct', 'Ссылка для скачивания'),
-]
+    ]
 
 
 def GetBagOfWords(x):
-    return set(RE_WORD.findall(x.lower()))
+    return set(RE_WORD.findall(x.lower().replace('ё', 'е')))
 
 
 def ComputeSimilarity(s1, s2):

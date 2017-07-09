@@ -1,7 +1,10 @@
 from .models import Game
-from .tools import FormatDate, FormatTime, StarsFromRating, RenderMarkdown
-from urllib.parse import urlparse, parse_qs
+from .tools import (FormatDate, FormatTime, StarsFromRating, RenderMarkdown,
+                    ExtractYoutubeId)
+from logging import getLogger
 from statistics import mean, median
+
+logger = getLogger('web')
 
 
 def Partition(links, partitions):
@@ -26,27 +29,23 @@ def Partition(links, partitions):
 
 def AnnotateMedia(media):
     res = []
+    media.sort(key=lambda x : x.description)
     for y in media:
         val = {}
         if y.category.symbolic_id in ['poster', 'screenshot']:
             val['type'] = 'img'
-            val['img'] = y.url.GetUrl()
+            val['img'] = y.GetLocalUrl()
         elif y.category.symbolic_id == 'video':
-            purl = urlparse(y.url.original_url)
-            if purl.hostname in ['youtube.com', 'www.youtube.com']:
-                q = parse_qs(purl.query).get('v')
-                if q:
-                    val['type'] = 'youtube'
-                    val['id'] = q[0]
-            elif purl.hostname == 'youtu.be':
+            idd = ExtractYoutubeId(y.url.original_url)
+            if idd:
                 val['type'] = 'youtube'
-                val['id'] = purl.path[1:]
+                val['id'] = idd
             else:
-                logging.error('Unknown video url: %s' % y.original_url)
+                logger.error('Unknown video url: %s' % y.url.original_url)
                 val['type'] = 'unknown'
-                val['url'] = y.GetUrl()
+                val['url'] = y.GetLocalUrl()
         else:
-            logging.error('Unexpected category: %s' % y)
+            logger.error('Unexpected category: %s' % y)
             continue
         res.append(val)
     return res
@@ -68,8 +67,8 @@ class GameDetailsBuilder:
         authors, participants = Partition(self.GetAuthors(), [('author', )])
         media, online, download, links = Partition(
             self.GetURLs(), [('poster', 'video', 'screenshot'),
-                             ('play_in_interpreter',
-                              'play_online'), ('download_direct', )])
+                             ('play_in_interpreter', 'play_online'),
+                             ('download_direct', 'download_landing')])
         media = AnnotateMedia(media)
         md = RenderMarkdown(self.game.description)
         tags = self.GetTagsForDetails()
@@ -167,7 +166,7 @@ class GameDetailsBuilder:
         finished_times = []
         played_votes = []
         played_times = []
-        res['user_hours'] = '0'
+        res['user_hours'] = ''
         res['user_mins'] = ''
         res['user_score'] = ''
         res['user_finished'] = False
@@ -233,15 +232,15 @@ class GameDetailsBuilder:
                 'subj':
                     v.subject,
                 'text':
-                    GetMarkdown(v.text),
+                    RenderMarkdown(v.text),
                 # TODO: is_deleted
             })
 
-        swap = []
         parent_to_cluster = {}
         clusters = []
 
         while res:
+            swap = []
             for v in res:
                 if not v['parent_id']:
                     parent_to_cluster[v['id']] = len(clusters)

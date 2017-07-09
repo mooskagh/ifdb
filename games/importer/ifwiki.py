@@ -1,12 +1,14 @@
 from .tools import CategorizeUrl
 from core.crawler import FetchUrlToString
+from logging import getLogger
 from mediawiki_parser import wikitextParser, preprocessorParser, apostrophes
 from pijnu.library.node import Nodes
 from urllib.parse import unquote, quote
 import datetime
-import re
-import logging
 import json
+import re
+
+logger = getLogger('crawler')
 
 
 class IfwikiImporter:
@@ -66,8 +68,12 @@ def GetUrlList():
     return res
 
 
+def CapitalizeFirstLetter(x):
+    return x[:1].upper() + x[1:]
+
+
 def WikiQuote(name):
-    return quote(name.replace(' ', '_'))
+    return quote(CapitalizeFirstLetter(name.replace(' ', '_')))
 
 
 def ImportFromIfwiki(url):
@@ -78,7 +84,7 @@ def ImportFromIfwiki(url):
                                                           m.group(2))
         cont = FetchUrlToString(fetch_url) + '\n'
     except Exception as e:
-        logging.exception("Error while importing [%s] from Ifwiki" % url)
+        logger.exception("Error while importing [%s] from Ifwiki" % url)
         return {'error': 'Не открывается что-то этот URL.'}
 
     res = {'priority': 100}
@@ -92,7 +98,7 @@ def ImportFromIfwiki(url):
         pre_text = preproc.parse(cont)
         output = parser.parse(pre_text.leaves())
     except Exception as e:
-        logging.exception('Error while parsing %s' % url)
+        logger.exception('Error while parsing %s' % url)
         return {'error': 'Какая-то ошибка при парсинге. Надо сказать админам.'}
 
     res['title'] = context.title
@@ -181,7 +187,7 @@ class WikiParsingContext:
             elif not role:
                 self.authors.append({'role_slug': default_role, 'name': name})
             else:
-                logging.error('Unknown role %s' % role)
+                logger.error('Unknown role %s' % role)
                 self.authors.append({'role_slug': 'member', 'name': name})
         if display_name:
             return display_name
@@ -220,7 +226,7 @@ class WikiParsingContext:
             elif k in GAMEINFO_IGNORE:
                 pass
             else:
-                logging.error('Unknown gameinfo tag: %s %s' % (k, v))
+                logger.error('Unknown gameinfo tag: %s %s' % (k, v))
 
     def DispatchTemplate(self, name, params):
         if name == 'PAGENAME':
@@ -256,7 +262,7 @@ class WikiParsingContext:
             return 'Media'
         if name in IFWIKI_IGNORE:
             return ''
-        logging.error('Unknown template: %s %s' % (name, params))
+        logger.error('Unknown template: %s %s' % (name, params))
         return ''
 
     def ParseTemplate(self, node):
@@ -283,12 +289,12 @@ def toolset_preproc(context):
         node.value = '&%s;' % node.leaf()
 
     def substitute_numbered_entity(node):
-        logging.error('O url: %s, title:%s\n%s' % (context.url, context.title,
-                                                   node))
+        logger.error('O url: %s, title:%s\n%s' % (context.url, context.title,
+                                                  node))
 
     def substitute_template_parameter(node):
-        logging.error('N url: %s, title:%s\n%s' % (context.url, context.title,
-                                                   node))
+        logger.error('N url: %s, title:%s\n%s' % (context.url, context.title,
+                                                  node))
 
     def substitute_template(node):
         node.value = context.ParseTemplate(node)
@@ -445,8 +451,8 @@ def toolset_wiki(context):
         elif node.value[0].value in autoclose_tags:
             node.value = autoclose_tags[node.value[0].value]
         else:
-            logging.error('A url: %s, title:%s\n%s' % (context.url,
-                                                       context.title, node))
+            logger.error('A url: %s, title:%s\n%s' % (context.url,
+                                                      context.title, node))
             node.value = ''
 
     def render_tag_close(node):
@@ -461,64 +467,64 @@ def toolset_wiki(context):
         node.value = ''
 
     def render_attribute(node):
-        logging.error('B url: %s, title:%s\n%s' % (context.url, context.title,
-                                                   node))
+        logger.error('B url: %s, title:%s\n%s' % (context.url, context.title,
+                                                  node))
         node.value = ''
 
     def render_table(node):
-        logging.error('C url: %s, title:%s\n%s' % (context.url, context.title,
-                                                   node))
+        logger.error('C url: %s, title:%s\n%s' % (context.url, context.title,
+                                                  node))
         node.value = ''
 
     def render_table_line_break(node):
-        logging.error('D url: %s, title:%s\n%s' % (context.url, context.title,
-                                                   node))
+        logger.error('D url: %s, title:%s\n%s' % (context.url, context.title,
+                                                  node))
         node.value = ''
 
     def render_table_header_cell(node):
-        logging.error('E url: %s, title:%s\n%s' % (context.url, context.title,
-                                                   node))
+        logger.error('E url: %s, title:%s\n%s' % (context.url, context.title,
+                                                  node))
         node.value = ''
 
     def render_table_normal_cell(node):
-        logging.error('F url: %s, title:%s\n%s' % (context.url, context.title,
-                                                   node))
+        logger.error('F url: %s, title:%s\n%s' % (context.url, context.title,
+                                                  node))
         node.value = ''
 
     def render_table_empty_cell(node):
-        logging.error('G url: %s, title:%s\n%s' % (context.url, context.title,
-                                                   node))
+        logger.error('G url: %s, title:%s\n%s' % (context.url, context.title,
+                                                  node))
         node.value = ''
 
     def render_table_caption(node):
-        logging.error('H url: %s, title:%s\n%s' % (context.url, context.title,
-                                                   node))
+        logger.error('H url: %s, title:%s\n%s' % (context.url, context.title,
+                                                  node))
         node.value = ''
 
     def render_preformatted(node):
-        logging.error('I url: %s, title:%s\n%s' % (context.url, context.title,
-                                                   node))
+        logger.error('I url: %s, title:%s\n%s' % (context.url, context.title,
+                                                  node))
         node.value = ''
 
     def render_source(node):
-        logging.error('J url: %s, title:%s\n%s' % (context.url, context.title,
-                                                   node))
+        logger.error('J url: %s, title:%s\n%s' % (context.url, context.title,
+                                                  node))
         node.value = ''
 
     def render_source_open(node):
         node.value = ''
 
     def render_source_text(node):
-        logging.error('K url: %s, title:%s\n%s' % (context.url, context.title,
-                                                   node))
+        logger.error('K url: %s, title:%s\n%s' % (context.url, context.title,
+                                                  node))
         node.value = ''
 
     def render_hr(node):
         node.value = '\n===\n'
 
     def render_li(node):
-        logging.error('L url: %s, title:%s\n%s' % (context.url, context.title,
-                                                   node))
+        logger.error('L url: %s, title:%s\n%s' % (context.url, context.title,
+                                                  node))
         node.value = ''
 
     def render_list(node):
@@ -544,8 +550,8 @@ def toolset_wiki(context):
             context.ProcessLink('|'.join(BuildLeaves(node))))
 
     def render_invalid(node):
-        logging.warning('Invalid line, url: %s, title:%s' % (context.url,
-                                                             context.title))
+        logger.warning('Invalid line, url: %s, title:%s' % (context.url,
+                                                            context.title))
         node.value = ''
 
     return locals()

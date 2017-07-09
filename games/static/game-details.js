@@ -24,21 +24,23 @@ $(function() {
         return false;
     });
 
-    $('.largeslider').slick({
-        slidesToShow: 1,
-        slidesToScroll: 1,
-        centerMode: true,
-        fade: true,
-        asNavFor: '.smallslider'
-    });
+    if ($.fn.slick !== undefined) {
+        $('.largeslider').slick({
+            slidesToShow: 1,
+            slidesToScroll: 1,
+            centerMode: true,
+            fade: true,
+            asNavFor: '.smallslider'
+        });
 
-    $('.smallslider').slick({
-        slidesToScroll: 1,
-        dots: true,
-        centerMode: true,
-        focusOnSelect: true,
-        variableWidth: true,
-        infinite: false,
-        asNavFor: '.largeslider'
-    });
+        $('.smallslider').slick({
+            slidesToScroll: 1,
+            dots: true,
+            centerMode: true,
+            focusOnSelect: true,
+            variableWidth: true,
+            infinite: false,
+            asNavFor: '.largeslider'
+        });
+    }
 });

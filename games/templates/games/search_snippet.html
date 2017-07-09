@@ -2,7 +2,7 @@
 {% load tags %}
 {% if games %}
 {% for g in games %}
-    <a class="gamelist-thumb" href="{% url 'show_game' game_id=g.id %}">
+    <a class="gamelist-thumb gamelist-thumb-search" href="{% url 'show_game' game_id=g.id %}">
         <div class="poster-container">
             <img class="poster" src="{{ g.poster|default:'/static/noposter.png' }}"/>
         </div>
@@ -23,11 +23,21 @@
             {% for x in g.ds.stars %}
                 <img src="/static/duck{{x}}.png" />
             {% endfor %}
+            ({{ g.ds.scores|rupl:"голос,голоса,голосов" }})
         {% elif g.ds.duration %}
             Прохождение:
             {{ g.ds.duration.hours|rupl:"час,часа,часов" }}
             {{ g.ds.duration.mins|rupl:"минута,минуты,минут" }}.
         {% endif %}
+        </div>
+        <div class="icon-overlay">
+        {% with x=g.icons %}
+            {% if x.hascomments %}<img src="{% static 'hascomments.svg'%}" / >{% endif %}
+            {% if x.hasvideo %}<img src="{% static 'hasvideo.svg'%}" / >{% endif %}
+            {% if x.isparser %}<img src="{% static 'isparser.svg'%}" / >{% endif %}
+            {% if x.playonline %}<img src="{% static 'playonline.svg'%}" / >{% endif %}
+            {% if x.downloadable %}<img src="{% static 'downloadable.svg'%}" / >{% endif %}
+        {% endwith %}
         </div>
     </a>
 {% endfor %}
