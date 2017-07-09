@@ -55,6 +55,7 @@ if IS_PROD:
     TMP_DIR = '/home/ifdb/tmp/tmp/'
     LOG_DIR = '/home/ifdb/tmp/logs/'
     EXTRACTOR_PATH = '/bin/unar "%s" -o "%s"'
+    WORKER_PID_FILE = os.path.join(TMP_DIR, 'ifdbworker.pid')
 
 else:
     SECRET_KEY = 'l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr'

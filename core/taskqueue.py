@@ -9,13 +9,9 @@ import importlib
 import json
 import os
 import signal
-import sys
 import time
 
 logger = getLogger('worker')
-
-# TODO Build more robust filename
-PID_FILE = '/tmp/ifdbworker.pid'
 
 
 def IsPosix():
@@ -25,7 +21,7 @@ def IsPosix():
 def NotifyWorker():
     if IsPosix():
         try:
-            with open(PID_FILE, 'r') as f:
+            with open(settings.WORKER_PID_FILE, 'r') as f:
                 pid = int(f.read())
                 os.kill(pid, signal.SIGUSR1)
         except:
@@ -94,7 +90,7 @@ def Worker():
         do_exit = True
 
     if IsPosix():
-        with open(PID_FILE, 'w') as f:
+        with open(settings.WORKER_PID_FILE, 'w') as f:
             f.write(str(os.getpid()))
         signal.signal(signal.SIGTERM, exit_handler)
         signal.signal(signal.SIGINT, exit_handler)
