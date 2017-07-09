@@ -166,7 +166,7 @@ class GameDetailsBuilder:
         finished_times = []
         played_votes = []
         played_times = []
-        res['user_hours'] = '0'
+        res['user_hours'] = ''
         res['user_mins'] = ''
         res['user_score'] = ''
         res['user_finished'] = False

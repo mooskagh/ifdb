@@ -376,7 +376,8 @@
                     name="hours" value="{{votes.user_hours}}" required>
                     <script type="text/javascript">
                     $('.vote-timeselect.hours').click(function(event) {
-                    $('#hours').val($(this).text());
+                        $('#hours').val($(this).text());
+                        if (!$('#minutes').val()) { $('#minutes').val('0'); }
                     })
                     </script>
                     часов и<br>
@@ -391,7 +392,8 @@
                     name="minutes" value="{{votes.user_mins}}" required>
                     <script type="text/javascript">
                     $('.vote-timeselect.minutes').click(function(event) {
-                    $('#minutes').val($(this).text());
+                        $('#minutes').val($(this).text());
+                        if (!$('#hours').val()) { $('#hours').val('0'); }
                     })
                     </script>
                     минут.<br>
