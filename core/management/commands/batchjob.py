@@ -1,7 +1,9 @@
 import re
 from django.core.management.base import BaseCommand
 from games.models import InterpretedGameUrl, URL
+from core.models import TaskQueueElement
 
+#  {"module": "games.tasks.uploads", "name": "MarkBroken"}
 
 def IfwikiCapitalizeFile():
     r = re.compile('^(.*ifwiki.ru/files/)(\w)(.*)$')
@@ -38,9 +40,20 @@ def RenameRecodes():
         x.save()
 
 
+def UpdateTaskQueues():
+    for x in TaskQueueElement.objects.all():
+       if 'CloneGame' not in x.name:
+          continue
+       if x.fail:
+          x.fail = False
+          x.pending = True
+       x.onfail_json = '{"module": "games.tasks.uploads", "name": "MarkBroken"}'
+       x.save()
+
+
 class Command(BaseCommand):
     help = 'Does some batch processing.'
 
     def handle(self, *args, **options):
-        pass
+        UpdateTaskQueues()
         # RenameRecodes()

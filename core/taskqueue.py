@@ -39,7 +39,7 @@ def _EnqueueCreate(func, argv, name, onfail, priority, retries, retry_minutes,
         'kwarg': kwarg,
     })
     if onfail:
-        t.onfail = json.dumps({
+        t.onfail_json = json.dumps({
             'module': onfail.__module__,
             'name': onfail.__name__
         })
@@ -136,15 +136,16 @@ def Worker():
                         minutes=t.retry_minutes)
                     t.save()
                 else:
-                    logger.error(
+                    if t.cron:
+                      logger.error(
                         "Failure when running CRON task %s:" % t,
                         exc_info=True)
                     t.fail = True
                     t.save()
                     if t.onfail_json:
-                        call = json.loads(t.onfail_json)
-                        i = importlib.import_module(call['module'])
-                        func = getattr(i, call['name'])
+                        failcall = json.loads(t.onfail_json)
+                        i = importlib.import_module(failcall['module'])
+                        func = getattr(i, failcall['name'])
                         try:
                             func(t, call)
                         except Exception as e:
