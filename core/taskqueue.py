@@ -137,9 +137,9 @@ def Worker():
                     t.save()
                 else:
                     if t.cron:
-                      logger.error(
-                        "Failure when running CRON task %s:" % t,
-                        exc_info=True)
+                        logger.error(
+                            "Failure when running CRON task %s:" % t,
+                            exc_info=True)
                     t.fail = True
                     t.save()
                     if t.onfail_json:
