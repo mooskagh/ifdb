@@ -60,8 +60,8 @@
     bottom: 0;
     width: 100%;
 }
-        </style>
-        <title>Das Erzatzplut</title>
+</style>
+    <title>Das Ersatzplut</title>
     </head>
     <body>
         <div class="root">

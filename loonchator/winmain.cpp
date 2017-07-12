@@ -16,11 +16,11 @@
 
 #ifdef PROD
 const char* own_package_name = "loonchator";
-const char* url_schema = "erzatzplut";
+const char* url_schema = "ersatzplut";
 const char* api_prefix = "http://db.mooskagh.com/api/v0/";
 #else
 const char* own_package_name = "loonchator-debug";
-const char* url_schema = "erzatzplut-debug";
+const char* url_schema = "ersatzplut-debug";
 const char* api_prefix = "http://localhost:8000/api/v0/";
 #endif
 
@@ -81,7 +81,7 @@ void RegisterURIScheme(std::wstring executable) {
                        KEY_READ | KEY_WRITE, nullptr, &hkey, nullptr));
   Finally f([&]() { RegCloseKey(hkey); });
 
-  std::wstring key_default = L"Erzatzplut:Лунчатор!";
+  std::wstring key_default = L"Ersatzplut:Лунчатор!";
   CHECK(RegSetValueEx(hkey, nullptr, 0, REG_SZ,
                       (const BYTE*)key_default.c_str(),
                       (key_default.size() + 1) * sizeof(wchar_t)));
