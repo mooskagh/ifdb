@@ -58,7 +58,6 @@ def GetDirtyUrls(age_minutes):
                 use_cache=False))
         for _, v in r['query']['pages'].items():
             res.append(v['fullurl'])
-    print(res)
     return res
 
 
