@@ -187,7 +187,7 @@ class WikiParsingContext:
             elif not role:
                 self.authors.append({'role_slug': default_role, 'name': name})
             else:
-                logger.error('Unknown role %s' % role)
+                logger.warn('Unknown role %s' % role)
                 self.authors.append({'role_slug': 'member', 'name': name})
         if display_name:
             return display_name
@@ -226,7 +226,7 @@ class WikiParsingContext:
             elif k in GAMEINFO_IGNORE:
                 pass
             else:
-                logger.error('Unknown gameinfo tag: %s %s' % (k, v))
+                logger.warn('Unknown gameinfo tag: %s %s' % (k, v))
 
     def DispatchTemplate(self, name, params):
         if name == 'PAGENAME':
@@ -335,14 +335,14 @@ def toolset_wiki(context):
     def collapse_list(list):
         i = 0
         while i + 1 < len(list):
-            if (list[i].tag == 'bullet_list_leaf' and
-                    list[i + 1].tag == '@bullet_sub_list@' or
-                    list[i].tag == 'number_list_leaf' and
-                    list[i + 1].tag == '@number_sub_list@' or
-                    list[i].tag == 'colon_list_leaf' and
-                    list[i + 1].tag == '@colon_sub_list@' or
-                    list[i].tag == 'semi_colon_list_leaf' and
-                    list[i + 1].tag == '@semi_colon_sub_list@'):
+            if (list[i].tag == 'bullet_list_leaf'
+                    and list[i + 1].tag == '@bullet_sub_list@'
+                    or list[i].tag == 'number_list_leaf'
+                    and list[i + 1].tag == '@number_sub_list@'
+                    or list[i].tag == 'colon_list_leaf'
+                    and list[i + 1].tag == '@colon_sub_list@'
+                    or list[i].tag == 'semi_colon_list_leaf'
+                    and list[i + 1].tag == '@semi_colon_sub_list@'):
                 list[i].value.append(list[i + 1].value[0])
                 list.pop(i + 1)
             else:
@@ -386,16 +386,20 @@ def toolset_wiki(context):
     def render_lists(list, level):
         i = 0
         while i < len(list):
-            if list[i].tag == 'bullet_list_leaf' or list[i].tag == '@bullet_sub_list@':
+            if (list[i].tag == 'bullet_list_leaf'
+                    or list[i].tag == '@bullet_sub_list@'):
                 list[i].value = render_ul(
                     select_items(list, i, 'bullet_list_leaf', level), level)
-            elif list[i].tag == 'number_list_leaf' or list[i].tag == '@number_sub_list@':
+            elif (list[i].tag == 'number_list_leaf'
+                  or list[i].tag == '@number_sub_list@'):
                 list[i].value = render_ol(
                     select_items(list, i, 'number_list_leaf', level), level)
-            elif list[i].tag == 'colon_list_leaf' or list[i].tag == '@colon_sub_list@':
+            elif (list[i].tag == 'colon_list_leaf'
+                  or list[i].tag == '@colon_sub_list@'):
                 list[i].value = render_ul(
                     select_items(list, i, 'colon_list_leaf', level), level)
-            elif list[i].tag == 'semi_colon_list_leaf' or list[i].tag == '@semi_colon_sub_list@':
+            elif (list[i].tag == 'semi_colon_list_leaf'
+                  or list[i].tag == '@semi_colon_sub_list@'):
                 list[i].value = render_ul(
                     select_items(list, i, 'semi_colon_list_leaf', level),
                     level)
@@ -467,64 +471,64 @@ def toolset_wiki(context):
         node.value = ''
 
     def render_attribute(node):
-        logger.error('B url: %s, title:%s\n%s' % (context.url, context.title,
-                                                  node))
+        logger.warn('B url: %s, title:%s\n%s' % (context.url, context.title,
+                                                 node))
         node.value = ''
 
     def render_table(node):
-        logger.error('C url: %s, title:%s\n%s' % (context.url, context.title,
-                                                  node))
+        logger.warn('C url: %s, title:%s\n%s' % (context.url, context.title,
+                                                 node))
         node.value = ''
 
     def render_table_line_break(node):
-        logger.error('D url: %s, title:%s\n%s' % (context.url, context.title,
-                                                  node))
+        logger.warn('D url: %s, title:%s\n%s' % (context.url, context.title,
+                                                 node))
         node.value = ''
 
     def render_table_header_cell(node):
-        logger.error('E url: %s, title:%s\n%s' % (context.url, context.title,
-                                                  node))
+        logger.warn('E url: %s, title:%s\n%s' % (context.url, context.title,
+                                                 node))
         node.value = ''
 
     def render_table_normal_cell(node):
-        logger.error('F url: %s, title:%s\n%s' % (context.url, context.title,
-                                                  node))
+        logger.warn('F url: %s, title:%s\n%s' % (context.url, context.title,
+                                                 node))
         node.value = ''
 
     def render_table_empty_cell(node):
-        logger.error('G url: %s, title:%s\n%s' % (context.url, context.title,
-                                                  node))
+        logger.warn('G url: %s, title:%s\n%s' % (context.url, context.title,
+                                                 node))
         node.value = ''
 
     def render_table_caption(node):
-        logger.error('H url: %s, title:%s\n%s' % (context.url, context.title,
-                                                  node))
+        logger.warn('H url: %s, title:%s\n%s' % (context.url, context.title,
+                                                 node))
         node.value = ''
 
     def render_preformatted(node):
-        logger.error('I url: %s, title:%s\n%s' % (context.url, context.title,
-                                                  node))
+        logger.warn('I url: %s, title:%s\n%s' % (context.url, context.title,
+                                                 node))
         node.value = ''
 
     def render_source(node):
-        logger.error('J url: %s, title:%s\n%s' % (context.url, context.title,
-                                                  node))
+        logger.warn('J url: %s, title:%s\n%s' % (context.url, context.title,
+                                                 node))
         node.value = ''
 
     def render_source_open(node):
         node.value = ''
 
     def render_source_text(node):
-        logger.error('K url: %s, title:%s\n%s' % (context.url, context.title,
-                                                  node))
+        logger.warn('K url: %s, title:%s\n%s' % (context.url, context.title,
+                                                 node))
         node.value = ''
 
     def render_hr(node):
         node.value = '\n===\n'
 
     def render_li(node):
-        logger.error('L url: %s, title:%s\n%s' % (context.url, context.title,
-                                                  node))
+        logger.warn('L url: %s, title:%s\n%s' % (context.url, context.title,
+                                                 node))
         node.value = ''
 
     def render_list(node):
