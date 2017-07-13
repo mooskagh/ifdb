@@ -187,7 +187,7 @@ class WikiParsingContext:
             elif not role:
                 self.authors.append({'role_slug': default_role, 'name': name})
             else:
-                logger.warn('Unknown role %s' % role)
+                logger.warning('Unknown role %s' % role)
                 self.authors.append({'role_slug': 'member', 'name': name})
         if display_name:
             return display_name
@@ -226,7 +226,7 @@ class WikiParsingContext:
             elif k in GAMEINFO_IGNORE:
                 pass
             else:
-                logger.warn('Unknown gameinfo tag: %s %s' % (k, v))
+                logger.warning('Unknown gameinfo tag: %s %s' % (k, v))
 
     def DispatchTemplate(self, name, params):
         if name == 'PAGENAME':
@@ -471,64 +471,64 @@ def toolset_wiki(context):
         node.value = ''
 
     def render_attribute(node):
-        logger.warn('B url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logger.warning('B url: %s, title:%s\n%s' % (context.url, context.title,
+                                                    node))
         node.value = ''
 
     def render_table(node):
-        logger.warn('C url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logger.warning('C url: %s, title:%s\n%s' % (context.url, context.title,
+                                                    node))
         node.value = ''
 
     def render_table_line_break(node):
-        logger.warn('D url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logger.warning('D url: %s, title:%s\n%s' % (context.url, context.title,
+                                                    node))
         node.value = ''
 
     def render_table_header_cell(node):
-        logger.warn('E url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logger.warning('E url: %s, title:%s\n%s' % (context.url, context.title,
+                                                    node))
         node.value = ''
 
     def render_table_normal_cell(node):
-        logger.warn('F url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logger.warning('F url: %s, title:%s\n%s' % (context.url, context.title,
+                                                    node))
         node.value = ''
 
     def render_table_empty_cell(node):
-        logger.warn('G url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logger.warning('G url: %s, title:%s\n%s' % (context.url, context.title,
+                                                    node))
         node.value = ''
 
     def render_table_caption(node):
-        logger.warn('H url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logger.warning('H url: %s, title:%s\n%s' % (context.url, context.title,
+                                                    node))
         node.value = ''
 
     def render_preformatted(node):
-        logger.warn('I url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logger.warning('I url: %s, title:%s\n%s' % (context.url, context.title,
+                                                    node))
         node.value = ''
 
     def render_source(node):
-        logger.warn('J url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logger.warning('J url: %s, title:%s\n%s' % (context.url, context.title,
+                                                    node))
         node.value = ''
 
     def render_source_open(node):
         node.value = ''
 
     def render_source_text(node):
-        logger.warn('K url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logger.warning('K url: %s, title:%s\n%s' % (context.url, context.title,
+                                                    node))
         node.value = ''
 
     def render_hr(node):
         node.value = '\n===\n'
 
     def render_li(node):
-        logger.warn('L url: %s, title:%s\n%s' % (context.url, context.title,
-                                                 node))
+        logger.warning('L url: %s, title:%s\n%s' % (context.url, context.title,
+                                                    node))
         node.value = ''
 
     def render_list(node):

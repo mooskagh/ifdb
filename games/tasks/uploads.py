@@ -54,7 +54,7 @@ def CloneFile(id):
 def MarkBroken(task, context):
     id = context['argv'][0]
     url = URL.objects.get(id=id)
-    logger.warn('Found broken link at url: %s' % url.original_url)
+    logger.warning('Found broken link at url: %s' % url.original_url)
     url.is_broken = True
     url.save()
 
@@ -130,7 +130,7 @@ def RecodeGame(game_url_id):
             stderr=subprocess.STDOUT,
             shell=True)
     except subprocess.CalledProcessError as x:
-        logger.warn(x.output, exc_info=True)
+        logger.warning(x.output, exc_info=True)
         shutil.rmtree(tmp_dir)
         raise
     fs = settings.RECODES_FS
