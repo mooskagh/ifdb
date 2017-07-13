@@ -29,7 +29,7 @@ def Partition(links, partitions):
 
 def AnnotateMedia(media):
     res = []
-    media.sort(key=lambda x : x.description)
+    media.sort(key=lambda x: x.description)
     for y in media:
         val = {}
         if y.category.symbolic_id in ['poster', 'screenshot']:
