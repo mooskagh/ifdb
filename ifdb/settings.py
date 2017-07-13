@@ -51,7 +51,7 @@ if IS_PROD:
     SERVER_EMAIL = 'ersatzplut@gmail.com'
     EMAIL_HOST_PASSWORD = open(
         '/home/ifdb/configs/gmail-pass.txt').read().strip()
-    CRAWLER_CACHE_DIR = '/home/ifdb/tmp/urlcache/'
+    CRAWLER_CACHE_DIR = None  # '/home/ifdb/tmp/urlcache/'
     TMP_DIR = '/home/ifdb/tmp/tmp/'
     LOG_DIR = '/home/ifdb/logs/'
     EXTRACTOR_PATH = '/bin/unar "%s" -o "%s"'

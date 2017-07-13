@@ -2,7 +2,6 @@ from django.conf import settings
 from django.utils import timezone
 from logging import getLogger
 from urllib.parse import quote
-import datetime
 import hashlib
 import json
 import os.path
@@ -10,6 +9,7 @@ import shutil
 import urllib.request
 
 logger = getLogger('crawler')
+
 
 def FetchUrlToString(url, use_cache=True):
     return FetchUrlToFileLike(url, use_cache).read().decode('utf-8')
