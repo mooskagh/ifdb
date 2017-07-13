@@ -7,6 +7,7 @@ from urllib.parse import unquote, quote
 import datetime
 import json
 import re
+import time
 
 logger = getLogger('crawler')
 
@@ -21,9 +22,44 @@ class IfwikiImporter:
     def GetUrlCandidates(self):
         return GetUrlList()
 
+    def GetDirtyUrls(self, age_minutes=60 * 14):
+        return GetDirtyUrls(age_minutes)
+
 
 CATEGORY_STR = (
     r'ifwiki.ru/%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D1%8F:')
+
+
+def _batch(iterable, n=40):
+    l = len(iterable)
+    for ndx in range(0, l, n):
+        yield iterable[ndx:min(ndx + n, l)]
+
+
+def GetDirtyUrls(age_minutes):
+    ids = set()
+    r = json.loads(
+        FetchUrlToString(
+            r'http://ifwiki.ru/api.php?action=query&list=recentchanges&'
+            r'rclimit=500&format=json&rcend=%d' % int(
+                time.time() - 60 * age_minutes),
+            use_cache=False))['query']['recentchanges']
+
+    for x in r:
+        ids.add(x['pageid'])
+
+    res = []
+    for batch in _batch(list(ids)):
+        pageidlist = '|'.join(["%d" % x for x in batch])
+        r = json.loads(
+            FetchUrlToString(
+                r'http://ifwiki.ru/api.php?action=query&prop=info&format=json&'
+                r'inprop=url&pageids=' + pageidlist,
+                use_cache=False))
+        for _, v in r['query']['pages'].items():
+            res.append(v['fullurl'])
+    print(res)
+    return res
 
 
 def GetUrlList():
@@ -49,13 +85,8 @@ def GetUrlList():
         else:
             keystart = res[-1]['sortkey']
 
-    def batch(iterable, n=40):
-        l = len(iterable)
-        for ndx in range(0, l, n):
-            yield iterable[ndx:min(ndx + n, l)]
-
     res = []
-    for batch in batch(list(ids)):
+    for batch in _batch(list(ids)):
         pageidlist = '|'.join(["%d" % x for x in batch])
         r = json.loads(
             FetchUrlToString(

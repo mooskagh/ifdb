@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from games.importer.tools import (Import, GetUrlCandidates, HashizeUrl,
-                                  GetBagOfWords, ComputeSimilarity)
+                                  GetBagOfWords, ComputeSimilarity,
+                                  GetDirtyUrls)
 from games.models import Game, URL
 from games.views import UpdateGame, Importer2Json
 from ifdb.permissioner import Permissioner
@@ -50,6 +51,9 @@ class ImportedGame:
             ]
             self.is_updateable = (game.added_by.username == USER
                                   and game.edit_time is None)
+
+    def Dirtify(self):
+        self.is_modified = True
 
     def HashizedUrls(self):
         return self.hash_urls
@@ -137,6 +141,12 @@ class GameSet:
         h = HashizeUrl(url)
         return h in self.url_to_game
 
+    def DirtifyUrl(self, url):
+        url = HashizeUrl(url)
+        if url in self.url_to_game:
+            logger.info("Dirtifying url %s" % url)
+            self.url_to_game[url].Dirtify()
+
     def TryMerge(self, game):
         similar_games = set()
         for x in game.HashizedUrls():
@@ -210,6 +220,9 @@ def ImportGames():
         g.AddUrl(u)
         if g.Fetch():
             gameset.TryMerge(g)
+
+    for x in GetDirtyUrls():
+        gameset.DirtifyUrl(x)
 
     fake_request = FakeRequest(USER)
 

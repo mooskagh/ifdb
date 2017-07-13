@@ -118,6 +118,13 @@ def GetUrlCandidates():
     return res
 
 
+def GetDirtyUrls():
+    res = []
+    for x in REGISTERED_IMPORTERS:
+        res.extend(x.GetDirtyUrls())
+    return res
+
+
 def HashizeUrl(url):
     url = quote(url.encode('utf-8'), safe='/+=&?%:;@!#$*()_-')
     purl = urlsplit(url, allow_fragments=False)

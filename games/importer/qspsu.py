@@ -19,6 +19,9 @@ class QspsuImporter:
     def GetUrlCandidates(self):
         return GetCandidates()
 
+    def GetDirtyUrls(self):
+        return []
+
 
 QSP_LISTING_TITLE_RE = re.compile(r'<h3><a href="([^"]+)"')
 
