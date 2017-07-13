@@ -26,14 +26,7 @@ const char* api_prefix = "http://localhost:8000/api/v0/";
 
 const char* os_package = "os-win-0.0.0";
 
-std::wstring GetOwnVersion() {
-  static const char* own_version =
-#include "../version.txt"
-      ;
-  const char* v = own_version;
-  ++v;
-  return Conv(v);
-}
+std::wstring GetOwnVersion() { return L"0.05"; }
 
 std::wstring GetExecutableFilename() {
   std::vector<wchar_t> buffer(1024);

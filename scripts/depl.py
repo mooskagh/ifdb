@@ -527,7 +527,7 @@ def WriteVersionConfigAndGitTag(ctx):
     """Write current version into config."""
     v = ctx['new-version']
     with open(os.path.join(ROOT_DIR, 'django/version.txt'), 'w') as f:
-        f.write('"%s"' % v)
+        f.write('%s' % v)
     if not RunCmdStep('git add version.txt')(ctx):
         return False
     if not RunCmdStep('git commit -m "Change version.txt to %s."' % v)(ctx):
@@ -538,7 +538,7 @@ def WriteVersionConfigAndGitTag(ctx):
 
 
 def GetCurrentVersion():
-    version_re = re.compile(r'"?v(\d+)\.(\d+)(?:\.(\d+))?"?')
+    version_re = re.compile(r'v(\d+)\.(\d+)(?:\.(\d+))?')
     cnt = open(os.path.join(ROOT_DIR, 'django/version.txt')).read().strip()
     m = version_re.match(cnt)
     if not m:
