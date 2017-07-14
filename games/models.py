@@ -238,3 +238,12 @@ class GameComment(models.Model):
     subject = models.CharField(max_length=255, null=True, blank=True)
     text = models.TextField()
     is_deleted = models.BooleanField(default=False)
+
+
+class GameSession(models.Model):
+    game = models.ForeignKey(Game, db_index=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True)
+    client = models.CharField(max_length=64)
+    duration_mins = models.IntegerField(null=True, blank=True)
+    start_time = models.DateTimeField()
+    last_update = models.DateTimeField()
