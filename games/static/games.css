@@ -558,6 +558,15 @@ textarea#description {
     font-size: 95%;
 }
 
+.loonchator-fail {
+    display: none;
+    border: 1px solid red;
+}
+
+.loonchator-fail h2 {
+    text-align: center;
+}
+
 #messagebox {
     background-color: #F2F1EB;
     border: 1px solid #625B61;
@@ -836,6 +845,22 @@ progress::-webkit-progress-value {
     cursor: pointer;
     display: inline-block;
     max-height: 90px;
+}
+
+.start-lunchator {
+    display: block;
+    margin: auto;
+    width: 200px;
+    background-color: #00487c;
+    border: none;
+    color: #F2F1EB;
+    text-align: center;
+    box-shadow: -2px 3px 2px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    text-decoration: none;
+    cursor: pointer;
+    border-radius: 2px;
+    padding: 10px;
 }
 
 .largeslider {

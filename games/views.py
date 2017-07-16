@@ -60,7 +60,8 @@ def LastComments(request):
         '-creation_time')[:100]
     res = []
     for x in comments:
-        if x.game.id in games: continue
+        if x.game.id in games:
+            continue
         games.add(x.game.id)
         res.append({
             'lag':
@@ -74,7 +75,8 @@ def LastComments(request):
             'subject':
                 x.subject or '...',
         })
-        if len(res) == 4: break
+        if len(res) == 4:
+            break
     return res
 
 
@@ -85,7 +87,8 @@ def LastUrlCat(request, cat, limit):
 
     res = []
     for x in urls:
-        if x.game.id in games: continue
+        if x.game.id in games:
+            continue
         games.add(x.game.id)
         res.append({
             'lag':
@@ -100,7 +103,8 @@ def LastUrlCat(request, cat, limit):
             'desc':
                 x.description,
         })
-        if len(res) == limit: break
+        if len(res) == limit:
+            break
     return res
 
 
@@ -275,8 +279,8 @@ def play_in_interpreter(request, gameurl_id):
 
     try:
         res['data'] = data = InterpretedGameUrl.objects.get(pk=gameurl_id)
-        res['format'] = os.path.splitext(data.recoded_filename or
-                                         o_u.url.local_filename)[1].lower()
+        res['format'] = os.path.splitext(data.recoded_filename
+                                         or o_u.url.local_filename)[1].lower()
         res['conf'] = json.loads(data.configuration_json)
 
         form = UrqwInterpreterForm({

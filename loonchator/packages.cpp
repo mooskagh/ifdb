@@ -69,3 +69,9 @@ PackageManager::PackageManager(const std::wstring& root) {
     }
   } while (FindNextFile(h, &d));
 }
+
+std::wstring GetRepositoryPath() {
+  auto path = StringSplit(GetExecutableFilename(), L'\\');
+  path.resize(path.size() - 2);
+  return StringJoin(path, L'\\');
+}

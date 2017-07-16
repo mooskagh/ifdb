@@ -9,6 +9,11 @@
 #include <string>
 #include <vector>
 
+std::string GetOwnPackageName();
+std::string GetUrlSchema();
+std::string GetApiPrefix();
+std::string GetOwnVersion();
+
 std::wstring Conv(const std::string& str);
 std::string Conv(const std::wstring& str);
 
@@ -39,6 +44,10 @@ std::basic_string<T> StringJoin(const std::vector<std::basic_string<T>>& v,
   return res;
 }
 
+inline void MsgBox(const std::wstring& message) {
+  MessageBox(0, message.c_str(), nullptr, MB_OK);
+}
+
 template <class T>
 std::pair<std::basic_string<T>, std::basic_string<T>> Partition(
     const std::basic_string<T>& str, T c) {
@@ -50,6 +59,17 @@ std::pair<std::basic_string<T>, std::basic_string<T>> Partition(
 }
 
 template <class T>
+std::pair<std::basic_string<T>, std::basic_string<T>> Partition(
+    const std::basic_string<T>& str, const std::basic_string<T>& c) {
+  auto pos = str.find(c);
+  if (pos == std::basic_string<T>::npos) {
+    return {str, std::string()};
+  }
+  return {{str.begin(), str.begin() + pos},
+          {str.begin() + pos + c.size(), str.end()}};
+}
+
+template <class T>
 std::pair<std::basic_string<T>, std::basic_string<T>> PartitionRight(
     const std::basic_string<T>& str, T c) {
   auto iter = std::find(str.rbegin(), str.rend(), c);
@@ -58,6 +78,8 @@ std::pair<std::basic_string<T>, std::basic_string<T>> PartitionRight(
   }
   return {{str.begin(), iter.base() - 1}, {iter.base(), str.end()}};
 }
+
+std::wstring GetExecutableFilename();
 
 class Exception {
  public:

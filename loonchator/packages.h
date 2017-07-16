@@ -39,3 +39,5 @@ class PackageManager {
  private:
   std::map<VersionedPackage, std::wstring> package_to_path_;
 };
+
+std::wstring GetRepositoryPath();

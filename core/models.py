@@ -5,6 +5,7 @@ from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import ugettext as _
+from games.models import Game
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -124,10 +125,18 @@ class TaskQueueElement(models.Model):
 
 
 class Package(models.Model):
+    def __str__(self):
+        return self.name
+
     name = models.CharField(db_index=True, max_length=128)
-    version = models.CharField(max_length=32, null=True, blank=True)
-    md5hash = models.CharField(max_length=32, null=True, blank=True)
-    metadata_ini = models.TextField(null=True, blank=True)
-    creation_date = models.DateTimeField()
     download_perm = models.CharField(max_length=256, default="@all")
-    edit_perm = models.CharField(max_length=256, default="@pkgmgr")
+    edit_perm = models.CharField(max_length=256, default="@pkgadm")
+    game = models.ForeignKey(Game, null=True, blank=True)
+
+
+class PackageVersion(models.Model):
+    package = models.ForeignKey(Package)
+    version = models.CharField(max_length=32)
+    md5hash = models.CharField(max_length=32)
+    metadata_json = models.TextField()
+    creation_date = models.DateTimeField()

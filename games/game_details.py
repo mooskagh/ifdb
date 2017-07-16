@@ -3,6 +3,8 @@ from .tools import (FormatDate, FormatTime, StarsFromRating, RenderMarkdown,
                     ExtractYoutubeId)
 from logging import getLogger
 from statistics import mean, median
+from core.packages import BuildGameUserFingerprint
+from django.conf import settings
 
 logger = getLogger('web')
 
@@ -74,6 +76,12 @@ class GameDetailsBuilder:
         tags = self.GetTagsForDetails()
         votes = self.GetGameScore()
         comments = self.GetGameComments()
+        loonchator_links = []
+        for x in self.game.package_set.all():
+            loonchator_links.append(
+                "%s://rungame/%s" %
+                (('ersatzplut-debug' if settings.DEBUG else 'ersatzplut'),
+                 BuildGameUserFingerprint(self.request, x.id)))
         return {
             'edit_perm': self.request.perm(self.game.edit_perm),
             'comment_perm': self.request.perm(self.game.comment_perm),
@@ -92,6 +100,7 @@ class GameDetailsBuilder:
             'download': download,
             'votes': votes,
             'comments': comments,
+            'loonchator_links': loonchator_links,
         }
 
     def GetAuthors(self):

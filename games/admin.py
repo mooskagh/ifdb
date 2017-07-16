@@ -9,18 +9,13 @@ class GameAuthorAdmin(admin.TabularInline):
     extra = 1
 
 
-class GameURLAdmin(admin.TabularInline):
-    model = GameURL
-    extra = 1
-
-
 @admin.register(Game)
 class GameAdmin(admin.ModelAdmin):
     list_display = ['pk', 'title', 'creation_time', 'added_by']
     list_filter = ['creation_time', 'added_by']
     search_fields = ['pk', 'title']
 
-    inlines = [GameAuthorAdmin, GameURLAdmin]
+    inlines = [GameAuthorAdmin]
 
 
 @admin.register(Author)
