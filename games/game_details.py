@@ -3,7 +3,7 @@ from .tools import (FormatDate, FormatTime, StarsFromRating, RenderMarkdown,
                     ExtractYoutubeId)
 from logging import getLogger
 from statistics import mean, median
-from core.packages import BuildGameUserFingerprint
+from core.views import BuildGameUserFingerprint
 from django.conf import settings
 
 logger = getLogger('web')
