@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"sync"
 
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
@@ -18,9 +20,18 @@ type packageRequest struct {
 	User    string `json:"user,omitempty"`
 }
 
-type packageResponse struct {
-	Error string `json:"error"`
+type packageInfo struct {
+	Package string `json:"package"`
+	Version string `json:"version"`
+	Md5     string `json:"md5"`
 }
+
+type packageResponse struct {
+	Error   string        `json:"error"`
+	Pakages []packageInfo `json:"packages"`
+}
+
+var wg sync.WaitGroup
 
 func fetchPackage(request *packageRequest) (*packageResponse, error) {
 	b := new(bytes.Buffer)
@@ -45,20 +56,50 @@ func fetchPackage(request *packageRequest) (*packageResponse, error) {
 	return response, nil
 }
 
-func runGame(mw *walk.MainWindow, lv *LogView, token string) {
+func runGameForSure(mw *walk.MainWindow, lv *LogView, token string) error {
 	lv.AppendText("Проверка на наличие обновлений игры...")
 
 	rgreq := packageRequest{
 		Token: token,
 	}
 
-	_, err := fetchPackage(&rgreq)
+	rgresp, err := fetchPackage(&rgreq)
 	if err != nil {
-		lv.AppendText("Ошибка: " + err.Error())
-		return
+		return err
+	}
+
+	path, err := filepath.Abs(filepath.Join(filepath.Dir(os.Args[0]), ".."))
+	if err != nil {
+		return err
+	}
+
+	pkgmgr, err := NewPackageOverlord(path)
+	if err != nil {
+		return err
+	}
+
+	for _, v := range rgresp.Pakages {
+		ok, err := pkgmgr.HasPackage(v.Package, v.Version)
+		if err != nil {
+			return err
+		}
+		if ok {
+			lv.AppendText("Пакет " + v.Package + " v" + v.Version + " уже распоследний.")
+		} else {
+			lv.AppendText("Тянем пакет " + v.Package + " v" + v.Version + "...")
+		}
 	}
 
 	// mw.Close()
+	return nil
+}
+
+func runGame(mw *walk.MainWindow, lv *LogView, token string) {
+	err := runGameForSure(mw, lv, token)
+	if err != nil {
+		lv.AppendText("Ошибка: " + err.Error())
+	}
+	wg.Done()
 }
 
 func startCmdProcessor() error {
@@ -90,12 +131,14 @@ func startCmdProcessor() error {
 
 	switch u.Hostname() {
 	case "rungame":
+		wg.Add(1)
 		go runGame(mw, lv, u.Path[1:])
 	default:
 		return errors.New("Непонятная команда:" + u.Hostname())
 	}
 
 	mw.Run()
+	wg.Wait()
 	return nil
 }
 
