@@ -122,7 +122,7 @@ logging.config.dictConfig({
     },
     'handlers': {
         'debug': {
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.WatchedFileHandler',
             'delay': True,
             'filename': os.path.join(LOG_DIR, 'all.DEBUG'),
             'filters': ['require_debug_true'],
@@ -130,7 +130,7 @@ logging.config.dictConfig({
             'level': 0,
         },
         'warnings': {
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.WatchedFileHandler',
             'filename': os.path.join(LOG_DIR, 'all.WARN'),
             'formatter': 'google',
             'level': 'WARN',
@@ -141,19 +141,19 @@ logging.config.dictConfig({
             'level': 'ERROR',
         },
         'crawler': {
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.WatchedFileHandler',
             'filename': os.path.join(LOG_DIR, 'crawler.INFO'),
             'formatter': 'google',
             'level': 'INFO',
         },
         'web': {
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.WatchedFileHandler',
             'filename': os.path.join(LOG_DIR, 'web.INFO'),
             'formatter': 'google',
             'level': 'INFO',
         },
         'worker': {
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.WatchedFileHandler',
             'filename': os.path.join(LOG_DIR, 'worker.INFO'),
             'formatter': 'google',
             'level': 'INFO',
