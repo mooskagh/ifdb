@@ -2,13 +2,44 @@ import json
 from django.views.decorators.csrf import csrf_exempt
 from django.core import signing
 from django.core.signing import BadSignature
+from django.utils import timezone
 from django.http import HttpResponse
 from logging import getLogger
 from django.core.exceptions import SuspiciousOperation
-from .models import Package
+from .models import Package, PackageSession
 from django.contrib.auth import get_user_model
 
 logger = getLogger('web')
+
+
+@csrf_exempt
+def logtime(request):
+    if request.method != 'POST':
+        raise SuspiciousOperation
+    j = json.loads(request.body)
+
+    session_id = signing.loads(j['session'], salt='core.packages.session')
+    timesecs = j['time_secs']
+    finish = j.get('finish', False)
+
+    session = PackageSession.objects.get(pk=session_id)
+    old_time = session.duration_secs or 0
+    if timesecs < old_time:
+        raise SuspiciousOperation
+
+    if timesecs - old_time > (
+            timezone.now() - session.last_update).seconds + 60:
+        raise SuspiciousOperation
+
+    if session.is_finished:
+        raise SuspiciousOperation
+
+    session.duration_secs = timesecs
+    session.last_update = timezone.now()
+    session.is_finished = finish
+    session.save()
+
+    return HttpResponse("A cat.")
 
 
 @csrf_exempt
@@ -20,6 +51,7 @@ def fetchpackage(request):
         j = json.loads(request.body)
         user = None
         package = None
+        client = None
         if j.get('token'):
             x = signing.loads(j['token'], salt='core.packages.token')
             package = Package.objects.get(pk=x[0])
@@ -30,11 +62,17 @@ def fetchpackage(request):
         if j.get('user'):
             x = signing.loads(j['user'], salt='core.packages.user')
             user = get_user_model().objects.get(pk=x)
+        client = j.get('client')
 
         if not package:
             raise SuspiciousOperation
 
         response = BuildPackageResponse(user, package)
+
+        if j.get('startsession'):
+            response['session']['session'] = CreateNewSession(
+                package, user, client)
+
     except BadSignature:
         response = {
             'error': "Не удалось удостовериться в подлинности запроса."
@@ -43,6 +81,17 @@ def fetchpackage(request):
         response = {'error': "Неведомая ошибка."}
         logger.exception("Exception in fetchpackage")
     return HttpResponse(json.dumps(response))
+
+
+def CreateNewSession(package, user, client):
+    session = PackageSession()
+    session.package = package
+    session.user = user
+    session.client = client
+    session.start_time = timezone.now()
+    session.last_update = timezone.now()
+    session.save()
+    return signing.dumps(session.id, salt='core.packages.session')
 
 
 def ExpandSelf(s, repl):

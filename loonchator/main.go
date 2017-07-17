@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sync"
+	"time"
 
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
@@ -23,6 +24,12 @@ type packageRequest struct {
 	User         string `json:"user,omitempty"`
 	Client       string `json:"client,omitempty"`
 	StartSession bool   `json:"startsession,omitempty"`
+}
+
+type logTimeRequst struct {
+	Session  string `json:"session"`
+	TimeSecs int    `json:"time_secs"`
+	Finish   bool   `json:"finish,omitempty"`
 }
 
 type packageInfo struct {
@@ -75,6 +82,25 @@ func (m *packageRuntime) SubstituteVars(vars *map[string]string) error {
 }
 
 var wg sync.WaitGroup
+
+func logTime(session string, seconds int, is_finish bool) {
+	request := logTimeRequst{
+		Session:  session,
+		TimeSecs: seconds,
+		Finish:   is_finish,
+	}
+	b := new(bytes.Buffer)
+	err := json.NewEncoder(b).Encode(&request)
+	if err != nil {
+		return
+	}
+	res, err := http.Post(OwnServerPrefix+"logtime",
+		"application/json; charset=utf-8", b)
+	if err != nil {
+		return
+	}
+	res.Body.Close()
+}
 
 func fetchPackageMetadata(request *packageRequest) (*packageResponse, error) {
 	b := new(bytes.Buffer)
@@ -191,8 +217,36 @@ func runGameForSure(mw *walk.MainWindow, lv *LogView, token string) error {
 	}
 
 	mw.Close()
-	cmd.Wait()
-	return nil
+
+	done := make(chan error)
+	go func() { done <- cmd.Wait() }()
+
+	total_time := 0.0
+	logTime(rgresp.Session.Session, 0, false)
+
+	previous_time := time.Now()
+
+	update_time := func() {
+		new_time := time.Now()
+		duration := new_time.Sub(previous_time).Seconds()
+		if duration > 200 {
+			duration = 200
+		}
+		total_time += duration
+		previous_time = new_time
+	}
+
+	for {
+		select {
+		case _ = <-done:
+			update_time()
+			logTime(rgresp.Session.Session, int(total_time), true)
+			return nil
+		case <-time.After(123 * time.Second):
+			update_time()
+			logTime(rgresp.Session.Session, int(total_time), false)
+		}
+	}
 }
 
 func runGame(mw *walk.MainWindow, lv *LogView, token string) {

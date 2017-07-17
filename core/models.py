@@ -147,6 +147,7 @@ class PackageSession(models.Model):
     package = models.ForeignKey(Package, db_index=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True)
     client = models.CharField(max_length=64)
-    duration_mins = models.IntegerField(null=True, blank=True)
+    duration_secs = models.IntegerField(null=True, blank=True)
     start_time = models.DateTimeField()
     last_update = models.DateTimeField()
+    is_finished = models.BooleanField(default=False)
