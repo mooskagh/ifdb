@@ -18,9 +18,11 @@ import (
 )
 
 type packageRequest struct {
-	Token   string `json:"token,omitempty"`
-	Package string `json:"package,omitempty"`
-	User    string `json:"user,omitempty"`
+	Token        string `json:"token,omitempty"`
+	Package      string `json:"package,omitempty"`
+	User         string `json:"user,omitempty"`
+	Client       string `json:"client,omitempty"`
+	StartSession string `json:"startsession,omitempty"`
 }
 
 type packageInfo struct {
@@ -111,7 +113,8 @@ func runGameForSure(mw *walk.MainWindow, lv *LogView, token string) error {
 	lv.AppendText("Проверка на наличие обновлений игры...")
 
 	rgreq := packageRequest{
-		Token: token,
+		Token:        token,
+		StartSession: true,
 	}
 
 	rgresp, err := fetchPackageMetadata(&rgreq)
