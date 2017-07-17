@@ -22,7 +22,7 @@ type packageRequest struct {
 	Package      string `json:"package,omitempty"`
 	User         string `json:"user,omitempty"`
 	Client       string `json:"client,omitempty"`
-	StartSession string `json:"startsession,omitempty"`
+	StartSession bool   `json:"startsession,omitempty"`
 }
 
 type packageInfo struct {
@@ -41,7 +41,13 @@ type packageRuntime struct {
 	Execute packageExecute `json:"execute"`
 }
 
+type sessionResponse struct {
+	User    string `json:"user"`
+	Session string `json:"session"`
+}
+
 type packageResponse struct {
+	Session   sessionResponse   `json:"session"`
 	Error     string            `json:"error"`
 	Pakages   []packageInfo     `json:"packages"`
 	Variables map[string]string `json:"variables"`
@@ -112,15 +118,23 @@ func substitueVars(s string, vars *map[string]string) (string, error) {
 func runGameForSure(mw *walk.MainWindow, lv *LogView, token string) error {
 	lv.AppendText("Проверка на наличие обновлений игры...")
 
+	config := LoadConfig()
 	rgreq := packageRequest{
 		Token:        token,
 		StartSession: true,
+		User:         config.User,
+		Client:       config.Client,
 	}
 
 	rgresp, err := fetchPackageMetadata(&rgreq)
 	if err != nil {
 		return err
 	}
+
+	if rgresp.Session.User != "" {
+		config.User = rgresp.Session.User
+	}
+	StoreConfig(config)
 
 	path, err := filepath.Abs(filepath.Join(filepath.Dir(os.Args[0]), ".."))
 	if err != nil {
