@@ -7,7 +7,7 @@
             {% if x.slug == slug %}
                 <div class="doc-list-current">{{x.title}}</div>
             {% else %}
-                <div><a href="{% url 'showdoc' slug %}">{{x.title}}</a></div>
+                <div><a href="{% url 'showdoc' x.slug %}">{{x.title}}</a></div>
             {% endif %}
         {% endfor %}
     </div>
