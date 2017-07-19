@@ -67,14 +67,15 @@
                         Скачать:
                         {% for x in download %}
                             <span class="button-like">
-                                <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}" download>
+                                <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}"
+                                        {% if x.category.symbolic_id == 'download_direct' %}download{% endif %}>
                                     {% if x.url.is_broken %}
                                         <img src="{% static 'brokenlink.svg' %}"/>
                                     {% endif %}
                                     {{x.description}}
                                 </a>
                                 {% if x.HasLocalUrl %}
-                                    <a title="Скачать резервную копию" href="{{ x.GetLocalUrl }}"><img src="{% static 'localbackup.svg' %}"/></a>
+                                    <a title="Скачать резервную копию" href="{{ x.GetLocalUrl }}" download><img src="{% static 'localbackup.svg' %}"/></a>
                                 {% endif %}
                             </span>
                         {% endfor %}
@@ -120,6 +121,28 @@
             </div>
             {% endif %}
             <div class="leftpane">
+                {% for x in loonchator_links %}
+                    <a class="start-lunchator" href="{{x}}">Запустить в ЛУНЧАТОРЕ!</a>
+                {% endfor %}
+                {% if loonchator_links %}
+                <div class="loonchator-fail">
+                    <h2>ВНИМАНИЕ!</h2>
+                    <h2>ПРОИЗВОДИТСЯ ЗАПУСК ЛУНЧАТОРА!</h2>
+                    <ul>
+                        <li>Если у вас лунчатор установлен, он сейчас должен
+                            запуститься (возможно браузер спросит разрешения).
+                        <li>Если у вас лунчатор не установлен, то
+                            <a href="{% url 'showdoc' 'loonchator' %}">тут его можно скачать</a>,
+                            установить, и затем попробовать ещё раз.
+                        <li>Если лунчатор установлен и всё равно не
+                            запускается, то не знаю... Попробуйте
+                            переустановить лунчатор. Или ещё бывает что в
+                            настройках браузера запрещено. Если это так,
+                            особенно в хроме, то вам не очень-то повезло.
+                            Но есть способ.
+                    </ul>
+                </div>
+                {% endif %}
                 <div class="game-description">
                     {{ markdown|safe }}
                 </div>

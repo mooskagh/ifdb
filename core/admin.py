@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import TaskQueueElement, User
+from .models import (TaskQueueElement, User, Package, PackageVersion,
+                     PackageSession, Document)
 from django.contrib.sessions.models import Session
 
 
@@ -29,3 +30,33 @@ class UserAdmin(admin.ModelAdmin):
     ]
     search_fields = ['username']
     list_filter = ['last_login', 'is_active']
+
+
+class InlinePackageVersionAdmin(admin.TabularInline):
+    model = PackageVersion
+    extra = 1
+
+
+@admin.register(Package)
+class PackageAdmin(admin.ModelAdmin):
+    search_fields = ['name', 'game__title']
+    list_display = ['name', 'download_perm', 'edit_perm', 'game']
+    raw_id_fields = ['game']
+    inlines = [InlinePackageVersionAdmin]
+
+
+@admin.register(PackageSession)
+class PackageSessionAdmin(admin.ModelAdmin):
+    def package_gam(self, obj):
+        return obj.package.game
+
+    list_display = [
+        'package_gam', 'user', 'start_time', 'duration_secs', 'last_update',
+        'is_finished'
+    ]
+
+@admin.register(Document)
+class DocumentAdmin(admin.ModelAdmin):
+    list_display = ['title', 'last_update', 'view_perm', 'list_perm', 'order']
+    list_filter = ['last_update', 'view_perm', 'list_perm']
+    search_fields = ['title', 'text']

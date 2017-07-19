@@ -3,12 +3,12 @@
     <div class="content-box">
         <h2>Последние добавленные</h2>
         <div class="gamelist-thumb-container">
-            {% for g in top %}
+            {% for g in lastx %}
                 <a class="gamelist-thumb gamelist-thumb-index" href="{% url 'show_game' game_id=g.id %}">
                     <div class="poster-container">
                         <img class="poster" src="{{ g.poster|default:'/static/noposter.png' }}"/>
                     </div>
-                    <div class="title-container">
+                    <div class="title-container title-container-low">
                         {{ g.title }}
                     </div>
                     <div class="search-author">
@@ -16,6 +16,7 @@
                             {{x.author.name}}{% if not forloop.last %},{% endif %}
                         {% endfor %}
                     </div>
+                    <div class="title-container-date">{{ g.lag }}</div>
                 </a>
             {% endfor %}
         </div>

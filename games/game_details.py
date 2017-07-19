@@ -3,6 +3,8 @@ from .tools import (FormatDate, FormatTime, StarsFromRating, RenderMarkdown,
                     ExtractYoutubeId)
 from logging import getLogger
 from statistics import mean, median
+from core.views import BuildPackageUserFingerprint
+from django.conf import settings
 
 logger = getLogger('web')
 
@@ -29,7 +31,7 @@ def Partition(links, partitions):
 
 def AnnotateMedia(media):
     res = []
-    media.sort(key=lambda x : x.description)
+    media.sort(key=lambda x: x.description)
     for y in media:
         val = {}
         if y.category.symbolic_id in ['poster', 'screenshot']:
@@ -74,6 +76,14 @@ class GameDetailsBuilder:
         tags = self.GetTagsForDetails()
         votes = self.GetGameScore()
         comments = self.GetGameComments()
+        loonchator_links = []
+        for x in self.game.package_set.all():
+            loonchator_links.append(
+                "%s://rungame/%s" %
+                (('ersatzplut-debug' if settings.DEBUG else 'ersatzplut'),
+                 BuildPackageUserFingerprint(
+                     self.request.user
+                     if self.request.user.is_authenticated else None, x.id)))
         return {
             'edit_perm': self.request.perm(self.game.edit_perm),
             'comment_perm': self.request.perm(self.game.comment_perm),
@@ -92,6 +102,7 @@ class GameDetailsBuilder:
             'download': download,
             'votes': votes,
             'comments': comments,
+            'loonchator_links': loonchator_links,
         }
 
     def GetAuthors(self):

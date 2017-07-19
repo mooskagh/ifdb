@@ -14,10 +14,10 @@ class PlutImporter:
         return ImportFromPlut(url)
 
     def GetUrlCandidates(self):
-        return []
-
-    def GetUrlCandidates(self):
         return GetCandidates()
+
+    def GetDirtyUrls(self):
+        return []
 
 
 PLUT_LISTING_TITLE_RE = re.compile(

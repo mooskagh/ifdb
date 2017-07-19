@@ -60,7 +60,8 @@ def LastComments(request):
         '-creation_time')[:100]
     res = []
     for x in comments:
-        if x.game.id in games: continue
+        if x.game.id in games:
+            continue
         games.add(x.game.id)
         res.append({
             'lag':
@@ -74,7 +75,8 @@ def LastComments(request):
             'subject':
                 x.subject or '...',
         })
-        if len(res) == 4: break
+        if len(res) == 4:
+            break
     return res
 
 
@@ -85,7 +87,8 @@ def LastUrlCat(request, cat, limit):
 
     res = []
     for x in urls:
-        if x.game.id in games: continue
+        if x.game.id in games:
+            continue
         games.add(x.game.id)
         res.append({
             'lag':
@@ -100,13 +103,16 @@ def LastUrlCat(request, cat, limit):
             'desc':
                 x.description,
         })
-        if len(res) == limit: break
+        if len(res) == limit:
+            break
     return res
 
 
 def index(request):
     res = {}
-    res['top'] = SnippetFromSearchForIndex(request, '00')
+    res['lastx'] = SnippetFromSearchForIndex(request, '00')
+    for x in res['lastx']:
+        x.lag = FormatLag((x.creation_time - timezone.now()).total_seconds())
     res['best'] = SnippetFromSearchForIndex(request, '04')
     res['comments'] = LastComments(request)
     res['videos'] = LastUrlCat(request, 'video', 5)
@@ -275,8 +281,8 @@ def play_in_interpreter(request, gameurl_id):
 
     try:
         res['data'] = data = InterpretedGameUrl.objects.get(pk=gameurl_id)
-        res['format'] = os.path.splitext(data.recoded_filename or
-                                         o_u.url.local_filename)[1].lower()
+        res['format'] = os.path.splitext(data.recoded_filename
+                                         or o_u.url.local_filename)[1].lower()
         res['conf'] = json.loads(data.configuration_json)
 
         form = UrqwInterpreterForm({
@@ -439,6 +445,8 @@ def json_search(request):
                             'download_direct', 'download_landing'
                         ],
                         game=OuterRef('pk'))),
+            'loonchator_count':
+                Count('package'),
         })
 
     posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
@@ -459,6 +467,7 @@ def json_search(request):
         x.icons['isparser'] = x.isparser
         x.icons['playonline'] = x.playonline
         x.icons['downloadable'] = x.downloadable
+        x.icons['loonchator'] = x.loonchator_count > 0
 
     res = render(request, 'games/search_snippet.html', {
         'games': games,

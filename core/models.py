@@ -5,6 +5,8 @@ from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import ugettext as _
+from django.conf import settings
+from games.models import Game
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -121,3 +123,42 @@ class TaskQueueElement(models.Model):
     pending = models.BooleanField(default=True)
     success = models.BooleanField(default=False)
     fail = models.BooleanField(default=False)
+
+
+class Package(models.Model):
+    def __str__(self):
+        return self.name
+
+    name = models.CharField(db_index=True, max_length=128)
+    download_perm = models.CharField(max_length=256, default="@all")
+    edit_perm = models.CharField(max_length=256, default="@pkgadm")
+    game = models.ForeignKey(Game, null=True, blank=True)
+
+
+class PackageVersion(models.Model):
+    package = models.ForeignKey(Package)
+    version = models.CharField(max_length=32)
+    md5hash = models.CharField(max_length=32)
+    metadata_json = models.TextField()
+    creation_date = models.DateTimeField()
+
+
+class PackageSession(models.Model):
+    package = models.ForeignKey(Package, db_index=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True)
+    client = models.CharField(max_length=64)
+    duration_secs = models.IntegerField(null=True, blank=True)
+    start_time = models.DateTimeField()
+    last_update = models.DateTimeField()
+    is_finished = models.BooleanField(default=False)
+
+
+class Document(models.Model):
+    slug = models.SlugField(db_index=True)
+    parent = models.ForeignKey('Document', null=True, blank=True)
+    title = models.CharField(max_length=256)
+    text = models.TextField()
+    last_update = models.DateTimeField()
+    view_perm = models.CharField(max_length=256, default="@admin")
+    list_perm = models.CharField(max_length=256, default="@admin")
+    order = models.IntegerField(default=0)

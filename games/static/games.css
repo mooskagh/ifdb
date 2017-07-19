@@ -127,6 +127,38 @@ textarea {
     background-color: #f8f8f8;
 }
 
+.doc-outer {
+    border: 1px solid #31322d;
+    box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
+    border-radius: 2.5px;
+    display: flex;
+    flex-direction: row;
+}
+
+.doc-list {
+    background-color: #31322d;
+    color: #f2f1eb;
+    float: left;
+    padding: 10px;
+    width: 20%;
+}
+
+.doc-list a {
+    color: #f2f1eb;
+    text-decoration: none;
+}
+
+.doc-list-current {
+    font-weight: bold;
+}
+
+.doc-content {
+    background-color: #F2F1EB;
+    float: left;
+    padding: 10px;
+    flex: 1;
+}
+
 .root {
     background-image: url("/static/f5ce5546.png");
     background-color: #625b61;
@@ -358,6 +390,10 @@ a.gamelist-thumb-index .title-container {
     padding: 3px;
 }
 
+a.gamelist-thumb-index .title-container.title-container-low {
+    height: 33px;
+}
+
 a.gamelist-thumb-search .title-container {
     padding: 5px;
 }
@@ -556,6 +592,15 @@ textarea#description {
     margin: 0.1em;
     display: inline-block;
     font-size: 95%;
+}
+
+.loonchator-fail {
+    display: none;
+    border: 1px solid red;
+}
+
+.loonchator-fail h2 {
+    text-align: center;
 }
 
 #messagebox {
@@ -836,6 +881,22 @@ progress::-webkit-progress-value {
     cursor: pointer;
     display: inline-block;
     max-height: 90px;
+}
+
+.start-lunchator {
+    display: block;
+    margin: auto;
+    width: 200px;
+    background-color: #00487c;
+    border: none;
+    color: #F2F1EB;
+    text-align: center;
+    box-shadow: -2px 3px 2px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    text-decoration: none;
+    cursor: pointer;
+    border-radius: 2px;
+    padding: 10px;
 }
 
 .largeslider {

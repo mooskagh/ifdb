@@ -1,0 +1,18 @@
+{% extends "./base.html" %}
+{% load tags %}
+{% block content %}
+<div class="doc-outer">
+    <div class="doc-list">
+        {% for x in links %}
+            {% if x.slug == slug %}
+                <div class="doc-list-current">{{x.title}}</div>
+            {% else %}
+                <div><a href="{% url 'showdoc' x.slug %}">{{x.title}}</a></div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    <div class="doc-content">
+        {{ text|safe }}
+    </div>
+</div>
+{% endblock %}

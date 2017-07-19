@@ -22,6 +22,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     url(r'^$', lambda r: HttpResponseRedirect('index/')),
     url(r'^adminz/', admin.site.urls, name='admin'),
+    url(r'^', include('core.urls'), name='api'),
     url(r'^', include('games.urls'), name='games'),
 ]
 

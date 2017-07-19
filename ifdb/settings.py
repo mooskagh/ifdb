@@ -51,7 +51,7 @@ if IS_PROD:
     SERVER_EMAIL = 'ersatzplut@gmail.com'
     EMAIL_HOST_PASSWORD = open(
         '/home/ifdb/configs/gmail-pass.txt').read().strip()
-    CRAWLER_CACHE_DIR = '/home/ifdb/tmp/urlcache/'
+    CRAWLER_CACHE_DIR = None  # '/home/ifdb/tmp/urlcache/'
     TMP_DIR = '/home/ifdb/tmp/tmp/'
     LOG_DIR = '/home/ifdb/logs/'
     EXTRACTOR_PATH = '/bin/unar "%s" -o "%s"'
@@ -122,15 +122,17 @@ logging.config.dictConfig({
     },
     'handlers': {
         'debug': {
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.WatchedFileHandler',
             'delay': True,
+            'encoding': 'utf-8',
             'filename': os.path.join(LOG_DIR, 'all.DEBUG'),
             'filters': ['require_debug_true'],
             'formatter': 'google',
             'level': 0,
         },
         'warnings': {
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.WatchedFileHandler',
+            'encoding': 'utf-8',
             'filename': os.path.join(LOG_DIR, 'all.WARN'),
             'formatter': 'google',
             'level': 'WARN',
@@ -141,19 +143,22 @@ logging.config.dictConfig({
             'level': 'ERROR',
         },
         'crawler': {
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.WatchedFileHandler',
+            'encoding': 'utf-8',
             'filename': os.path.join(LOG_DIR, 'crawler.INFO'),
             'formatter': 'google',
             'level': 'INFO',
         },
         'web': {
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.WatchedFileHandler',
+            'encoding': 'utf-8',
             'filename': os.path.join(LOG_DIR, 'web.INFO'),
             'formatter': 'google',
             'level': 'INFO',
         },
         'worker': {
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.WatchedFileHandler',
+            'encoding': 'utf-8',
             'filename': os.path.join(LOG_DIR, 'worker.INFO'),
             'formatter': 'google',
             'level': 'INFO',

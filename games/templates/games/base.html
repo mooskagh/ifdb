@@ -39,6 +39,7 @@
                         Добавить&nbsp;игру
                     </a>
                 {% endif %}
+                <a class="{% current '/docs/' %}" href="{% url 'showdoc' 'index' %}">Справка</a>
                 {% if user.is_staff %}
                     <a href="/adminz">Админка</a>
                 {% endif %}
