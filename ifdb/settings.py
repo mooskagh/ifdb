@@ -124,6 +124,7 @@ logging.config.dictConfig({
         'debug': {
             'class': 'logging.handlers.WatchedFileHandler',
             'delay': True,
+            'encoding': 'utf-8',
             'filename': os.path.join(LOG_DIR, 'all.DEBUG'),
             'filters': ['require_debug_true'],
             'formatter': 'google',
@@ -131,6 +132,7 @@ logging.config.dictConfig({
         },
         'warnings': {
             'class': 'logging.handlers.WatchedFileHandler',
+            'encoding': 'utf-8',
             'filename': os.path.join(LOG_DIR, 'all.WARN'),
             'formatter': 'google',
             'level': 'WARN',
@@ -142,18 +144,21 @@ logging.config.dictConfig({
         },
         'crawler': {
             'class': 'logging.handlers.WatchedFileHandler',
+            'encoding': 'utf-8',
             'filename': os.path.join(LOG_DIR, 'crawler.INFO'),
             'formatter': 'google',
             'level': 'INFO',
         },
         'web': {
             'class': 'logging.handlers.WatchedFileHandler',
+            'encoding': 'utf-8',
             'filename': os.path.join(LOG_DIR, 'web.INFO'),
             'formatter': 'google',
             'level': 'INFO',
         },
         'worker': {
             'class': 'logging.handlers.WatchedFileHandler',
+            'encoding': 'utf-8',
             'filename': os.path.join(LOG_DIR, 'worker.INFO'),
             'formatter': 'google',
             'level': 'INFO',
