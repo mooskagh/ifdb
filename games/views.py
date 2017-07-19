@@ -611,7 +611,7 @@ def UpdateGameTags(request, game, tags, update):
             game.tags.add(*tags_to_add)
 
     if existing_tags:
-        game.tags.filter(id__in=existing_tags).delete()
+        game.tags.remove(*list(game.tags.filter(id__in=existing_tags)))
 
 
 def UpdateGameUrls(request, game, data, update):
