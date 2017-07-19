@@ -292,7 +292,7 @@ class WikiParsingContext:
             return 'Media'
         if name in IFWIKI_IGNORE:
             return ''
-        logger.error('Unknown template: %s %s' % (name, params))
+        logger.warning('Unknown template: %s %s' % (name, params))
         return ''
 
     def ParseTemplate(self, node):
@@ -319,12 +319,12 @@ def toolset_preproc(context):
         node.value = '&%s;' % node.leaf()
 
     def substitute_numbered_entity(node):
-        logger.error('O url: %s, title:%s\n%s' % (context.url, context.title,
-                                                  node))
+        logger.warning('O url: %s, title:%s\n%s' % (context.url, context.title,
+                                                    node))
 
     def substitute_template_parameter(node):
-        logger.error('N url: %s, title:%s\n%s' % (context.url, context.title,
-                                                  node))
+        logger.warning('N url: %s, title:%s\n%s' % (context.url, context.title,
+                                                    node))
 
     def substitute_template(node):
         node.value = context.ParseTemplate(node)
@@ -485,8 +485,8 @@ def toolset_wiki(context):
         elif node.value[0].value in autoclose_tags:
             node.value = autoclose_tags[node.value[0].value]
         else:
-            logger.error('A url: %s, title:%s\n%s' % (context.url,
-                                                      context.title, node))
+            logger.warning('A url: %s, title:%s\n%s' % (context.url,
+                                                        context.title, node))
             node.value = ''
 
     def render_tag_close(node):
