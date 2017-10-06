@@ -133,7 +133,7 @@ class InterpretedGameUrl(models.Model):
         null=True, blank=True, max_length=255)
 
 
-class Author(models.Model):
+class AuthorAlias(models.Model):
     class Meta:
         default_permissions = ()
 
@@ -164,7 +164,7 @@ class GameAuthor(models.Model):
         return "%s -- %s (%s)" % (self.game, self.author, self.role)
 
     game = models.ForeignKey(Game)
-    author = models.ForeignKey(Author)
+    author = models.ForeignKey(AuthorAlias)
     role = models.ForeignKey(GameAuthorRole)
 
 

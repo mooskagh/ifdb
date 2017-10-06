@@ -1,5 +1,5 @@
 import re
-from .models import (Game, GameTag, GameTagCategory, URL, Author,
+from .models import (Game, GameTag, GameTagCategory, URL, AuthorAlias,
                      GameAuthorRole)
 import statistics
 from .tools import FormatDate, StarsFromRating
@@ -338,9 +338,10 @@ class SB_Authors(SearchBit):
         res = super().ProduceDict('authors')
         res['role'] = self.role
         items = []
-        for x in (Author.objects.filter(gameauthor__role=self.role).annotate(
-                Count('gameauthor__game')).order_by('-gameauthor__game__count')
-                  ):
+        for x in (AuthorAlias.objects.filter(
+                gameauthor__role=self.role).annotate(
+                    Count('gameauthor__game')).order_by(
+                        '-gameauthor__game__count')):
             items.append({
                 'id': x.id,
                 'name': x.name,
@@ -438,21 +439,21 @@ class SB_UserFlags(SB_Flags):
 
     QUERIES = {
         0:
-            Q(gameurl__category__symbolic_id='video'),
+        Q(gameurl__category__symbolic_id='video'),
         1:
-            Q(gameurl__category__symbolic_id='review'),
+        Q(gameurl__category__symbolic_id='review'),
         2:
-            Q(gamecomment__isnull=False),
+        Q(gamecomment__isnull=False),
         3:
-            Q(gameurl__category__symbolic_id='forum'),
+        Q(gameurl__category__symbolic_id='forum'),
         4:
-            Q(gameurl__category__symbolic_id__in=[
-                'download_direct', 'download_landing'
-            ]),
-        5: (Q(gameurl__category__symbolic_id='play_online') |
-            Q(gameurl__interpretedgameurl__is_playable=True)),
+        Q(gameurl__category__symbolic_id__in=[
+            'download_direct', 'download_landing'
+        ]),
+        5: (Q(gameurl__category__symbolic_id='play_online')
+            | Q(gameurl__interpretedgameurl__is_playable=True)),
         6:
-            Q(package__isnull=False),
+        Q(package__isnull=False),
     }
 
 
@@ -479,27 +480,27 @@ class SB_AuxFlags(SB_Flags):
 
     QUERIES = {
         0:
-            Q(gameurl__category__symbolic_id='unknown'),
+        Q(gameurl__category__symbolic_id='unknown'),
         1:
-            Q(gameauthor__count=0),
+        Q(gameauthor__count=0),
         2:
-            Q(release_date__isnull=True),
+        Q(release_date__isnull=True),
         3:
-            Q(gameurl__interpretedgameurl__is_playable=True),
+        Q(gameurl__interpretedgameurl__is_playable=True),
         4: (Q(gameurl__interpretedgameurl__isnull=False) & Q(
             gameurl__interpretedgameurl__is_playable__isnull=True)),
         5:
-            Q(gameurl__interpretedgameurl__is_playable=False),
+        Q(gameurl__interpretedgameurl__is_playable=False),
         6:
-            Q(gameauthor__role__symbolic_id='member'),
+        Q(gameauthor__role__symbolic_id='member'),
         7:
-            Q(edit_time__isnull=False),
+        Q(edit_time__isnull=False),
         8:
-            Q(gameurl__url__in=URL.objects.annotate(
-                Count('gameurl__game', distinct=True)).filter(
-                    gameurl__game__count__gt=1)),
+        Q(gameurl__url__in=URL.objects.annotate(
+            Count('gameurl__game', distinct=True)).filter(
+                gameurl__game__count__gt=1)),
         9:
-            Q(gameurl__url__is_broken=True),
+        Q(gameurl__url__is_broken=True),
     }
 
 

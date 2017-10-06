@@ -1,7 +1,7 @@
 from django.contrib import admin
-from .models import (Game, Author, GameTagCategory, GameTag, URL, URLCategory,
-                     GameURL, GameAuthorRole, GameAuthor, GameVote,
-                     GameComment, InterpretedGameUrl)
+from .models import (Game, AuthorAlias, GameTagCategory, GameTag, URL,
+                     URLCategory, GameURL, GameAuthorRole, GameAuthor,
+                     GameVote, GameComment, InterpretedGameUrl)
 
 
 class GameAuthorAdmin(admin.TabularInline):
@@ -18,8 +18,8 @@ class GameAdmin(admin.ModelAdmin):
     inlines = [GameAuthorAdmin]
 
 
-@admin.register(Author)
-class AuthorAdmin(admin.ModelAdmin):
+@admin.register(AuthorAlias)
+class AuthorAliasAdmin(admin.ModelAdmin):
     list_display = ['name', 'pk']
     search_fields = ['pk', 'name']
 

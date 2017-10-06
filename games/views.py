@@ -65,15 +65,15 @@ def LastComments(request):
         games.add(x.game.id)
         res.append({
             'lag':
-                FormatLag((x.creation_time - timezone.now()).total_seconds()),
+            FormatLag((x.creation_time - timezone.now()).total_seconds()),
             'username':
-                x.user,
+            x.user,
             'game':
-                x.game.title,
+            x.game.title,
             'id':
-                x.game.id,
+            x.game.id,
             'subject':
-                x.subject or '...',
+            x.subject or '...',
         })
         if len(res) == 4:
             break
@@ -92,16 +92,15 @@ def LastUrlCat(request, cat, limit):
         games.add(x.game.id)
         res.append({
             'lag':
-                FormatLag(
-                    (x.url.creation_date - timezone.now()).total_seconds()),
+            FormatLag((x.url.creation_date - timezone.now()).total_seconds()),
             'url':
-                x.url.original_url,
+            x.url.original_url,
             'game':
-                x.game.title,
+            x.game.title,
             'id':
-                x.game.id,
+            x.game.id,
             'desc':
-                x.description,
+            x.description,
         })
         if len(res) == limit:
             break
@@ -339,7 +338,7 @@ def authors(request):
     for x in GameAuthorRole.objects.order_by('order', 'title').all():
         res['roles'].append({'title': x.title, 'id': x.id})
 
-    for x in Author.objects.order_by('name').all():
+    for x in AuthorAlias.objects.order_by('name').all():
         res['authors'].append({'name': x.name, 'id': x.id})
 
     return res
@@ -424,29 +423,29 @@ def json_search(request):
         limit=limit,
         annotate={
             'gamecomment__count':
-                Count('gamecomment'),
+            Count('gamecomment'),
             'hasvideo':
-                Exists(
-                    GameURL.objects.filter(
-                        category__symbolic_id='video', game=OuterRef('pk'))),
+            Exists(
+                GameURL.objects.filter(
+                    category__symbolic_id='video', game=OuterRef('pk'))),
             'isparser':
-                Exists(
-                    GameTag.objects.filter(
-                        symbolic_id='parser', game=OuterRef('pk'))),
+            Exists(
+                GameTag.objects.filter(
+                    symbolic_id='parser', game=OuterRef('pk'))),
             'playonline':
-                Exists(
-                    GameURL.objects.filter(game=OuterRef('pk')).filter(
-                        Q(category__symbolic_id='play_online') | Q(
-                            interpretedgameurl__is_playable=True))),
+            Exists(
+                GameURL.objects.filter(game=OuterRef('pk')).filter(
+                    Q(category__symbolic_id='play_online') | Q(
+                        interpretedgameurl__is_playable=True))),
             'downloadable':
-                Exists(
-                    GameURL.objects.filter(
-                        category__symbolic_id__in=[
-                            'download_direct', 'download_landing'
-                        ],
-                        game=OuterRef('pk'))),
+            Exists(
+                GameURL.objects.filter(
+                    category__symbolic_id__in=[
+                        'download_direct', 'download_landing'
+                    ],
+                    game=OuterRef('pk'))),
             'loonchator_count':
-                Count('package'),
+            Count('package'),
         })
 
     posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
