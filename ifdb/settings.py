@@ -98,6 +98,7 @@ else:
     ]
     EXTRACTOR_PATH = '"C:/Program Files/7-Zip/7z.exe" x "%s" "-O%s"'
     LOG_DIR = os.path.join(BASE_DIR, 'tmp/logs')
+    WORKER_PID_FILE = os.path.join(BASE_DIR, 'tmp/ifdbworker.pid')
 
 LOGGING_CONFIG = None
 
@@ -109,7 +110,7 @@ logging.config.dictConfig({
             'format': ('%(levelname).1s%(asctime)s.%(msecs)03d %(name)s '
                        '%(filename)s:%(lineno)d] %(message)s'),
             'datefmt':
-                '%m%d %H:%M:%S',
+            '%m%d %H:%M:%S',
         }
     },
     'filters': {
@@ -271,15 +272,15 @@ WSGI_APPLICATION = 'ifdb.wsgi.application'
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME':
-            'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
         'NAME':
-            'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
         'NAME':
-            'django.contrib.auth.password_validation.CommonPasswordValidator',
+        'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     # {
     #     'NAME':
