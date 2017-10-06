@@ -96,7 +96,8 @@ else:
         'debug_toolbar.panels.logging.LoggingPanel',
         'debug_toolbar.panels.redirects.RedirectsPanel',
     ]
-    EXTRACTOR_PATH = '"C:/Program Files/7-Zip/7z.exe" x "%s" "-O%s"'
+    # EXTRACTOR_PATH = '"C:/Program Files/7-Zip/7z.exe" x "%s" "-O%s"'
+    EXTRACTOR_PATH = '/bin/unar "%s" -o "%s"'
     LOG_DIR = os.path.join(BASE_DIR, 'tmp/logs')
     WORKER_PID_FILE = os.path.join(BASE_DIR, 'tmp/ifdbworker.pid')
 
