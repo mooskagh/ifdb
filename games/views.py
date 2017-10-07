@@ -367,7 +367,7 @@ def tags(request):
 
 def linktypes(request):
     res = {'categories': []}
-    for x in URLCategory.objects.all():
+    for x in GameURLCategory.objects.all():
         res['categories'].append({
             'id': x.id,
             'title': x.title,
@@ -519,7 +519,7 @@ def Importer2Json(r):
     if 'urls' in r:
         res['links'] = []
         for x in r['urls']:
-            cat = URLCategory.objects.get(symbolic_id=x['urlcat_slug']).id
+            cat = GameURLCategory.objects.get(symbolic_id=x['urlcat_slug']).id
             desc = x.get('description')
             url = x['url']
             res['links'].append([cat, desc, url])
@@ -645,7 +645,7 @@ def UpdateGameUrls(request, game, data, update):
                 cats_to_check.add(c)
 
         cat_to_cloneable = {}
-        for c in URLCategory.objects.filter(id__in=cats_to_check):
+        for c in GameURLCategory.objects.filter(id__in=cats_to_check):
             cat_to_cloneable[c.id] = c.allow_cloning
 
         game_to_task = {}
@@ -672,7 +672,7 @@ def UpdateGameUrls(request, game, data, update):
             obj.url_id = url_to_id[url]
             obj.game = game
             obj.description = desc or None
-            if URLCategory.IsRecodable(cat):
+            if GameURLCategory.IsRecodable(cat):
                 obj.save()
                 Enqueue(
                     RecodeGame,

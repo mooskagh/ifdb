@@ -63,7 +63,7 @@ class URL(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True)
 
 
-class URLCategory(models.Model):
+class GameURLCategory(models.Model):
     class Meta:
         default_permissions = ()
 
@@ -74,11 +74,11 @@ class URLCategory(models.Model):
 
     @staticmethod
     def IsRecodable(id):
-        if URLCategory.RECODABLE_CAT is None:
-            URLCategory.RECODABLE_CAT = URLCategory.objects.get(
+        if GameURLCategory.RECODABLE_CAT is None:
+            GameURLCategory.RECODABLE_CAT = GameURLCategory.objects.get(
                 symbolic_id='play_in_interpreter').id
 
-        return id == URLCategory.RECODABLE_CAT
+        return id == GameURLCategory.RECODABLE_CAT
 
     symbolic_id = models.SlugField(
         max_length=32, null=True, blank=True, db_index=True, unique=True)
@@ -109,7 +109,7 @@ class GameURL(models.Model):
 
     game = models.ForeignKey(Game)
     url = models.ForeignKey(URL)
-    category = models.ForeignKey(URLCategory)
+    category = models.ForeignKey(GameURLCategory)
     description = models.CharField(null=True, blank=True, max_length=255)
 
 
@@ -133,7 +133,20 @@ class InterpretedGameUrl(models.Model):
         null=True, blank=True, max_length=255)
 
 
-class PersonalityAlias(models.Model):
+class PersonalityURLCategory(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    def __str__(self):
+        return self.title
+
+    symbolic_id = models.SlugField(
+        max_length=32, null=True, blank=True, db_index=True, unique=True)
+    title = models.CharField(max_length=255, db_index=True)
+    allow_cloning = models.BooleanField(default=False)
+
+
+class Personality(models.Model):
     class Meta:
         default_permissions = ()
 
@@ -141,6 +154,33 @@ class PersonalityAlias(models.Model):
         return self.name
 
     name = models.CharField(max_length=255)
+    bio = models.TextField(null=True, blank=True)
+    view_perm = models.CharField(
+        _('Game view permission'), max_length=255, default='@all')
+    edit_perm = models.CharField(
+        _('Edit permission'), max_length=255, default='@auth')
+
+
+class PersonalityUrl(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    personality = models.ForeignKey(Personality)
+    url = models.ForeignKey(URL)
+    category = models.ForeignKey(PersonalityURLCategory)
+    description = models.CharField(null=True, blank=True, max_length=255)
+
+
+class PersonalityAlias(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    def __str__(self):
+        return self.name
+
+    personality = models.ForeignKey(Personality, null=True, blank=True)
+    name = models.CharField(max_length=255)
+    hidden_for = models.ForeignKey('PersonalityAlias', null=True, blank=True)
 
 
 class GameAuthorRole(models.Model):

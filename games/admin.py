@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (Game, PersonalityAlias, GameTagCategory, GameTag, URL,
-                     URLCategory, GameURL, GameAuthorRole, GameAuthor,
+                     GameURLCategory, GameURL, GameAuthorRole, GameAuthor,
                      GameVote, GameComment, InterpretedGameUrl)
 
 
@@ -54,8 +54,8 @@ class URLAdmin(admin.ModelAdmin):
     ]
 
 
-@admin.register(URLCategory)
-class URLCategoryAdmin(admin.ModelAdmin):
+@admin.register(GameURLCategory)
+class GameURLCategoryAdmin(admin.ModelAdmin):
     list_display = ['title', 'symbolic_id', 'allow_cloning']
     search_fields = ['title', 'symbolic_id']
 
