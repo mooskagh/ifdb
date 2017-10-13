@@ -641,7 +641,7 @@ def UpdatePersonalityUrls(request, alias_id, data, update):
             if 'bio' in x:
                 bio = x['bio']
             if 'canonical' in x:
-                y = PersonalityAlias.filter(name=x['canonical'])[1:]
+                y = PersonalityAlias.objects.filter(name=x['canonical'])[1:]
                 if y and y.personality:
                     personality = y.personality
                     alias.personality = y.personality
