@@ -50,7 +50,9 @@ def GetDirtyUrls(age_minutes):
 
     res = []
     for batch in _batch(list(ids)):
-        pageidlist = '|'.join(["%d" % x for x in batch])
+        pageidlist = '|'.join(["%d" % x for x in batch if x != 0])
+        if not pageidlist:
+          continue
         r = json.loads(
             FetchUrlToString(
                 r'http://ifwiki.ru/api.php?action=query&prop=info&format=json&'
