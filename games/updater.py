@@ -141,9 +141,11 @@ def UpdateGameTags(request, game, tags, update):
 
 def UpdatePersonalityUrls(request, alias_id, data, update):
     alias = PersonalityAlias.objects.get(pk=alias_id)
+    filtered_data = []
     if alias.personality:
         personality = alias.personality
         bio = personality.bio
+        filtered_data = data
     else:
         personality = None
         bio = None
@@ -151,6 +153,15 @@ def UpdatePersonalityUrls(request, alias_id, data, update):
             if typ != PersonalityURLCategory.OtherSiteCatId():
                 continue
             x = ImportAuthor(url)
+            if 'urls' in x:
+                for y in x['urls']:
+                    if not y['urlcat_slug']:
+                        continue
+                    filtered_data.append((
+                        PersonalityURLCategory.objects.get(
+                            symbolic_id=y['urlcat_slug']).id,
+                        y['description'],
+                        y['url'], ))
             if 'bio' in x:
                 bio = x['bio']
             if 'canonical' in x:
@@ -160,7 +171,9 @@ def UpdatePersonalityUrls(request, alias_id, data, update):
                     alias.personality = y.personality
                     bio = y.personality.bio
                     alias.save()
-                    break
+            if 'canonical_url' in x:
+                url = x['canonical_url']
+            filtered_data.append((typ, desc, url))
         if not personality:
             personality = Personality()
             personality.name = alias.name
@@ -170,22 +183,31 @@ def UpdatePersonalityUrls(request, alias_id, data, update):
             alias.personality = personality
             alias.save()
 
+    duplicates = set()
+    data = []
+    for x in filtered_data:
+        v = (x[0], x[2])
+        if v in duplicates:
+            continue
+        duplicates.add(v)
+        data.append(x)
+
     existing_urls = {}  # (cat_id, url_text) -> (persurl, persurl_desc)
-    if update:
-        for x in personality.personalityurl_set.select_related('url').all():
-            existing_urls[(x.category_id,
-                           x.url.original_url)] = (x, x.description or '')
+    for x in personality.personalityurl_set.select_related('url').all():
+        existing_urls[(x.category_id, x.url.original_url)] = (x, x.description
+                                                              or '')
 
     records_to_add = []  # (cat_id, persurl_desc, url_text)
     urls_to_add = []  # (url_text, cat_id)
     for x in data:
         t = (x[0], x[2])
         if t in existing_urls:
-            if x[1] != existing_urls[t][1]:
-                url = existing_urls[t][0]
-                url.description = x[1]
-                url.save()
-            del existing_urls[t]
+            if update:
+                if x[1] != existing_urls[t][1]:
+                    url = existing_urls[t][0]
+                    url.description = x[1]
+                    url.save()
+                del existing_urls[t]
         else:
             records_to_add.append(tuple(x))
             urls_to_add.append((x[2], int(x[0])))
@@ -238,7 +260,7 @@ def UpdatePersonalityUrls(request, alias_id, data, update):
 
         PersonalityUrl.objects.bulk_create(objs)
 
-    if existing_urls:
+    if update and existing_urls:
         PersonalityUrl.objects.filter(
             id__in=[x[0].id for x in existing_urls.values()]).delete()
 

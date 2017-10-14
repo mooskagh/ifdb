@@ -12,7 +12,13 @@ class GameAuthorAdmin(admin.TabularInline):
 
 class InlinePersonalityUrlAdmin(admin.TabularInline):
     model = PersonalityUrl
+    raw_id_fields = ['url']
     extra = 1
+
+
+@admin.register(PersonalityUrl)
+class PersonalityUrlAdmin(admin.ModelAdmin):
+    list_display = ['personality', 'description', 'category', 'url']
 
 
 @admin.register(Game)

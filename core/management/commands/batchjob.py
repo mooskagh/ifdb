@@ -2,6 +2,7 @@ import re
 from django.core.management.base import BaseCommand
 from games.models import (InterpretedGameUrl, URL, Game, GameAuthor,
                           Personality, PersonalityAlias)
+from games.importer import ImportAuthor
 from core.models import TaskQueueElement
 import subprocess
 import os.path

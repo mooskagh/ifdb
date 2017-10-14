@@ -115,10 +115,12 @@ def WikiQuote(name):
     return quote(CapitalizeFirstLetter(name.replace(' ', '_')))
 
 
-REDIRECT_RE = re.compile('#REDIRECT \[\[(.*)\]\]')
+REDIRECT_RE = re.compile('#(?:REDIRECT|ПЕРЕНАПРАВЛЕНИЕ)\s*\[\[(.*)\]\]')
 
 
-def ImportAuthorFromIfwiki(url, res={}):
+def ImportAuthorFromIfwiki(url, res=None):
+    if not res:
+        res = {}
     m = IFWIKI_URL.match(url)
 
     try:
@@ -135,6 +137,7 @@ def ImportAuthorFromIfwiki(url, res={}):
     if m:
         res['canonical'] = m.group(1)
         url_to_fetch = ('http://ifwiki.ru/%s' % WikiQuote(res['canonical']))
+        res['canonical_url'] = url_to_fetch
         return ImportAuthorFromIfwiki(url_to_fetch, res)
 
     context = WikiAuthorParsingContext(name, url)
