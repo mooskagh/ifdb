@@ -7,7 +7,7 @@ from registration.backends.hmac.views import RegistrationView
 urlpatterns = [
     url(r'^index/$', views.index, name='index'),
     # TODO Make it game/add
-    url(r'^gameadd/', views.add_game, name='add_game'),
+    url(r'^game/add/', views.add_game, name='add_game'),
     url(r'^game/edit/(?P<game_id>\d+)/', views.edit_game, name='edit_game'),
     url(r'^game/vote/', views.vote_game, name='vote_game'),
     url(r'^game/store/', views.store_game, name='store_game'),
