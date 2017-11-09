@@ -24,6 +24,7 @@ urlpatterns = [
 
     # Authors
     url(r'^author/$', views.list_authors, name='list_authors'),
+    url(r'^author/(?P<author_id>\d+)/', views.show_author, name='show_author'),
 
     # API
     url(r'^json/gameinfo/', views.json_gameinfo, name='json_gameinfo'),

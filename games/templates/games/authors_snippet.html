@@ -28,7 +28,7 @@
       <img class="avatar-small" src="{% static 'default_author.jpg' %}" />
     </td>
     <td class="textual">
-      <a href="#">{{ a.name }}</a>
+      <a href="{% url 'show_author' author_id=a.id %}">{{ a.name }}</a>
       {% if a.aliases %}
         <br><span class="aliases">
         {% for b in a.aliases %}

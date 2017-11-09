@@ -9,7 +9,7 @@ from .models import (GameURL, GameComment, Game, GameVote, InterpretedGameUrl,
                      GameTagCategory, GameURLCategory, GameAuthor, Personality,
                      PersonalityURLCategory, PersonalityUrl)
 from .search import MakeSearch, MakeAuthorSearch
-from .tools import (FormatLag, ExtractYoutubeId)
+from .tools import (FormatLag, ExtractYoutubeId, RenderMarkdown)
 from .updater import UpdateGame, Importer2Json
 from django import forms
 from django.db import models
@@ -30,16 +30,7 @@ PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
 logger = getLogger('web')
 
 
-def SnippetFromSearchForIndex(request, query, prefetch=[]):
-    s = MakeSearch(request.perm)
-    s.UpdateFromQuery(query)
-    games = s.Search(
-        prefetch_related=[
-            'gameauthor_set__author', 'gameauthor_set__role', *prefetch
-        ],
-        start=0,
-        limit=20)[:5]
-
+def SnippetFromList(games):
     posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
         game__in=games).select_related('url'))
 
@@ -53,6 +44,18 @@ def SnippetFromSearchForIndex(request, query, prefetch=[]):
             x for x in x.gameauthor_set.all() if x.role.symbolic_id == 'author'
         ]
     return games
+
+
+def SnippetFromSearchForIndex(request, query, prefetch=[]):
+    s = MakeSearch(request.perm)
+    s.UpdateFromQuery(query)
+    games = s.Search(
+        prefetch_related=[
+            'gameauthor_set__author', 'gameauthor_set__role', *prefetch
+        ],
+        start=0,
+        limit=20)[:5]
+    return SnippetFromList(games)
 
 
 def LastComments(request):
@@ -206,6 +209,55 @@ def show_game(request, game_id):
         return render(request, 'games/game.html', g.GetGameDict())
     except Game.DoesNotExist:
         raise Http404()
+
+
+def show_author(request, author_id):
+    try:
+        a = Personality.objects.get(pk=author_id)
+        res = {'name': a.name, 'aliases': [], 'links': []}
+        for x in PersonalityAlias.objects.filter(personality=a).annotate(
+                games=Count('gameauthor')).order_by('-games'):
+            if x.name == a.name:
+                continue
+            if x.games == 0:
+                break
+            res['aliases'].append(x.name)
+        if a.bio:
+            res['bio'] = RenderMarkdown(a.bio)
+
+        urls = {}
+        cats = []
+        for x in a.personalityurl_set.all():
+            category = x.category
+            if category in urls:
+                urls[category].append(x)
+            else:
+                cats.append(category)
+                urls[category] = [x]
+        for r in cats:
+            res['links'].append({'category': r, 'items': urls[r]})
+
+        games = dict()
+
+        for g in GameAuthor.objects.filter(
+                author__personality=author_id).select_related():
+            gs = games.setdefault(g.role, [])
+            gs.append(g.game)
+
+        res['games'] = []
+        for role in sorted(games.keys(), key=lambda x: x.order):
+            res['games'].append({
+                'role': (role.title),
+                'games': (SnippetFromList(
+                    sorted(
+                        games[role],
+                        key=lambda x: x.creation_time,
+                        reverse=True))),
+            })
+
+        return render(request, 'games/author.html', res)
+    except Personality.DoesNotExist:
+        raise Http404
 
 
 def list_games(request):

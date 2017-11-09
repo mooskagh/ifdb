@@ -440,7 +440,7 @@
                 <hr>
                 <table>
                     {% for link in links %}
-                        {% for url in link.items %}
+                        {% for x in link.items %}
                             <tr>
                                 <td class="prop-category">
                                     {% if forloop.first %}
@@ -448,11 +448,11 @@
                                     {% endif %}
                                 </td>
                                 <td class="prop-value">
-                                    <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ url.GetRemoteUrl }}">
+                                    <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}">
                                         {% if x.url.is_broken %}
                                             <img src="{% static 'brokenlink.svg' %}"/>
                                         {% endif %}
-                                        {{ url.description }}
+                                        {{ x.description }}
                                     </a>
                                 </td>
                             </tr>

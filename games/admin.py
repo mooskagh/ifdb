@@ -119,7 +119,7 @@ class GameURLAdmin(admin.ModelAdmin):
 
 @admin.register(GameAuthorRole)
 class GameAuthorRoleAdmin(admin.ModelAdmin):
-    list_display = ['title', 'symbolic_id']
+    list_display = ['title', 'symbolic_id', 'order']
     search_fields = ['title', 'symbolic_id']
 
 

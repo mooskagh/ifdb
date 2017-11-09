@@ -1,0 +1,91 @@
+{% extends "./base.html" %}
+{% load tags %}
+{% load static %}
+{% block scripts %}
+    {% if media %}
+    <link rel="stylesheet" type="text/css" href="{% static 'slick/slick.css' %}"/>
+    <link rel="stylesheet" type="text/css" href="{% static 'slick/slick-theme.css' %}"/>
+    <script type="text/javascript" src="{% static 'slick/slick.min.js' %}"></script>
+    {% endif %}
+    <script src="/static/game-details.js"></script>
+{% endblock %}
+{% block content %}
+    <div class="content-box-outer">
+        <div class="content-box-inner">
+            <div class="leftpane">
+                <div class="game-header">
+                    <h1>{{ name }}</h1>
+                    <div class="game-info">
+                    {% if aliases %}
+                        {% if authors|length == 1 %}Псевдоним:{% else %}Псевдонимы:{% endif %}
+                        {% for x in aliases %}
+                            <span class="gameinfo-author">{{ x }}{% if not forloop.last %}, {% endif %}</span>
+                        {% endfor %}
+                    {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="leftpane">
+                {% for gs in games %}
+                    <h1>{{ gs.role }}</h1>
+                    {% for g in gs.games %}
+                        <a class="gamelist-thumb gamelist-thumb-index" href="{% url 'show_game' game_id=g.id %}">
+                            <div class="poster-container">
+                                <img class="poster" src="{{ g.poster|default:'/static/noposter.png' }}"/>
+                            </div>
+                            <div class="title-container">
+                                {{ g.title }}
+                            </div>
+                            <div class="search-author">
+                                {% for x in g.authors %}
+                                    {{x.author.name}}{% if not forloop.last %},{% endif %}
+                                {% endfor %}
+                            </div>
+                            <div class="thumb-index-rating">
+                                {% for x in g.ds.stars %}
+                                    <img src="/static/duck{{x}}.png" />
+                                {% endfor %}
+                            </div>
+                        </a>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+
+
+            <div class="leftpane">
+                <div class="game-description">
+                    {{ bio|safe }}
+                </div>
+            </div>
+
+        {% if links %}
+            <div class="rightpane">
+                <table>
+                    {% for link in links %}
+                        {% for x in link.items %}
+                            <tr>
+                                <td class="prop-category">
+                                    {% if forloop.first %}
+                                        {{ link.category.title }}:
+                                    {% endif %}
+                                </td>
+                                <td class="prop-value">
+                                    <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.url.original_url }}">
+                                        {% if x.url.is_broken %}
+                                            <img src="{% static 'brokenlink.svg' %}"/>
+                                        {% endif %}
+                                        {{ x.description }}
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% endfor %}
+                </table>
+            </div>
+        {% endif %}
+
+        <div style="clear: both;"></div>
+    </div>
+</div>
+{% endblock %}
