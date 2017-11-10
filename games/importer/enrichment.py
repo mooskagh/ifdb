@@ -212,12 +212,18 @@ enricher.AddRule(HasTag('platform', 'dosurq'), AddTag('os_dos'))
 enricher.AddRule(
     And(HasTag('platform', 'qsp'), HasUrlCategory('play_online')),
     AddTag('os_web'))
+# enricher.AddRule(
+#     And(
+#         Or(
+#             HasTag('platform', '.*urq.*'),
+#             IsFromSite('game_page', 'urq.plut.info')),
+#         Not(HasTag('platform', 'fireurq'))),
+#     CloneUrl('download_direct', 'play_in_interpreter',
+#              'Открыть в UrqW: {description:.30}'))
 enricher.AddRule(
-    And(
-        Or(
-            HasTag('platform', '.*urq.*'),
-            IsFromSite('game_page', 'urq.plut.info')),
-        Not(HasTag('platform', 'fireurq'))),
+    Or(
+        HasTag('platform', '.*urq.*'), IsFromSite('game_page',
+                                                  'urq.plut.info')),
     CloneUrl('download_direct', 'play_in_interpreter',
              'Открыть в UrqW: {description:.30}'))
 enricher.AddRule(

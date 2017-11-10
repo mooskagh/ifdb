@@ -156,16 +156,15 @@ def Worker():
                 pending=True
             ).filter(Q(dependency=None) | Q(dependency__success=True)).filter(
                 scheduled_time__isnull=False).order_by('scheduled_time'))[:1]
+            delta = 60 * 60 * 6
             if t:
                 t = t[0]
                 delta = int(
                     (t.scheduled_time - timezone.now()).total_seconds()) + 1
                 logger.info(
                     'All tasks pending, waiting for %d seconds' % delta)
-                if IsPosix():
-                    signal.alarm(delta)
-            else:
-                logger.info('Done everything!')
+            if IsPosix():
+                signal.alarm(min(delta, 60 * 60 * 6))
 
         if IsPosix():
             signal.pause()
