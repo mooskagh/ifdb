@@ -3,12 +3,16 @@ from html import unescape
 from .tools import CategorizeUrl
 from core.crawler import FetchUrlToString
 from html2text import HTML2Text
+from urllib.parse import urljoin
 import datetime
 
 
 class PlutImporter:
     def Match(self, url):
         return PLUT_URL.match(url)
+
+    def MatchAuthor(self, url):
+        return False
 
     def Import(self, url):
         return ImportFromPlut(url)
@@ -60,7 +64,7 @@ PLUT_RELEASE = re.compile(
 PLUT_FIELD = re.compile(r'<div class="field-label">([^<:]+).*?</div>.*?</div>',
                         re.DOTALL)
 
-PLUT_FIELD_ITEM = re.compile(r'<a [^>]+>([^<]+)</a>')
+PLUT_FIELD_ITEM = re.compile(r'<a href="([^"]*)"[^>]*>([^<]+)</a>')
 PLUT_DOWNLOAD_LINK = re.compile(
     r'<td><span class="file"><img class="file-icon" [^>]+> '
     r'<a href="([^"]+)"[^>]*>([^<]*)</a>')
@@ -77,7 +81,11 @@ def ParseFields(html):
     res = []
     for m in PLUT_FIELD.finditer(html):
         for n in PLUT_FIELD_ITEM.finditer(m.group()):
-            res.append([unescape(m.group(1)), unescape(n.group(1))])
+            res.append([
+                unescape(m.group(1)),
+                unescape(n.group(2)),
+                n.group(1),
+            ])
     return res
 
 
@@ -115,7 +123,7 @@ def ImportFromPlut(url):
     tags = []
     authors = []
 
-    for cat, tag in ParseFields(html):
+    for cat, tag, tagurl in ParseFields(html):
         if cat == 'Статус':
             if tag == 'ббета':
                 tags.append({'tag_slug': 'beta'})
@@ -132,7 +140,12 @@ def ImportFromPlut(url):
         elif cat == 'Жанр':
             tags.append({'cat_slug': 'tag', 'tag': tag.lower()})
         elif cat == 'Авторы':
-            authors.append({'role_slug': 'author', 'name': tag})
+            authors.append({
+                'role_slug': 'author',
+                'name': tag,
+                'url': urljoin(url, tagurl),
+                'urldesc': 'Страница автора на urq.plut.info',
+            })
 
     res['tags'] = tags
     res['authors'] = authors

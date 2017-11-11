@@ -63,12 +63,12 @@ var SEARCH = (function() {
     }
 
 
-    function SrpFetcher() {
+    function SrpFetcher(json_url) {
         var queryCache = {};
         var self = this;
 
         function appendResults(data, query) {
-            $('.gamelist-thumb-container').append(data);
+            $('.search-result').append(data);
             maybeLoadMore(query);
         }
 
@@ -83,7 +83,7 @@ var SEARCH = (function() {
                 appendResults(queryCache[fullQuery], query);
             } else {
                 self.xhr = $.ajax({
-                    url: '/json/search/',
+                    url: json_url,
                     type: 'GET',
                     data: {
                         'q': query,
@@ -126,7 +126,7 @@ var SEARCH = (function() {
         }
 
         function renderResults(data, query) {
-            $('.gamelist-thumb-container').html(data).animate({
+            $('.search-result').html(data).animate({
                 opacity: 1
             }, 50, function() {
                 if (query !== undefined) maybeLoadMore(query);
@@ -142,11 +142,11 @@ var SEARCH = (function() {
             if (queryCache.hasOwnProperty(query)) {
                 renderResults(queryCache[query], query);
             } else {
-                $('.gamelist-thumb-container').animate({
+                $('.search-result').animate({
                     opacity: 0.5
                 }, 50);
                 self.xhr = $.ajax({
-                    url: '/json/search/',
+                    url: json_url,
                     type: 'GET',
                     data: {
                         'q': query
@@ -166,8 +166,8 @@ var SEARCH = (function() {
         };
     }
 
-    function DecorateSearchItems() {
-        var fetcher = new SrpFetcher();
+    function DecorateSearchItems(json_url) {
+        var fetcher = new SrpFetcher(json_url);
         var timer = null;
         var gan = (typeof ga === 'function') ? ga : function(a, b, c, d, e, f) {
             // console.log(a, b, c, d, e, f);
@@ -248,7 +248,12 @@ var SEARCH = (function() {
             var text = parent.find('input[type="text"]')[0].value;
             if (!text) return;
             enc.addHeader(1, 0);
-            enc.addBool(parent.find('[data-item-val]')[0].checked);
+            var checkbox = parent.find('[data-item-val]')[0];
+            if (checkbox) {
+                enc.addBool(checkbox.checked);
+            } else {
+                enc.addBool(false);
+            }
             enc.addString(text);
         });
 

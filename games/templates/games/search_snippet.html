@@ -2,7 +2,7 @@
 {% load tags %}
 {% if games %}
 {% for g in games %}
-    <a class="gamelist-thumb gamelist-thumb-search" href="{% url 'show_game' game_id=g.id %}">
+    <div class="gamelist-thumb gamelist-thumb-search" onclick="location.href='{% url 'show_game' game_id=g.id %}'">
         <div class="poster-container">
             <img class="poster" src="{{ g.poster|default:'/static/noposter.png' }}"/>
         </div>
@@ -10,8 +10,9 @@
             {{ g.title }}
         </div>
         <div class="search-author">
-            {% for x in g.authors %}
-                {{x.author.name}}{% if not forloop.last %},{% endif %}
+            {% for x in g.authors %}        
+                <a class="author-link" href="{% url 'show_author' author_id=x.author.personality.id %}">
+                {{x.author.name}}</a>{% if not forloop.last %},{% endif %}
             {% endfor %}
         </div>
         <div class="auxinfo">
@@ -40,11 +41,11 @@
             {% if x.downloadable %}<img src="{% static 'downloadable.svg'%}" / >{% endif %}
         {% endwith %}
         </div>
-    </a>
+    </div>
 {% endfor %}
 {% elif start == 0 %}
     <div class="gamelist-message nothing-found">Ничего не нашлось.</div>
 {% endif %}
 {% if has_more %}
-    <div id="load-more" data-start="{{ next }}">
+    <div id="load-more" data-start="{{ next }}"></div>
 {% endif %}

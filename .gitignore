@@ -4,4 +4,5 @@
 /urlcache
 /tmp
 /loonchator/out
+/virtualenv
 __pycache__

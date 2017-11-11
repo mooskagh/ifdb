@@ -6,6 +6,50 @@ a {
     color: #00487c;
 }
 
+a.author-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+a.author-link:hover {
+    text-decoration: underline;
+}
+
+.aliases {
+    font-size: 70%;
+    line-height: 80%;
+}
+
+.aliases .alias {
+    color: #31322D;
+    display: inline-block;
+    margin-right: 0.4em;
+    white-space: nowrap;
+}
+
+.avatar-small {
+    max-width: 70px;
+    max-height: 70px;
+    border-radius: 50%;
+    border: 2px solid #00487c;
+    box-shadow: -1px 1px 3px rgba(0, 0, 0, .3);
+}
+
+.clean-table {
+    width: 100%;
+    table-layout: fixed;
+    font-size: 130%;
+}
+
+.clean-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.clean-table td.textual {
+    text-align: left;
+}
+
 .content {
     margin: 50px auto 5px;
     width: 1024px;
@@ -157,6 +201,34 @@ textarea {
     float: left;
     padding: 10px;
     flex: 1;
+}
+
+.floating-add-button {
+    background-color: #00487c;
+    border-radius: 50%;
+    bottom: 30px;
+    box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
+    color: #F2F1EB;
+    display:block;
+    height: 50px;
+    line-height: 50px;
+    position: fixed;
+    right: 30px;
+    text-align: center;
+    text-decoration: none;
+    user-select: none;
+    vertical-align: middle;
+    width: 50px;
+    z-index: 10;
+}
+
+.floating-add-button:hover {
+    background-color: #175887;
+}
+
+.header-comment {
+    font-size: 50%;
+    font-weight: normal;
 }
 
 .root {
@@ -327,7 +399,7 @@ span.gameinfo-author {
     text-align: center;
 }
 
-a.gamelist-thumb {
+.gamelist-thumb {
     border-radius: 2px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
     display: inline-block;
@@ -338,9 +410,10 @@ a.gamelist-thumb {
     position: relative;
     text-align: left;
     text-decoration: none;
+    cursor: pointer;
 }
 
-a.gamelist-thumb-search {
+.gamelist-thumb-search {
     background-color: #F2F1EB;
     border: 1px solid #7E787D;
     color: #31322D;
@@ -348,7 +421,7 @@ a.gamelist-thumb-search {
     width: 180px;
 }
 
-a.gamelist-thumb-index {
+.gamelist-thumb-index {
     background-color: #625b61;
     border: 1px solid #7E787D;
     color: #f2f1eb;
@@ -356,49 +429,49 @@ a.gamelist-thumb-index {
     width: 150px;
 }
 
-a.gamelist-thumb-search .icon-overlay {
+.gamelist-thumb-search .icon-overlay {
     position: absolute;
     top: 5px;
     left: 5px;
 }
 
-a.gamelist-thumb-index .thumb-index-rating {
+.gamelist-thumb-index .thumb-index-rating {
     position: absolute;
     top: 50px;
     left: 5px;
 }
 
-a.gamelist-thumb-index .poster-container {
+.gamelist-thumb-index .poster-container {
     height: 70px;
     overflow: hidden;
 }
 
 
-a.gamelist-thumb-search .poster-container {
+.gamelist-thumb-search .poster-container {
     height: 100px;
     overflow: hidden;
 }
 
-a.gamelist-thumb .title-container {
+.gamelist-thumb .title-container {
     border-top: 1px solid #b1b0ab;
     height: 50px;
     margin: 0;
     overflow: hidden;
 }
 
-a.gamelist-thumb-index .title-container {
+.gamelist-thumb-index .title-container {
     padding: 3px;
 }
 
-a.gamelist-thumb-index .title-container.title-container-low {
+.gamelist-thumb-index .title-container.title-container-low {
     height: 33px;
 }
 
-a.gamelist-thumb-search .title-container {
+.gamelist-thumb-search .title-container {
     padding: 5px;
 }
 
-a.gamelist-thumb .search-author {
+.gamelist-thumb .search-author {
     display: block;
     font-size: 90%;
     font-weight: bold;
@@ -410,11 +483,11 @@ a.gamelist-thumb .search-author {
     white-space: nowrap;
 }
 
-a.gamelist-thumb img.poster {
+.gamelist-thumb img.poster {
     width: 100%;
 }
 
-a.gamelist-thumb .auxinfo {
+.gamelist-thumb .auxinfo {
     text-align: right;
     margin-right: 5px;
     font-size: 80%;
@@ -801,17 +874,13 @@ progress::-webkit-progress-value {
     font-style: italic;
 }
 
-.search-box {
+.search-box-container {
     background-color: #F2F1EB;
     border-radius: 2.5px;
     border: 1px solid #31322d;
     box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
     padding: 20px;
-    line-height: 30px;
     text-align: center;
-}
-
-.search-box {
     line-height: 1.7em;
 }
 
@@ -826,25 +895,25 @@ progress::-webkit-progress-value {
     width: 300px;
 }
 
-.search-box table {
+table.search-box {
     margin: auto;
 }
 
-.search-box table th {
+table.search-box th {
     text-align: right;
     vertical-align: top;
     min-width: 180px;
 }
 
-.search-box table td {
+table.search-box td {
     text-align: left;
 }
 
-.search-box .search-text {
+table.search-box .search-text {
     width: 400px;
 }
 
-.search-box a {
+table.search-box a {
     font-weight: bold;
     font-size: 90%;
 }

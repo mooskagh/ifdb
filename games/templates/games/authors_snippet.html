@@ -1,0 +1,60 @@
+{% load static %}
+{% load tags %}
+{% if authors %}
+
+{% if start == 0 %}
+<colgroup>
+  <col style="width: 100px">
+  <col>
+  <col style="width: 100px">
+  <col style="width: 200px">
+</colgroup>
+<thead>
+  <tr>
+    <th>&nbsp;</th>
+    <th>Имя</th>
+    <th style="max-width: 100px;">Количество игр</th>
+    <th>Почётность</th>
+  </tr>
+</thead>
+
+{% endif %}
+
+{% for a in authors %}
+
+<tbody>
+  <tr>
+    <td>
+      <img class="avatar-small" src="{% static 'default_author.jpg' %}" />
+    </td>
+    <td class="textual">
+      <a href="{% url 'show_author' author_id=a.id %}">{{ a.name }}</a>
+      {% if a.aliases %}
+        <br><span class="aliases">
+        {% for b in a.aliases %}
+          <span class="alias">
+          {{ b }}{% if not forloop.last %}, {% endif %}
+          </span>
+        {% endfor %}
+        </span>
+      {% endif %}
+    </td>
+    <td>{{ a.game_count }}</td>
+    <td>
+        {% for x in a.stars %}
+          <img src="/static/duck{{x}}.png" />
+        {% endfor %}
+        ({{ a.honor_str }})
+    </td>
+  </tr>
+</tbody>
+
+
+{% endfor %}
+
+{% elif start == 0 %}
+    <div class="gamelist-message nothing-found">Ничего не нашлось.</div>
+{% endif %}
+{% if has_more %}
+    <tbody id="load-more" data-start="{{ next }}"></tbody>
+{% endif %}

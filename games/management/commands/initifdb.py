@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
-from games.models import GameAuthorRole, GameTagCategory, GameTag, URLCategory
+from games.models import (GameAuthorRole, GameTagCategory, GameTag,
+                          GameURLCategory, PersonalityURLCategory)
 
 AUTHOR_ROLES = [
     ['author', 'Автор'],
@@ -78,7 +79,7 @@ TAGS = [
     ['genre', 'g_simulation', 'Симулятор'],
 ]
 
-URL_CATS = [
+GAME_URL_CATS = [
     ['game_page', 'Эта игра на другом сайте', False],
     ['download_direct', 'Скачать (прямая ссылка)', True],
     ['download_landing', 'Скачать (ссылка на сайт)', False],
@@ -94,6 +95,15 @@ URL_CATS = [
     ['video', 'Видео прохождения', False],
     ['other', 'Прочее', False],
     ['unknown', 'Категория не назначена', False],
+]
+
+PERSONALITY_URL_CATS = [
+    ['personal_page', 'Личный сайт автора', False],
+    ['other_site', 'Страница автора на другом сайте', False],
+    ['avatar', 'Фото/аватар', True],
+    ['social', 'Ссылка в соцсети', False],
+    ['interview', 'Интервью', False],
+    ['other', 'Прочее', False],
 ]
 
 
@@ -144,10 +154,22 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(self.style.WARNING('already exists.'))
 
-        for x in URL_CATS:
+        for x in GAME_URL_CATS:
             (slug, desc, cloneable) = x
-            self.stdout.write('Url: %s (%s)... ' % (slug, desc), ending='')
-            _, created = URLCategory.objects.update_or_create(
+            self.stdout.write('GameUrl: %s (%s)... ' % (slug, desc), ending='')
+            _, created = GameURLCategory.objects.update_or_create(
+                symbolic_id=slug,
+                defaults={'title': desc,
+                          'allow_cloning': cloneable})
+            if created:
+                self.stdout.write(self.style.SUCCESS('created.'))
+            else:
+                self.stdout.write(self.style.WARNING('already exists.'))
+
+        for x in PERSONALITY_URL_CATS:
+            (slug, desc, cloneable) = x
+            self.stdout.write('PersUrl: %s (%s)... ' % (slug, desc), ending='')
+            _, created = PersonalityURLCategory.objects.update_or_create(
                 symbolic_id=slug,
                 defaults={'title': desc,
                           'allow_cloning': cloneable})

@@ -13,6 +13,9 @@ class QspsuImporter:
     def Match(self, url):
         return QSP_RE.match(url)
 
+    def MatchAuthor(self, url):
+        return False
+
     def Import(self, url):
         return ImportFromQsp(url)
 

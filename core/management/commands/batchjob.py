@@ -1,11 +1,15 @@
 import re
 from django.core.management.base import BaseCommand
-from games.models import InterpretedGameUrl, URL, Game
+from games.models import (InterpretedGameUrl, URL, Game, GameAuthor,
+                          Personality, PersonalityAlias)
 from core.models import TaskQueueElement
 import subprocess
 import os.path
 import shutil
 import json
+from logging import getLogger
+
+logger = getLogger('worker')
 
 #  {"module": "games.tasks.uploads", "name": "MarkBroken"}
 
@@ -161,8 +165,100 @@ def BuildLoonchatableLinks():
         count += 1
 
 
+def RemoveAuthors():
+    Personality.objects.all().delete()
+    GameAuthor.objects.filter(game__edit_time__isnull=True).delete()
+    PersonalityAlias.objects.filter(gameauthor__isnull=True).delete()
+
+
+# TODO Run that as a periodic job.
+def FixGameAuthors():
+    logger.info('*** Fixing blacklisted aliases')
+    for x in PersonalityAlias.objects.filter(is_blacklisted=True):
+        if x.personality:
+            logger.info('Remove personality from alias [%s]' % x)
+            x.personality = None
+            x.save()
+        if x.hidden_for:
+            logger.info('Remove hidden_for from alias [%s]' % x)
+            x.hidden_for = None
+            x.save()
+
+    logger.info('*** Checking hidden_for to be correct')
+    for x in PersonalityAlias.objects.filter(
+            hidden_for__isnull=False).select_related():
+        if x.personality != x.hidden_for.personality:
+            x.personality = x.hidden_for.personality
+            logger.info('Resetting hidden_for for alias [%s]' % x)
+            x.save()
+
+    logger.info('*** Applying blacklist/hidden_for for non-edited games')
+    for x in GameAuthor.objects.select_related():
+        if x.author.is_blacklisted:
+            logger.info('Blacklisted [%s] find in game [%s]' % (x.author,
+                                                                x.game))
+            if x.game.edit_time is None:
+                x.delete()
+            else:
+                logger.warning('Game [%s] NOT AUTOUPDATEABLE!' % x.game)
+            continue
+        if x.author.hidden_for:
+            logger.info('HiddenFor [%s] find in game [%s]' % (x.author,
+                                                              x.game))
+            if x.game.edit_time is None:
+                x.author = x.author.hidden_for
+                x.save()
+            else:
+                logger.warning('Game [%s] NOT AUTOUPDATEABLE!' % x.game)
+
+    logger.info('*** Fixing game duplicate aliases')
+    for g in Game.objects.all():
+        clusters = dict()
+        for x in GameAuthor.objects.filter(game=g).select_related():
+            clusters.setdefault((x.role.id, x.author.personality),
+                                []).append(x)
+        for k, v in clusters.items():
+            if len(v) == 1:
+                continue
+            best = None
+            record = None
+            for i, y in enumerate(v):
+                count = y.author.gameauthor_set.count()
+                if best is None or count < best:
+                    best = count
+                    record = i
+
+            logger.info('Game [%s], over [%s] we are keeping [%s]' %
+                        (g, v, v[record]))
+            if g.edit_time is None:
+                for i, y in enumerate(v):
+                    if i != record:
+                        y.delete()
+            else:
+                logger.warning('Game [%s] NOT AUTOUPDATEABLE!' % g)
+
+    logger.info('*** Killing hanging personalities')
+    Personality.objects.filter(personalityalias__isnull=True).delete()
+
+    logger.info('*** Killing hanging aliases')
+    PersonalityAlias.objects.filter(
+        is_blacklisted=False, hidden_for__isnull=True,
+        gameauthor__isnull=True).delete()
+
+
 class Command(BaseCommand):
     help = 'Does some batch processing.'
 
-    def handle(self, *args, **options):
-        BuildLoonchatableLinks()
+    def add_arguments(self, parser):
+        parser.add_argument('cmd')
+
+    def handle(self, cmd, *args, **options):
+        options = {
+            'removeauthors-destructiv': RemoveAuthors,
+            'fixgameauthors': FixGameAuthors,
+        }
+        if cmd in options:
+            options[cmd]()
+        else:
+            print('Unknown command, valid ones are:\n%s' % ', '.join(
+                options.keys()))

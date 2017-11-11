@@ -1,12 +1,25 @@
 from django.contrib import admin
-from .models import (Game, Author, GameTagCategory, GameTag, URL, URLCategory,
-                     GameURL, GameAuthorRole, GameAuthor, GameVote,
-                     GameComment, InterpretedGameUrl)
+from .models import (Game, PersonalityAlias, GameTagCategory, GameTag, URL,
+                     GameURLCategory, GameURL, GameAuthorRole, GameAuthor,
+                     GameVote, GameComment, InterpretedGameUrl, Personality,
+                     PersonalityUrl)
 
 
 class GameAuthorAdmin(admin.TabularInline):
     model = GameAuthor
+    raw_id_fields = ['game']
     extra = 1
+
+
+class InlinePersonalityUrlAdmin(admin.TabularInline):
+    model = PersonalityUrl
+    raw_id_fields = ['url']
+    extra = 1
+
+
+@admin.register(PersonalityUrl)
+class PersonalityUrlAdmin(admin.ModelAdmin):
+    list_display = ['personality', 'description', 'category', 'url']
 
 
 @admin.register(Game)
@@ -18,10 +31,37 @@ class GameAdmin(admin.ModelAdmin):
     inlines = [GameAuthorAdmin]
 
 
-@admin.register(Author)
-class AuthorAdmin(admin.ModelAdmin):
-    list_display = ['name', 'pk']
+class InlinePersonalityAliasAdmin(admin.TabularInline):
+    model = PersonalityAlias
+    raw_id_fields = ['hidden_for']
+    extra = 1
+
+
+@admin.register(PersonalityAlias)
+class PersonalityAliasAdmin(admin.ModelAdmin):
+    def _game_count(self, obj):
+        return len(obj.gameauthor_set.all())
+
+    list_display = [
+        'name', 'pk', 'is_blacklisted', 'hidden_for', '_game_count'
+    ]
     search_fields = ['pk', 'name']
+    inlines = [GameAuthorAdmin]
+    raw_id_fields = ['personality', 'hidden_for']
+
+
+@admin.register(Personality)
+class PersonalityAdmin(admin.ModelAdmin):
+    def _alias_count(self, obj):
+        return len(obj.personalityalias_set.all())
+
+    def _aliases(self, obj):
+        aliases = ["%s" % x for x in obj.personalityalias_set.all()]
+        return '; '.join(aliases)
+
+    list_display = ['pk', 'name', '_alias_count', '_aliases']
+    search_fields = ['name', 'personalityalias__name']
+    inlines = [InlinePersonalityUrlAdmin, InlinePersonalityAliasAdmin]
 
 
 @admin.register(GameTagCategory)
@@ -54,8 +94,8 @@ class URLAdmin(admin.ModelAdmin):
     ]
 
 
-@admin.register(URLCategory)
-class URLCategoryAdmin(admin.ModelAdmin):
+@admin.register(GameURLCategory)
+class GameURLCategoryAdmin(admin.ModelAdmin):
     list_display = ['title', 'symbolic_id', 'allow_cloning']
     search_fields = ['title', 'symbolic_id']
 
@@ -79,7 +119,7 @@ class GameURLAdmin(admin.ModelAdmin):
 
 @admin.register(GameAuthorRole)
 class GameAuthorRoleAdmin(admin.ModelAdmin):
-    list_display = ['title', 'symbolic_id']
+    list_display = ['title', 'symbolic_id', 'order']
     search_fields = ['title', 'symbolic_id']
 
 

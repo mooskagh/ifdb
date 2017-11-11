@@ -1,0 +1,45 @@
+{% extends "./base.html" %}
+{% load static %}
+{% block scripts %}
+    <script src="/static/search.js"></script>
+{% endblock %}
+{% block content %}
+  <div class="search-box-container">
+    <table class="search-box">
+      {% for bit in search %}
+      <tr data-val="{{bit.val}}" data-type="{{bit.type}}" {% if bit.hidden %} style="display: none;" {% endif %}>
+        {% if bit.type == 'sorting' %}
+        <th>Сортировать по:</th>
+        <td>
+          {% for i in bit.items %}
+            {% spaceless %}
+            <span data-item-val="{{ i.val }}" class="sort {% if i.current %}current{% endif %}">
+              {{ i.name }}
+              <span class="sortbutton">{% if i.desc %}▼{% endif %}{% if i.asc %}▲{% endif %}</span>
+            </span>
+            {% endspaceless %}
+          {% endfor %}
+        </td>
+        {% elif bit.type == 'text' %}
+        <th>Искать по имени:</th>
+        <td>
+            <input class="search-text" type="text" value="{{ bit.text }}"/>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+
+    <script type="text/javascript">
+        SEARCH.Decorate('/json/author-search/');
+    </script>
+
+    <table class="clean-table search-result">
+      <tr><td>
+        <div class="gamelist-message">
+            Сейчас сюда должен загрузиться список...
+        </div>
+      </td><tr>
+    </table>
+  </div>
+{% endblock %}

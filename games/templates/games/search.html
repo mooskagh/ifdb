@@ -4,8 +4,14 @@
     <script src="/static/search.js"></script>
 {% endblock %}
 {% block content %}
-    <div class="search-box">
-        <table>
+    {% if user.is_authenticated %}
+        <a title="Добавить игру" class="floating-add-button" href="{% url 'add_game' %}">
+            &#x2795;
+        </a>
+    {% endif %}
+
+    <div class="search-box-container">
+        <table class="search-box">
             {% for bit in search %}
             <tr data-val="{{bit.val}}" data-type="{{bit.type}}" {% if bit.hidden %} style="display: none;" {% endif %}>
                 {% if bit.type == 'sorting' %}
@@ -50,19 +56,6 @@
                     <span class="tag {% if x.on %}current{% endif %}" data-item-val="{{ x.id }}">{{ x.name }}</span>
                     {% endfor %}
                 </td>
-                {% elif bit.type == 'authors' %}
-                <th>{{ bit.role.title}}:</th>
-                <td>
-                    {% for x in bit.items %}
-                        {% if x.show_all %}
-                            <a class="show-all" href="#">(&#x2026;показать всё)</a>
-                        {% else %}
-                            <span {% if x.hidden %} style="display:none;" {% endif %}
-                                class="tag {% if x.on %}current{% endif %}"
-                                data-item-val="{{ x.id }}">{{ x.name }}</span>
-                        {% endif %}
-                    {% endfor %}
-                </td>
                 {% elif bit.type == 'flags' %}
                 <th>{{ bit.header}}:</th>
                 <td>
@@ -96,11 +89,11 @@
             <button class="extended_search">Расширенный поиск</button>
         {% endif %}
         <script type="text/javascript">
-            SEARCH.Decorate();
+            SEARCH.Decorate('/json/search/');
         </script>
     </div>
 
-    <div class="gamelist-thumb-container">
+    <div class="search-result gamelist-thumb-container">
         <div class="gamelist-message">
             Сейчас сюда должен загрузиться список...
         </div>

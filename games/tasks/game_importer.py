@@ -3,7 +3,7 @@ from games.importer.tools import (Import, GetUrlCandidates, HashizeUrl,
                                   GetBagOfWords, ComputeSimilarity,
                                   GetDirtyUrls)
 from games.models import Game, URL
-from games.views import UpdateGame, Importer2Json
+from games.updater import UpdateGame, Importer2Json
 from ifdb.permissioner import Permissioner
 from logging import getLogger
 
@@ -21,6 +21,7 @@ class FakeRequest:
     def __init__(self, username):
         self.user = get_user_model().objects.get(username=username)
         self.perm = Permissioner(self.user)
+        self.is_fake = True
 
 
 class ImportedGame:

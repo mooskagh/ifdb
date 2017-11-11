@@ -8,20 +8,21 @@ REGISTERED_IMPORTERS = []
 
 
 URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
-    ('qsp.su', '^$', '^$', None, None),
-    ('urq.plut.info', '^$', '^$', None, None),
-    ('rilarhiv.ru', '^$', '^$', None, None),
-    ('ifwiki.ru', '^$', '^$', None, None),
-    ('www.youtube.com', '^$', '^$', None, None),
-    ('youtube.com', '^$', '^$', None, None),
-    ('youtu.be', '^$', '^$', None, None),
-    ('apero.ru', '^$', '^$', None, None),
-    ('storymaze.ru', '^$', '^$', None, None),
+    ('qsp.su', '^/?$', '^$', None, None),
+    ('urq.plut.info', '^/?$', '^$', None, None),
+    ('rilarhiv.ru', '^/?$', '^$', None, None),
+    ('ifwiki.ru', '^/?$', '^$', None, None),
+    ('www.youtube.com', '^/?$', '^$', None, None),
+    ('youtube.com', '^/?$', '^$', None, None),
+    ('youtu.be', '^/?$', '^$', None, None),
+    ('apero.ru', '^/?$', '^$', None, None),
+    ('storymaze.ru', '^/?$', '^$', None, None),
     ('', r'.*screenshot.*\.(png|jpg|gif|bmp|jpeg)', '', 'screenshot',
      'Скриншот'),
     ('', r'.*\.(png|jpg|gif|bmp|jpeg)', '', 'poster', 'Обложка'),
     ('ifwiki.ru', '/files/.*', '', 'download_direct', 'Скачать с IfWiki'),
     ('ifwiki.ru', '', '', 'game_page', 'Страница на IfWiki'),
+    ('ifwiki.org', '', '', 'game_page', 'Страница на ifwiki.org'),
     ('ludumdare.com', '', '', 'game_page', 'Страница на Ludum Dare'),
     ('urq.plut.info', '.*/files/.*', '', 'download_direct', 'Скачать с плута'),
     ('urq.plut.info', '', '', 'game_page', 'Страница на плуте'),
@@ -97,6 +98,67 @@ def CategorizeUrl(url, desc='', category=None, base=None):
     return {'urlcat_slug': cat_slug, 'description': desc, 'url': url}
 
 
+AUTHOR_URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
+    ('apero.ru', '^/?$', '^$', None, None),
+    ('forum.ifiction.ru', '^/?$', '^$', None, None),
+    ('ifhub.club', '^/?$', '^$', None, None),
+    ('ifiction.ru', '^/?$', '^$', None, None),
+    ('ifwiki.ru', '^/?$', '^$', None, None),
+    ('kril.ifiction.ru', '', '', None, None),
+    ('plut.info', '^/?$', '^$', None, None),
+    ('qsp.su', '^/?$', '^$', None, None),
+    ('rilarhiv.ru', '^/?$', '^$', None, None),
+    ('storymaze.ru', '^/?$', '^$', None, None),
+    ('urq.plut.info', '^/?$', '^$', None, None),
+    ('www.youtube.com', '^/?$', '^$', None, None),
+    ('youtu.be', '^/?$', '^$', None, None),
+    ('youtube.com', '^/?$', '^$', None, None),
+    ('ifwiki.ru', '', '', 'other_site', 'Страница на IfWiki'),
+    ('twitter.com', '', '', 'social', 'Страница в Твиттере'),
+    (r'@.+\.ifiction\.ru', '^/?$', '', 'personal_page', 'Блог на ifiction.ru'),
+    ('vk.com', '', '', 'social', 'Страница вКонтакте'),
+    ('', r'.*\.(png|jpg|gif|bmp|jpeg)', '', 'avatar', 'Изображение'),
+]
+
+
+def CategorizeAuthorUrl(url, desc='', category=None, base=None):
+    if base:
+        url = urljoin(base, url)
+    purl = urlparse(url)
+    cat_slug = 'other'
+
+    for (host, path, query, slug, ddesc) in AUTHOR_URL_CATEGORIZER_RULES:
+        if host:
+            if host.startswith('@'):
+                if purl.hostname and not re.match(host[1:], purl.hostname):
+                    continue
+            elif host != purl.hostname:
+                continue
+        if path and not re.match(path, purl.path):
+            continue
+        if query and not re.match(query, purl.query):
+            continue
+        cat_slug = slug
+        if not desc:
+            desc = ddesc
+        break
+
+    if cat_slug == 'other':
+        if desc.lower() == 'интервью':
+            cat_slug = 'interview'
+        elif 'сайт' in desc.lower():
+            cat_slug = 'personal_page'
+        elif 'блог' in desc.lower():
+            cat_slug = 'personal_page'
+    if not desc:
+        desc = url
+
+    if category:
+        cat_slug = category
+
+    return {'urlcat_slug': cat_slug, 'description': desc, 'url': url}
+
+
 def SimilarEnough(w1, w2):
     s1 = GetBagOfWords(w1)
     s2 = GetBagOfWords(w2)
@@ -125,10 +187,21 @@ def GetDirtyUrls():
     return res
 
 
+def DispatchImportAuthor(url):
+    for x in REGISTERED_IMPORTERS:
+        if x.MatchAuthor(url):
+            return x.ImportAuthor(url)
+    return {'error': 'Ссылка на неизвестный ресурс.'}
+
+
 def HashizeUrl(url):
     url = quote(url.encode('utf-8'), safe='/+=&?%:;@!#$*()_-')
     purl = urlsplit(url, allow_fragments=False)
     return urlunsplit(('', purl[1], purl[2], purl[3], ''))
+
+
+def ImportAuthor(url):
+    return DispatchImportAuthor(url)
 
 
 def Import(*seed_url):

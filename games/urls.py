@@ -6,8 +6,9 @@ from registration.backends.hmac.views import RegistrationView
 
 urlpatterns = [
     url(r'^index/$', views.index, name='index'),
-    # TODO Make it game/add
-    url(r'^gameadd/', views.add_game, name='add_game'),
+
+    # Games
+    url(r'^game/add/', views.add_game, name='add_game'),
     url(r'^game/edit/(?P<game_id>\d+)/', views.edit_game, name='edit_game'),
     url(r'^game/vote/', views.vote_game, name='vote_game'),
     url(r'^game/store/', views.store_game, name='store_game'),
@@ -20,10 +21,19 @@ urlpatterns = [
     url(r'^game/interpreter/(?P<gameurl_id>\d+)/',
         views.play_in_interpreter,
         name='play_in_interpreter'),
+
+    # Authors
+    url(r'^author/$', views.list_authors, name='list_authors'),
+    url(r'^author/(?P<author_id>\d+)/', views.show_author, name='show_author'),
+
+    # API
     url(r'^json/gameinfo/', views.json_gameinfo, name='json_gameinfo'),
     url(r'^json/upload/', views.upload, name='upload'),
     url(r'^json/import/', views.doImport, name='import'),
     url(r'^json/search/', views.json_search, name='json_search'),
+    url(r'^json/author-search/',
+        views.json_author_search,
+        name='json_author_search'),
     url(
         r'^accounts/register/$',
         RegistrationView.as_view(form_class=RegistrationForm),

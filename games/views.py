@@ -2,23 +2,26 @@ import json
 from logging import getLogger
 import os.path
 import timeit
-from .game_details import GameDetailsBuilder
+from .game_details import GameDetailsBuilder, StarsFromRating
 from .importer import Import
-from .models import *
-from .search import MakeSearch
-from .tasks.uploads import CloneFile, RecodeGame, MarkBroken
-from .tools import (FormatDate, FormatTime, StarsFromRating, FormatLag,
-                    ExtractYoutubeId)
-from core.taskqueue import Enqueue
-from dateutil.parser import parse as parse_date
+from .models import (GameURL, GameComment, Game, GameVote, InterpretedGameUrl,
+                     URL, GameTag, GameAuthorRole, PersonalityAlias,
+                     GameTagCategory, GameURLCategory, GameAuthor, Personality,
+                     PersonalityURLCategory, PersonalityUrl)
+from .search import MakeSearch, MakeAuthorSearch
+from .tools import (FormatLag, ExtractYoutubeId, RenderMarkdown,
+                    ComputeGameRating, ComputeHonors)
+from .updater import UpdateGame, Importer2Json
 from django import forms
+from django.db import models
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import SuspiciousOperation
 from django.http import Http404
 from django.http.response import JsonResponse
 from django.shortcuts import render, redirect
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import Count, Exists, OuterRef, Q, Subquery
+from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -28,16 +31,7 @@ PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
 logger = getLogger('web')
 
 
-def SnippetFromSearchForIndex(request, query, prefetch=[]):
-    s = MakeSearch(request.perm)
-    s.UpdateFromQuery(query)
-    games = s.Search(
-        prefetch_related=[
-            'gameauthor_set__author', 'gameauthor_set__role', *prefetch
-        ],
-        start=0,
-        limit=20)[:5]
-
+def SnippetFromList(games):
     posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
         game__in=games).select_related('url'))
 
@@ -53,6 +47,18 @@ def SnippetFromSearchForIndex(request, query, prefetch=[]):
     return games
 
 
+def SnippetFromSearchForIndex(request, query, prefetch=[]):
+    s = MakeSearch(request.perm)
+    s.UpdateFromQuery(query)
+    games = s.Search(
+        prefetch_related=[
+            'gameauthor_set__author', 'gameauthor_set__role', *prefetch
+        ],
+        start=0,
+        limit=20)[:5]
+    return SnippetFromList(games)
+
+
 def LastComments(request):
     games = set()
     # TODO Game permissions!
@@ -65,15 +71,15 @@ def LastComments(request):
         games.add(x.game.id)
         res.append({
             'lag':
-                FormatLag((x.creation_time - timezone.now()).total_seconds()),
+            FormatLag((x.creation_time - timezone.now()).total_seconds()),
             'username':
-                x.user,
+            x.user,
             'game':
-                x.game.title,
+            x.game.title,
             'id':
-                x.game.id,
+            x.game.id,
             'subject':
-                x.subject or '...',
+            x.subject or '...',
         })
         if len(res) == 4:
             break
@@ -92,16 +98,15 @@ def LastUrlCat(request, cat, limit):
         games.add(x.game.id)
         res.append({
             'lag':
-                FormatLag(
-                    (x.url.creation_date - timezone.now()).total_seconds()),
+            FormatLag((x.url.creation_date - timezone.now()).total_seconds()),
             'url':
-                x.url.original_url,
+            x.url.original_url,
             'game':
-                x.game.title,
+            x.game.title,
             'id':
-                x.game.id,
+            x.game.id,
             'desc':
-                x.description,
+            x.description,
         })
         if len(res) == limit:
             break
@@ -207,16 +212,99 @@ def show_game(request, game_id):
         raise Http404()
 
 
+def show_author(request, author_id):
+    try:
+        a = Personality.objects.get(pk=author_id)
+        res = {'name': a.name, 'aliases': [], 'links': []}
+        for x in PersonalityAlias.objects.filter(personality=a).annotate(
+                games=Count('gameauthor')).order_by('-games'):
+            if x.name == a.name:
+                continue
+            if x.games == 0:
+                break
+            res['aliases'].append(x.name)
+        if a.bio:
+            res['bio'] = RenderMarkdown(a.bio)
+
+        res['honor'] = ComputeHonors(int(author_id))
+        res['honor_stars'] = StarsFromRating(res['honor'])
+        res['honor_str'] = "%.1f" % res['honor']
+
+        urls = {}
+        cats = []
+        for x in a.personalityurl_set.all():
+            category = x.category
+            if category in urls:
+                urls[category].append(x)
+            else:
+                cats.append(category)
+                urls[category] = [x]
+        for r in cats:
+            res['links'].append({'category': r, 'items': urls[r]})
+
+        act_start = None
+        act_end = None
+        games = dict()
+        existing = set()
+        for g in GameAuthor.objects.filter(author__personality=author_id
+                                           ).select_related().prefetch_related(
+                                               'game__gameauthor_set__role',
+                                               'game__gameauthor_set__author',
+                                               'game__gamevote_set'):
+            if g.game.id in existing:
+                continue
+            existing.add(g.game.id)
+            gs = games.setdefault(g.role, [])
+            rating = ComputeGameRating(
+                [x.star_rating for x in g.game.gamevote_set.all()])
+            g.game.ds = rating
+            gs.append(g.game)
+
+            if g.role.symbolic_id != 'author':
+                continue
+            if not g.game.release_date:
+                continue
+            if not act_start or g.game.release_date < act_start:
+                act_start = g.game.release_date
+            if not act_end or g.game.release_date > act_end:
+                act_end = g.game.release_date
+
+        if act_start:
+            beg = act_start.year
+            end = act_end.year
+            res['activity_start'] = beg
+            if beg != end:
+                res['activity_end'] = end
+
+        res['games'] = []
+        for role in sorted(games.keys(), key=lambda x: x.order):
+            res['games'].append({
+                'role': (role.title),
+                'games': (SnippetFromList(
+                    sorted(
+                        games[role],
+                        key=lambda x: x.creation_time,
+                        reverse=True))),
+            })
+
+        return render(request, 'games/author.html', res)
+    except Personality.DoesNotExist:
+        raise Http404
+
+
 def list_games(request):
-    res = []
     s = MakeSearch(request.perm)
     query = request.GET.get('q', '')
     s.UpdateFromQuery(query)
-    if settings.DEBUG and request.GET.get('q', None):
-        json_search(request)
 
-    return render(request, 'games/search.html', {'query': query,
-                                                 **s.ProduceBits()})
+    return render(request, 'games/search.html', s.ProduceBits())
+
+
+def list_authors(request):
+    s = MakeAuthorSearch(request.perm)
+    query = request.GET.get('q', '')
+    s.UpdateFromQuery(query)
+    return render(request, 'games/authors.html', s.ProduceBits())
 
 
 class ChoiceField(forms.ChoiceField):
@@ -242,7 +330,6 @@ class UrqwInterpreterForm(forms.Form):
 
 
 def store_interpreter_params(request, gameurl_id):
-    game = None
     try:
         u = InterpretedGameUrl.objects.get(pk=gameurl_id)
     except GameURL.DoesNotExist:
@@ -339,7 +426,7 @@ def authors(request):
     for x in GameAuthorRole.objects.order_by('order', 'title').all():
         res['roles'].append({'title': x.title, 'id': x.id})
 
-    for x in Author.objects.order_by('name').all():
+    for x in PersonalityAlias.objects.order_by('name').all():
         res['authors'].append({'name': x.name, 'id': x.id})
 
     return res
@@ -368,7 +455,7 @@ def tags(request):
 
 def linktypes(request):
     res = {'categories': []}
-    for x in URLCategory.objects.all():
+    for x in GameURLCategory.objects.all():
         res['categories'].append({
             'id': x.id,
             'title': x.title,
@@ -410,6 +497,55 @@ def json_gameinfo(request):
     return JsonResponse(res)
 
 
+def json_author_search(request):
+    query = request.GET.get('q', '')
+    start = int(request.GET.get('start', '0'))
+    limit = int(request.GET.get('limit', '30'))
+    start_time = timeit.default_timer()
+
+    s = MakeAuthorSearch(request.perm)
+    s.UpdateFromQuery(query)
+    authors = s.Search(
+        prefetch_related=['personalityalias_set__gameauthor_set__role'],
+        start=start,
+        limit=limit,
+        annotate={
+            'game_count':
+            Coalesce(
+                Subquery(
+                    GameAuthor.objects.filter(
+                        role__symbolic_id='author',
+                        author__personality=OuterRef('pk'))
+                    .values('author__personality').annotate(
+                        cnt=Count('game', distinct=True)).values('cnt'),
+                    output_field=models.IntegerField()), 0),
+        })
+
+    for x in authors:
+        x.aliases = []
+        for a in x.personalityalias_set.filter(
+                gameauthor__isnull=False).distinct():
+            if a.name != x.name:
+                x.aliases.append(a.name)
+        x.honor_str = "%.1f" % x.honor
+        x.stars = StarsFromRating(x.honor)
+
+    res = render(request, 'games/authors_snippet.html', {
+        'authors': authors,
+        'start': start,
+        'limit': limit,
+        'next': start + limit,
+        'has_more': len(authors) == limit,
+    })
+
+    elapsed_time = timeit.default_timer() - start_time
+
+    if elapsed_time > 1.0:
+        logger.error("Time for author search query [%s] was %f" %
+                     (query, elapsed_time))
+    return res
+
+
 def json_search(request):
     query = request.GET.get('q', '')
     start = int(request.GET.get('start', '0'))
@@ -424,29 +560,29 @@ def json_search(request):
         limit=limit,
         annotate={
             'gamecomment__count':
-                Count('gamecomment'),
+            Count('gamecomment'),
             'hasvideo':
-                Exists(
-                    GameURL.objects.filter(
-                        category__symbolic_id='video', game=OuterRef('pk'))),
+            Exists(
+                GameURL.objects.filter(
+                    category__symbolic_id='video', game=OuterRef('pk'))),
             'isparser':
-                Exists(
-                    GameTag.objects.filter(
-                        symbolic_id='parser', game=OuterRef('pk'))),
+            Exists(
+                GameTag.objects.filter(
+                    symbolic_id='parser', game=OuterRef('pk'))),
             'playonline':
-                Exists(
-                    GameURL.objects.filter(game=OuterRef('pk')).filter(
-                        Q(category__symbolic_id='play_online') | Q(
-                            interpretedgameurl__is_playable=True))),
+            Exists(
+                GameURL.objects.filter(game=OuterRef('pk')).filter(
+                    Q(category__symbolic_id='play_online') | Q(
+                        interpretedgameurl__is_playable=True))),
             'downloadable':
-                Exists(
-                    GameURL.objects.filter(
-                        category__symbolic_id__in=[
-                            'download_direct', 'download_landing'
-                        ],
-                        game=OuterRef('pk'))),
+            Exists(
+                GameURL.objects.filter(
+                    category__symbolic_id__in=[
+                        'download_direct', 'download_landing'
+                    ],
+                    game=OuterRef('pk'))),
             'loonchator_count':
-                Count('package'),
+            Count('package'),
         })
 
     posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
@@ -485,230 +621,9 @@ def json_search(request):
     return res
 
 
-def Importer2Json(r):
-    res = {}
-    for x in ['title', 'desc', 'release_date']:
-        if x in r:
-            res[x] = str(r[x])
-
-    if 'authors' in r:
-        res['authors'] = []
-        for x in r['authors']:
-            if 'role_slug' in x:
-                role = GameAuthorRole.objects.get(
-                    symbolic_id=x['role_slug']).id
-            else:
-                role = r['role']
-            res['authors'].append([role, x['name']])
-
-    if 'tags' in r:
-        res['tags'] = []
-        for x in r['tags']:
-            if 'tag_slug' in x:
-                try:
-                    tag = GameTag.objects.get(symbolic_id=x['tag_slug'])
-                except:
-                    logger.error('Cannot fetch tag %s' % x['tag_slug'])
-                    raise
-                cat = tag.category.id
-                tag = tag.id
-            else:
-                tag = x['tag']
-                cat = GameTagCategory.objects.get(symbolic_id=x['cat_slug']).id
-            res['tags'].append([cat, tag])
-
-    if 'urls' in r:
-        res['links'] = []
-        for x in r['urls']:
-            cat = URLCategory.objects.get(symbolic_id=x['urlcat_slug']).id
-            desc = x.get('description')
-            url = x['url']
-            res['links'].append([cat, desc, url])
-
-    return res
-
-
 @perm_required(PERM_ADD_GAME)
 def doImport(request):
     raw_import = Import(request.GET.get('url'))
     if ('error' in raw_import):
         return JsonResponse({'error': raw_import['error']})
     return JsonResponse(Importer2Json(raw_import))
-
-
-############################################################################
-# Aux functions below
-############################################################################
-
-
-def UpdateGameAuthors(request, game, authors, update):
-    existing_authors = {}  # (role_id, author_id) -> GameAuthor_id
-    if update:
-        for x in game.gameauthor_set.all():
-            existing_authors[(x.role_id, x.author_id)] = x.id
-
-    authors_to_add = []  # (role_id, author_id)
-    for (role, author) in authors:
-        if not isinstance(role, int):
-            role = GameAuthorRole.objects.get_or_create(title=role)[0].id
-        if not isinstance(author, int):
-            author = Author.objects.get_or_create(name=author)[0].id
-        t = (role, author)
-        if t in existing_authors:
-            del existing_authors[t]
-        else:
-            authors_to_add.append(t)
-
-    if authors_to_add:
-        objs = []
-        for role, author in authors_to_add:
-            obj = GameAuthor()
-            obj.game = game
-            obj.author_id = author
-            obj.role_id = role
-            objs.append(obj)
-        GameAuthor.objects.bulk_create(objs)
-
-    if existing_authors:
-        GameAuthor.objects.filter(
-            id__in=list(existing_authors.values())).delete()
-
-
-def UpdateGameTags(request, game, tags, update):
-    existing_tags = set()  # tag_id
-    if update:
-        for x in game.tags.select_related('category').all():
-            if not request.perm(x.category.show_in_edit_perm):
-                continue
-            existing_tags.add(x.id)
-
-    if tags:
-        id_to_cat = {}
-        name_to_cat = {}
-        for x in GameTagCategory.objects.all():
-            id_to_cat[x.id] = x
-            name_to_cat[x.name] = x
-
-        tags_to_add = []  # (tag_id)
-        for x in tags:
-            if not isinstance(x[0], int):
-                x[0] = name_to_cat[x[0]]
-
-            if not isinstance(x[1], int):
-                cat = id_to_cat[x[0]]
-                if cat.allow_new_tags:
-                    x[1] = GameTag.objects.get_or_create(
-                        name=x[1], category=cat)[0].id
-                else:
-                    x[1] = GameTag.objects.get(name=x[1], category=cat)
-
-            if x[1] in existing_tags:
-                existing_tags.remove(x[1])
-            else:
-                tags_to_add.append(x[1])
-
-        if tags_to_add:
-            game.tags.add(*tags_to_add)
-
-    if existing_tags:
-        game.tags.remove(*list(game.tags.filter(id__in=existing_tags)))
-
-
-def UpdateGameUrls(request, game, data, update):
-    existing_urls = {}  # (cat_id, url_text) -> (gameurl, gameurl_desc)
-    if update:
-        for x in game.gameurl_set.select_related('url').all():
-            existing_urls[(x.category_id,
-                           x.url.original_url)] = (x, x.description or '')
-
-    records_to_add = []  # (cat_id, gameurl_desc, url_text)
-    urls_to_add = []  # (url_text, cat_id)
-    for x in data:
-        t = (x[0], x[2])
-        if t in existing_urls:
-            if x[1] != existing_urls[t][1]:
-                url = existing_urls[t][0]
-                url.description = x[1]
-                url.save()
-            del existing_urls[t]
-        else:
-            records_to_add.append(tuple(x))
-            urls_to_add.append((x[2], int(x[0])))
-
-    if records_to_add:
-        url_to_id = {}
-        for u in URL.objects.filter(original_url__in=next(zip(*urls_to_add))):
-            url_to_id[u.original_url] = u.id
-
-        cats_to_check = set()
-        for u, c in urls_to_add:
-            if u not in url_to_id:
-                cats_to_check.add(c)
-
-        cat_to_cloneable = {}
-        for c in URLCategory.objects.filter(id__in=cats_to_check):
-            cat_to_cloneable[c.id] = c.allow_cloning
-
-        game_to_task = {}
-        for u, c in urls_to_add:
-            if u not in url_to_id:
-                url = URL()
-                url.original_url = u
-                url.creation_date = timezone.now()
-                url.creator = request.user
-                url.ok_to_clone = cat_to_cloneable[c]
-                url.save()
-                if url.ok_to_clone:
-                    game_to_task[url.id] = Enqueue(
-                        CloneFile,
-                        url.id,
-                        name='CloneGame(%d)' % url.id,
-                        onfail=MarkBroken)
-                url_to_id[u] = url.id
-
-        objs = []
-        for (cat, desc, url) in records_to_add:
-            obj = GameURL()
-            obj.category_id = cat
-            obj.url_id = url_to_id[url]
-            obj.game = game
-            obj.description = desc or None
-            if URLCategory.IsRecodable(cat):
-                obj.save()
-                Enqueue(
-                    RecodeGame,
-                    obj.id,
-                    name='RecodeGame(%d)' % obj.id,
-                    dependency=game_to_task.get(url_to_id[url]))
-            else:
-                objs.append(obj)
-        GameURL.objects.bulk_create(objs)
-
-    if existing_urls:
-        GameURL.objects.filter(
-            id__in=[x[0].id for x in existing_urls.values()]).delete()
-
-
-def UpdateGame(request, j, update_edit_time=True):
-    if ('game_id' in j):
-        g = Game.objects.get(id=j['game_id'])
-        request.perm.Ensure(g.edit_perm)
-        if update_edit_time:
-            g.edit_time = timezone.now()
-    else:
-        request.perm.Ensure(PERM_ADD_GAME)
-        g = Game()
-        g.creation_time = timezone.now()
-        g.added_by = request.user
-
-    g.title = j['title']
-    g.description = j.get('desc')
-    g.release_date = (parse_date(j['release_date'])
-                      if j.get('release_date') else None)
-
-    g.save()
-    UpdateGameUrls(request, g, j.get('links', []), 'game_id' in j)
-    UpdateGameTags(request, g, j.get('tags', []), 'game_id' in j)
-    UpdateGameAuthors(request, g, j.get('authors', []), 'game_id' in j)
-
-    return g.id

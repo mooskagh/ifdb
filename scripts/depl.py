@@ -285,8 +285,8 @@ def stage(ctx, tag):
     p.AddStep(KillStaging)
     p.AddStep(CreateStaging)
     p.AddStep(
-        RunCmdStep('git clone git@bitbucket.org:mooskagh/ifdb.git %s' %
-                   django_dir))
+        RunCmdStep(
+            'git clone git@bitbucket.org:mooskagh/ifdb.git %s' % django_dir))
     p.AddStep(ChDir(django_dir))
     p.AddStep(RunCmdStep('git checkout -b staging %s' % (tag or '')))
     p.AddStep(RunCmdStep('virtualenv -p python3 %s' % virtualenv_dir))
@@ -369,10 +369,10 @@ def deploy(ctx, hot, from_master):
 
     if not hot:
         p.AddStep(
-            GetFromTemplate('wallpage.tpl', 'wallpage/index.html', {
-                'message': 'Сайт обновляется',
-                'timestamp': int(time.time())
-            }, False))
+            GetFromTemplate(
+                'wallpage.tpl', 'wallpage/index.html',
+                {'message': 'Сайт обновляется',
+                 'timestamp': int(time.time())}, False))
         p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
         p.AddStep(
             GetFromTemplate('nginx.tpl', 'nginx.conf', {
@@ -406,10 +406,14 @@ def deploy(ctx, hot, from_master):
     if not hot:
         p.AddStep(
             RunCmdStep(
-                '%s/bin/pip install -r %s/requirements.txt --no-cache-dir' % (
-                    virtualenv_dir, django_dir)))
+                '%s/bin/pip install -r %s/requirements.txt --no-cache-dir' %
+                (virtualenv_dir, django_dir)))
         p.AddStep(
             RunCmdStep('%s %s/manage.py migrate' % (python_dir, django_dir)))
+        p.AddStep(
+            RunCmdStep("pg_dump ifdb > %s" % os.path.join(
+                BACKUPS_DIR, 'database-postmirg',
+                time.strftime("%Y%m%d_%H%M"))))
 
     if hot:
         p.AddStep(
