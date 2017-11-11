@@ -2,12 +2,16 @@
 {% load tags %}
 {% if games %}
 {% for g in games %}
-    <div class="gamelist-thumb gamelist-thumb-search" onclick="location.href='{% url 'show_game' game_id=g.id %}'">
+    <div class="gamelist-thumb gamelist-thumb-search">
         <div class="poster-container">
-            <img class="poster" src="{{ g.poster|default:'/static/noposter.png' }}"/>
+            <a href="{% url 'show_game' game_id=g.id %}">            
+                <img class="poster" src="{{ g.poster|default:'/static/noposter.png' }}"/>
+            </a>
         </div>
         <div class="title-container">
-            {{ g.title }}
+            <a class="author-link" href="{% url 'show_game' game_id=g.id %}">
+                {{ g.title }}
+            </a>
         </div>
         <div class="search-author">
             {% for x in g.authors %}        
