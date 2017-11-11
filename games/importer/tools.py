@@ -8,15 +8,15 @@ REGISTERED_IMPORTERS = []
 
 
 URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
-    ('qsp.su', '^$', '^$', None, None),
-    ('urq.plut.info', '^$', '^$', None, None),
-    ('rilarhiv.ru', '^$', '^$', None, None),
-    ('ifwiki.ru', '^$', '^$', None, None),
-    ('www.youtube.com', '^$', '^$', None, None),
-    ('youtube.com', '^$', '^$', None, None),
-    ('youtu.be', '^$', '^$', None, None),
-    ('apero.ru', '^$', '^$', None, None),
-    ('storymaze.ru', '^$', '^$', None, None),
+    ('qsp.su', '^/?$', '^$', None, None),
+    ('urq.plut.info', '^/?$', '^$', None, None),
+    ('rilarhiv.ru', '^/?$', '^$', None, None),
+    ('ifwiki.ru', '^/?$', '^$', None, None),
+    ('www.youtube.com', '^/?$', '^$', None, None),
+    ('youtube.com', '^/?$', '^$', None, None),
+    ('youtu.be', '^/?$', '^$', None, None),
+    ('apero.ru', '^/?$', '^$', None, None),
+    ('storymaze.ru', '^/?$', '^$', None, None),
     ('', r'.*screenshot.*\.(png|jpg|gif|bmp|jpeg)', '', 'screenshot',
      'Скриншот'),
     ('', r'.*\.(png|jpg|gif|bmp|jpeg)', '', 'poster', 'Обложка'),
@@ -99,16 +99,24 @@ def CategorizeUrl(url, desc='', category=None, base=None):
 
 
 AUTHOR_URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
-    ('qsp.su', '^$', '^$', None, None),
-    ('urq.plut.info', '^$', '^$', None, None),
-    ('rilarhiv.ru', '^$', '^$', None, None),
-    ('ifwiki.ru', '^$', '^$', None, None),
-    ('www.youtube.com', '^$', '^$', None, None),
-    ('youtube.com', '^$', '^$', None, None),
-    ('youtu.be', '^$', '^$', None, None),
-    ('apero.ru', '^$', '^$', None, None),
-    ('storymaze.ru', '^$', '^$', None, None),
+    ('apero.ru', '^/?$', '^$', None, None),
+    ('forum.ifiction.ru', '^/?$', '^$', None, None),
+    ('ifhub.club', '^/?$', '^$', None, None),
+    ('ifiction.ru', '^/?$', '^$', None, None),
+    ('ifwiki.ru', '^/?$', '^$', None, None),
+    ('kril.ifiction.ru', '', '', None, None),
+    ('plut.info', '^/?$', '^$', None, None),
+    ('qsp.su', '^/?$', '^$', None, None),
+    ('rilarhiv.ru', '^/?$', '^$', None, None),
+    ('storymaze.ru', '^/?$', '^$', None, None),
+    ('urq.plut.info', '^/?$', '^$', None, None),
+    ('www.youtube.com', '^/?$', '^$', None, None),
+    ('youtu.be', '^/?$', '^$', None, None),
+    ('youtube.com', '^/?$', '^$', None, None),
     ('ifwiki.ru', '', '', 'other_site', 'Страница на IfWiki'),
+    ('twitter.com', '', '', 'social', 'Страница в Твиттере'),
+    (r'@.+\.ifiction\.ru', '^/?$', '', 'personal_page', 'Блог на ifiction.ru'),
+    ('vk.com', '', '', 'social', 'Страница вКонтакте'),
     ('', r'.*\.(png|jpg|gif|bmp|jpeg)', '', 'avatar', 'Изображение'),
 ]
 
@@ -139,6 +147,8 @@ def CategorizeAuthorUrl(url, desc='', category=None, base=None):
         if desc.lower() == 'интервью':
             cat_slug = 'interview'
         elif 'сайт' in desc.lower():
+            cat_slug = 'personal_page'
+        elif 'блог' in desc.lower():
             cat_slug = 'personal_page'
     if not desc:
         desc = url

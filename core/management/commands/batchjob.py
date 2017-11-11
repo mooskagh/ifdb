@@ -192,7 +192,7 @@ def FixGameAuthors():
             logger.info('Resetting hidden_for for alias [%s]' % x)
             x.save()
 
-    logger.info('*** Applying blacklist for non-edited games')
+    logger.info('*** Applying blacklist/hidden_for for non-edited games')
     for x in GameAuthor.objects.select_related():
         if x.author.is_blacklisted:
             logger.info('Blacklisted [%s] find in game [%s]' % (x.author,

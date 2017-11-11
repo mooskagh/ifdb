@@ -7,6 +7,8 @@ from games.models import (Personality, PersonalityUrl, PersonalityAlias)
 class Cluster:
     def __init__(self, personality=None):
         self.pers = []
+        self.id_to_local = dict()  # for alias
+        self.local_to_id = []  # for alias
         self.urlid_to_count = dict()
         self.urlids = set()
 
@@ -19,6 +21,13 @@ class Cluster:
             for x in self.urlids:
                 self.urlid_to_count[x] = 1
 
+            for x in personality.personalityalias_set.all():
+                if x.id in self.id_to_local:
+                    continue
+                loc = len(self.local_to_id)
+                self.id_to_local[x.id] = loc
+                self.local_to_id.append(x.id)
+
     def Intersects(self, other):
         return not self.urlids.isdisjoint(other.urlids)
 
@@ -27,6 +36,12 @@ class Cluster:
         self.urlids.update(other.urlids)
         for k, v in other.urlid_to_count.items():
             self.urlid_to_count[k] = self.urlid_to_count.get(k, 0) + v
+        for x in other.local_to_id:
+            if x in self.id_to_local:
+                continue
+            loc = len(self.local_to_id)
+            self.id_to_local[x] = loc
+            self.local_to_id.append(x)
 
     def Print(self):
         for i, p in enumerate(self.pers):
@@ -47,12 +62,16 @@ class Cluster:
                         ' (%d)' % u.hidden_for.id, fg='yellow', bold=True)
 
                 click.secho(
-                    "   %d (%d): %s%s" % (u.id, len(u.gameauthor_set.all()),
-                                          u.name, var),
+                    "   [%d] %d (%d): %s%s" %
+                    (self.id_to_local[u.id], u.id, len(u.gameauthor_set.all()),
+                     u.name, var),
                     fg='green')
 
     def Size(self):
         return len(self.pers)
+
+    def GetAlias(self, id):
+        return PersonalityAlias.objects.get(pk=self.local_to_id[int(id)])
 
 
 def TrySimplifyCluster(cluster, idx):
@@ -71,6 +90,7 @@ def TrySimplifyCluster(cluster, idx):
 
 
 def MergePerson(frm, to):
+    to = Personality.objects.get(pk=to.pk)
     if frm.bio and (to.bio is None or len(to.bio) < len(frm.bio)):
         to.bio = frm.bio
         to.save()
@@ -83,6 +103,7 @@ def MergePerson(frm, to):
         if x.url.id in existing:
             x.delete()
         else:
+            existing.add(x.url.id)
             x.personality = to
             x.save()
 
@@ -118,11 +139,20 @@ class Command(BaseCommand):
                     click.secho('  pa1 merge all persons into 1', fg='blue')
                     click.secho(
                         '  p1n ASDF set persons 1 name ASDF', fg='blue')
+                    click.secho(
+                        '  a1nf For persn 1 name "First Last" -> "Last, First"',
+                        fg='blue')
+                    click.secho(
+                        '  p1nfa2 set persons 1 name from alias 2', fg='blue')
                     click.secho('  p1u2d delete url 2 for person 1', fg='blue')
                     click.secho(
                         '  p1n2 person 1 take name from alias 2', fg='blue')
                     click.secho('  a1b blacklist alias 1', fg='blue')
                     click.secho('  a1w whitelist alias 1', fg='blue')
+                    click.secho('  a1n ASDF set alias 1 name ASDF', fg='blue')
+                    click.secho(
+                        '  a1nf For alias 1 name "Last, First" -> "First Last"',
+                        fg='blue')
                     click.secho(
                         '  a1h2 hide alias 1 to 2 (must be same person)',
                         fg='blue')
@@ -148,14 +178,52 @@ class Command(BaseCommand):
                         if i != to:
                             MergePerson(p, clsr.pers[to])
 
-                m = re.match(r'p(\d+)n (.*)$', inp)
+                m = re.match(r'p(\d+)nf$', inp)
+                if m:
+                    to = clsr.pers[int(m.group(1))]
+                    m2 = re.match('(.*?) (.*)$', to.name)
+                    if m2:
+                        toname = "%s, %s" % (m2.group(2), m2.group(1))
+                        click.secho(
+                            'Set persons %s name into [%s]' % (m.group(1),
+                                                               toname),
+                            fg='blue')
+                        if Personality.objects.filter(name=toname).count() > 0:
+                            click.secho(
+                                'Personality with that name already exists!',
+                                fg='red',
+                                bold=True)
+                        else:
+                            to.name = toname
+                            to.save()
+                    else:
+                        click.secho('Cannot parse name!', fg='red', bold=True)
+
+                m = re.match(r'p(\d+)n (.+)$', inp)
                 if m:
                     click.secho(
-                        'Set persons %d name into %s' % (m.group(1),
+                        'Set persons %s name into %s' % (m.group(1),
                                                          m.group(2)),
                         fg='blue')
                     clsr.pers[int(m.group(1))].name = m.group(2)
                     clsr.pers[int(m.group(1))].save()
+
+                m = re.match(r'p(\d+)nfa(\d+)$', inp)
+                if m:
+                    click.secho(
+                        'Set persons %s name into %s' % (m.group(1),
+                                                         m.group(2)),
+                        fg='blue')
+                    p = clsr.pers[int(m.group(1))]
+                    x = clsr.GetAlias(m.group(2))
+                    if x.personality_id == p.id:
+                        p.name = x.name
+                        p.save()
+                    else:
+                        click.secho(
+                            'Personality differs, doing nothing',
+                            fg='red',
+                            bold=True)
 
                 m = re.match(r'p(\d+)u(\d+)d$', inp)
                 if m:
@@ -178,7 +246,7 @@ class Command(BaseCommand):
                 if m:
                     a = int(m.group(1))
                     click.secho('Blacklist alias %d.' % a, fg='blue')
-                    x = PersonalityAlias.objects.get(pk=a)
+                    x = clsr.GetAlias(a)
                     x.is_blacklisted = True
                     x.save()
 
@@ -186,17 +254,57 @@ class Command(BaseCommand):
                 if m:
                     a = int(m.group(1))
                     click.secho('Whitelist alias %d.' % a, fg='blue')
-                    x = PersonalityAlias.objects.get(pk=a)
+                    x = clsr.GetAlias(a)
                     x.is_blacklisted = False
                     x.save()
+
+                m = re.match(r'a(\d+)n (.+)$', inp)
+                if m:
+                    click.secho(
+                        'Set aliases %s name into %s' % (m.group(1),
+                                                         m.group(2)),
+                        fg='blue')
+                    if PersonalityAlias.objects.filter(
+                            name=m.group(2)).count() > 0:
+                        click.secho(
+                            'Alias with this name already exists.',
+                            fg='red',
+                            bold=True)
+                    else:
+                        a = int(m.group(1))
+                        x = clsr.GetAlias(a)
+                        x.name = m.group(2)
+                        x.save()
+
+                m = re.match(r'a(\d+)nf$', inp)
+                if m:
+                    to = clsr.GetAlias(int(m.group(1)))
+                    m2 = re.match('(.*), (.*)$', to.name)
+                    if m2:
+                        toname = "%s %s" % (m2.group(2), m2.group(1))
+                        click.secho(
+                            'Set alias %s name into [%s]' % (m.group(1),
+                                                             toname),
+                            fg='blue')
+                        if PersonalityAlias.objects.filter(
+                                name=toname).count() > 0:
+                            click.secho(
+                                'Alias with that name already exists!',
+                                fg='red',
+                                bold=True)
+                        else:
+                            to.name = toname
+                            to.save()
+                    else:
+                        click.secho('Cannot parse name!', fg='red', bold=True)
 
                 m = re.match(r'a(\d+)h(\d+)$', inp)
                 if m:
                     a = int(m.group(1))
                     b = int(m.group(2))
                     click.secho('Hide alias %d to %d.' % (a, b), fg='blue')
-                    x = PersonalityAlias.objects.get(pk=a)
-                    y = PersonalityAlias.objects.get(pk=b)
+                    x = clsr.GetAlias(a)
+                    y = clsr.GetAlias(b)
                     if x.personality_id == y.personality_id:
                         x.hidden_for = y
                         x.save()
@@ -210,7 +318,7 @@ class Command(BaseCommand):
                 if m:
                     a = int(m.group(1))
                     click.secho('Unhide alias %d.' % a, fg='blue')
-                    x = PersonalityAlias.objects.get(pk=a)
+                    x = clsr.GetAlias(a)
                     x.hidden_for = None
                     x.save()
 
