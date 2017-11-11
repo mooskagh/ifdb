@@ -11,8 +11,12 @@
         </div>
         <div class="search-author">
             {% for x in g.authors %}        
-                <a class="author-link" href="{% url 'show_author' author_id=x.author.personality.id %}">
-                {{x.author.name}}</a>{% if not forloop.last %},{% endif %}
+                {% if x.author.personality %}
+                    <a class="author-link" href="{% url 'show_author' author_id=x.author.personality.id %}">
+                    {{x.author.name}}</a>{% if not forloop.last %},{% endif %}
+                {% else %}
+                    {{x.author.name}}{% if not forloop.last %},{% endif %}                
+                {% endif %}
             {% endfor %}
         </div>
         <div class="auxinfo">

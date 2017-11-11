@@ -412,8 +412,8 @@ def deploy(ctx, hot, from_master):
             RunCmdStep('%s %s/manage.py migrate' % (python_dir, django_dir)))
         p.AddStep(
             RunCmdStep("pg_dump ifdb > %s" % os.path.join(
-                BACKUPS_DIR, 'database-postmirg',
-                time.strftime("%Y%m%d_%H%M"))))
+                BACKUPS_DIR, 'database',
+                time.strftime("%Y%m%d_%H%M-postmigr"))))
 
     if hot:
         p.AddStep(
