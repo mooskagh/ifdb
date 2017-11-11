@@ -7,6 +7,9 @@ import subprocess
 import os.path
 import shutil
 import json
+from logging import getLogger
+
+logger = getLogger('worker')
 
 #  {"module": "games.tasks.uploads", "name": "MarkBroken"}
 
@@ -168,37 +171,47 @@ def RemoveAuthors():
     PersonalityAlias.objects.filter(gameauthor__isnull=True).delete()
 
 
+# TODO Run that as a periodic job.
 def FixGameAuthors():
+    logger.info('*** Fixing blacklisted aliases')
     for x in PersonalityAlias.objects.filter(is_blacklisted=True):
         if x.personality:
+            logger.info('Remove personality from alias [%s]' % x)
             x.personality = None
             x.save()
         if x.hidden_for:
+            logger.info('Remove hidden_for from alias [%s]' % x)
             x.hidden_for = None
             x.save()
 
+    logger.info('*** Checking hidden_for to be correct')
     for x in PersonalityAlias.objects.filter(
             hidden_for__isnull=False).select_related():
         if x.personality != x.hidden_for.personality:
             x.personality = x.hidden_for.personality
+            logger.info('Resetting hidden_for for alias [%s]' % x)
             x.save()
 
-    for x in GameAuthor.objects.filter(
-            game__edit_time__isnull=True).select_related():
+    logger.info('*** Applying blacklist for non-edited games')
+    for x in GameAuthor.objects.select_related():
         if x.author.is_blacklisted:
-            x.delete()
+            logger.info('Blacklisted [%s] find in game [%s]' % (x.author,
+                                                                x.game))
+            if x.game.edit_time is None:
+                x.delete()
+            else:
+                logger.warning('Game [%s] NOT AUTOUPDATEABLE!' % x.game)
             continue
         if x.author.hidden_for:
-            x.author = x.author.hidden_for
-            x.save()
+            logger.info('HiddenFor [%s] find in game [%s]' % (x.author,
+                                                              x.game))
+            if x.game.edit_time is None:
+                x.author = x.author.hidden_for
+                x.save()
+            else:
+                logger.warning('Game [%s] NOT AUTOUPDATEABLE!' % x.game)
 
-    Personality.objects.filter(personalityalias__isnull=True).delete()
-    PersonalityAlias.objects.filter(
-        is_blacklisted=False, hidden_for__isnull=True,
-        gameauthor__isnull=True).delete()
-
-
-def FixDuplicateGameAuthors():
+    logger.info('*** Fixing game duplicate aliases')
     for g in Game.objects.all():
         clusters = dict()
         for x in GameAuthor.objects.filter(game=g).select_related():
@@ -215,9 +228,22 @@ def FixDuplicateGameAuthors():
                     best = count
                     record = i
 
-            for i, y in enumerate(v):
-                if i != record:
-                    y.delete()
+            logger.info('Game [%s], over [%s] we are keeping [%s]' %
+                        (g, v, v[record]))
+            if g.edit_time is None:
+                for i, y in enumerate(v):
+                    if i != record:
+                        y.delete()
+            else:
+                logger.warning('Game [%s] NOT AUTOUPDATEABLE!' % g)
+
+    logger.info('*** Killing hanging personalities')
+    Personality.objects.filter(personalityalias__isnull=True).delete()
+
+    logger.info('*** Killing hanging aliases')
+    PersonalityAlias.objects.filter(
+        is_blacklisted=False, hidden_for__isnull=True,
+        gameauthor__isnull=True).delete()
 
 
 class Command(BaseCommand):
@@ -228,12 +254,11 @@ class Command(BaseCommand):
 
     def handle(self, cmd, *args, **options):
         options = {
-            'removeauthors': RemoveAuthors,
+            'removeauthors-destructiv': RemoveAuthors,
             'fixgameauthors': FixGameAuthors,
-            'fixdupgameauthors': FixDuplicateGameAuthors,
         }
         if cmd in options:
             options[cmd]()
         else:
-            print('Unknown command, valid ones are:\n%s' %
-                  ', '.join(options.keys()))
+            print('Unknown command, valid ones are:\n%s' % ', '.join(
+                options.keys()))
