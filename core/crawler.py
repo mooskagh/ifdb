@@ -12,7 +12,7 @@ logger = getLogger('crawler')
 
 
 def FetchUrlToString(url, use_cache=True):
-    return FetchUrlToFileLike(url, use_cache).read().decode('utf-8')
+    return FetchUrlToFileLike(url, use_cache).read().decode('utf-8', 'ignore')
 
 
 def _ResponseInfoToMetadata(url, response):

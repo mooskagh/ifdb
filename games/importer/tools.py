@@ -113,11 +113,13 @@ AUTHOR_URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('www.youtube.com', '^/?$', '^$', None, None),
     ('youtu.be', '^/?$', '^$', None, None),
     ('youtube.com', '^/?$', '^$', None, None),
+    ('', r'.*\.(png|jpg|gif|bmp|jpeg)', '', 'avatar', 'Изображение'),
     ('ifwiki.ru', '', '', 'other_site', 'Страница на IfWiki'),
+    ('apero.ru', '.*/%D0%A3%D1%87%D0%B0%D1%81%D1%82%D0%BD%D0%B8%D0%BA%D0%B8/',
+     '', 'other_site', 'Страница на Аперо'),
     ('twitter.com', '', '', 'social', 'Страница в Твиттере'),
     (r'@.+\.ifiction\.ru', '^/?$', '', 'personal_page', 'Блог на ifiction.ru'),
     ('vk.com', '', '', 'social', 'Страница вКонтакте'),
-    ('', r'.*\.(png|jpg|gif|bmp|jpeg)', '', 'avatar', 'Изображение'),
 ]
 
 
