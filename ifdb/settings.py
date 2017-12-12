@@ -16,7 +16,7 @@ import os.path
 import logging.config
 from django.core.files.storage import FileSystemStorage
 
-IS_PROD = socket.gethostname() == 'ribby.mooskagh.com'
+IS_PROD = socket.gethostname() == 'crem.xyz'
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
