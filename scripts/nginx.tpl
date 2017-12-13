@@ -10,13 +10,12 @@ upstream django-staging {
 {% endif %}
 server {
 {% if c.host == 'prod' %}
-    server_name db.mooskagh.com;
-    server_name crem.xyz;
+    server_name db.crem.xyz;
 
     error_log    /home/ifdb/logs/nginx-error.log;
     access_log    /home/ifdb/logs/nginx-access.log;
 {% elif c.host == 'staging' %}
-    server_name db-staging.mooskagh.com;
+    server_name db-staging.crem.xyz;
 
     error_log    /home/ifdb/logs/nginx-staging-error.log;
     access_log    /home/ifdb/logs/nginx-staging-access.log;

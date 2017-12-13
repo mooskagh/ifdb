@@ -24,7 +24,7 @@ settings.configure(TEMPLATES=TEMPLATES)
 django.setup()
 os.path.realpath(__file__)
 
-IS_PROD = socket.gethostname() == 'ribby.mooskagh.com'
+IS_PROD = socket.gethostname() == 'crem.xyz'
 TPL_DIR = os.path.dirname(os.path.realpath(__file__))
 ROOT_DIR = '/home/ifdb'
 
@@ -226,15 +226,16 @@ def red(ctx, message):
                          'timestamp': int(time.time())}, False))
     p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
     p.AddStep(
-        GetFromTemplate('nginx.tpl', 'nginx.conf', {
-            'configs': [{
-                'host': 'prod',
-                'conf': 'wallpage'
-            }, {
-                'host': 'staging',
-                'conf': 'deny'
-            }]
-        }))
+        GetFromTemplate(
+            'nginx.tpl', 'nginx.conf', {
+                'configs': [{
+                    'host': 'prod',
+                    'conf': 'wallpage'
+                }, {
+                    'host': 'staging',
+                    'conf': 'deny'
+                }]
+            }))
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-uwsgi'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-worker'))
@@ -252,15 +253,16 @@ def green(ctx):
     p = ctx.obj['pipeline']
     p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
     p.AddStep(
-        GetFromTemplate('nginx.tpl', 'nginx.conf', {
-            'configs': [{
-                'host': 'prod',
-                'conf': 'prod'
-            }, {
-                'host': 'staging',
-                'conf': 'deny'
-            }]
-        }))
+        GetFromTemplate(
+            'nginx.tpl', 'nginx.conf', {
+                'configs': [{
+                    'host': 'prod',
+                    'conf': 'prod'
+                }, {
+                    'host': 'staging',
+                    'conf': 'deny'
+                }]
+            }))
     p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-uwsgi'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-worker'))
@@ -308,30 +310,32 @@ def stage(ctx, tag):
                                                           CONFIGS_DIR)))
     p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
     p.AddStep(
-        GetFromTemplate('nginx.tpl', 'nginx.conf', {
-            'configs': [{
-                'host': 'prod',
-                'conf': 'prod'
-            }, {
-                'host': 'staging',
-                'conf': 'staging'
-            }]
-        }))
+        GetFromTemplate(
+            'nginx.tpl', 'nginx.conf', {
+                'configs': [{
+                    'host': 'prod',
+                    'conf': 'prod'
+                }, {
+                    'host': 'staging',
+                    'conf': 'staging'
+                }]
+            }))
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
     p.AddStep(
         LoopStep(
             RunCmdStep('kill -HUP `cat /tmp/uwsgi-ifdb-staging.pid`'),
             'Check STAGING and reload if needed.'))
     p.AddStep(
-        GetFromTemplate('nginx.tpl', 'nginx.conf', {
-            'configs': [{
-                'host': 'prod',
-                'conf': 'prod'
-            }, {
-                'host': 'staging',
-                'conf': 'deny'
-            }]
-        }))
+        GetFromTemplate(
+            'nginx.tpl', 'nginx.conf', {
+                'configs': [{
+                    'host': 'prod',
+                    'conf': 'prod'
+                }, {
+                    'host': 'staging',
+                    'conf': 'deny'
+                }]
+            }))
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
     p.AddStep(
         RunCmdStep('%s/bin/uwsgi --stop /tmp/uwsgi-ifdb-staging.pid' %
@@ -375,15 +379,16 @@ def deploy(ctx, hot, from_master):
                  'timestamp': int(time.time())}, False))
         p.AddStep(CheckFromTemplate('nginx.tpl', 'nginx.conf'))
         p.AddStep(
-            GetFromTemplate('nginx.tpl', 'nginx.conf', {
-                'configs': [{
-                    'host': 'prod',
-                    'conf': 'wallpage'
-                }, {
-                    'host': 'staging',
-                    'conf': 'deny'
-                }]
-            }))
+            GetFromTemplate(
+                'nginx.tpl', 'nginx.conf', {
+                    'configs': [{
+                        'host': 'prod',
+                        'conf': 'wallpage'
+                    }, {
+                        'host': 'staging',
+                        'conf': 'deny'
+                    }]
+                }))
         p.AddStep(StartTimer)
         p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
         p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-uwsgi'))
@@ -435,15 +440,16 @@ def deploy(ctx, hot, from_master):
 
     if not hot:
         p.AddStep(
-            GetFromTemplate('nginx.tpl', 'nginx.conf', {
-                'configs': [{
-                    'host': 'prod',
-                    'conf': 'wallpage'
-                }, {
-                    'host': 'staging',
-                    'conf': 'prod'
-                }]
-            }))
+            GetFromTemplate(
+                'nginx.tpl', 'nginx.conf', {
+                    'configs': [{
+                        'host': 'prod',
+                        'conf': 'wallpage'
+                    }, {
+                        'host': 'staging',
+                        'conf': 'prod'
+                    }]
+                }))
         p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
 
     p.AddStep(
@@ -453,15 +459,16 @@ def deploy(ctx, hot, from_master):
 
     if not hot:
         p.AddStep(
-            GetFromTemplate('nginx.tpl', 'nginx.conf', {
-                'configs': [{
-                    'host': 'prod',
-                    'conf': 'prod'
-                }, {
-                    'host': 'staging',
-                    'conf': 'deny'
-                }]
-            }))
+            GetFromTemplate(
+                'nginx.tpl', 'nginx.conf', {
+                    'configs': [{
+                        'host': 'prod',
+                        'conf': 'prod'
+                    }, {
+                        'host': 'staging',
+                        'conf': 'deny'
+                    }]
+                }))
         p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
         p.AddStep(StopTimer)
     p.AddStep(

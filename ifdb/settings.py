@@ -25,7 +25,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if IS_PROD:
     SECRET_KEY = open('/home/ifdb/configs/django-secret.txt').read().strip()
     DEBUG = False
-    ALLOWED_HOSTS = ['db.mooskagh.com', 'db-staging.mooskagh.com', 'crem.xyz']
+    ALLOWED_HOSTS = ['db.crem.xyz', 'db-staging.crem.xyz']
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql_psycopg2',
