@@ -3,7 +3,7 @@ from logging import getLogger
 import os.path
 import timeit
 from .game_details import GameDetailsBuilder, StarsFromRating
-from .importer import Import
+from .importer import Importer
 from .models import (GameURL, GameComment, Game, GameVote, InterpretedGameUrl,
                      URL, GameTag, GameAuthorRole, PersonalityAlias,
                      GameTagCategory, GameURLCategory, GameAuthor, Personality,
@@ -147,13 +147,15 @@ def edit_game(request, game_id):
 
 def store_game(request):
     if request.method != 'POST':
-        return render(request, 'games/error.html',
-                      {'message': 'Что-то не так!' + ' (1)'})
+        return render(request, 'games/error.html', {
+            'message': 'Что-то не так!' + ' (1)'
+        })
     j = json.loads(request.POST.get('json'))
 
     if not j['title']:
-        return render(request, 'games/error.html',
-                      {'message': 'У игры должно быть название.'})
+        return render(request, 'games/error.html', {
+            'message': 'У игры должно быть название.'
+        })
 
     id = UpdateGame(request, j)
     return redirect(reverse('show_game', kwargs={'game_id': id}))
@@ -162,8 +164,9 @@ def store_game(request):
 @perm_required(PERM_ADD_GAME)
 def vote_game(request):
     if request.method != 'POST':
-        return render(request, 'games/error.html',
-                      {'message': 'Что-то не так!' + ' (2)'})
+        return render(request, 'games/error.html', {
+            'message': 'Что-то не так!' + ' (2)'
+        })
     game = Game.objects.get(id=int(request.POST.get('game_id')))
 
     try:
@@ -187,8 +190,9 @@ def vote_game(request):
 
 def comment_game(request):
     if request.method != 'POST':
-        return render(request, 'games/error.html',
-                      {'message': 'Что-то не так!' + ' (3)'})
+        return render(request, 'games/error.html', {
+            'message': 'Что-то не так!' + ' (3)'
+        })
     game = Game.objects.get(id=int(request.POST.get('game_id')))
     request.perm.Ensure(game.comment_perm)
 
@@ -346,7 +350,9 @@ def store_interpreter_params(request, gameurl_id):
         u.save()
 
         return redirect(
-            reverse('play_in_interpreter', kwargs={'gameurl_id': gameurl_id}))
+            reverse('play_in_interpreter', kwargs={
+                'gameurl_id': gameurl_id
+            }))
     raise SuspiciousOperation
 
 
@@ -530,13 +536,14 @@ def json_author_search(request):
         x.honor_str = "%.1f" % x.honor
         x.stars = StarsFromRating(x.honor)
 
-    res = render(request, 'games/authors_snippet.html', {
-        'authors': authors,
-        'start': start,
-        'limit': limit,
-        'next': start + limit,
-        'has_more': len(authors) == limit,
-    })
+    res = render(
+        request, 'games/authors_snippet.html', {
+            'authors': authors,
+            'start': start,
+            'limit': limit,
+            'next': start + limit,
+            'has_more': len(authors) == limit,
+        })
 
     elapsed_time = timeit.default_timer() - start_time
 
@@ -572,8 +579,8 @@ def json_search(request):
             'playonline':
             Exists(
                 GameURL.objects.filter(game=OuterRef('pk')).filter(
-                    Q(category__symbolic_id='play_online') | Q(
-                        interpretedgameurl__is_playable=True))),
+                    Q(category__symbolic_id='play_online')
+                    | Q(interpretedgameurl__is_playable=True))),
             'downloadable':
             Exists(
                 GameURL.objects.filter(
@@ -605,13 +612,14 @@ def json_search(request):
         x.icons['downloadable'] = x.downloadable
         x.icons['loonchator'] = x.loonchator_count > 0
 
-    res = render(request, 'games/search_snippet.html', {
-        'games': games,
-        'start': start,
-        'limit': limit,
-        'next': start + limit,
-        'has_more': len(games) == limit,
-    })
+    res = render(
+        request, 'games/search_snippet.html', {
+            'games': games,
+            'start': start,
+            'limit': limit,
+            'next': start + limit,
+            'has_more': len(games) == limit,
+        })
 
     elapsed_time = timeit.default_timer() - start_time
 
@@ -623,7 +631,8 @@ def json_search(request):
 
 @perm_required(PERM_ADD_GAME)
 def doImport(request):
-    raw_import = Import(request.GET.get('url'))
+    importer = Importer()
+    (raw_import, _) = importer.Import(request.GET.get('url'))
     if ('error' in raw_import):
         return JsonResponse({'error': raw_import['error']})
     return JsonResponse(Importer2Json(raw_import))

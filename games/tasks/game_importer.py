@@ -1,7 +1,6 @@
 from django.contrib.auth import get_user_model
-from games.importer.tools import (Import, GetUrlCandidates, HashizeUrl,
-                                  GetBagOfWords, ComputeSimilarity,
-                                  GetDirtyUrls)
+from games.importer.tools import (Importer, HashizeUrl, GetBagOfWords,
+                                  ComputeSimilarity)
 from games.models import Game, URL
 from games.updater import UpdateGame, Importer2Json
 from ifdb.permissioner import Permissioner
@@ -25,7 +24,8 @@ class FakeRequest:
 
 
 class ImportedGame:
-    def __init__(self, game=None):
+    def __init__(self, importer, game=None):
+        self.importer = importer
         self.game = game
         self.title = None
         self.title_bow = set()
@@ -73,13 +73,21 @@ class ImportedGame:
         return self.title_bow
 
     def Fetch(self):
-        self.content = Import(*self.seed_urls)
+        (self.content, error_urls) = self.importer.Import(*self.seed_urls)
         self.is_error = 'title' not in self.content
 
         if self.is_error:
             logger.warning("Was unable to fetch: %s\n%s" % (self.seed_urls,
                                                             self.content))
             return False
+
+        for x in self.seed_urls:
+            if x in self.new_urls:
+                continue
+            if x in error_urls:
+                logger.error("Was unable to fetch old url %s: %s" %
+                             (x, error_urls[x]))
+                return False
 
         self.seed_urls = [
             x['url'] for x in self.content['urls']
@@ -195,6 +203,7 @@ class GameSet:
 
 
 def ImportGames():
+    importer = Importer()
     existing_urls = set(
         [HashizeUrl(x.original_url) for x in URL.objects.all()])
     logger.info("Fetched %d existing urls" % len(existing_urls))
@@ -202,9 +211,9 @@ def ImportGames():
     gameset = GameSet()
     for x in Game.objects.prefetch_related('gameurl_set__category',
                                            'gameurl_set__url').all():
-        gameset.AddGame(ImportedGame(x))
+        gameset.AddGame(ImportedGame(importer, x))
 
-    candidates = set(GetUrlCandidates())
+    candidates = set(importer.GetUrlCandidates())
     logger.info("%d Url candidates to check" % len(candidates))
 
     while candidates:
@@ -217,12 +226,12 @@ def ImportGames():
                 'Url [%s] is known, yet no games had it. Deleted?' % u)
             continue
 
-        g = ImportedGame()
+        g = ImportedGame(importer)
         g.AddUrl(u)
         if g.Fetch():
             gameset.TryMerge(g)
 
-    for x in GetDirtyUrls():
+    for x in importer.GetDirtyUrls():
         gameset.DirtifyUrl(x)
 
     fake_request = FakeRequest(USER)
@@ -239,10 +248,11 @@ def ImportGames():
 
 
 def ForceReimport():
+    importer = Importer()
     gameset = GameSet()
     for x in Game.objects.prefetch_related('gameurl_set__category',
                                            'gameurl_set__url').all():
-        gameset.AddGame(ImportedGame(x))
+        gameset.AddGame(ImportedGame(importer, x))
 
     fake_request = FakeRequest(USER)
 

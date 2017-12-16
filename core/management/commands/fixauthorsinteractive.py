@@ -62,9 +62,9 @@ class Cluster:
                         ' (%d)' % u.hidden_for.id, fg='yellow', bold=True)
 
                 click.secho(
-                    "   [%d] %d (%d): %s%s" %
-                    (self.id_to_local[u.id], u.id, len(u.gameauthor_set.all()),
-                     u.name, var),
+                    "   [%d] %d (%d): %s%s" % (self.id_to_local[u.id], u.id,
+                                               len(u.gameauthor_set.all()),
+                                               u.name, var),
                     fg='green')
 
     def Size(self):
@@ -140,13 +140,11 @@ class Command(BaseCommand):
                     click.secho(
                         '  p1n ASDF set persons 1 name ASDF', fg='blue')
                     click.secho(
-                        '  a1nf For persn 1 name "First Last" -> "Last, First"',
+                        '  p1nf For persn 1 name "First Last" -> "Last, First"',
                         fg='blue')
                     click.secho(
                         '  p1nfa2 set persons 1 name from alias 2', fg='blue')
                     click.secho('  p1u2d delete url 2 for person 1', fg='blue')
-                    click.secho(
-                        '  p1n2 person 1 take name from alias 2', fg='blue')
                     click.secho('  a1b blacklist alias 1', fg='blue')
                     click.secho('  a1w whitelist alias 1', fg='blue')
                     click.secho('  a1n ASDF set alias 1 name ASDF', fg='blue')
