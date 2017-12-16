@@ -73,7 +73,7 @@ def LastComments(request):
             'lag':
             FormatLag((x.creation_time - timezone.now()).total_seconds()),
             'username':
-            x.user,
+            x.user.username if x.user else 'Анонимоўс',
             'game':
             x.game.title,
             'id':
@@ -198,7 +198,9 @@ def comment_game(request):
 
     comment = GameComment()
     comment.game = game
-    comment.user = request.user
+    print(request.user)
+    comment.user = None if request.user.is_anonymous or request.POST.get(
+        'anonymous', False) else request.user
     comment.parent_id = request.POST.get('parent', None)
     comment.creation_time = timezone.now()
     comment.subject = request.POST.get('subject', None) or None

@@ -109,6 +109,11 @@ a.author-link:hover {
     padding: 0;
 }
 
+.comment-input label {
+    text-align: left;
+    display: block;
+}
+
 .comment-input input[type="submit"] {
     margin: 5px 0 0;
 }

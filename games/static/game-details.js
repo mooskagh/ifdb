@@ -3,6 +3,7 @@ $(function() {
   $('#reply-1 textarea').focus(function() {
     $('#reply-2').hide();
     $('#reply-1 input').show();
+    $('#reply-1 label').show();
     $('#reply-1 textarea').addClass('active');
   });
 
@@ -18,6 +19,7 @@ $(function() {
     }
 
     $('#reply-1 input').hide();
+    $('#reply-1 label').hide();
     $('#reply-1 textarea').removeClass('active');
     reply.find('textarea').focus();
     return false;

@@ -22,7 +22,7 @@ class Game(models.Model):
     edit_perm = models.CharField(
         _('Edit permission'), max_length=255, default='@auth')
     comment_perm = models.CharField(
-        _('Comment permission'), max_length=255, default='@auth')
+        _('Comment permission'), max_length=255, default='@all')
     tags = models.ManyToManyField('GameTag', blank=True)
     added_by = models.ForeignKey(settings.AUTH_USER_MODEL)
 
@@ -146,8 +146,8 @@ class PersonalityURLCategory(models.Model):
     def OtherSiteCatId():
         if PersonalityURLCategory.OTHER_SITE_CAT is None:
             PersonalityURLCategory.OTHER_SITE_CAT = (
-                PersonalityURLCategory.objects.get(
-                    symbolic_id='other_site').id)
+                PersonalityURLCategory.objects.get(symbolic_id='other_site').id
+            )
         return PersonalityURLCategory.OTHER_SITE_CAT
 
     symbolic_id = models.SlugField(
@@ -279,10 +279,6 @@ class GameComment(models.Model):
     game = models.ForeignKey(Game, db_index=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True)
     parent = models.ForeignKey('GameComment', null=True, blank=True)
-    foreign_username = models.CharField(max_length=255, null=True, blank=True)
-    foreign_id = models.CharField(
-        max_length=255, null=True, blank=True, db_index=True)
-    foreign_url = models.CharField(max_length=255, null=True, blank=True)
     creation_time = models.DateTimeField()
     edit_time = models.DateTimeField(null=True, blank=True)
     subject = models.CharField(max_length=255, null=True, blank=True)

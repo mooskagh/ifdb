@@ -221,29 +221,15 @@ class GameDetailsBuilder:
         res = []
         for v in self.game.gamecomment_set.select_related('user'):
             res.append({
-                'id':
-                    v.id,
-                'user_id':
-                    v.user.id if v.user else None,
-                'username':
-                    v.user.username if v.user else v.foreign_username
-                    if v.foreign_username else 'Анонимоўс',
-                'parent_id':
-                    v.parent.id if v.parent else None,
-                'fusername':
-                    v.foreign_username,
-                'furl':
-                    v.foreign_username,
-                'fsite':
-                    None,  # TODO
-                'created':
-                    FormatTime(v.creation_time),
-                'edited':
-                    FormatTime(v.edit_time),
-                'subj':
-                    v.subject,
-                'text':
-                    RenderMarkdown(v.text),
+                'id': v.id,
+                'user_id': v.user.id if v.user else None,
+                'username': v.user.username if v.user else 'Анонимоўс',
+                'parent_id': v.parent.id if v.parent else None,
+                'created': FormatTime(v.creation_time),
+                'created_raw': v.creation_time,
+                'edited': FormatTime(v.edit_time),
+                'subj': v.subject,
+                'text': RenderMarkdown(v.text),
                 # TODO: is_deleted
             })
 
@@ -264,8 +250,8 @@ class GameDetailsBuilder:
                     swap.append(v)
             res = swap
 
-        clusters.sort(key=lambda x: x[0]['created'])
+        clusters.sort(key=lambda x: x[0]['created_raw'])
         for x in clusters:
-            x[1:] = sorted(x[1:], key=lambda t: t['created'])
+            x[1:] = sorted(x[1:], key=lambda t: t['created_raw'])
 
         return [x for y in clusters for x in y]

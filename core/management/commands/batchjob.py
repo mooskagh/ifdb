@@ -61,6 +61,12 @@ def UpdateTaskQueues():
         x.save()
 
 
+def EnableAnonymousComments():
+    for x in Game.objects.all():
+        x.comment_perm = '@all'
+        x.save()
+
+
 def HasTag(tags, tag):
     for x in tags:
         if tag in x.lower():
@@ -256,6 +262,7 @@ class Command(BaseCommand):
         options = {
             'removeauthors-destructiv': RemoveAuthors,
             'fixgameauthors': FixGameAuthors,
+            'enablecomms': EnableAnonymousComments,
         }
         if cmd in options:
             options[cmd]()
