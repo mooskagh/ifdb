@@ -33,6 +33,7 @@ class GameAdmin(admin.ModelAdmin):
 
 class InlinePersonalityAliasAdmin(admin.TabularInline):
     model = PersonalityAlias
+    readonly_fields = ('id', )
     raw_id_fields = ['hidden_for']
     extra = 1
 
