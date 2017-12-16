@@ -6,7 +6,6 @@ RE_WORD = re.compile('\w+')
 MIN_SIMILARITY = 0.67
 REGISTERED_IMPORTERS = []
 
-
 URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('qsp.su', '^/?$', '^$', None, None),
     ('urq.plut.info', '^/?$', '^$', None, None),
@@ -48,7 +47,7 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('hyperbook.ru', '/download.php', '', 'download_direct',
      'Скачать с hyperbook.ru'),
     ('', r'.*\.(zip|rar|z5)', '', 'download_direct', 'Ссылка для скачивания'),
-    ]
+]
 
 
 def GetBagOfWords(x):
@@ -207,6 +206,7 @@ def ImportAuthor(url):
 
 
 def Import(*seed_url):
+    url_errors = dict()
     urls_checked = set()
     urls_to_check = set(seed_url)
     res = []
@@ -259,6 +259,9 @@ def Import(*seed_url):
 
         r = DispatchImport(url)
 
+        if 'error' in r:
+            url_errors[url] = r['error']
+
         if 'priority' not in r:
             r['priority'] = -1000
 
@@ -289,7 +292,7 @@ def Import(*seed_url):
         del r['error']
 
     enricher.Enrich(r)
-    return r
+    return (r, url_errors)
 
 
 # Schema:

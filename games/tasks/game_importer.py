@@ -73,13 +73,21 @@ class ImportedGame:
         return self.title_bow
 
     def Fetch(self):
-        self.content = Import(*self.seed_urls)
+        (self.content, error_urls) = Import(*self.seed_urls)
         self.is_error = 'title' not in self.content
 
         if self.is_error:
             logger.warning("Was unable to fetch: %s\n%s" % (self.seed_urls,
                                                             self.content))
             return False
+
+        for x in self.seed_urls:
+            if x in self.new_urls:
+                continue
+            if x in error_urls:
+                logger.error("Was unable to fetch old url %s: %s" %
+                             (x, error_urls[x]))
+                return False
 
         self.seed_urls = [
             x['url'] for x in self.content['urls']
