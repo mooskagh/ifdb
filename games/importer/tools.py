@@ -166,133 +166,129 @@ def SimilarEnough(w1, w2):
     return ComputeSimilarity(s1, s2) > MIN_SIMILARITY
 
 
-def DispatchImport(url):
-    for x in REGISTERED_IMPORTERS:
-        if x.Match(url):
-            return x.Import(url)
-
-    return {'error': 'Ссылка на неизвестный ресурс.'}
-
-
-def GetUrlCandidates():
-    res = []
-    for x in REGISTERED_IMPORTERS:
-        res.extend(x.GetUrlCandidates())
-    return res
-
-
-def GetDirtyUrls():
-    res = []
-    for x in REGISTERED_IMPORTERS:
-        res.extend(x.GetDirtyUrls())
-    return res
-
-
-def DispatchImportAuthor(url):
-    for x in REGISTERED_IMPORTERS:
-        if x.MatchAuthor(url):
-            return x.ImportAuthor(url)
-    return {'error': 'Ссылка на неизвестный ресурс.'}
-
-
 def HashizeUrl(url):
     url = quote(url.encode('utf-8'), safe='/+=&?%:;@!#$*()_-')
     purl = urlsplit(url, allow_fragments=False)
     return urlunsplit(('', purl[1], purl[2], purl[3], ''))
 
 
-def ImportAuthor(url):
-    return DispatchImportAuthor(url)
+class Importer:
+    def __init__(self):
+        self.importers = [x() for x in REGISTERED_IMPORTERS]
 
+    def DispatchImport(self, url):
+        for x in self.importers:
+            if x.Match(url):
+                return x.Import(url)
 
-def Import(*seed_url):
-    url_errors = dict()
-    urls_checked = set()
-    urls_to_check = set(seed_url)
-    res = []
-    title = None
+        return {'error': 'Ссылка на неизвестный ресурс.'}
 
-    s_urls = set()
-    s_tags = set()
-    s_auth = set()
+    def GetUrlCandidates(self):
+        res = []
+        for x in self.importers:
+            res.extend(x.GetUrlCandidates())
+        return res
 
-    def MergeImport(y, x):
-        for z in ['title', 'release_date', 'error']:
-            if z not in y and z in x:
-                y[z] = x[z]
+    def GetDirtyUrls(self):
+        res = []
+        for x in self.importers:
+            res.extend(x.GetDirtyUrls())
+        return res
 
-        if 'desc' in x:
-            if 'desc' in y:
-                y['desc'] += '\n\n---\n\n'
-            else:
-                y['desc'] = ''
-            y['desc'] += x['desc']
+    def ImportAuthor(self, url):
+        for x in self.importers:
+            if x.MatchAuthor(url):
+                return x.ImportAuthor(url)
+        return {'error': 'Ссылка на неизвестный ресурс.'}
 
-        if 'urls' in x:
-            x['urls'] = [z for z in x['urls'] if z['urlcat_slug']]
+    def Import(self, *seed_url):
+        url_errors = dict()
+        urls_checked = set()
+        urls_to_check = set(seed_url)
+        res = []
+        title = None
 
-        for setz, field, extractor in [
-            (s_urls, 'urls',
-             lambda xx: (HashizeUrl(xx['url']), xx['urlcat_slug'])),
-            (s_tags, 'tags',
-             lambda xx: (xx.get('tag_slug'), xx.get('tag'), xx.get('cat_slug'))
-             ),
-            (s_auth, 'authors',
-             lambda v: (v.get('role_slug'), v.get('role_slug'), v.get('name'))
-             ),
-        ]:
-            if field in x:
-                if field not in y:
-                    y[field] = []
-                for z in x[field]:
-                    if extractor(z) in setz:
-                        continue
-                    setz.add(extractor(z))
-                    y[field].append(z)
+        s_urls = set()
+        s_tags = set()
+        s_auth = set()
 
-    while urls_to_check:
-        url = urls_to_check.pop()
-        url_hash = HashizeUrl(url)
-        if url_hash in urls_checked:
-            continue
-        urls_checked.add(url_hash)
+        def MergeImport(y, x):
+            for z in ['title', 'release_date', 'error']:
+                if z not in y and z in x:
+                    y[z] = x[z]
 
-        r = DispatchImport(url)
+            if 'desc' in x:
+                if 'desc' in y:
+                    y['desc'] += '\n\n---\n\n'
+                else:
+                    y['desc'] = ''
+                y['desc'] += x['desc']
 
-        if 'error' in r:
-            url_errors[url] = r['error']
+            if 'urls' in x:
+                x['urls'] = [z for z in x['urls'] if z['urlcat_slug']]
 
-        if 'priority' not in r:
-            r['priority'] = -1000
+            for setz, field, extractor in [
+                (s_urls, 'urls',
+                 lambda xx: (HashizeUrl(xx['url']), xx['urlcat_slug'])),
+                    (s_tags, 'tags', lambda xx: (
+                        xx.get('tag_slug'),
+                        xx.get('tag'), xx.get('cat_slug'))),
+                    (s_auth, 'authors', lambda v: (
+                        v.get('role_slug'),
+                        v.get('role_slug'), v.get('name'))),
+            ]:
+                if field in x:
+                    if field not in y:
+                        y[field] = []
+                    for z in x[field]:
+                        if extractor(z) in setz:
+                            continue
+                        setz.add(extractor(z))
+                        y[field].append(z)
 
-        append = False
-        if 'title' in r:
-            if title and url not in seed_url:
-                if SimilarEnough(title, r['title']):
+        while urls_to_check:
+            url = urls_to_check.pop()
+            url_hash = HashizeUrl(url)
+            if url_hash in urls_checked:
+                continue
+            urls_checked.add(url_hash)
+
+            r = self.DispatchImport(url)
+
+            if 'error' in r:
+                url_errors[url] = r['error']
+
+            if 'priority' not in r:
+                r['priority'] = -1000
+
+            append = False
+            if 'title' in r:
+                if title and url not in seed_url:
+                    if SimilarEnough(title, r['title']):
+                        append = True
+                else:
+                    title = r['title']
                     append = True
-            else:
-                title = r['title']
+            elif not title:
                 append = True
-        elif not title:
-            append = True
 
-        if append:
-            res.append(r)
-            if 'urls' in r:
-                for x in r['urls']:
-                    if x['urlcat_slug'] == 'game_page':
-                        urls_to_check.add(x['url'])
+            if append:
+                res.append(r)
+                if 'urls' in r:
+                    for x in r['urls']:
+                        if x['urlcat_slug'] == 'game_page':
+                            urls_to_check.add(x['url'])
 
-    res.sort(key=lambda x: x['priority'], reverse=True)
+        res.sort(key=lambda x: x['priority'], reverse=True)
 
-    r = {}
-    for x in res:
-        MergeImport(r, x)
-    if 'title' in r and 'error' in r:
-        del r['error']
+        r = {}
+        for x in res:
+            MergeImport(r, x)
+        if 'title' in r and 'error' in r:
+            del r['error']
 
-    enricher.Enrich(r)
-    return (r, url_errors)
+        enricher.Enrich(r)
+        return (r, url_errors)
 
 
 # Schema:

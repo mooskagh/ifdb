@@ -1,6 +1,6 @@
 import re
 from logging import getLogger
-from .importer import ImportAuthor
+from .importer import Importer
 from .models import (GameURL, Game, URL, GameTag, GameAuthorRole,
                      PersonalityAlias, GameTagCategory, GameURLCategory,
                      GameAuthor, Personality, PersonalityURLCategory,
@@ -56,6 +56,7 @@ def GetOrCreateAlias(alias, is_automated):
 
 
 def UpdateGameAuthors(request, game, authors, update):
+    importer = Importer()
     existing_authors = {}  # (role_id, author_id) -> GameAuthor_id
     alias_to_urls = {}  # author_id -> [(type_slug, desc, url),]
     if update:
@@ -65,8 +66,8 @@ def UpdateGameAuthors(request, game, authors, update):
     authors_to_add = []  # (role_id, author_id)
     for (role, author, *rest) in authors:
         if not isinstance(author, int):
-            author = GetOrCreateAlias(author,
-                                      getattr(request, 'is_fake', False))
+            author = GetOrCreateAlias(author, getattr(request, 'is_fake',
+                                                      False))
             if not author:
                 continue
         if not isinstance(role, int):
@@ -96,7 +97,7 @@ def UpdateGameAuthors(request, game, authors, update):
             id__in=list(existing_authors.values())).delete()
 
     for alias, urls in alias_to_urls.items():
-        UpdatePersonalityUrls(request, alias, urls, False)
+        UpdatePersonalityUrls(importer, request, alias, urls, False)
 
 
 def UpdateGameTags(request, game, tags, update):
@@ -139,7 +140,7 @@ def UpdateGameTags(request, game, tags, update):
         game.tags.remove(*list(game.tags.filter(id__in=existing_tags)))
 
 
-def UpdatePersonalityUrls(request, alias_id, data, update):
+def UpdatePersonalityUrls(importer, request, alias_id, data, update):
     alias = PersonalityAlias.objects.get(pk=alias_id)
     filtered_data = []
     if alias.personality:
@@ -152,7 +153,7 @@ def UpdatePersonalityUrls(request, alias_id, data, update):
         for typ, desc, url in data:
             if typ != PersonalityURLCategory.OtherSiteCatId():
                 continue
-            x = ImportAuthor(url)
+            x = importer.ImportAuthor(url)
             if 'urls' in x:
                 for y in x['urls']:
                     if not y['urlcat_slug']:
@@ -161,7 +162,8 @@ def UpdatePersonalityUrls(request, alias_id, data, update):
                         PersonalityURLCategory.objects.get(
                             symbolic_id=y['urlcat_slug']).id,
                         y['description'],
-                        y['url'], ))
+                        y['url'],
+                    ))
             if 'bio' in x:
                 bio = x['bio']
             if 'canonical' in x:
@@ -252,7 +254,7 @@ def UpdatePersonalityUrls(request, alias_id, data, update):
             obj.description = desc or None
             objs.append(obj)
             if not bio and cat == PersonalityURLCategory.OtherSiteCatId():
-                x = ImportAuthor(url)
+                x = importer.ImportAuthor(url)
                 if 'bio' in x:
                     bio = x['bio']
                     personality.bio = bio

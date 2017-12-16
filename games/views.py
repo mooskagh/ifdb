@@ -3,7 +3,7 @@ from logging import getLogger
 import os.path
 import timeit
 from .game_details import GameDetailsBuilder, StarsFromRating
-from .importer import Import
+from .importer import Importer
 from .models import (GameURL, GameComment, Game, GameVote, InterpretedGameUrl,
                      URL, GameTag, GameAuthorRole, PersonalityAlias,
                      GameTagCategory, GameURLCategory, GameAuthor, Personality,
@@ -631,7 +631,8 @@ def json_search(request):
 
 @perm_required(PERM_ADD_GAME)
 def doImport(request):
-    (raw_import, _) = Import(request.GET.get('url'))
+    importer = Importer()
+    (raw_import, _) = importer.Import(request.GET.get('url'))
     if ('error' in raw_import):
         return JsonResponse({'error': raw_import['error']})
     return JsonResponse(Importer2Json(raw_import))
