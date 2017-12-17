@@ -193,12 +193,16 @@
                 {% for c in comments %}
                     <div class="comment-box {% if c.parent_id %}level2{% endif %}" data-id="{{ c.id }}">
                         <div class="comment-header">
-                            {% if c.subj %}<span class="comment-subj">{{ c.subj }}</span>{% endif %}
+                            {% if c.subj and not c.is_deleted%}<span class="comment-subj">{{ c.subj }}</span>{% endif %}
                             <span class="comment-nick">
                                 {{ c.username }}
                             </span>
                         </div>
-                        <div class="comment-body">{{ c.text|safe }}</div>
+                        {% if c.is_deleted %}
+                            <div class="comment-body"><i>(комментарий удалён)</i></div>
+                        {% else %}
+                            <div class="comment-body">{{ c.text|safe }}</div>
+                        {% endif %}
                         <div class="comment-footer">
                             <span class="comment-time">{{ c.created }}</span>
                             {% if comment_perm %}
