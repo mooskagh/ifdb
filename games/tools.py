@@ -3,7 +3,30 @@ from urllib.parse import urlparse, parse_qs
 from django import template
 from django.db.models import F
 import statistics
+import dns.resolver
 from .models import GameVote
+
+
+def IsTor(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    addr_to_query = (
+        '%s.%s.%s.%s.443.192.32.76.45.ip-port.exitlist.torproject.org' % tuple(
+            reversed(ip.split('.'))))
+
+    print(addr_to_query)
+
+    try:
+        for x in dns.resolver.query(addr_to_query):
+            if str(x) == '127.0.0.2':
+                return True
+    except:
+        pass
+
+    return False
 
 
 def FormatDate(x):
@@ -115,8 +138,8 @@ def ComputeHonors(author=None):
         votes = votes.filter(author=author)
 
     for x in votes:
-        xs.setdefault(x.author, {}).setdefault(x.gameid,
-                                               []).append(x.star_rating)
+        xs.setdefault(x.author, {}).setdefault(x.gameid, []).append(
+            x.star_rating)
 
     res = dict()
     for a, games in xs.items():

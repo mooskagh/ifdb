@@ -1,6 +1,6 @@
 from .models import Game
 from .tools import (FormatDate, FormatTime, StarsFromRating, RenderMarkdown,
-                    ExtractYoutubeId)
+                    ExtractYoutubeId, IsTor)
 from logging import getLogger
 from statistics import mean, median
 from core.views import BuildPackageUserFingerprint
@@ -84,9 +84,11 @@ class GameDetailsBuilder:
                  BuildPackageUserFingerprint(
                      self.request.user
                      if self.request.user.is_authenticated else None, x.id)))
+        can_comment = self.request.perm(
+            self.game.comment_perm) and not IsTor(self.request)
         return {
             'edit_perm': self.request.perm(self.game.edit_perm),
-            'comment_perm': self.request.perm(self.game.comment_perm),
+            'comment_perm': can_comment,
             'delete_perm': False,
             'added_date': added_date,
             'authors': authors,
@@ -230,7 +232,7 @@ class GameDetailsBuilder:
                 'edited': FormatTime(v.edit_time),
                 'subj': v.subject,
                 'text': RenderMarkdown(v.text),
-                # TODO: is_deleted
+                'is_deleted': v.is_deleted,
             })
 
         parent_to_cluster = {}

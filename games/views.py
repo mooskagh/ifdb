@@ -10,13 +10,13 @@ from .models import (GameURL, GameComment, Game, GameVote, InterpretedGameUrl,
                      PersonalityURLCategory, PersonalityUrl)
 from .search import MakeSearch, MakeAuthorSearch
 from .tools import (FormatLag, ExtractYoutubeId, RenderMarkdown,
-                    ComputeGameRating, ComputeHonors)
+                    ComputeGameRating, ComputeHonors, IsTor)
 from .updater import UpdateGame, Importer2Json
 from django import forms
 from django.db import models
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import SuspiciousOperation
+from django.core.exceptions import SuspiciousOperation, PermissionDenied
 from django.http import Http404
 from django.http.response import JsonResponse
 from django.shortcuts import render, redirect
@@ -62,8 +62,8 @@ def SnippetFromSearchForIndex(request, query, prefetch=[]):
 def LastComments(request):
     games = set()
     # TODO Game permissions!
-    comments = GameComment.objects.select_related().order_by(
-        '-creation_time')[:100]
+    comments = GameComment.objects.select_related().filter(
+        is_deleted=False).order_by('-creation_time')[:100]
     res = []
     for x in comments:
         if x.game.id in games:
@@ -195,6 +195,8 @@ def comment_game(request):
         })
     game = Game.objects.get(id=int(request.POST.get('game_id')))
     request.perm.Ensure(game.comment_perm)
+    if IsTor(request):
+        raise PermissionDenied()
 
     comment = GameComment()
     comment.game = game
@@ -549,7 +551,7 @@ def json_author_search(request):
 
     elapsed_time = timeit.default_timer() - start_time
 
-    if elapsed_time > 1.0:
+    if elapsed_time > 2.0:
         logger.error("Time for author search query [%s] was %f" %
                      (query, elapsed_time))
     return res
@@ -625,7 +627,7 @@ def json_search(request):
 
     elapsed_time = timeit.default_timer() - start_time
 
-    if elapsed_time > 1.0:
+    if elapsed_time > 2.0:
         logger.error("Time for search query [%s] was %f" % (query,
                                                             elapsed_time))
     return res
