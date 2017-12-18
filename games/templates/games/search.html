@@ -3,7 +3,7 @@
 {% block scripts %}
     <script src="/static/search.js"></script>
 {% endblock %}
-{% block content %}
+{% block content_wide %}
     {% if user.is_authenticated %}
         <a title="Добавить игру" class="floating-add-button" href="{% url 'add_game' %}">
             &#x2795;

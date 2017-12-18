@@ -64,9 +64,11 @@
                     </a>
                 {% endif %}
             </nav>
-            <div class="content">
-                {% block content %}{% endblock %}
-            </div>
+                {% block content_wide %}
+                <div class="content">
+                    {% block content %}{% endblock %}
+                </div>
+                {% endblock %}
             <div style="clear: both;"></div>
         </div>
     </body>

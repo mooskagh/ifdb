@@ -1,5 +1,5 @@
 /*
-   https://coolors.co/ceff1a-00487c-31322d-625b61-f2f1eb
+   https://coolors.co/ceff1a-00487c-31322d-625b61-fff
 */
 
 a {
@@ -55,23 +55,25 @@ a.author-link:hover {
     width: 1024px;
 }
 
+.content-wide {
+    margin: 50px auto 5px;
+}
+
 .content-box-inner {
     padding: 5px 20px 20px;
 }
 
 .content-box-outer {
-    border: 1px solid #31322d;
-    background-color: #F2F1EB;
-    box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
-    border-radius: 2.5px;
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    border-radius: 2px;
 }
 
 .content-box {
-    border: 1px solid #31322d;
-    background-color: #F2F1EB;
+    background-color: #fff;
     padding: 20px;
-    box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
-    border-radius: 2.5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    border-radius: 2px;
 }
 
 .content-moder-line {
@@ -85,7 +87,7 @@ a.author-link:hover {
     border-radius: 2.5px;
     background-color: #00487c;
     border: none;
-    color: #F2F1EB;
+    color: #fff;
     margin: 2px;
     padding: 2px;
     text-align: center;
@@ -154,7 +156,7 @@ a.author-link:hover {
 }
 
 .comment-header {
-    background: linear-gradient(to right, #E8E7E1, #f2f1eb);
+    background: linear-gradient(to right, #E8E7E1, #fff);
     border-radius: 2.5px;
     padding: 5px;
 }
@@ -177,23 +179,22 @@ textarea {
 }
 
 .doc-outer {
-    border: 1px solid #31322d;
-    box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
-    border-radius: 2.5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    border-radius: 2px;
     display: flex;
     flex-direction: row;
 }
 
 .doc-list {
-    background-color: #31322d;
-    color: #f2f1eb;
+    background-color: #666;
+    color: #fff;
     float: left;
     padding: 10px;
     width: 20%;
 }
 
 .doc-list a {
-    color: #f2f1eb;
+    color: #fff;
     text-decoration: none;
 }
 
@@ -202,18 +203,18 @@ textarea {
 }
 
 .doc-content {
-    background-color: #F2F1EB;
+    background-color: #fff;
     float: left;
     padding: 10px;
     flex: 1;
 }
 
 .floating-add-button {
-    background-color: #00487c;
+    background-color: #8bc34a;
     border-radius: 50%;
     bottom: 30px;
-    box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
-    color: #F2F1EB;
+    box-shadow: 8px 8px 8px rgba(0, 0, 0, 0.15);
+    color: #fff;
     display:block;
     height: 50px;
     line-height: 50px;
@@ -228,7 +229,7 @@ textarea {
 }
 
 .floating-add-button:hover {
-    background-color: #175887;
+    background-color: #9bd35a;
 }
 
 .header-comment {
@@ -237,8 +238,7 @@ textarea {
 }
 
 .root {
-    background-image: url("/static/f5ce5546.png");
-    background-color: #625b61;
+    background-color: #f1f1f1;
     color: #31322D;
     font-family: 'Open Sans', sans-serif;
     font-size: 13px;
@@ -252,12 +252,10 @@ textarea {
 }
 
 #top-nav {
-    background-image: linear-gradient(to bottom, #D6FF43, #CEFF1A);
-    background-position: 0 0;
-    background-repeat: no-repeat;
+    background-color: #666;
     background-size: 100% 100%;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
-    color: #625B61;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    color: #fff;
     height: 40px;
     left: 0;
     min-width: 1024px;
@@ -277,10 +275,11 @@ textarea {
     border-color: rgba(0, 0, 0, .3);
     border-style: solid;
     border-width: 0 1px;
+    color: #625B61;
 }
 
 #top-nav a {
-    color: #625B61;
+    color: #fff;
     display: inline-block;
     font: bold 14px/40px 'Trebuchet MS', 'Helvetica Neue', Arial, Sans-Serif;
     height: 40px;
@@ -402,6 +401,7 @@ span.gameinfo-author {
 
 .gamelist-thumb-container {
     text-align: center;
+    margin: 0 20px;
 }
 
 .gamelist-thumb {
@@ -409,7 +409,7 @@ span.gameinfo-author {
     box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
     display: inline-block;
     font-weight: bold;
-    margin: 7px;
+    margin: 14px;
     overflow: hidden;
     padding: 0;
     position: relative;
@@ -418,8 +418,7 @@ span.gameinfo-author {
 }
 
 .gamelist-thumb-search {
-    background-color: #F2F1EB;
-    border: 1px solid #7E787D;
+    background-color: #fff;
     color: #31322D;
     height: 200px;
     width: 180px;
@@ -427,8 +426,7 @@ span.gameinfo-author {
 
 .gamelist-thumb-index {
     background-color: #625b61;
-    border: 1px solid #7E787D;
-    color: #f2f1eb;
+    color: #fff;
     height: 150px;
     width: 150px;
 }
@@ -502,7 +500,7 @@ span.gameinfo-author {
     display: inline-block;
     background-color: #625b61;
     border: 1px solid #7E787D;
-    color: #f2f1eb;
+    color: #fff;
     height: 55px;
     margin: 7px;
     width: 200px;
@@ -569,7 +567,7 @@ span.gameinfo-author {
 }
 
 .sort {
-    border-radius: 4px;
+    border-radius: 2px;
     border: 1px solid #625b61;
     color: #625b61;
     cursor: pointer;
@@ -592,7 +590,7 @@ span.gameinfo-author {
 .tag.current {
     background-color: #00487c;
     border: none;
-    color: #f2f1eb;
+    color: #fff;
 }
 
 .prop-comment {
@@ -681,15 +679,14 @@ textarea#description {
 }
 
 #messagebox {
-    background-color: #F2F1EB;
-    border: 1px solid #625B61;
-    border-radius: 4px;
+    background-color: #fff;
+    border-radius: 2px;
     width: 300px;
     height: 200px;
     margin: 200px auto;
     text-align: center;
     vertical-align: middle;
-    box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
 }
 
 #errorheader {
@@ -717,9 +714,9 @@ input[type="submit"],
 .button-like {
     background-color: #00487c;
     border: none;
-    color: #F2F1EB;
+    color: #fff;
     text-align: center;
-    box-shadow: -2px 3px 2px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
     font-size: 14px;
     text-decoration: none;
     cursor: pointer;
@@ -728,7 +725,7 @@ input[type="submit"],
 
 .button-like a {
     border: none;
-    color: #F2F1EB;
+    color: #fff;
     text-align: center;
     font-size: 14px;
     text-decoration: none;
@@ -831,7 +828,7 @@ progress::-webkit-progress-value {
 .vote-timeselect {
     background-color: #00487c;
     border-radius: 2.5px;
-    color: #f2f1eb;
+    color: #fff;
     cursor: pointer;
     display: inline-block;
     margin: 1px 1px 1px 0;
@@ -879,20 +876,20 @@ progress::-webkit-progress-value {
 }
 
 .search-box-container {
-    background-color: #F2F1EB;
-    border-radius: 2.5px;
-    border: 1px solid #31322d;
-    box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
-    padding: 20px;
+    background-color: #fff;
+    border-radius: 2px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+    padding: 5px;
     text-align: center;
     line-height: 1.7em;
+    margin: 50px auto 5px;
+    width: 800px;
 }
 
 .gamelist-message {
-    background-color: #F2F1EB;
-    border-radius: 2.5px;
-    border: 1px solid #31322d;
-    box-shadow: -3px 4px 2px rgba(0, 0, 0, 0.2);
+    background-color: #fff;
+    border-radius: 2px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
     margin: 40px auto;
     padding: 20px;
     text-align: center;
@@ -939,7 +936,7 @@ table.search-box a {
 }
 
 .slideritem-inner {
-    box-shadow: -1px 1px 3px rgba(0, 0, 0, .3);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
     margin: 0 auto;
     display: inline-block;
 }
@@ -950,7 +947,7 @@ table.search-box a {
 
 .slideritem {
     margin: 10px;
-    box-shadow: -1px 1px 3px rgba(0, 0, 0, .3);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
     cursor: pointer;
     display: inline-block;
     max-height: 90px;
@@ -962,9 +959,9 @@ table.search-box a {
     width: 200px;
     background-color: #00487c;
     border: none;
-    color: #F2F1EB;
+    color: #fff;
     text-align: center;
-    box-shadow: -2px 3px 2px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
     font-size: 14px;
     text-decoration: none;
     cursor: pointer;
@@ -990,7 +987,7 @@ table.search-box a {
 
 .videothumb h2 {
     bottom: 0;
-    color: #f2f1eb;
+    color: #fff;
     font-size: 50px;
     left: 0;
     margin: 5px auto;
