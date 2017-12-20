@@ -106,10 +106,10 @@ def CommentsSnippet(request):
                 },
                 {
                     'style': 'strong',
-                    'text': (x.game.title),
+                    'text': (x.subject or '...'),
                 },
                 {
-                    'text': (x.subject),
+                    'text': (x.game.title),
                 },
             ]
         })
