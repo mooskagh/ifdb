@@ -45,6 +45,8 @@ server {
         include     /home/ifdb/configs/uwsgi_params;
     }
 
+    {% if c.host == 'prod' %}
+
     listen 443 ssl;
     listen [::]:443 ssl;
     ssl_certificate /etc/letsencrypt/live/crem.xyz/fullchain.pem;
@@ -55,6 +57,8 @@ server {
     if ($scheme != "https") {
         return 301 https://$host$request_uri;
     } # managed by Certbot
+
+    {% endif %}
 
 
 {% elif c.conf == 'staging' %}
