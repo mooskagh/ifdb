@@ -3,7 +3,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from games.models import GameURL, GameComment
 from games.search import MakeSearch
-from games.tools import FormatLag
+from games.tools import FormatLag, ExtractYoutubeId
 from django.urls import reverse
 import json
 
@@ -77,7 +77,7 @@ def LastComments(request):
         games.add(x.game.id)
         delta = (x.creation_time - timezone.now()).total_seconds()
         recent = -delta < 60 * 60 * 24
-        if not recent and len(res) == 5:
+        if not recent and len(res) >= 5:
             break
         x.lag = FormatLag(delta)
         x.recent_lag = recent
@@ -113,6 +113,64 @@ def CommentsSnippet(request):
                 },
             ]
         })
+    return render_to_string('core/snippet.html', {'items': items})
+
+
+def LastUrlCat(request, cat):
+    games = set()
+    urls = GameURL.objects.select_related().filter(
+        category__symbolic_id=cat).order_by('-url__creation_date')[:50]
+
+    res = []
+    for x in urls:
+        if x.game.id in games:
+            continue
+        games.add(x.game.id)
+        delta = (x.url.creation_date - timezone.now()).total_seconds()
+        recent = -delta < 60 * 60 * 24
+        if not recent and len(res) >= 5:
+            break
+        res.append({
+            'lag': FormatLag(delta),
+            'recent_lag': recent,
+            'url': x.url.original_url,
+            'game': x.game.title,
+            'id': x.game.id,
+            'desc': x.description,
+        })
+        if len(res) == 30:
+            break
+    return res
+
+
+def LastUrlCatSnippet(request, cat):
+    urls = LastUrlCat(request, cat)
+    items = []
+    for x in urls:
+        v = {
+            'link': (reverse('show_game', kwargs={
+                'game_id': x['id']
+            })),
+            'lines': [
+                {
+                    'style': ('recent-comment'
+                              if x['recent_lag'] else 'comment'),
+                    'text': (x['lag']),
+                },
+                {
+                    'style': 'strong',
+                    'text': (x['game']),
+                },
+                {
+                    'text': (x['desc']),
+                },
+            ]
+        }
+        if cat == 'video':
+            idd = ExtractYoutubeId(x['url'])
+            if idd:
+                v['image'] = 'https://img.youtube.com/vi/%s/default.jpg' % idd
+        items.append(v)
     return render_to_string('core/snippet.html', {'items': items})
 
 
