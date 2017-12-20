@@ -9,8 +9,7 @@ from .models import (GameURL, GameComment, Game, GameVote, InterpretedGameUrl,
                      GameTagCategory, GameURLCategory, GameAuthor, Personality,
                      PersonalityURLCategory, PersonalityUrl)
 from .search import MakeSearch, MakeAuthorSearch
-from .tools import (FormatLag, ExtractYoutubeId, RenderMarkdown,
-                    ComputeGameRating, ComputeHonors, IsTor)
+from .tools import (RenderMarkdown, ComputeGameRating, ComputeHonors, IsTor)
 from .updater import UpdateGame, Importer2Json
 from core.snippets import RenderSnippets
 from django import forms
@@ -32,104 +31,10 @@ PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
 logger = getLogger('web')
 
 
-def SnippetFromList(games):
-    posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
-        game__in=games).select_related('url'))
-
-    g2p = {}
-    for x in posters:
-        g2p[x.game_id] = x.GetLocalUrl()
-
-    for x in games:
-        x.poster = g2p.get(x.id)
-        x.authors = [
-            x for x in x.gameauthor_set.all() if x.role.symbolic_id == 'author'
-        ]
-    return games
-
-
-def SnippetFromSearchForIndex(request, query, prefetch=[]):
-    s = MakeSearch(request.perm)
-    s.UpdateFromQuery(query)
-    games = s.Search(
-        prefetch_related=[
-            'gameauthor_set__author', 'gameauthor_set__role', *prefetch
-        ],
-        start=0,
-        limit=20)[:5]
-    return SnippetFromList(games)
-
-
-def LastComments(request):
-    games = set()
-    # TODO Game permissions!
-    comments = GameComment.objects.select_related().filter(
-        is_deleted=False).order_by('-creation_time')[:100]
-    res = []
-    for x in comments:
-        if x.game.id in games:
-            continue
-        games.add(x.game.id)
-        res.append({
-            'lag':
-            FormatLag((x.creation_time - timezone.now()).total_seconds()),
-            'username':
-            x.user.username if x.user else 'Анонимоўс',
-            'game':
-            x.game.title,
-            'id':
-            x.game.id,
-            'subject':
-            x.subject or '...',
-        })
-        if len(res) == 4:
-            break
-    return res
-
-
-def LastUrlCat(request, cat, limit):
-    games = set()
-    urls = GameURL.objects.select_related().filter(
-        category__symbolic_id=cat).order_by('-url__creation_date')[:30]
-
-    res = []
-    for x in urls:
-        if x.game.id in games:
-            continue
-        games.add(x.game.id)
-        res.append({
-            'lag':
-            FormatLag((x.url.creation_date - timezone.now()).total_seconds()),
-            'url':
-            x.url.original_url,
-            'game':
-            x.game.title,
-            'id':
-            x.game.id,
-            'desc':
-            x.description,
-        })
-        if len(res) == limit:
-            break
-    return res
-
-
 def index(request):
-    res = {}
-    res['lastx'] = SnippetFromSearchForIndex(request, '00')
-    for x in res['lastx']:
-        x.lag = FormatLag((x.creation_time - timezone.now()).total_seconds())
-    res['best'] = SnippetFromSearchForIndex(request, '04')
-    res['comments'] = LastComments(request)
-    res['videos'] = LastUrlCat(request, 'video', 5)
-    for x in res['videos']:
-        idd = ExtractYoutubeId(x['url'])
-        if idd:
-            x['thumb'] = 'https://img.youtube.com/vi/%s/default.jpg' % idd
-    res['reviews'] = LastUrlCat(request, 'review', 4)
-    res['snippets'] = RenderSnippets(request)
-
-    return render(request, 'games/index.html', res)
+    return render(request, 'games/index.html', {
+        'snippets': RenderSnippets(request)
+    })
 
 
 @ensure_csrf_cookie
