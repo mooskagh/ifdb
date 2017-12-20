@@ -78,9 +78,10 @@ a.grid-box-item:hover {
 
 .grid-box-line {
     height: 20px;
+    overflow: hidden;
     padding: 0 10px;
-    vertical-align: middle;
     text-overflow: ellipsis;
+    vertical-align: middle;
     white-space: nowrap;
 }
 
