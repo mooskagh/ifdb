@@ -35,7 +35,7 @@ def GameListFromSearch(request, query, reltime_field=None):
             delta = (
                 getattr(x, reltime_field) - timezone.now()).total_seconds()
             x.recent_lag = delta > -60 * 60 * 24
-            if x.recent_lag:
+            if delta > -3 * 60 * 60 * 24:
                 total_recent += 1
             x.lag = FormatLag(delta)
     if total_recent < 5:
@@ -128,7 +128,7 @@ def LastUrlCat(request, cat):
         games.add(x.game.id)
         delta = (x.url.creation_date - timezone.now()).total_seconds()
         recent = -delta < 60 * 60 * 24
-        if not recent and len(res) >= 5:
+        if -delta >= 3 * 60 * 60 * 24 and len(res) >= 5:
             break
         res.append({
             'lag': FormatLag(delta),
