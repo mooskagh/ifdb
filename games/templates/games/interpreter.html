@@ -18,6 +18,7 @@
     <script src="{% static 'urqw/ctrl.js' %}"></script>
     <script src="{% static 'urqw/main.js' %}"></script>
 {% endblock %}
+{% block titlesection %}{{ game.title }} - {% endblock %}
 {% block content %}
     <div class="content-box">
         {% if conf.interpreter == 'urqw' %}
