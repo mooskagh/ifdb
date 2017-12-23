@@ -36,7 +36,7 @@ def GameListSnippet(request,
         })
         items.append({
             'image': {
-                'src': x['poster'] or '/static/noposter.png',
+                'src': x['poster'] or '/static/noposter_7355.png',
             },
             'lines': lines,
             'link': reverse('show_game', kwargs={
@@ -78,7 +78,7 @@ def CommentsSnippet(request):
             })),
             'lines': [
                 {
-                    'style': 'float-right',
+                    'style': 'float-left',
                     'text': (x.user.username if x.user else 'Анонимоўс'),
                 },
                 {
@@ -230,7 +230,7 @@ def ThisDayInHistorySnippet(request):
         lines.append({'text': ', '.join([y.author.name for y in x.authors])})
         items.append({
             'image': {
-                'src': x.poster or '/static/noposter.png',
+                'src': x.poster or '/static/noposter_7355.png',
             },
             'lines': (lines),
             'link': (reverse('show_game', kwargs={

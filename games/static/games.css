@@ -98,19 +98,31 @@ a.grid-box-line:hover {
 }
 
 .grid-box-line-comment {
+    height: 15px;
     font-size: 11px;
     color: #989898;
+    text-align: right;
+}
+
+.grid-box-line-float-left {
+    height: 15px;
+    float: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .grid-box-line-float-right {
+    height: 15px;    
     float: right;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .grid-box-line-recent-comment {
+    height: 15px;
     font-size: 11px;
     color: #ff3200;
+    text-align: right;
 }
 
 .grid-box-line-strong {
@@ -118,13 +130,13 @@ a.grid-box-line:hover {
 }
 
 .grid-box-icon {
-    max-width: 90px;
-    max-height: 60px;
+    max-width: 73px;
+    max-height: 55px;
 }
 
 .grid-box-icon-container {
-    width: 90px;
-    max-height: 60px;
+    width: 73px;
+    max-height: 55px;
     display: block;
     float: left;
     text-align: center;
