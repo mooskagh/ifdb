@@ -198,9 +198,9 @@ def ThisDayInHistorySnippet(request):
     for daytitle, datedelta in [('Вчера', -1), ('Сегодня', 0), ('Завтра', 1)]:
         t = now + datetime.timedelta(days=datedelta)
         games = Game.objects.filter(
-            release_date__month=t.month,
-            release_date__day=t.day).order_by('release_date').prefetch_related(
-                'gameauthor_set__author', 'gameauthor_set__role')
+            release_date__month=t.month, release_date__day=t.day).order_by(
+                '-release_date').prefetch_related('gameauthor_set__author',
+                                                  'gameauthor_set__role')
         if not games:
             continue
         posters = (GameURL.objects.filter(category__symbolic_id='poster')
