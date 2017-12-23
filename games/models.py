@@ -264,8 +264,6 @@ class GameVote(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, db_index=True)
     creation_time = models.DateTimeField()
     edit_time = models.DateTimeField(null=True, blank=True)
-    game_finished = models.BooleanField()
-    play_time_mins = models.IntegerField()
     star_rating = models.SmallIntegerField()
 
 

@@ -133,13 +133,8 @@ class GameAuthorAdmin(admin.ModelAdmin):
 
 @admin.register(GameVote)
 class GameVoteAdmin(admin.ModelAdmin):
-    list_display = [
-        'game', 'user', 'star_rating', 'game_finished', 'play_time_mins'
-    ]
-    list_filter = [
-        'star_rating', 'game_finished', 'play_time_mins', 'creation_time',
-        'edit_time'
-    ]
+    list_display = ['game', 'user', 'star_rating']
+    list_filter = ['star_rating', 'creation_time', 'edit_time']
     search_fields = ['pk', 'game', 'author']
 
 

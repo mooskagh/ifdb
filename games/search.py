@@ -118,23 +118,20 @@ class SearchBit:
 # 0,1 - Creation date
 # 2,3 - Release date
 # 4,5 - Rating
-# 5,6 - Duration
 class SB_Sorting(SearchBit):
     TYPE_ID = 0
 
     CREATION_DATE = 0
     RELEASE_DATE = 1
     RATING = 2
-    DURATION = 3
 
     STRINGS = {
         CREATION_DATE: 'дате добавления',
         RELEASE_DATE: 'дате релиза',
         RATING: 'рейтингу',
-        DURATION: 'продолжительности',
     }
 
-    ALLOWED_SORTINGS = [CREATION_DATE, RELEASE_DATE, RATING, DURATION]
+    ALLOWED_SORTINGS = [CREATION_DATE, RELEASE_DATE, RATING]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -166,7 +163,7 @@ class SB_Sorting(SearchBit):
         if self.method == self.CREATION_DATE:
             return query.order_by(('-' if self.desc else '') + 'creation_time')
 
-        if self.method in [self.RATING, self.DURATION]:
+        if self.method in [self.RATING]:
             return query.prefetch_related('gamevote_set')
         return query
 
@@ -208,25 +205,6 @@ class SB_Sorting(SearchBit):
             ratings.sort(key=lambda x: x[0], reverse=self.desc)
             rated_games = list(list(zip(*ratings))[1]) if ratings else []
             return rated_games + nones
-
-        if self.method == self.DURATION:
-            times = []
-            nones = []
-            for g in games:
-                plays = [
-                    x.play_time_mins for x in g.gamevote_set.all()
-                    if x.game_finished
-                ]
-                if not plays:
-                    nones.append(g)
-                    continue
-                avg = int(statistics.median(plays) + 0.5)
-                g.ds['duration'] = {'hours': avg // 60, 'mins': avg % 60}
-                times.append((avg, g))
-
-            times.sort(key=lambda x: x[0], reverse=self.desc)
-            timed_games = list(list(zip(*times))[1]) if times else []
-            return timed_games + nones
 
     def IsActive(self):
         return True
@@ -677,7 +655,7 @@ class SB_AuthorSorting(SearchBit):
             return query.order_by(('-' if self.desc else '') + 'game_count')
 
         return query
-        if self.method in [self.RATING, self.DURATION]:
+        if self.method in [self.RATING]:
             return query.prefetch_related('gamevote_set')
         return query
 

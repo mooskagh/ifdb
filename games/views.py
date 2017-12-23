@@ -101,10 +101,7 @@ def vote_game(request):
         obj.user = request.user
         obj.creation_time = timezone.now()
 
-    obj.game_finished = bool(request.POST.get('finished', None))
     obj.edit_time = timezone.now()
-    obj.play_time_mins = (
-        int(request.POST.get('hours')) * 60 + int(request.POST.get('minutes')))
     obj.star_rating = int(request.POST.get('score'))
     obj.save()
 

@@ -175,43 +175,20 @@ class GameDetailsBuilder:
         res = {'user_played': False}
         if user and not user.is_authenticated:
             user = None
-        finished_votes = []
-        finished_times = []
         played_votes = []
-        played_times = []
         res['user_hours'] = ''
-        res['user_mins'] = ''
-        res['user_score'] = ''
-        res['user_finished'] = False
 
         for v in self.game.gamevote_set.all():
             played_votes.append(v.star_rating)
-            played_times.append(v.play_time_mins)
-            if v.game_finished:
-                finished_votes.append(v.star_rating)
-                finished_times.append(v.play_time_mins)
             if v.user == user:
                 res['user_played'] = True
-                res['user_hours'] = v.play_time_mins // 60
-                res['user_mins'] = v.play_time_mins % 60
                 res['user_score'] = v.star_rating
-                res['user_finished'] = v.game_finished
 
         res['played_count'] = len(played_votes)
         if played_votes:
             avg = mean(played_votes)
             res['avg_rating'] = ("%3.1f" % avg).replace('.', ',')
             res['stars'] = StarsFromRating(avg)
-
-            t = round(median(played_times))
-            res['played_hours'] = t // 60
-            res['played_mins'] = t % 60
-
-        res['finished_count'] = len(finished_votes)
-        if finished_votes:
-            t = round(median(finished_times))
-            res['finished_hours'] = t // 60
-            res['finished_mins'] = t % 60
 
         return res
 
