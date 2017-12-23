@@ -36,6 +36,15 @@ def FormatDate(x):
     ][x.month - 1], x.year)
 
 
+def FormatDateShort(x):
+    if not x:
+        return None
+    return '%d %s' % (x.day, [
+        'января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля',
+        'августа', 'сентября', 'октября', 'ноября', 'декабря'
+    ][x.month - 1])
+
+
 def FormatTime(x):
     if not x:
         return None

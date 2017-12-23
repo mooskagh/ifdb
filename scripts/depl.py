@@ -484,6 +484,7 @@ def deploy(ctx, hot, from_master):
 
     p.AddStep(JumpIfExists('new-version', if_false=2))
     p.AddStep(WriteVersionConfigAndGitTag)
+    p.AddStep(RunCmdStep('sudo /bin/systemctl restart ifdb-uwsgi'))
 
     if from_master:
         p.AddStep(RunCmdStep('git fetch . release:master'))

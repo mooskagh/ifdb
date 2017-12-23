@@ -14,7 +14,8 @@ class Game(models.Model):
 
     title = models.CharField(_('Title'), max_length=255)
     description = models.TextField(_('Description'), null=True, blank=True)
-    release_date = models.DateField(_('Release date'), null=True, blank=True)
+    release_date = models.DateField(
+        _('Release date'), null=True, blank=True, db_index=True)
     creation_time = models.DateTimeField(_('Added at'), db_index=True)
     edit_time = models.DateTimeField(_('Last edit'), null=True, blank=True)
     view_perm = models.CharField(

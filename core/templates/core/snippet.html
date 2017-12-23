@@ -1,6 +1,6 @@
 {% for x in items %}
 {% if x.style == 'subheader' %}
-  <div class="grid-box-subheader">Последние добавленные игры</div>
+  <div class="grid-box-subheader">{{ x.text }}</div>
 {% else %}
   {% if x.link %}
     <a class="grid-box-item" href="{{ x.link }}" {% if x.newtab %}target="_blank"{% endif %}>  

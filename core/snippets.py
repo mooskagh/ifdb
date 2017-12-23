@@ -6,9 +6,9 @@ from django.urls import reverse
 from django.utils import timezone
 from games.models import GameURL, GameComment
 from games.search import GameListFromSearch
-from games.tools import FormatLag, ExtractYoutubeId
-from .models import FeedCache, RssFeedsToCache
-
+from games.tools import FormatLag, ExtractYoutubeId, FormatDateShort
+from .models import FeedCache, Game
+import datetime
 import json
 
 
@@ -190,6 +190,60 @@ def FeedSnippet(request,
             ]
         })
     return render_to_string('core/snippet.html', {'items': items})
+
+
+def ThisDayInHistorySnippet(request):
+    now = timezone.now()
+    items = []
+    for daytitle, datedelta in [('Вчера', -1), ('Сегодня', 0), ('Завтра', 1)]:
+        t = now + datetime.timedelta(days=datedelta)
+        games = Game.objects.filter(
+            release_date__month=t.month,
+            release_date__day=t.day).order_by('release_date').prefetch_related(
+                'gameauthor_set__author', 'gameauthor_set__role')
+        if not games:
+            continue
+        posters = (GameURL.objects.filter(category__symbolic_id='poster')
+                   .filter(game__in=games).select_related('url'))
+
+        g2p = {}
+        for x in posters:
+            g2p[x.game_id] = x.GetLocalUrl()
+
+        for x in games:
+            x.poster = g2p.get(x.id)
+            x.authors = [
+                x for x in x.gameauthor_set.all()
+                if x.role.symbolic_id == 'author'
+            ]
+
+        items.append({
+            'style': 'subheader',
+            'text': "%s, %s" % (daytitle, FormatDateShort(t))
+        })
+        for x in games:
+            lines = []
+            lines.append({
+                'style': ('comment'),
+                'text': "%d год" % x.release_date.year,
+            })
+            lines.append({'style': 'strong', 'text': x.title})
+            lines.append({
+                'text': ', '.join([y.author.name for y in x.authors])
+            })
+            items.append({
+                'image': {
+                    'src': x.poster or '/static/noposter.png',
+                },
+                'lines': (lines),
+                'link': (reverse('show_game', kwargs={
+                    'game_id': x.id
+                })),
+            })
+    return render_to_string('core/snippet.html', {'items': items})
+
+
+###############################################################################
 
 
 def RenderSnippetContent(request, snippet):
