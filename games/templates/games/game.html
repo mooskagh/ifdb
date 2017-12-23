@@ -296,32 +296,6 @@
                             ({{ votes.played_count|rupl:"оценка,оценки,оценок" }})
                         </td>
                     </tr>
-                    <tr>
-                        <td class="prop-category">
-                            Среднее время игры:
-                        </td>
-                        <td class="prop-value">
-                            {{ votes.played_hours|rupl:"час,часа,часов" }}
-                            {{ votes.played_mins|rupl:"минута,минуты,минут" }}
-                        </td>
-                    </tr>
-                    {% if votes.finished_count > 0 %}
-                        <tr>
-                            <td class="prop-category">
-                                Время прохождения:
-                            </td>
-                            <td class="prop-value">
-                                {{ votes.finished_hours|rupl:"час,часа,часов" }}
-                                {{ votes.finished_mins|rupl:"минута,минуты,минут" }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td></td>
-                            <td class="prop-category">
-                                ({{ votes.finished_count|rupl:"человек,человека,человек" }})
-                            </td>
-                        </tr>
-                    {% endif %}
                 </table>
             {% endif %}
             {% if user.is_authenticated %}

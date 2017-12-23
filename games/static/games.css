@@ -46,6 +46,10 @@ a.author-link:hover {
     text-align: left;
 }
 
+.clean-table th {
+    font-weight: normal;
+}
+
 .grid-container {
     margin: 50px auto;
 }
@@ -513,7 +517,7 @@ textarea {
 
 .game-header h1 {
     color: #31322D;
-    font-weight: bold;
+    font-weight: normal;
     font-size: 2.5em;
     margin: 0;
 }
@@ -525,7 +529,6 @@ textarea {
 span.gameinfo-author {
     color: #31322D;
     display: inline-block;
-    font-weight: bold;
     margin-right: 0.4em;
     text-transform: uppercase;
     white-space: nowrap;
@@ -547,7 +550,6 @@ span.gameinfo-author {
     border-radius: 2px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
     display: inline-block;
-    font-weight: bold;
     margin: 14px;
     overflow: hidden;
     padding: 0;
@@ -615,7 +617,6 @@ span.gameinfo-author {
 .gamelist-thumb .search-author {
     display: block;
     font-size: 90%;
-    font-weight: bold;
     height: 16px;
     overflow: hidden;
     padding: 2px 5px;
@@ -702,7 +703,6 @@ span.gameinfo-author {
 
 .prop-value {
     color: #31322D;
-    font-weight: bold;
 }
 
 .sort {
@@ -1043,6 +1043,7 @@ table.search-box th {
     text-align: right;
     vertical-align: top;
     min-width: 180px;
+    font-weight: normal;
 }
 
 table.search-box td {
