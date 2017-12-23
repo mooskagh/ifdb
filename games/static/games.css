@@ -1,5 +1,5 @@
 a {
-    color: #00487c;
+    color: #1a237e;
 }
 
 a.author-link {
@@ -27,7 +27,7 @@ a.author-link:hover {
     max-width: 70px;
     max-height: 70px;
     border-radius: 50%;
-    border: 2px solid #00487c;
+    border: 2px solid #1a237e;
     box-shadow: -1px 1px 3px rgba(0, 0, 0, .3);
 }
 
@@ -80,12 +80,13 @@ a.grid-box-item:hover {
     height: 20px;
     overflow: hidden;
     display: block;
-    padding: 0 10px;
+    padding: 0 7px;
     text-overflow: ellipsis;
     vertical-align: middle;
     white-space: nowrap;
     color: inherit;
     text-decoration: none;
+    font-size: 11px;
 }
 
 a.grid-box-line:hover {
@@ -109,7 +110,7 @@ a.grid-box-line:hover {
 }
 
 .grid-box-line-strong {
-    font-weight: bold;
+    font-size: 13px;
 }
 
 .grid-box-icon {
@@ -129,9 +130,8 @@ a.grid-box-line:hover {
 .grid-box-header {
     color: #fff;
     background-color: #666;
-    padding: 10px 5px;
+    padding: 10px 10px;
     font-size: 110%;
-    font-weight: bold;
     display: block;
     text-decoration: none;
 }
@@ -148,35 +148,35 @@ a.grid-box-header:hover {
 }
 
 .grid-box-green .grid-box-header {
-    background-color: #0e9d40;
+    background-color: #009688;
 }
 
 .grid-box-green .grid-box-subheader {
-    background-color: #095925;
+    background-color: #004d40;
 }
 
 .grid-box-blue .grid-box-header {
-    background-color: #3e6fd8;
+    background-color: #3f51b5;
 }
 
 .grid-box-blue .grid-box-subheader {
-    background-color: #223f7c;
+    background-color: #283593;
 }
 
 .grid-box-yellow .grid-box-header {
-    background-color: #ddc300;
+    background-color: #ffc107;
 }
 
 .grid-box-yellow .grid-box-subheader {
-    background-color: #968400;
+    background-color: #ff8f00;
 }
 
 .grid-box-red .grid-box-header {
-    background-color: #d62817;
+    background-color: #e91e63;
 }
 
 .grid-box-red .grid-box-subheader {
-    background-color: #8c190e;
+    background-color: #880e4f;
 }
 
 
@@ -215,7 +215,7 @@ a.grid-box-header:hover {
     min-width: 16px;
     height: 16px;
     border-radius: 2.5px;
-    background-color: #00487c;
+    background-color: #1a237e;
     border: none;
     color: #fff;
     margin: 2px;
@@ -370,7 +370,7 @@ textarea {
 .root {
     background-color: #f1f1f1;
     color: #31322D;
-    font-family: 'Open Sans', sans-serif;
+    font-family: 'Roboto', sans-serif;
     font-size: 13px;
     min-height: 100vh;
     overflow-x: visible;
@@ -419,7 +419,8 @@ textarea {
 #top-nav a {
     color: #fff;
     display: inline-block;
-    font: bold 14px/40px 'Trebuchet MS', 'Helvetica Neue', Arial, Sans-Serif;
+    font-size: 14px;
+    line-height: 40px;
     height: 40px;
     min-width: 80px;
     padding: 0 10px;
@@ -450,9 +451,9 @@ textarea {
 }
 
 #top-nav input[type="submit"] {
-    background-color: #00487c;
+    background-color: #1a237e;
     border: 1px solid rgba(0, 0, 0, .1);
-    font-family: 'Open Sans', sans-serif;
+    font-family: 'Roboto', sans-serif;
     font-size: 13px;
 }
 
@@ -726,7 +727,7 @@ span.gameinfo-author {
 
 .sort.current,
 .tag.current {
-    background-color: #00487c;
+    background-color: #1a237e;
     border: none;
     color: #fff;
 }
@@ -850,7 +851,7 @@ textarea#description {
 button,
 input[type="submit"],
 .button-like {
-    background-color: #00487c;
+    background-color: #1a237e;
     border: none;
     color: #fff;
     text-align: center;
@@ -951,20 +952,20 @@ button#submit,
 progress {
     display: block;
     width: 655px;
-    color: #00487c;
+    color: #1a237e;
     height: 0.3em;
 }
 
 progress::-moz-progress-bar {
-    background-color: #00487c;
+    background-color: #1a237e;
 }
 
 progress::-webkit-progress-value {
-    background-color: #00487c !important;
+    background-color: #1a237e !important;
 }
 
 .vote-timeselect {
-    background-color: #00487c;
+    background-color: #1a237e;
     border-radius: 2.5px;
     color: #fff;
     cursor: pointer;
@@ -1058,7 +1059,7 @@ table.search-box a {
 }
 
 #top-nav a.register {
-    color: #00487c;
+    color: #1a237e;
     display: inline-block;
     font: bold 12px/42px 'Trebuchet MS', 'Helvetica Neue', Arial, Sans-Serif;
     height: 40px;
@@ -1095,7 +1096,7 @@ table.search-box a {
     display: block;
     margin: auto;
     width: 200px;
-    background-color: #00487c;
+    background-color: #1a237e;
     border: none;
     color: #fff;
     text-align: center;
