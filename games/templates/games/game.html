@@ -326,25 +326,9 @@
             {% endif %}
             {% if user.is_authenticated %}
                 {% if votes.user_played %}
-                    {% comment %}
-                        <div class="prop-comment">
-                            (ваша оценка: {{ votes.user_score }},
-                            {% if votes.user_finished %}
-                                вы прошли игру за
-                            {% else %}
-                                вы играли в эту игру
-                            {% endif %}
-                            {{votes.user_hours}} ч.
-                            {{votes.user_mins}} м.)
-                        </div>
-                    {% endcomment %}
                     <button id="voting_button">Изменить мой голос</button>
                 {% else %}
-                    {% if votes.played_count == 0 %}
-                        <button id="voting_button">Я в это играло</button>
-                    {% else %}
-                        <button id="voting_button">Я в это тоже играло</button>
-                    {% endif %}
+                    <button id="voting_button">Оценить игру</button>
                 {% endif %}
                 <form id="voting_form" style="display: none;" method="post"
                     action="{% url 'vote_game' %}">
