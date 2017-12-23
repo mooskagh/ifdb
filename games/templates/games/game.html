@@ -288,12 +288,9 @@
                                 <img src="/static/duck{{x}}.png" />
                             {% endfor %}
                             ({{ votes.avg_rating }})
-                        </td>
-                    </tr>
-                    <tr>
-                        <td></td>
-                        <td class="prop-category">
+                        <span class="prop-category">
                             ({{ votes.played_count|rupl:"оценка,оценки,оценок" }})
+                        </span>
                         </td>
                     </tr>
                 </table>
