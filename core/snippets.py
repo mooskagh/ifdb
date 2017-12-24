@@ -8,7 +8,6 @@ from games.models import GameURL, GameComment
 from games.search import GameListFromSearch
 from games.tools import FormatLag, ExtractYoutubeId, FormatDateShort
 from .models import FeedCache, Game
-import datetime
 import json
 
 

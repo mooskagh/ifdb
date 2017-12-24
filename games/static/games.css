@@ -720,6 +720,15 @@ span.gameinfo-author {
     color: #31322D;
 }
 
+.prop-value a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.prop-value a:hover {
+    text-decoration: underline;
+}
+
 .sort {
     border-radius: 2px;
     border: 1px solid #625b61;

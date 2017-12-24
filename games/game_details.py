@@ -1,10 +1,12 @@
 from .models import Game
 from .tools import (FormatDate, FormatTime, StarsFromRating, RenderMarkdown,
                     ExtractYoutubeId, IsTor)
-from logging import getLogger
-from statistics import mean, median
+from .search import BaseXWriter
 from core.views import BuildPackageUserFingerprint
 from django.conf import settings
+from django.urls import reverse
+from logging import getLogger
+from statistics import mean
 
 logger = getLogger('web')
 
@@ -143,6 +145,11 @@ class GameDetailsBuilder:
         cats = []
         for x in self.game.tags.all():
             category = x.category
+            writer = BaseXWriter()
+            writer.addHeader(2, category.id)
+            writer.addSet([x.id])
+            x.search_query = "%s?q=%s" % (reverse('list_games'),
+                                          writer.GetStr())
             if not self.request.perm(category.show_in_details_perm):
                 continue
             if category in tags:

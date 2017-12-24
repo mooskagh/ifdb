@@ -79,6 +79,40 @@ class BaseXReader:
         return res
 
 
+class BaseXWriter:
+    ALPHABET = BaseXReader.ALPHABET
+    HEAD_SPACE = len(ALPHABET) // 2
+    TRUNK_SPACE = len(ALPHABET) - HEAD_SPACE
+
+    def __init__(self):
+        self.res = b''
+
+    def addCodePoint(self, x):
+        self.res += bytes([self.ALPHABET[x]])
+
+    def addInt(self, x):
+        while x >= self.HEAD_SPACE:
+            x -= self.HEAD_SPACE
+            self.addCodePoint(self.HEAD_SPACE + x % self.TRUNK_SPACE)
+            x //= self.TRUNK_SPACE
+        self.addCodePoint(x)
+
+    def addSet(self, x):
+        y = list(sorted(x))
+        self.addInt(len(y))
+        for i, v in enumerate(y):
+            if i == 0:
+                self.addInt(v)
+            else:
+                self.addInt(v - y[i - 1] - 1)
+
+    def addHeader(self, typ, val):
+        self.addInt(val * 16 + typ)
+
+    def GetStr(self):
+        return self.res.decode('utf-8')
+
+
 class SearchBit:
     def __init__(self, val=0, hidden=False):
         self.val = val
