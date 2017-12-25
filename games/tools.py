@@ -4,7 +4,7 @@ from django import template
 from django.db.models import F
 import statistics
 import dns.resolver
-from .models import GameVote
+from .models import GameVote, GameURL
 
 
 def IsTor(request):
@@ -25,6 +25,27 @@ def IsTor(request):
         pass
 
     return False
+
+
+def SnippetFromList(games):
+    posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
+        game__in=games).select_related('url'))
+    screenshots = (GameURL.objects.filter(category__symbolic_id='screenshot')
+                   .filter(game__in=games).select_related('url'))
+
+    g2p = {}
+    for x in posters:
+        g2p[x.game_id] = x.GetLocalUrl()
+    for x in screenshots:
+        if x.game_id not in g2p:
+            g2p[x.game_id] = x.GetLocalUrl()
+
+    for x in games:
+        x.poster = g2p.get(x.id)
+        x.authors = [
+            x for x in x.gameauthor_set.all() if x.role.symbolic_id == 'author'
+        ]
+    return games
 
 
 def FormatDate(x):
