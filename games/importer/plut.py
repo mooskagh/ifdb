@@ -8,6 +8,9 @@ import datetime
 
 
 class PlutImporter:
+    def MatchWithCat(self, url, cat):
+        return cat == 'game_page' and self.Match(url)
+
     def Match(self, url):
         return PLUT_URL.match(url)
 

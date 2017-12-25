@@ -162,7 +162,8 @@ enricher.AddRule(
         'r?inform.*',
         'r?tads.*',
         'tom 2',
-        'ярил', ),
+        'ярил',
+    ),
     AddTag('parser'))
 enricher.AddRule(
     HasTag(
@@ -178,7 +179,8 @@ enricher.AddRule(
         'tweebox',
         'twine',
         'аперо',
-        'квестер', ),
+        'квестер',
+    ),
     AddTag('menu'))
 enricher.AddRule(
     HasTag(
@@ -192,7 +194,8 @@ enricher.AddRule(
         'twine',
         'urqw',
         'аперо',
-        'квестер', ),
+        'квестер',
+    ),
     AddTag('os_web'))
 enricher.AddRule(
     HasTag(
@@ -203,11 +206,12 @@ enricher.AddRule(
         'fireurq',
         'r?inform.*',
         'r?tads.*',
-        'ripurq', ),
+        'ripurq',
+    ),
     AddTag('os_win'))
 enricher.AddRule(
-    HasTag('platform', 'r?tads.*', 'r?inform.*'),
-    AddTag('os_linux', 'os_macos'))
+    HasTag('platform', 'r?tads.*', 'r?inform.*'), AddTag(
+        'os_linux', 'os_macos'))
 enricher.AddRule(HasTag('platform', 'dosurq'), AddTag('os_dos'))
 enricher.AddRule(
     And(HasTag('platform', 'qsp'), HasUrlCategory('play_online')),

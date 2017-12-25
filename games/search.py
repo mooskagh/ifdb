@@ -3,9 +3,9 @@ from .models import (Game, GameTag, GameTagCategory, URL, PersonalityAlias,
                      GameAuthorRole, Personality, GameAuthor, GameVote,
                      GameURL)
 from django.utils import timezone
-import statistics
-from .tools import FormatDate, ComputeGameRating, ComputeHonors
-from django.db.models import Q, Count, prefetch_related_objects, F
+from .tools import (FormatDate, ComputeGameRating, ComputeHonors,
+                    SnippetFromList)
+from django.db.models import Q, Count, prefetch_related_objects
 
 RE_WORD = re.compile(r"\w(?:[\w']+\w)?")
 
@@ -774,18 +774,7 @@ def GameListFromSearch(request, query, reltime_field, max_secs, min_count,
         start=0,
         limit=max_count)
 
-    posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
-        game__in=games).select_related('url'))
-
-    g2p = {}
-    for x in posters:
-        g2p[x.game_id] = x.GetLocalUrl()
-
-    for x in games:
-        x.poster = g2p.get(x.id)
-        x.authors = [
-            x for x in x.gameauthor_set.all() if x.role.symbolic_id == 'author'
-        ]
+    SnippetFromList(games)
 
     res = []
     if reltime_field:

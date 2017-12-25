@@ -6,7 +6,8 @@ from django.urls import reverse
 from django.utils import timezone
 from games.models import GameURL, GameComment
 from games.search import GameListFromSearch
-from games.tools import FormatLag, ExtractYoutubeId, FormatDateShort
+from games.tools import (FormatLag, ExtractYoutubeId, FormatDateShort,
+                         SnippetFromList)
 from .models import FeedCache, Game, BlogFeed
 import json
 
@@ -233,18 +234,7 @@ def ThisDayInHistorySnippet(request):
                                               'gameauthor_set__role')
     if not games:
         return None
-    posters = (GameURL.objects.filter(category__symbolic_id='poster')
-               .filter(game__in=games).select_related('url'))
-
-    g2p = {}
-    for x in posters:
-        g2p[x.game_id] = x.GetLocalUrl()
-
-    for x in games:
-        x.poster = g2p.get(x.id)
-        x.authors = [
-            x for x in x.gameauthor_set.all() if x.role.symbolic_id == 'author'
-        ]
+    SnippetFromList(games)
 
     items.append({
         'style': 'subheader',

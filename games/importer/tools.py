@@ -50,6 +50,12 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
 ]
 
 
+def QuoteUtf8(s):
+    if s is str:
+        s = s.encode('utf-8')
+    return quote(s, safe='/+=&?%:@;!#$*()_-')
+
+
 def GetBagOfWords(x):
     return set(RE_WORD.findall(x.lower().replace('ё', 'е')))
 
@@ -167,7 +173,7 @@ def SimilarEnough(w1, w2):
 
 
 def HashizeUrl(url):
-    url = quote(url.encode('utf-8'), safe='/+=&?%:;@!#$*()_-')
+    url = QuoteUtf8(url)
     purl = urlsplit(url, allow_fragments=False)
     return urlunsplit(('', purl[1], purl[2], purl[3], ''))
 
@@ -175,6 +181,12 @@ def HashizeUrl(url):
 class Importer:
     def __init__(self):
         self.importers = [x() for x in REGISTERED_IMPORTERS]
+
+    def IsFamiliarUrl(self, url, cat):
+        for x in self.importers:
+            if x.MatchWithCat(url, cat):
+                return True
+        return False
 
     def DispatchImport(self, url):
         for x in self.importers:
@@ -276,7 +288,7 @@ class Importer:
                 res.append(r)
                 if 'urls' in r:
                     for x in r['urls']:
-                        if x['urlcat_slug'] == 'game_page':
+                        if self.IsFamiliarUrl(x['url'], x['urlcat_slug']):
                             urls_to_check.add(x['url'])
 
         res.sort(key=lambda x: x['priority'], reverse=True)

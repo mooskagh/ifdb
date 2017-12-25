@@ -10,6 +10,9 @@ logger = getLogger('crawler')
 
 
 class QspsuImporter:
+    def MatchWithCat(self, url, cat):
+        return cat == 'game_page' and self.Match(url)
+
     def Match(self, url):
         return QSP_RE.match(url)
 

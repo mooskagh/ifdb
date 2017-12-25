@@ -11,6 +11,9 @@ class RilarhivImporter:
     def __init__(self):
         self.games = None
 
+    def MatchWithCat(self, url, cat):
+        return cat == 'download_direct' and self.Match(url)
+
     def Match(self, url):
         return self.games and url in self.games
 

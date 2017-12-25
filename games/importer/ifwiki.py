@@ -13,6 +13,9 @@ logger = getLogger('crawler')
 
 
 class IfwikiImporter:
+    def MatchWithCat(self, url, cat):
+        return cat == 'game_page' and self.Match(url)
+
     def Match(self, url):
         return IFWIKI_URL.match(url)
 
@@ -47,8 +50,8 @@ def GetDirtyUrls(age_minutes):
     r = json.loads(
         FetchUrlToString(
             r'http://ifwiki.ru/api.php?action=query&list=recentchanges&'
-            r'rclimit=500&format=json&rcend=%d' % int(
-                time.time() - 60 * age_minutes),
+            r'rclimit=500&format=json&rcend=%d' %
+            int(time.time() - 60 * age_minutes),
             use_cache=False))['query']['recentchanges']
 
     for x in r:
@@ -256,7 +259,7 @@ class WikiAuthorParsingContext:
         if display_name:
             return display_name
         if role:
-            return "%s:%s" % (role, name)
+            return "%s" % name
         return name
 
     def ParseTemplate(self, node):

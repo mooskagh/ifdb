@@ -9,7 +9,8 @@ from .models import (GameURL, GameComment, Game, GameVote, InterpretedGameUrl,
                      GameTagCategory, GameURLCategory, GameAuthor, Personality,
                      PersonalityURLCategory, PersonalityUrl)
 from .search import MakeSearch, MakeAuthorSearch
-from .tools import (RenderMarkdown, ComputeGameRating, ComputeHonors, IsTor)
+from .tools import (RenderMarkdown, ComputeGameRating, ComputeHonors, IsTor,
+                    SnippetFromList)
 from .updater import UpdateGame, Importer2Json
 from core.snippets import RenderSnippets
 from django import forms
@@ -29,22 +30,6 @@ from ifdb.permissioner import perm_required
 
 PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
 logger = getLogger('web')
-
-
-def SnippetFromList(games):
-    posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
-        game__in=games).select_related('url'))
-
-    g2p = {}
-    for x in posters:
-        g2p[x.game_id] = x.GetLocalUrl()
-
-    for x in games:
-        x.poster = g2p.get(x.id)
-        x.authors = [
-            x for x in x.gameauthor_set.all() if x.role.symbolic_id == 'author'
-        ]
-    return games
 
 
 def index(request):
@@ -516,18 +501,9 @@ def json_search(request):
             Count('package'),
         })
 
-    posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
-        game__in=games).select_related('url'))
-
-    g2p = {}
-    for x in posters:
-        g2p[x.game_id] = x.GetLocalUrl()
+    SnippetFromList(games)
 
     for x in games:
-        x.poster = g2p.get(x.id)
-        x.authors = [
-            x for x in x.gameauthor_set.all() if x.role.symbolic_id == 'author'
-        ]
         x.icons = {}
         x.icons['hascomments'] = x.gamecomment__count > 0
         x.icons['hasvideo'] = x.hasvideo

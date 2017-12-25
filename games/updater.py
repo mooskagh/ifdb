@@ -267,7 +267,7 @@ def UpdatePersonalityUrls(importer, request, alias_id, data, update):
             id__in=[x[0].id for x in existing_urls.values()]).delete()
 
 
-def UpdateGameUrls(request, game, data, update):
+def UpdateGameUrls(request, game, data, update, kill_existing=True):
     existing_urls = {}  # (cat_id, url_text) -> (gameurl, gameurl_desc)
     if update:
         for x in game.gameurl_set.select_related('url').all():
@@ -337,12 +337,12 @@ def UpdateGameUrls(request, game, data, update):
                 objs.append(obj)
         GameURL.objects.bulk_create(objs)
 
-    if existing_urls:
+    if existing_urls and kill_existing:
         GameURL.objects.filter(
             id__in=[x[0].id for x in existing_urls.values()]).delete()
 
 
-def UpdateGame(request, j, update_edit_time=True):
+def UpdateGame(request, j, update_edit_time=True, kill_existing_urls=True):
     if ('game_id' in j):
         g = Game.objects.get(id=j['game_id'])
         request.perm.Ensure(g.edit_perm)
@@ -360,7 +360,12 @@ def UpdateGame(request, j, update_edit_time=True):
                       if j.get('release_date') else None)
 
     g.save()
-    UpdateGameUrls(request, g, j.get('links', []), 'game_id' in j)
+    UpdateGameUrls(
+        request,
+        g,
+        j.get('links', []),
+        'game_id' in j,
+        kill_existing=kill_existing_urls)
     UpdateGameTags(request, g, j.get('tags', []), 'game_id' in j)
     UpdateGameAuthors(request, g, j.get('authors', []), 'game_id' in j)
 

@@ -145,7 +145,7 @@ a.grid-box-line:hover {
 
 .grid-box-header {
     color: #fff;
-    background-color: #666;
+    background-color: #757575;
     padding: 10px 10px;
     font-size: 110%;
     display: block;
@@ -158,7 +158,7 @@ a.grid-box-header:hover {
 
 .grid-box-subheader {
     color: #fff;
-    background-color: #444;
+    background-color: #bdbdbd;
     padding: 3px 5px;
     font-size: 100%;
     display: block;

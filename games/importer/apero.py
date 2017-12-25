@@ -2,14 +2,17 @@ import re
 from core.crawler import FetchUrlToString
 from urllib.parse import quote, unquote
 from html import unescape
-from .tools import CategorizeUrl, CategorizeAuthorUrl
+from .tools import CategorizeUrl, CategorizeAuthorUrl, QuoteUtf8
 from html2text import HTML2Text
 import datetime
 
 
 class AperoImporter:
+    def MatchWithCat(self, url, cat):
+        return cat == 'play_online' and self.Match(url)
+
     def Match(self, url):
-        return APERO_URL.match(url)
+        return APERO_URL.match(QuoteUtf8(url))
 
     def MatchAuthor(self, url):
         return APERO_AUTHOR_URL.match(url)
@@ -27,10 +30,10 @@ class AperoImporter:
         return []
 
 
-APERO_URL = re.compile(r'https?://apero\.ru/' + quote('Текстовые-игры') +
-                       r'/.*')
-APERO_AUTHOR_URL = re.compile(r'https?://apero\.ru/' + quote('Участники') +
-                              r'/(.*)')
+APERO_URL = re.compile(
+    r'https?://apero\.ru/' + quote('Текстовые-игры') + r'/.*')
+APERO_AUTHOR_URL = re.compile(
+    r'https?://apero\.ru/' + quote('Участники') + r'/(.*)')
 APERO_LISTING_TITLE_RE = re.compile(
     r'<h2><a href="(http://apero.ru/Текстовые-игры/[^"]+)">[^<]*</a></h2>')
 
@@ -39,8 +42,7 @@ def FetchCandidateUrls():
     html = FetchUrlToString(
         r'http://apero.ru/' + quote('Текстовые-игры'), use_cache=False)
     return [
-        quote(m.group(1), safe='/+=&?%:@;!#$*()_-')
-        for m in APERO_LISTING_TITLE_RE.finditer(html)
+        QuoteUtf8(m.group(1)) for m in APERO_LISTING_TITLE_RE.finditer(html)
     ]
 
 
