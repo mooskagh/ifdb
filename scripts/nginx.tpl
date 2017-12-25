@@ -60,12 +60,12 @@ server {
     }
 
 {% elif c.conf == 'staging' %}
-    location /f  {
-        alias /home/ifdb/files;
+    location /f/  {
+        alias /home/ifdb/files/;
     }
 
-    location /static {
-        alias /home/ifdb/staging/static;
+    location /static/ {
+        alias /home/ifdb/staging/static/;
     }
 
     location / {
