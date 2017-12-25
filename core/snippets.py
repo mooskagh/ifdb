@@ -213,10 +213,10 @@ def FeedSnippet(request,
             })
             for x in sorted(not_shown):
                 res.append({
-                    'link': feed_ids[k].get('link'),
+                    'link': feed_ids[x].get('link'),
                     'newtab': True,
                     'lines': [{
-                        'text': feed_ids[k].get('title'),
+                        'text': feed_ids[x].get('title'),
                     }]
                 })
     return render_to_string('core/snippet.html', {'items': res})
