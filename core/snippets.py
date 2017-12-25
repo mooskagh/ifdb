@@ -170,13 +170,13 @@ def FeedSnippet(request,
     count = 0
     for x in FeedCache.objects.filter(feed_id__in=feed_ids.keys()).order_by(
             '-date_published')[:max_count]:
+        lag = (now - x.date_published).total_seconds()
+        if lag > max_secs and count >= min_count:
+            break
         if x.feed_id not in items:
             n = []
             itemses.append((x.feed_id, n))
             items[x.feed_id] = n
-        lag = (now - x.date_published).total_seconds()
-        if lag > max_secs and count >= min_count:
-            break
         count += 1
         lines = [{
             'style': ('recent-comment'
