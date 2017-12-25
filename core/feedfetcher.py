@@ -13,15 +13,16 @@ import re
 logger = getLogger('worker')
 
 
-def ProcessFeedEntries(feed_id, items):
+def ProcessFeedEntries(feed_id, items, id_field='id'):
     now = timezone.now()
     for x in items:
+        item_id = getattr(x, id_field)
         try:
-            f = FeedCache.objects.get(feed_id=feed_id, item_id=x.id)
+            f = FeedCache.objects.get(feed_id=feed_id, item_id=item_id)
         except FeedCache.DoesNotExist:
             f = FeedCache()
             f.feed_id = feed_id
-            f.item_id = x.id
+            f.item_id = item_id
             f.date_discovered = now
         if hasattr(x, 'date_published'):
             f.date_published = x.date_published
@@ -34,10 +35,10 @@ def ProcessFeedEntries(feed_id, items):
         f.save()
 
 
-def FetchFeed(url, feed_id):
+def FetchFeed(url, feed_id, id_field='id'):
     logger.info("Fetching feed at %s, feed ud %s" % (url, feed_id))
     feed = feedparser.parse(url)
-    ProcessFeedEntries(feed_id, feed.entries)
+    ProcessFeedEntries(feed_id, feed.entries, id_field)
 
 
 def FetchIficionFeed():
@@ -83,6 +84,7 @@ def FetchFeeds():
     FetchFeed('https://ifhub.club/rss/full', 'ifhub')
     FetchIficionFeed()
     FetchUrqFeed()
-    FetchFeed('http://instead.syscall.ru/talk/feed.php', 'inst')
+    FetchFeed(
+        'http://instead.syscall.ru/talk/feed.php', 'inst', id_field='title')
     for x in BlogFeed.objects.all():
         FetchFeed(x.rss, x.feed_id)
