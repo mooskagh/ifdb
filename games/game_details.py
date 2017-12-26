@@ -208,7 +208,7 @@ class GameDetailsBuilder:
             res.append({
                 'id': v.id,
                 'user_id': v.user.id if v.user else None,
-                'username': v.user.username if v.user else 'Анонимоўс',
+                'username': v.GetUsername(),
                 'parent_id': v.parent.id if v.parent else None,
                 'created': FormatTime(v.creation_time),
                 'created_raw': v.creation_time,

@@ -79,7 +79,7 @@ def CommentsSnippet(request):
             'lines': [
                 {
                     'style': 'float-left',
-                    'text': (x.user.username if x.user else 'Анонимоўс'),
+                    'text': x.GetUsername(),
                 },
                 {
                     'style': ('recent-comment' if x.recent_lag else 'comment'),

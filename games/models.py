@@ -275,8 +275,16 @@ class GameComment(models.Model):
         return "%s: %s: %s (%s)" % (self.user, self.game, self.subject,
                                     self.creation_time)
 
+    def GetUsername(self):
+        if self.user:
+            return self.user.username
+        if self.username:
+            return self.username
+        return 'Анонимоўс'
+
     game = models.ForeignKey(Game, db_index=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True)
+    username = models.CharField(max_length=64, null=True, blank=True)
     parent = models.ForeignKey('GameComment', null=True, blank=True)
     creation_time = models.DateTimeField()
     edit_time = models.DateTimeField(null=True, blank=True)
