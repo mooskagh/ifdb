@@ -332,19 +332,16 @@ textarea {
     background-color: #f8f8f8;
 }
 
-.doc-outer {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-    border-radius: 2px;
-    display: flex;
-    flex-direction: row;
+.doc-container {
+    background-color: #311b92;
 }
 
 .doc-list {
-    background-color: #512da8;
     color: #fff;
-    float: left;
-    padding: 10px;
+    padding: 100px 10px 0 0;
     width: 20%;
+    display: inline-block;
+    margin: 20px;
 }
 
 .doc-list a {
@@ -356,11 +353,20 @@ textarea {
     font-weight: bold;
 }
 
+.doc-title {
+    margin: 50px 0;
+    font-weight: normal;
+}
+
 .doc-content {
+    color: #000;
     background-color: #fff;
+    border-radius: 2px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
     float: left;
-    padding: 10px;
-    flex: 1;
+    padding: 0px 50px 20px;
+    margin: 60px 10px 10px;
+    width: 800px;
 }
 
 .floating-add-button {

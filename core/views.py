@@ -175,7 +175,12 @@ def showdoc(request, slug):
     if not request.perm(doc.view_perm):
         raise Http404()
 
-    d = {'slug': slug, 'text': RenderMarkdown(doc.text), 'links': []}
+    d = {
+        'title': doc.title,
+        'slug': slug,
+        'text': RenderMarkdown(doc.text),
+        'links': []
+    }
     for x in Document.objects.order_by('order', 'title'):
         if not request.perm(x.list_perm):
             continue
