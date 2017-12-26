@@ -1,6 +1,6 @@
 from .models import Game
 from .tools import (FormatDate, FormatTime, StarsFromRating, RenderMarkdown,
-                    ExtractYoutubeId, IsTor)
+                    ExtractYoutubeId)
 from .search import BaseXWriter
 from core.views import BuildPackageUserFingerprint
 from django.conf import settings
@@ -86,8 +86,7 @@ class GameDetailsBuilder:
                  BuildPackageUserFingerprint(
                      self.request.user
                      if self.request.user.is_authenticated else None, x.id)))
-        can_comment = self.request.perm(
-            self.game.comment_perm) and not IsTor(self.request)
+        can_comment = self.request.perm(self.game.comment_perm)
         return {
             'edit_perm': self.request.perm(self.game.edit_perm),
             'comment_perm': can_comment,

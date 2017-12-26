@@ -19,8 +19,9 @@ SIMILAR_TITLES_HIGHCONF = 0.9
 class FakeRequest:
     def __init__(self, username):
         self.user = get_user_model().objects.get(username=username)
-        self.perm = Permissioner(self.user)
+        self.perm = Permissioner(self)
         self.is_fake = True
+        self.META = {}
 
 
 class ImportedGame:

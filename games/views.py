@@ -9,7 +9,7 @@ from .models import (GameURL, GameComment, Game, GameVote, InterpretedGameUrl,
                      GameTagCategory, GameURLCategory, GameAuthor, Personality,
                      PersonalityURLCategory, PersonalityUrl)
 from .search import MakeSearch, MakeAuthorSearch
-from .tools import (RenderMarkdown, ComputeGameRating, ComputeHonors, IsTor,
+from .tools import (RenderMarkdown, ComputeGameRating, ComputeHonors,
                     SnippetFromList)
 from .updater import UpdateGame, Importer2Json
 from core.snippets import RenderSnippets
@@ -100,8 +100,6 @@ def comment_game(request):
         })
     game = Game.objects.get(id=int(request.POST.get('game_id')))
     request.perm.Ensure(game.comment_perm)
-    if IsTor(request):
-        raise PermissionDenied()
 
     comment = GameComment()
     comment.game = game

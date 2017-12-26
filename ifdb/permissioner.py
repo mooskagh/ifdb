@@ -1,35 +1,141 @@
+# Syntax:
+#   @group
+#   [user id]
+#   (func)
+
 from django.core.exceptions import PermissionDenied
+from django.core.cache import caches
+import dns.resolver
 
 EVERYONE_GROUP = '@all'
 UNAUTH_GROUP = '@guest'
 AUTH_GROUP = '@auth'
 SUPERUSER_GROUP = '@admin'
+NOTOR_GROUP = '@notor'
+
+# Add groups to the right if it's to the left.
+EXPAND_GROUPS = [
+    ['@admin', '@moder', '@gardener'],
+]
+
+GROUP_ALIAS = {
+    'game_view': '@all',
+    'game_edit': '@auth',
+    'game_comment': '@notor',
+    'personality_view': '@all',
+    'personality_edit': '@moder',
+}
+
+
+def IsTor(request):
+    try:
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+
+        m = caches['tor-ips'].get(ip)
+        if m is not None:
+            return m
+
+        addr_to_query = (
+            '%s.%s.%s.%s.443.192.32.76.45.ip-port.exitlist.torproject.org' %
+            tuple(reversed(ip.split('.'))))
+
+        for x in dns.resolver.query(addr_to_query):
+            if str(x) == '127.0.0.2':
+                caches['tor-ips'].set(ip, True)
+                return True
+    except:
+        pass
+
+    caches['tor-ips'].set(ip, False)
+    return False
+
+
+def parse_sexp(s):
+    res = [[]]
+    token = ''
+    for c in s:
+        if c in '() ':
+            if token:
+                res[-1].append(token)
+            token = ''
+        else:
+            token += c
+            continue
+
+        if c == '(':
+            res.append([])
+        elif c == ')':
+            x = res.pop()
+            res[-1].append(x)
+
+    if token:
+        res[-1].append(token)
+
+    if len(res) != 1:
+        raise ValueError(s)
+
+    return res[0]
 
 
 class Permissioner:
-    def __init__(self, user):
-        self.is_admin = user.is_superuser
+    def __init__(self, request):
+        user = request.user
         self.tokens = set()
         self.tokens.add(EVERYONE_GROUP)
+        if not IsTor(request):
+            self.tokens.add(NOTOR_GROUP)
         if not user.is_authenticated:
             self.tokens.add(UNAUTH_GROUP)
             return
+
         self.tokens.add(AUTH_GROUP)
-        if self.is_admin:
+        if user.is_superuser:
             self.tokens.add(SUPERUSER_GROUP)
-
-        self.tokens.add(user.username)
-
+        self.tokens.add('[%d]' % user.id)
         for g in user.groups.values_list('name', flat=True):
             self.tokens.add('@%s' % g)
 
+        for group in EXPAND_GROUPS:
+            expand = False
+            for g in group:
+                if expand:
+                    self.tokens.add(g)
+                elif g in self.tokens:
+                    expand = True
+
     def __str__(self):
-        return '%s(%s)' % ('#'
-                           if self.is_admin else '$', ', '.join(self.tokens))
+        return '%s(%s)' % ('#' if SUPERUSER_GROUP in self.tokens else '$',
+                           ', '.join(self.tokens))
+
+    def Eval(self, x):
+        if isinstance(x, str):
+            return x in self.tokens
+        if x[0] == 'or':
+            for y in x[1:]:
+                if self.Eval(y):
+                    return True
+            return False
+        if x[0] == 'and':
+            for y in x[1:]:
+                if not self.Eval(y):
+                    return False
+            return True
+        if x[0] == 'alias':
+            if len(x) != 2:
+                raise ValueError(x)
+            return self.__call__(GROUP_ALIAS[x[1]])
+        raise ValueError(repr(x))
 
     def __call__(self, expr):
-        if self.is_admin:
-            return True
+        p = parse_sexp(expr)
+        if len(p) != 1:
+            raise ValueError(expr)
+        return self.Eval(p[0])
+
         valid_perms = set(expr.split(','))
         return bool(valid_perms & self.tokens)
 
@@ -51,7 +157,7 @@ def perm_required(perm):
 
 def permissioner(get_response):
     def middleware(request):
-        request.perm = Permissioner(request.user)
+        request.perm = Permissioner(request)
         return get_response(request)
 
     return middleware

@@ -61,9 +61,17 @@ def UpdateTaskQueues():
         x.save()
 
 
-def EnableAnonymousComments():
+def ResetPermissions():
     for x in Game.objects.all():
-        x.comment_perm = '@all'
+        print(x.title)
+        x.comment_perm = '(alias game_comment)'
+        x.view_perm = '(alias game_view)'
+        x.edit_perm = '(alias game_edit)'
+        x.save()
+    for x in Personality.objects.all():
+        print(x.name)
+        x.view_perm = '(alias personality_view)'
+        x.edit_perm = '(alias personality_edit)'
         x.save()
 
 
@@ -262,7 +270,7 @@ class Command(BaseCommand):
         options = {
             'removeauthors-destructiv': RemoveAuthors,
             'fixgameauthors': FixGameAuthors,
-            'enablecomms': EnableAnonymousComments,
+            'resetperms': ResetPermissions,
         }
         if cmd in options:
             options[cmd]()
