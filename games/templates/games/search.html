@@ -56,13 +56,19 @@
                     <span class="tag {% if x.on %}current{% endif %}" data-item-val="{{ x.id }}">{{ x.name }}</span>
                     {% endfor %}
                 </td>
-                {% elif bit.type == 'flags' %}
-                <th>{{ bit.header}}:</th>
+                {% elif bit.type == 'authors' %}
+                <th>{{ bit.role.title}}:</th>
                 <td>
                     {% for x in bit.items %}
-                    <span class="tag {% if x.on %}current{% endif %}" data-item-val="{{ x.id }}">{{ x.name }}</span>
+                        {% if x.show_all %}
+                            <a class="show-all" href="#">(&#x2026;показать всё)</a>
+                        {% else %}
+                            <span {% if x.hidden %} style="display:none;" {% endif %}
+                                class="tag {% if x.on %}current{% endif %}"
+                                data-item-val="{{ x.id }}">{{ x.name }}</span>
+                        {% endif %}
                     {% endfor %}
-                </td>
+                </td>                
                 {% endif %}
             </tr>
             {% endfor %}

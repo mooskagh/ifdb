@@ -627,8 +627,9 @@ def MakeSearch(perm):
         if not perm(x.show_in_search_perm):
             continue
         s.Add(SB_Tag(x))
-    # for x in GameAuthorRole.objects.all():
-    #     s.Add(SB_Authors(x))
+    if perm('@admin'):
+        for x in GameAuthorRole.objects.all():
+            s.Add(SB_Authors(x))
     s.Add(SB_UserFlags())
     s.Add(SB_AuxFlags())
     return s
