@@ -141,7 +141,9 @@ def comment_game(request):
     print(request.user)
     comment.user = None if request.user.is_anonymous or request.POST.get(
         'anonymous', False) else request.user
-    if not comment.user:
+    if comment.user:
+        comment.username = comment.user.username
+    else:
         comment.username = request.session.setdefault(
             'anonymous_nick', random.choice(ANONYMOUS_ANIMALS))
     comment.parent_id = request.POST.get('parent', None)

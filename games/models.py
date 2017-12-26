@@ -276,10 +276,10 @@ class GameComment(models.Model):
                                     self.creation_time)
 
     def GetUsername(self):
-        if self.user:
-            return self.user.username
         if self.username:
             return self.username
+        if self.user:
+            return self.user.username
         return 'Анонимоўс'
 
     game = models.ForeignKey(Game, db_index=True)
