@@ -596,7 +596,7 @@ function GetCookie(name) {
         if (o.categories[i].uploadable) {
           enabledCats[o.categories[i].id] = true;
         }
-        }
+      }
 
       var cloneEnabled = false;
       for (i = 0; i < d.length; ++i) {
@@ -606,15 +606,15 @@ function GetCookie(name) {
         if (typeof(cat) == 'number') {
           cloneEnabled = enabledCats.hasOwnProperty(cat);
           cat = idToCat[cat];
-          }
+        }
         var alreadyExists = false;
         for (var j = 0; j < o.objs.length - 1; ++j) {
           var oo = o.objs[j];
-          if (oo.url.val() == url && oo.cats.suggest('value') == cat) {
+          if (oo.url.val() == url && oo.cats.suggest('txtvalue') == cat) {
             alreadyExists = true;
             break;
           }
-          }
+        }
         if (alreadyExists) continue;
         var obj = o.objs[o.objs.length - 1];
         this.AddEntry();

@@ -87,7 +87,7 @@ def CommentsSnippet(request):
                 },
                 {
                     'style': 'strong',
-                    'text': (x.subject or '...'),
+                    'text': (x.subject or '(без заголовка)'),
                 },
                 {
                     'text': (x.game.title),
