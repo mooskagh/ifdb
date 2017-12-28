@@ -318,23 +318,24 @@ class SB_Tag(SearchBit):
         self.items = reader.ReadSet()
 
     def ModifyQuery(self, query):
-        return query.prefetch_related('tags')
+        if not self.IsActive():
+            return query
+        q = Q()
+        x = self.items - {0}
+        if x:
+            q = Q(tags__id__in=x)
+        if 0 in self.items:
+            q = q | ~Q(tags__category_id=self.cat)
+        return query.filter(q)
 
     def NeedsFullSet(self):
-        return True
+        return False
 
     def IsActive(self):
         return bool(self.items)
 
     def ModifyResult(self, games):
-        # TODO This should absolutely be in ModifyQuery!
-        res = []
-        for g in games:
-            tags = set(
-                [x.id for x in g.tags.all() if x.category_id == self.cat.id])
-            if tags & self.items or not tags and 0 in self.items:
-                res.append(g)
-        return res
+        return games
 
 
 class SB_Authors(SearchBit):
