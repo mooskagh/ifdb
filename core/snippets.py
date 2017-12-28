@@ -327,6 +327,29 @@ def BlogSnippet(request,
         default_age=default_age)
 
 
+def MultipartSnippet(request, parts, default_age=0):
+    age = None
+    content = ''
+    for x in parts:
+        print(x)
+        method = x['method']
+        del x['method']
+        v = globals()[method](request, **x)
+        if not v:
+            continue
+        if v.get('age') is not None and (age is None or v['age'] < age):
+            age = v['age']
+        content += v['content']
+
+    if age is None:
+        age = default_age
+    return {'age': age, 'content': content}
+
+
+def ItemsSnippet(request, items, age=None):
+    return {'content': render_to_string('core/snippet.html', {'items': items})}
+
+
 ###############################################################################
 
 
@@ -383,7 +406,7 @@ def RenderSnippets(request):
             'box_style': box_style,
             'async_snippet_id': async_id,
             'content': data.get('content'),
-            'age': data.get('age'),
+            'age': data.get('age', 365 * 24 * 60 * 60),
             'order': x.order,
         })
 
