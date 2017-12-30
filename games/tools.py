@@ -124,14 +124,16 @@ def DiscountRating(x, count, P1=2.7, P2=0.5):
 
 
 def ComputeGameRating(votes):
-    if not votes:
-        return {}
-
-    avg = statistics.mean(votes)
     ds = {}
-    ds['stars'] = StarsFromRating(avg)
     ds['scores'] = len(votes)
-    ds['vote'] = DiscountRating(avg, len(votes))
+    if votes:
+        ds['avg'] = statistics.mean(votes)
+        ds['vote'] = DiscountRating(ds['avg'], len(votes))
+    else:
+        ds['avg'] = 0.0
+
+    ds['stars'] = StarsFromRating(ds['avg'])
+    ds['avg_txt'] = ("%3.1f" % ds['avg']).replace('.', ',')
     return ds
 
 

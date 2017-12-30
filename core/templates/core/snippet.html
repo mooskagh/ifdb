@@ -28,11 +28,16 @@
     {% endif %}
     {% for y in x.lines %}
       {% if y.link %}
-        <a class="grid-box-line {% if y.style %}grid-box-line-{{y.style}}{% endif %}" href="{{y.link}}" {% if y.newtab %}target="_blank"{% endif %}>
+        <a class="grid-box-line{% for z in  y.style %} grid-box-line-{{z}}{% endfor %}" href="{{y.link}}" {% if y.newtab %}target="_blank"{% endif %}>
       {% else %}
-        <div class="grid-box-line {% if y.style %}grid-box-line-{{y.style}}{% endif %}">
+        <div class="grid-box-line{% for z in y.style %} grid-box-line-{{z}}{% endfor %}">
       {% endif %}
           {{ y.text }}
+          {% if y.svg %}
+            <svg class="grid-box-inline-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+              <path d="{{ y.svg }}"/>
+            </svg>
+          {% endif %}
       {% if y.link %}
         </a>
       {% else %}

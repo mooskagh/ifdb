@@ -104,6 +104,14 @@ a.grid-box-line:hover {
     text-align: right;
 }
 
+.grid-box-inline-icon {
+    height: 12px;
+}
+
+.grid-box-inline-icon path {
+    fill: currentColor;
+}
+
 .grid-box-line-float-left {
     height: 15px;
     float: left;

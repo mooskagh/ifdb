@@ -4,55 +4,179 @@ from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
+from django.db.models import Max, Count
 from games.models import GameURL, GameComment
-from games.search import GameListFromSearch
+from games.search import MakeSearch
 from games.tools import (FormatLag, ExtractYoutubeId, FormatDateShort,
-                         SnippetFromList)
+                         SnippetFromList, ComputeGameRating)
 from .models import FeedCache, Game, BlogFeed
 import json
 
+COMMENT_SVG = ('M40 4H8C5.79 4 4.02 5.79 4.02 8L4 44l8-8h28c2.21 0 4-1.79 '
+               '4-4V8c0-2.21-1.79-4-4-4zm-4 '
+               '24H12v-4h24v4zm0-6H12v-4h24v4zm0-6H12v-4h24v4z')
 
+DUCK_SVG = (
+    "M 19.29035,48.1475 C 13.97066,47.772958 8.6268257,46.416248 4.0676443,"
+    "43.579669 -0.22559692,37.473429 -0.90177434,29.164425 1.7378713,22.261"
+    "303 c 0.912833,-2.209144 2.2008281,-4.28308 3.9016505,-5.97271 2.52295"
+    "43,-0.543783 4.5847042,1.576241 6.5108472,2.870163 2.090784,1.288093 2"
+    ".651662,4.842766 5.587264,3.598886 1.671529,-0.365845 5.119772,0.70017"
+    "4 3.012115,-1.724882 C 18.333242,15.857546 20.412124,9.0016116 25.5460"
+    "84,6.3300462 30.298555,3.6843118 37.000257,5.366726 39.739609,10.09667"
+    "5 c 0.52175,2.791334 3.228344,2.407393 5.365601,2.269148 2.472671,-0.8"
+    "07329 3.725461,1.478674 2.999526,3.666324 -0.461961,3.83938 -4.209962,"
+    "6.960384 -8.086506,6.495194 -1.900163,1.295996 1.056765,3.886233 0.796"
+    "055,5.85315 1.078337,5.783808 -0.504927,12.071817 -4.42526,16.497164 C"
+    " 31.11883,47.489003 25.134354,48.446343 19.29035,48.1475 Z m 3.95657,-"
+    "2.45312 c 3.942722,-0.207644 7.859319,-1.099422 11.466825,-2.713716 4."
+    "545701,-5.169031 5.173958,-13.19339 1.906636,-19.179486 -0.206426,-2.4"
+    "44352 2.678069,-3.896286 2.441107,-6.45971 0.718522,-4.977117 -3.56133"
+    "6,-10.130085 -8.694893,-9.831471 -4.813755,0.1376475 -8.769018,4.86531"
+    "2 -8.126968,9.622078 0.19322,2.46325 1.614649,4.624265 3.324702,6.2925"
+    "43 0.724531,3.028451 -3.885728,1.429425 -5.599409,1.668505 -2.535564,-"
+    "0.153561 -6.01467,1.630906 -7.209291,-1.559914 C 11.408879,21.546142 9"
+    ".5120615,19.811784 7.2479756,18.973258 5.204057,19.122875 4.8437482,21"
+    ".99978 3.8982705,23.509932 1.7235858,29.334714 2.394933,36.177482 5.59"
+    "89451,41.49073 c 1.1827071,1.202681 2.9654197,1.570947 4.4724739,2.260"
+    "109 4.199861,1.531145 8.713083,2.188084 13.175501,1.943541 z m 9.26197"
+    ",-30.02567 c -3.494696,-0.740101 -0.579759,-6.3086453 2.096534,-3.8253"
+    "34 1.674148,1.450196 0.113448,4.539451 -2.096534,3.825334 z m 9.5843,5"
+    ".08429 c 2.941263,-0.661244 4.830406,-3.860715 4.43325,-6.77002 -1.608"
+    "051,0.471047 -5.664415,-1.175862 -4.975679,1.358781 0.441952,1.785547 "
+    "-0.96043,4.513123 -0.528126,5.575647 0.360493,-0.02728 0.717199,-0.089"
+    "91 1.070555,-0.164408 z"
+    "")
+
+
+# Supported annotations:
+# added_age
+# released_age
+# comments
+# stars
 def GameListSnippet(request,
                     query,
-                    reltime_field=None,
-                    highlight_secs=60 * 60 * 24,
-                    max_secs=60 * 60 * 24 * 7,
+                    sort=None,
+                    annotate=['stars', 'comments', 'added_age'],
+                    limit_field='added_age',
+                    age_field='added_age',
+                    limit_val=7 * 60 * 60 * 24,
                     min_count=5,
                     max_count=30):
-    games = GameListFromSearch(request, query, reltime_field, max_secs,
-                               min_count, max_count)
+    s = MakeSearch(request.perm)
+    s.UpdateFromQuery(query)
 
-    if not games:
-        return {}
+    prefetch_related = ['gameauthor_set__author', 'gameauthor_set__role']
+    annotate_query = {}
+    for x in annotate:
+        if x == 'comments':
+            # TODO(crem) take care of deleted comments
+            annotate_query['coms_count'] = Count('gamecomment')
+            annotate_query['coms_recent'] = Max('gamecomment__creation_time')
+        if x == 'stars':
+            prefetch_related.append('gamevote_set')
 
+    games = s.Search(
+        prefetch_related=prefetch_related,
+        start=0,
+        limit=max_count,
+        annotate=annotate_query)
+
+    if 'stars' in annotate:
+        for g in games:
+            g.rating = ComputeGameRating(
+                [x.star_rating for x in g.gamevote_set.all()])
+
+    SnippetFromList(games)
+
+    now = timezone.now()
+    for x in games:
+        if x.creation_time:
+            x.added_age = (now - x.creation_time).total_seconds()
+        if x.release_date:
+            x.release_age = (now.date() - x.release_date).total_seconds()
+
+    if min_count < len(games) and limit_field:
+        res = []
+        for x in games:
+            if getattr(x, limit_field) is None:
+                continue
+            if len(res) >= min_count and getattr(x, limit_field) > limit_val:
+                break
+            res.append(x)
+        games = res
+
+    age = None
+    if age and age_field:
+        for x in games:
+            if not hasattr(x, age_field):
+                continue
+            at = getattr(x, age_field)
+            if at is None:
+                continue
+            if age is None or at < age:
+                age = at
+
+    if sort:
+        field = sort
+        inv = field[0] == '-'
+        if inv:
+            field = field[1:]
+
+        def GetKey(obj):
+            res = []
+            val = getattr(obj, field)
+            if val is None:
+                res.append(not inv)
+                res.append(None)
+            else:
+                res.append(inv)
+                res.append(val)
+            return res
+
+        games.sort(key=GetKey, reverse=inv)
     items = []
     for x in games:
+        item = {}
+        item['image'] = {'src': x.poster or '/static/noposter_7355.png'}
         lines = []
-        if 'lag' in x:
-            lines.append({
-                'style': ('recent-comment'
-                          if x['lag'] > highlight_secs else 'comment'),
-                'text': (FormatLag(x['lag'])),
-            })
-        lines.append({'style': 'strong', 'text': x['title']})
-        lines.append({
-            'text': ', '.join([y.author.name for y in x['authors']])
-        })
+        for y in reversed(annotate):
+            text = None
+            svg = None
+            highlighted = False
+            if y == 'added_age':
+                text = FormatLag(-x.added_age)
+                highlighted = x.added_age <= 24 * 60 * 60
+            elif y == 'release_age':
+                text = FormatLag(-x.release_date)
+                highlighted = x.release_date <= 24 * 60 * 60
+            elif y == 'comments':
+                if x.coms_count:
+                    text = '%d' % x.coms_count
+                    svg = COMMENT_SVG
+                    highlighted = (
+                        now - x.coms_recent).total_seconds() < 24 * 60 * 60
+            elif y == 'stars':
+                if x.rating['avg']:
+                    text = x.rating['avg_txt']
+                    svg = DUCK_SVG
+            styles = ['float-right']
+            styles.append('recent-comment' if highlighted else 'comment')
+            if text:
+                lines.append({'style': styles, 'text': text, 'svg': svg})
+        lines.append({'style': 'comment'})
+        lines.append({'style': 'strong', 'text': x.title})
+        lines.append({'text': ', '.join([y.author.name for y in x.authors])})
         items.append({
             'image': {
-                'src': x['poster'] or '/static/noposter_7355.png',
+                'src': x.poster or '/static/noposter_7355.png',
             },
             'lines': lines,
             'link': reverse('show_game', kwargs={
-                'game_id': x['id']
-            }),
+                'game_id': x.id
+            })
         })
-    return {
-        'content': render_to_string('core/snippet.html', {
-            'items': items
-        }),
-        'age': -games[0]['lag']
-    }
+    return ItemsSnippet(request, items, age)
 
 
 def LastComments(request):
@@ -105,12 +229,8 @@ def CommentsSnippet(request):
                 },
             ]
         })
-    return {
-        'content': render_to_string('core/snippet.html', {
-            'items': items
-        }),
-        'age': -comments[0].lag,
-    }
+
+    return ItemsSnippet(request, items, -comments[0].lag)
 
 
 def LastUrlCat(request, cat, max_secs, min_count, max_count):
@@ -174,12 +294,7 @@ def LastUrlCatSnippet(request,
                     'newtab': True,
                 }
         items.append(v)
-    return {
-        'content': render_to_string('core/snippet.html', {
-            'items': items
-        }),
-        'age': -urls[0]['lag']
-    }
+    return ItemsSnippet(request, items, -urls[0]['lag'])
 
 
 def FeedSnippet(request,
@@ -248,12 +363,7 @@ def FeedSnippet(request,
                         'text': feed_ids[x].get('title'),
                     }]
                 })
-    return {
-        'content': render_to_string('core/snippet.html', {
-            'items': res
-        }),
-        'age': age,
-    }
+    return ItemsSnippet(request, res, age)
 
 
 def ThisDayInHistorySnippet(request, default_age=24 * 60 * 60):
@@ -290,12 +400,7 @@ def ThisDayInHistorySnippet(request, default_age=24 * 60 * 60):
                 'game_id': x.id
             })),
         })
-    return {
-        'content': render_to_string('core/snippet.html', {
-            'items': items
-        }),
-        'age': default_age
-    }
+    return ItemsSnippet(request, items, default_age)
 
 
 def RawHtmlSnippet(request, raw_html, default_age=10 * 24 * 60 * 60):
@@ -331,7 +436,6 @@ def MultipartSnippet(request, parts, default_age=0):
     age = None
     content = ''
     for x in parts:
-        print(x)
         method = x['method']
         del x['method']
         v = globals()[method](request, **x)
@@ -347,7 +451,15 @@ def MultipartSnippet(request, parts, default_age=0):
 
 
 def ItemsSnippet(request, items, age=None):
-    return {'content': render_to_string('core/snippet.html', {'items': items})}
+    for i in items:
+        for l in i.get('lines', []):
+            if isinstance(l.get('style'), str):
+                l['style'] = [l['style']]
+
+    res = {'content': render_to_string('core/snippet.html', {'items': items})}
+    if age is not None:
+        res['age'] = age
+    return res
 
 
 ###############################################################################
