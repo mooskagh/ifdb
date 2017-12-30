@@ -29,6 +29,7 @@ GROUP_ALIAS = {
 
 
 def IsTor(request):
+    ip = None
     try:
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
