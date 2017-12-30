@@ -107,7 +107,7 @@ def GameListSnippet(request,
         games = res
 
     age = None
-    if age and age_field:
+    if age_field:
         for x in games:
             if not hasattr(x, age_field):
                 continue
