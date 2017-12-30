@@ -25,7 +25,7 @@
     </head>
     <body>
         <div class="root">
-            <nav id="top-nav">
+            <nav id="top-nav" {% if debug %}style="background-color: red;"{% endif %}>
                 <a class="{% current 'index' %}" href="{% url 'index' %}">Главная</a>
                 <a class="{% current 'list_games' %}" href="{% url 'list_games' %}">Игры</a>
                 <a class="{% current 'list_authors' %}" href="{% url 'list_authors' %}">Авторы</a>
