@@ -18,7 +18,7 @@ from django import forms
 from django.db import models
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import SuspiciousOperation, PermissionDenied
+from django.core.exceptions import SuspiciousOperation
 from django.http import Http404
 from django.http.response import JsonResponse
 from django.shortcuts import render, redirect
