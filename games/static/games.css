@@ -624,7 +624,11 @@ textarea {
 
 .gamegallery-title {
     display: block;
-    overflow-x: hidden;
+    overflow: hidden;
+    margin-top: 5px;
+    font-size: 15px;
+    line-height: 15px;
+    height: 45px;
 }
 
 .gamegallery-author {
