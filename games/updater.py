@@ -275,8 +275,11 @@ def UpdateGameUrls(request, game, data, update, kill_existing=True):
 
     records_to_add = []  # (cat_id, gameurl_desc, url_text)
     urls_to_add = []  # (url_text, cat_id)
+    to_skip = set()
     for x in data:
         t = (x[0], x[2])
+        if t in to_skip:
+            continue
         if t in existing_urls:
             if x[1] != existing_urls[t][1]:
                 url = existing_urls[t][0]
@@ -286,6 +289,7 @@ def UpdateGameUrls(request, game, data, update, kill_existing=True):
         else:
             records_to_add.append(tuple(x))
             urls_to_add.append((x[2], int(x[0])))
+        to_skip.add(t)
 
     if records_to_add:
         url_to_id = {}

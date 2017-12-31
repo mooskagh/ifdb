@@ -1,7 +1,3 @@
-* {
-    box-sizing: border-box;
-}
-
 a {
     color: #ff5431;
 }
@@ -58,12 +54,11 @@ a.author-link:hover {
     margin: 50px auto;
 }
 
-
 .grid-box {
     background-color: #ebebeb;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-    margin: 0;
-    width: 100%;
+    margin: 0 0 1em;
+    width: 300px;
     margin-bottom: 30px;
 }
 
@@ -435,97 +430,24 @@ textarea {
 
 #top-nav {
     background-color: #512da8;
+    background-size: 100% 100%;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
     color: #fff;
     height: 40px;
     left: 0;
+    min-width: 1024px;
     position: fixed;
+    text-align: center;
     top: 0;
-    width:100%;
-    z-index:1000;
+    width: 100%;
+    z-index: 2;
 }
 
-.top-nav-login-box {
-    height: 40px;
-    float: right;
-    vertical-align: middle;
-    white-space: nowrap;
-    overflow: hidden;
-    margin: 0 10px;
-}
-
-.top-nav-login-box a.register {
-    display: inline-block;
-    font-size: 12px;
-    line-height: 42px;
-    height: 40px;
-    padding: 0 5px;
-    text-decoration: underline;
-    text-transform: none;
-    font-weight: normal;
-    color: #fff;
-}
-
-.top-nav-login-box form {
-    height: 40px;
-    line-height: 40px;
-    vertical-align: middle;
-    display: inline-block;
-}
-
-.top-nav-login-box form input[type="password"] {
-    width: 6em;
-}
-
-#top-nav-hamburger-menu {
-    display: none;
-}
-
-.top-nav-hamburger-menu {
-    color:#fff;
-    font-size: 26px;
-    cursor: pointer;
-    margin-left: 10px;
-    margin-top: 5px;
-    margin-bottom: 5px;
-    padding: 0;
-    display: inline-block;
-}
-
-.top-nav-hamburger-menu svg {
-    height: 24px;
-    width: 24px;
-}
-
-.top-nav-hamburger-menu path {
-    fill: currentColor;
-}
-
-.top-nav-hamburger-menu:hover path{
-    fill: #ddd;
-}
-
-#top-nav-hamburger-menu:checked ~ .top-nav-drawer {
-    left: 0px;
-}
-
-.top-nav-drawer {
-    padding-top: 20px;
-    top: 40px;
-    position: fixed;
-    left: -140px;
-    height: 100%;
-    z-index: 100;
-    width: 140px;
-    background-color: inherit;
-    transition: .25s ease-in-out;
-}
-
-.top-nav-drawer a:hover {
+#top-nav a:hover {
     text-decoration: underline;
 }
 
-.top-nav-drawer a.current {
+#top-nav a.current {
     background-color: #f8f8f8;
     border-color: rgba(0, 0, 0, .3);
     border-style: solid;
@@ -533,16 +455,45 @@ textarea {
     color: #625B61;
 }
 
-.top-nav-drawer a {
+#top-nav a {
     color: #fff;
     display: inline-block;
     font-size: 14px;
     line-height: 40px;
     height: 40px;
-    width: 100%;
+    min-width: 80px;
     padding: 0 10px;
     text-decoration: none;
     text-transform: uppercase;
+}
+
+#top-nav > div,
+#top-nav > form {
+    display: inline-block;
+}
+
+#top-nav form input[type="text"],
+#top-nav form input[type="password"] {
+    width: 6em;
+}
+
+#top-nav .spacer {
+    width: 60px;
+}
+
+#top-nav .halfspacer {
+    width: 15px;
+}
+
+#top-nav .loginbox {
+    margin-left: 20px;
+}
+
+#top-nav input[type="submit"] {
+    background-color: #ff5431;
+    border: 1px solid rgba(0, 0, 0, .1);
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
 }
 
 .header {
@@ -581,88 +532,6 @@ textarea {
 .fieldcomment {
     color: #625B61;
     font-style: italic;
-}
-
-.gamegallery-container {
-    text-align: center;
-    /* margin: 0 20px; */
-}
-
-.gamegallery-card {
-    background-color: white;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
-    display: inline-block;
-    height: 180px;
-    width: 180px;
-    margin: 0;
-    background-repeat: no-repeat;
-    background-size: cover;
-    background-position: center;
-    background-blend-mode: multiply;
-    color: #fff;
-    text-decoration: none;
-    text-align: left;
-    position: relative;
-}
-
-.gamegallery-bottom-container {
-    background: linear-gradient(-180deg, rgba(0,0,0,0) 0, 
-        rgba(0,0,0,0.05) 5%, rgba(0,0,0,0.2) 25%, rgba(0,0,0,0.5) 100%);    
-    bottom: 0;
-    position: absolute;
-    width: 100%;
-    height: 60%;
-    text-shadow: 0 2px 2px rgba(0,0,0,0.5);
-}
-
-.gamegallery-bottom {
-    padding: 4px;
-    bottom: 0;
-    width: 100%;
-    position: absolute;
-}
-
-.gamegallery-title {
-    display: block;
-    overflow-x: hidden;
-}
-
-.gamegallery-author {
-    display: block;
-    font-size: 90%;
-    height: 16px;
-    overflow: hidden;
-    padding: 2px 0;
-    text-align: right;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.gamegallery-auxinfo {
-    text-align: right;
-    margin-right: 5px;
-    font-size: 80%;
-    font-style: italic;
-}
-
-.gamegallery-ducks {
-    text-align: right;
-}
-
-.gamegallery-comments {
-    float: left;
-    white-space: nowrap;
-    font-style: normal;
-}
-
-.gamegallery-comments svg {
-    height: 12px;
-    width: 12px;
-    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));
-}
-
-.gamegallery-comments path {
-    fill: currentColor;
 }
 
 .game-auxinfo {
@@ -1194,7 +1063,7 @@ progress::-webkit-progress-value {
     text-align: center;
     line-height: 1.7em;
     margin: 50px auto 5px;
-    max-width: 800px;
+    width: 800px;
 }
 
 .gamelist-message {
@@ -1207,45 +1076,39 @@ progress::-webkit-progress-value {
     width: 300px;
 }
 
+table.search-box {
+    margin: auto;
+}
 
-.search-box .search-box-key {
-    text-align: left;
+table.search-box th {
+    text-align: right;
     vertical-align: top;
-    width: 180px;
+    min-width: 180px;
+    font-weight: normal;
 }
 
-.search-box .search-box-value {
+table.search-box td {
     text-align: left;
-    margin-left: 32px;
-    margin-bottom: 5px;    
 }
 
-.search-box .search-box-value label {
-    white-space: nowrap;
+table.search-box .search-text {
+    width: 400px;
 }
 
-
-@media only screen and (min-width: 650px)  {
-    .search-box-pair {
-        clear: both;
-    }
-    .search-box .search-box-key {
-        text-align: right;
-        float: left;
-    }
-    .search-box .search-box-value {
-        margin-left: 185px;
-    }
-}
-
-
-.search-box .search-text {
-    width: 70%;
-}
-
-.search-box-value a {
+table.search-box a {
     font-weight: bold;
     font-size: 90%;
+}
+
+#top-nav a.register {
+    display: inline-block;
+    font-size: 12px;
+    line-height: 42px;
+    height: 40px;
+    padding: 0 5px;
+    text-decoration: underline;
+    text-transform: none;
+    font-weight: normal;
 }
 
 .slideritem-outer {
@@ -1312,28 +1175,4 @@ progress::-webkit-progress-value {
     position: absolute;
     right: 0;
     top: 0;
-}
-
-@media only screen and (min-width: 650px)  {
-    .grid-box {
-        width: 300px;
-    }
-}
-
-@media only screen and (min-width: 800px)  {
-    .top-nav-hamburger-menu {
-        display: none;
-    }
-
-    .top-nav-drawer {
-        position: initial;
-        display: inline;
-        padding: 0 0 0 40px;
-    }
-
-    .top-nav-drawer a {
-        width: auto;
-        min-width: 80px;
-        text-align: center;
-    }
 }

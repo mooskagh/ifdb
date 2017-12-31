@@ -14,6 +14,7 @@
       ga('send', 'pageview');
     </script>
     {% endif %}
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="shortcut icon" href="/static/favicon.ico" />
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
     <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
@@ -25,46 +26,49 @@
     </head>
     <body>
         <div class="root">
-            <nav id="top-nav">
-                <a class="{% current 'index' %}" href="{% url 'index' %}">Главная</a>
-                <a class="{% current 'list_games' %}" href="{% url 'list_games' %}">Игры</a>
-                <a class="{% current 'list_authors' %}" href="{% url 'list_authors' %}">Авторы</a>
-                <!--  <a href="http://ifiction.ru/">ifiction.ru</a>
-                <a href="http://forum.ifiction.ru/">Форум</a>
-                <a href="http://ifwiki.ru/">ifwiki.ru</a>
-                -->
-                <!-- <a href="/">Авторы</a>
-                <a href="/">Движки</a>
-                <a href="/">Конкурсы</a> -->
-                <a class="{% current '/docs/' %}" href="{% url 'showdoc' 'index' %}">Справка</a>
-                {% if user.is_staff %}
-                    <a href="/adminz">Админка</a>
-                {% endif %}
-                <div class="spacer"></div>
-                <!-- <div class="searchbox">
-                    <input placeholder="Поиск">
-                    &#x1f50d;&#xFE0E;
-                </div> -->
-                {% if user.is_authenticated %}
-                    <form class="loginbox" method="post" action="{% url 'auth_logout' %}">
-                        {% csrf_token %}
-                        Вы <b>{{ user.username }}</b>.
-                        <input type="submit" value="Выйти" />
-                        <input type="hidden" name="next" value="{{ request.path }}" />
-                    </form>
-                {% else %}
-                    <form class="loginbox" method="post" action="{% url 'auth_login' %}">
-                        {% csrf_token %}
-                        <input placeholder="E-mail" type="text" name="username" id="id_username" required maxlength="254" />
-                        <input placeholder="Пароль" type="password" name="password" id="id_password" required />
-                        <input type="submit" value="Войти" />
-                        <input type="hidden" name="next" value="{{ request.path }}" />
-                    </form>
-                    <a href="{% url 'registration_register' %}" class="register {% current 'registration_register' %}" >
-                        Регистрация
-                    </a>
-                {% endif %}
-            </nav>
+
+            <header id="top-nav" {% if debug %}style="background-color: black;"{% endif %}>
+                <div class="top-nav-login-box">
+                    {% if user.is_authenticated %}
+                        <form class="loginbox" method="post" action="{% url 'auth_logout' %}">
+                            {% csrf_token %}
+                            Вы <b>{{ user.username }}</b>.
+                            <input type="submit" value="Выйти" />
+                            <input type="hidden" name="next" value="{{ request.path }}" />
+                        </form>
+                    {% else %}
+                        <form class="loginbox" method="post" action="{% url 'auth_login' %}">
+                            {% csrf_token %}
+                            <input placeholder="E-mail" type="text" name="username" id="id_username" required maxlength="254" />
+                            <input placeholder="Пароль" type="password" name="password" id="id_password" required />
+                            <input type="submit" value="Войти" />
+                            <input type="hidden" name="next" value="{{ request.path }}" />
+                        </form>
+                        <a href="{% url 'registration_register' %}" class="register {% current 'registration_register' %}" >
+                            Регистрация
+                        </a>
+                    {% endif %}
+                </div>
+
+
+
+                <input type="checkbox" id="top-nav-hamburger-menu"/>
+                <label class="top-nav-hamburger-menu" for="top-nav-hamburger-menu">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                        <path d="M6 36h36v-4H6v4zm0-10h36v-4H6v4zm0-14v4h36v-4H6z"/>
+                    </svg>
+                </label>
+                <nav class="top-nav-drawer">
+                    <a class="{% current 'index' %}" href="{% url 'index' %}">Главная</a>
+                    <a class="{% current 'list_games' %}" href="{% url 'list_games' %}">Игры</a>
+                    <a class="{% current 'list_authors' %}" href="{% url 'list_authors' %}">Авторы</a>
+                    <a class="{% current '/docs/' %}" href="{% url 'showdoc' 'index' %}">Справка</a>
+                    {% if user.is_staff %}
+                        <a href="/adminz">Админка</a>
+                    {% endif %}
+                </nav>
+            </header>
+
                 {% block content_wide %}
                 <div class="content">
                     {% block content %}{% endblock %}

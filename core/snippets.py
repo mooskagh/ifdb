@@ -71,21 +71,13 @@ def GameListSnippet(request,
     for x in annotate:
         if x == 'comments':
             # TODO(crem) take care of deleted comments
-            annotate_query['coms_count'] = Count('gamecomment')
             annotate_query['coms_recent'] = Max('gamecomment__creation_time')
-        if x == 'stars':
-            prefetch_related.append('gamevote_set')
 
     games = s.Search(
         prefetch_related=prefetch_related,
         start=0,
         limit=max_count,
         annotate=annotate_query)
-
-    if 'stars' in annotate:
-        for g in games:
-            g.rating = ComputeGameRating(
-                [x.star_rating for x in g.gamevote_set.all()])
 
     SnippetFromList(games)
 

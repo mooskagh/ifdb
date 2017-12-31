@@ -11,12 +11,12 @@
     {% endif %}
 
     <div class="search-box-container">
-        <table class="search-box">
+        <div class="search-box">
             {% for bit in search %}
-            <tr data-val="{{bit.val}}" data-type="{{bit.type}}" {% if bit.hidden %} style="display: none;" {% endif %}>
+            <div class="search-box-pair" data-val="{{bit.val}}" data-type="{{bit.type}}" {% if bit.hidden %} style="display: none;" {% endif %}>
                 {% if bit.type == 'sorting' %}
-                <th>Сортировать по:</th>
-                <td>
+                <div class="search-box-key">Сортировать по:</div>
+                <div class="search-box-value">
                     {% for i in bit.items %}
                         {% spaceless %}
                         <span data-item-val="{{ i.val }}" class="sort {% if i.current %}current{% endif %}">
@@ -25,20 +25,20 @@
                         </span>
                         {% endspaceless %}
                     {% endfor %}
-                </td>
+                </div>
                 {% elif bit.type == 'text' %}
-                <th>Искать по словам:</th>
-                <td>
+                <div class="search-box-key">Искать по словам:</div>
+                <div class="search-box-value">
                     <input class="search-text" type="text" value="{{ bit.text }}"/>
                     {% spaceless %}
                     <label>
                         <input data-item-val="0" type="checkbox" {% if bit.titles_only %}checked{% endif %}/>Только в названиях
                     </label>
                     {% endspaceless %}
-                </td>
+                </div>
                 {% elif bit.type == 'tags' %}
-                <th>{{ bit.cat.name}}:</th>
-                <td>
+                <div class="search-box-key">{{ bit.cat.name}}:</div>
+                <div class="search-box-value">
                     {% for x in bit.items %}
                         {% if x.show_all %}
                             <a class="show-all" href="#">(&#x2026;показать всё)</a>
@@ -48,17 +48,17 @@
                                 data-item-val="{{ x.id }}">{{ x.name }}</span>
                         {% endif %}
                     {% endfor %}
-                </td>
+                </div>
                 {% elif bit.type == 'flags' %}
-                <th>{{ bit.header}}:</th>
-                <td>
+                <div class="search-box-key">{{ bit.header}}:</div>
+                <div class="search-box-value">
                     {% for x in bit.items %}
                     <span class="tag {% if x.on %}current{% endif %}" data-item-val="{{ x.id }}">{{ x.name }}</span>
                     {% endfor %}
-                </td>
+                </div>
                 {% elif bit.type == 'authors' %}
-                <th>{{ bit.role.title}}:</th>
-                <td>
+                <div class="search-box-key">{{ bit.role.title}}:</div>
+                <div class="search-box-value">
                     {% for x in bit.items %}
                         {% if x.show_all %}
                             <a class="show-all" href="#">(&#x2026;показать всё)</a>
@@ -68,29 +68,11 @@
                                 data-item-val="{{ x.id }}">{{ x.name }}</span>
                         {% endif %}
                     {% endfor %}
-                </td>                
+                </div>              
                 {% endif %}
-            </tr>
+            </div>
             {% endfor %}
-            {% comment %}
-            <tr>
-                <th>Дата выхода:</th>
-                <td>
-                    с <input type="date">
-                    по <input type="date">
-                    <label><input type="checkbox" />и игры с неизвестной датой</label>
-                </td>
-            </tr>
-            <tr>
-                <th>Время прохождения:</th>
-                <td>
-                    с <input type="range">
-                    по <input type="range">
-                    <label><input type="checkbox" />и игры, которые никто не прошёл</label>
-                </td>
-            </tr>
-            {% endcomment %}
-        </table>
+        </div>
         {% if unhide_button %}
             <button class="extended_search">Расширенный поиск</button>
         {% endif %}
@@ -99,7 +81,7 @@
         </script>
     </div>
 
-    <div class="search-result gamelist-thumb-container">
+    <div class="search-result gamegallery-container">
         <div class="gamelist-message">
             Сейчас сюда должен загрузиться список...
         </div>

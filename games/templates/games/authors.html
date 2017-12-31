@@ -3,14 +3,14 @@
 {% block scripts %}
     <script src="/static/search.js"></script>
 {% endblock %}
-{% block content %}
+{% block content_wide %}
   <div class="search-box-container">
-    <table class="search-box">
+    <div class="search-box">
       {% for bit in search %}
-      <tr data-val="{{bit.val}}" data-type="{{bit.type}}" {% if bit.hidden %} style="display: none;" {% endif %}>
+      <div class="search-box-pair" data-val="{{bit.val}}" data-type="{{bit.type}}" {% if bit.hidden %} style="display: none;" {% endif %}>
         {% if bit.type == 'sorting' %}
-        <th>Сортировать по:</th>
-        <td>
+        <div class="search-box-key">Сортировать по:</div>
+        <div class="search-box-value">
           {% for i in bit.items %}
             {% spaceless %}
             <span data-item-val="{{ i.val }}" class="sort {% if i.current %}current{% endif %}">
@@ -19,16 +19,16 @@
             </span>
             {% endspaceless %}
           {% endfor %}
-        </td>
+        </div>
         {% elif bit.type == 'text' %}
-        <th>Искать по имени:</th>
-        <td>
+        <div class="search-box-key">Искать по имени:</div>
+        <div class="search-box-value">
             <input class="search-text" type="text" value="{{ bit.text }}"/>
-        </td>
+        </div>
         {% endif %}
-      </tr>
+      </div>
       {% endfor %}
-    </table>
+    </divble>
 
     <script type="text/javascript">
         SEARCH.Decorate('/json/author-search/');
@@ -39,7 +39,7 @@
         <div class="gamelist-message">
             Сейчас сюда должен загрузиться список...
         </div>
-      </td><tr>
-    </table>
+      </div><tr>
+    </divble>
   </div>
 {% endblock %}
