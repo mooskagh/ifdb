@@ -2,54 +2,48 @@
 {% load tags %}
 {% if games %}
 {% for g in games %}
-    <div class="gamelist-thumb gamelist-thumb-search">
-        <div class="poster-container">
-            <a href="{% url 'show_game' game_id=g.id %}">            
-                <img class="poster" src="{{ g.poster|default:'/static/noposter.png' }}"/>
-            </a>
-        </div>
-        <div class="title-container">
-            <a class="author-link" href="{% url 'show_game' game_id=g.id %}">
-                {{ g.title }}
-            </a>
-        </div>
-        <div class="search-author">
-            {% for x in g.authors %}        
-                {% if x.author.personality %}
-                    <a class="author-link" href="{% url 'show_author' author_id=x.author.personality.id %}">
-                    {{x.author.name}}</a>{% if not forloop.last %},{% endif %}
-                {% else %}
-                    {{x.author.name}}{% if not forloop.last %},{% endif %}                
+    <a href="{% url 'show_game' game_id=g.id %}"
+       class="gamegallery-card"
+       style="background-image: url({{ g.poster|default:'/static/noposter.png' }})">
+       <div class="gamegallery-bottom-container">
+           <div class="gamegallery-bottom">
+                <div class="gamegallery-title">{{ g.title }}</div>
+
+                <div class="gamegallery-author">
+                    {% for x in g.authors %}        
+                        {{x.author.name}}{% if not forloop.last %},{% endif %}                
+                    {% endfor %}
+                </div>
+                    {% if g.ds.creation_date %}
+                        <div class="gamegallery-auxinfo">
+                            Добавлено {{ g.ds.creation_date }}.
+                        </div>
+                    {% endif %}
+                    {% if g.ds.release_date %}
+                        <div class="gamegallery-auxinfo">
+                            Игра вышла {{ g.ds.release_date }}.
+                        </div>
+                    {% endif %}
+                {% if g.coms_count or g.rating.vote %}
+                    <div class="gamegallery-ducks">
+                        {% if g.coms_count %}
+                            <div class="gamegallery-comments">
+                                {{ g.coms_count }}
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                                  <path d="M40 4H8C5.79 4 4.02 5.79 4.02 8L4 44l8-8h28c2.21 0 4-1.79 4-4V8c0-2.21-1.79-4-4-4zm-4 24H12v-4h24v4zm0-6H12v-4h24v4zm0-6H12v-4h24v4z"/>
+                                </svg>                        
+                            </div>
+                        {% endif %}
+                        {% if g.rating.vote %}
+                            {% for x in g.rating.stars %}
+                                <img src="/static/duck{{x}}.png" />
+                            {% endfor %}
+                        {% endif %}
+                    </div>
                 {% endif %}
-            {% endfor %}
-        </div>
-        <div class="auxinfo">
-        {% if g.ds.creation_date %}
-            Добавлено {{ g.ds.creation_date }}.
-        {% elif g.ds.release_date %}
-            Игра вышла {{ g.ds.release_date }}.
-        {% elif g.ds.stars %}
-            {% for x in g.ds.stars %}
-                <img src="/static/duck{{x}}.png" />
-            {% endfor %}
-            ({{ g.ds.scores|rupl:"голос,голоса,голосов" }})
-        {% elif g.ds.duration %}
-            Прохождение:
-            {{ g.ds.duration.hours|rupl:"час,часа,часов" }}
-            {{ g.ds.duration.mins|rupl:"минута,минуты,минут" }}.
-        {% endif %}
-        </div>
-        <div class="icon-overlay">
-        {% with x=g.icons %}
-            {% if x.hascomments %}<img src="{% static 'hascomments.svg'%}" / >{% endif %}
-            {% if x.loonchator %}<img src="{% static 'loonchator-win.svg'%}" / >{% endif %}
-            {% if x.hasvideo %}<img src="{% static 'hasvideo.svg'%}" / >{% endif %}
-            {% if x.isparser %}<img src="{% static 'isparser.svg'%}" / >{% endif %}
-            {% if x.playonline %}<img src="{% static 'playonline.svg'%}" / >{% endif %}
-            {% if x.downloadable %}<img src="{% static 'downloadable.svg'%}" / >{% endif %}
-        {% endwith %}
-        </div>
-    </div>
+            </div>
+       </div>
+    </a>
 {% endfor %}
 {% elif start == 0 %}
     <div class="gamelist-message nothing-found">Ничего не нашлось.</div>

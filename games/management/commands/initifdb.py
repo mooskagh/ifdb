@@ -19,22 +19,22 @@ TAG_CATS = [
         'all': '@admin'
     }],
     ['state', 'Стадия разработки', False, {
-        'search': '@admin'
+        'search': '@all'
     }],
     ['genre', 'Жанр', False, {}],
     ['platform', 'Платформа', True, {}],
     ['country', 'Страна', True, {
-        'search': '@admin'
+        'search': '@all'
     }],
     ['control', 'Управление', False, {}],
     ['os', 'Операционная система', False, {}],
     ['competition', 'Участник конкурса', True, {}],
     ['tag', 'Тэг', True, {}],
     ['language', 'Язык', True, {
-        'search': '@admin'
+        'search': '@all'
     }],
     ['ifid', 'IFID', True, {
-        'search': '@admin'
+        'search': '@all'
     }],
     ['version', 'Версия', True, {
         'search': '@admin'
@@ -116,7 +116,9 @@ class Command(BaseCommand):
             self.stdout.write(
                 'Author role: %s (%s)... ' % (slug, desc), ending='')
             _, created = GameAuthorRole.objects.update_or_create(
-                symbolic_id=slug, defaults={'title': desc})
+                symbolic_id=slug, defaults={
+                    'title': desc
+                })
             if created:
                 self.stdout.write(self.style.SUCCESS('created.'))
             else:
@@ -148,7 +150,9 @@ class Command(BaseCommand):
             self.stdout.write('Tag: %s (%s)... ' % (slug, desc), ending='')
             c = GameTagCategory.objects.get(symbolic_id=cat)
             _, created = GameTag.objects.update_or_create(
-                symbolic_id=slug, category=c, defaults={'name': desc})
+                symbolic_id=slug, category=c, defaults={
+                    'name': desc
+                })
             if created:
                 self.stdout.write(self.style.SUCCESS('created.'))
             else:
@@ -159,8 +163,10 @@ class Command(BaseCommand):
             self.stdout.write('GameUrl: %s (%s)... ' % (slug, desc), ending='')
             _, created = GameURLCategory.objects.update_or_create(
                 symbolic_id=slug,
-                defaults={'title': desc,
-                          'allow_cloning': cloneable})
+                defaults={
+                    'title': desc,
+                    'allow_cloning': cloneable
+                })
             if created:
                 self.stdout.write(self.style.SUCCESS('created.'))
             else:
@@ -171,8 +177,10 @@ class Command(BaseCommand):
             self.stdout.write('PersUrl: %s (%s)... ' % (slug, desc), ending='')
             _, created = PersonalityURLCategory.objects.update_or_create(
                 symbolic_id=slug,
-                defaults={'title': desc,
-                          'allow_cloning': cloneable})
+                defaults={
+                    'title': desc,
+                    'allow_cloning': cloneable
+                })
             if created:
                 self.stdout.write(self.style.SUCCESS('created.'))
             else:

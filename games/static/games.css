@@ -433,7 +433,7 @@ textarea {
     text-align: right;
 }
 
-header {
+#top-nav {
     background-color: #512da8;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
     color: #fff;
@@ -454,11 +454,27 @@ header {
     margin: 0 10px;
 }
 
+.top-nav-login-box a.register {
+    display: inline-block;
+    font-size: 12px;
+    line-height: 42px;
+    height: 40px;
+    padding: 0 5px;
+    text-decoration: underline;
+    text-transform: none;
+    font-weight: normal;
+    color: #fff;
+}
+
 .top-nav-login-box form {
     height: 40px;
     line-height: 40px;
     vertical-align: middle;
     display: inline-block;
+}
+
+.top-nav-login-box form input[type="password"] {
+    width: 6em;
 }
 
 #top-nav-hamburger-menu {
@@ -498,10 +514,10 @@ header {
     top: 40px;
     position: fixed;
     left: -140px;
-    background-color: #512da8;
     height: 100%;
     z-index: 100;
     width: 140px;
+    background-color: inherit;
     transition: .25s ease-in-out;
 }
 
@@ -565,6 +581,88 @@ header {
 .fieldcomment {
     color: #625B61;
     font-style: italic;
+}
+
+.gamegallery-container {
+    text-align: center;
+    /* margin: 0 20px; */
+}
+
+.gamegallery-card {
+    background-color: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+    display: inline-block;
+    height: 180px;
+    width: 180px;
+    margin: 0;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center;
+    background-blend-mode: multiply;
+    color: #fff;
+    text-decoration: none;
+    text-align: left;
+    position: relative;
+}
+
+.gamegallery-bottom-container {
+    background: linear-gradient(-180deg, rgba(0,0,0,0) 0, 
+        rgba(0,0,0,0.05) 5%, rgba(0,0,0,0.2) 25%, rgba(0,0,0,0.5) 100%);    
+    bottom: 0;
+    position: absolute;
+    width: 100%;
+    height: 60%;
+    text-shadow: 0 2px 2px rgba(0,0,0,0.5);
+}
+
+.gamegallery-bottom {
+    padding: 4px;
+    bottom: 0;
+    width: 100%;
+    position: absolute;
+}
+
+.gamegallery-title {
+    display: block;
+    overflow-x: hidden;
+}
+
+.gamegallery-author {
+    display: block;
+    font-size: 90%;
+    height: 16px;
+    overflow: hidden;
+    padding: 2px 0;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gamegallery-auxinfo {
+    text-align: right;
+    margin-right: 5px;
+    font-size: 80%;
+    font-style: italic;
+}
+
+.gamegallery-ducks {
+    text-align: right;
+}
+
+.gamegallery-comments {
+    float: left;
+    white-space: nowrap;
+    font-style: normal;
+}
+
+.gamegallery-comments svg {
+    height: 12px;
+    width: 12px;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));
+}
+
+.gamegallery-comments path {
+    fill: currentColor;
 }
 
 .game-auxinfo {
@@ -1096,7 +1194,7 @@ progress::-webkit-progress-value {
     text-align: center;
     line-height: 1.7em;
     margin: 50px auto 5px;
-    width: 800px;
+    max-width: 800px;
 }
 
 .gamelist-message {
@@ -1109,39 +1207,45 @@ progress::-webkit-progress-value {
     width: 300px;
 }
 
-table.search-box {
-    margin: auto;
-}
 
-table.search-box th {
-    text-align: right;
-    vertical-align: top;
-    min-width: 180px;
-    font-weight: normal;
-}
-
-table.search-box td {
+.search-box .search-box-key {
     text-align: left;
+    vertical-align: top;
+    width: 180px;
 }
 
-table.search-box .search-text {
-    width: 400px;
+.search-box .search-box-value {
+    text-align: left;
+    margin-left: 32px;
+    margin-bottom: 5px;    
 }
 
-table.search-box a {
+.search-box .search-box-value label {
+    white-space: nowrap;
+}
+
+
+@media only screen and (min-width: 650px)  {
+    .search-box-pair {
+        clear: both;
+    }
+    .search-box .search-box-key {
+        text-align: right;
+        float: left;
+    }
+    .search-box .search-box-value {
+        margin-left: 185px;
+    }
+}
+
+
+.search-box .search-text {
+    width: 70%;
+}
+
+.search-box-value a {
     font-weight: bold;
     font-size: 90%;
-}
-
-#top-nav a.register {
-    display: inline-block;
-    font-size: 12px;
-    line-height: 42px;
-    height: 40px;
-    padding: 0 5px;
-    text-decoration: underline;
-    text-transform: none;
-    font-weight: normal;
 }
 
 .slideritem-outer {
@@ -1211,6 +1315,12 @@ table.search-box a {
 }
 
 @media only screen and (min-width: 650px)  {
+    .grid-box {
+        width: 300px;
+    }
+}
+
+@media only screen and (min-width: 800px)  {
     .top-nav-hamburger-menu {
         display: none;
     }
@@ -1226,9 +1336,4 @@ table.search-box a {
         min-width: 80px;
         text-align: center;
     }
-
-    .grid-box {
-        width: 300px;
-    }
-
 }

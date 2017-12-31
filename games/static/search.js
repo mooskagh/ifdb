@@ -179,7 +179,7 @@ var SEARCH = (function() {
                 timer = null;
             }
             var enc = new BaseXVarintEncoder();
-            $('tr[data-val]').trigger('encode-query', [enc]);
+            $('[data-val]').trigger('encode-query', [enc]);
             gan('send', 'event', 'search', 'query', enc.value());
             window.history.pushState({
                     'dirty': 'yes!'
@@ -198,7 +198,7 @@ var SEARCH = (function() {
         });
 
         // Type 0: Sorting.
-        $('tr[data-type="sorting"]').each(function(index, element) {
+        $('[data-type="sorting"]').each(function(index, element) {
             $(element).find('[data-item-val]').click(function() {
                 var el = $(this);
                 var add = 0;
@@ -234,7 +234,7 @@ var SEARCH = (function() {
         });
 
         // Type 1: Text.
-        $('tr[data-type="text"]').each(function(index, element) {
+        $('[data-type="text"]').each(function(index, element) {
             $(element).find('[data-item-val]').click(function() {
                 gan('send', 'event', 'search', 'only_title',
                     $(this).prop('checked') ? 'on' : 'off');
@@ -258,7 +258,7 @@ var SEARCH = (function() {
         });
 
         // Type 2: Tags.
-        $('tr[data-type="tags"]').each(function(index, element) {
+        $('[data-type="tags"]').each(function(index, element) {
             $(element).find('[data-item-val]').click(function() {
                 $(this).toggleClass('current');
                 gan('send', 'event', 'search', 'tag',
@@ -284,7 +284,7 @@ var SEARCH = (function() {
         });
 
         // Type 3: Flags.
-        $('tr[data-type="flags"]').each(function(index, element) {
+        $('[data-type="flags"]').each(function(index, element) {
             $(element).find('[data-item-val]').click(function() {
                 $(this).toggleClass('current');
                 gan('send', 'event', 'search', 'flag',
@@ -305,7 +305,7 @@ var SEARCH = (function() {
         });
 
         // Type 4: Authors.
-        $('tr[data-type="authors"]').each(function(index, element) {
+        $('[data-type="authors"]').each(function(index, element) {
             $(element).find('[data-item-val]').click(function() {
                 $(this).toggleClass('current');
                 gan('send', 'event', 'search', 'author',
@@ -333,7 +333,7 @@ var SEARCH = (function() {
         // Advanced search button.
         $('.extended_search').click(function() {
             $(this).hide();
-            $('tr[data-type]').show();
+            $('[data-type]').show();
         });
 
         UpdateSearchList();

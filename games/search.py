@@ -194,11 +194,13 @@ class SB_Sorting(SearchBit):
             self.method = self.ALLOWED_SORTINGS[0]
 
     def ModifyQuery(self, query):
+        # TODO(crem) take care of deleted comments
+        query = query.prefetch_related('gamevote_set').annotate(
+            coms_count=Count('gamecomment'))
+
         if self.method == self.CREATION_DATE:
             return query.order_by(('-' if self.desc else '') + 'creation_time')
 
-        if self.method in [self.RATING]:
-            return query.prefetch_related('gamevote_set')
         return query
 
     def NeedsFullSet(self):
@@ -206,6 +208,11 @@ class SB_Sorting(SearchBit):
 
     def ModifyResult(self, games):
         r = self.desc
+
+        for g in games:
+            votes = [x.star_rating for x in g.gamevote_set.all()]
+            g.rating = ComputeGameRating(votes)
+
         if self.method == self.CREATION_DATE:
             for g in games:
                 g.ds['creation_date'] = FormatDate(g.creation_time)
@@ -225,16 +232,10 @@ class SB_Sorting(SearchBit):
             ratings = []
             nones = []
             for g in games:
-                votes = [x.star_rating for x in g.gamevote_set.all()]
-                if not votes:
+                if g.rating.get('vote'):
+                    ratings.append((g.rating['vote'], g))
+                else:
                     nones.append(g)
-                    continue
-
-                gamerating = ComputeGameRating(votes)
-                g.ds['stars'] = gamerating['stars']
-                g.ds['scores'] = gamerating['scores']
-                vote = gamerating['vote']
-                ratings.append((vote, g))
 
             ratings.sort(key=lambda x: x[0], reverse=self.desc)
             rated_games = list(list(zip(*ratings))[1]) if ratings else []
@@ -690,9 +691,6 @@ class SB_AuthorSorting(SearchBit):
         if self.method == self.GAME_COUNT:
             return query.order_by(('-' if self.desc else '') + 'game_count')
 
-        return query
-        if self.method in [self.RATING]:
-            return query.prefetch_related('gamevote_set')
         return query
 
     def NeedsFullSet(self):

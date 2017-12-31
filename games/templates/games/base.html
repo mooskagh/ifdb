@@ -27,7 +27,7 @@
     <body>
         <div class="root">
 
-            <header>
+            <header id="top-nav" {% if debug %}style="background-color: black;"{% endif %}>
                 <div class="top-nav-login-box">
                     {% if user.is_authenticated %}
                         <form class="loginbox" method="post" action="{% url 'auth_logout' %}">

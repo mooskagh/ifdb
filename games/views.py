@@ -512,43 +512,9 @@ def json_search(request):
         prefetch_related=['gameauthor_set__author', 'gameauthor_set__role'],
         start=start,
         limit=limit,
-        annotate={
-            'gamecomment__count':
-            Count('gamecomment'),
-            'hasvideo':
-            Exists(
-                GameURL.objects.filter(
-                    category__symbolic_id='video', game=OuterRef('pk'))),
-            'isparser':
-            Exists(
-                GameTag.objects.filter(
-                    symbolic_id='parser', game=OuterRef('pk'))),
-            'playonline':
-            Exists(
-                GameURL.objects.filter(game=OuterRef('pk')).filter(
-                    Q(category__symbolic_id='play_online')
-                    | Q(interpretedgameurl__is_playable=True))),
-            'downloadable':
-            Exists(
-                GameURL.objects.filter(
-                    category__symbolic_id__in=[
-                        'download_direct', 'download_landing'
-                    ],
-                    game=OuterRef('pk'))),
-            'loonchator_count':
-            Count('package'),
-        })
+    )
 
     SnippetFromList(games)
-
-    for x in games:
-        x.icons = {}
-        x.icons['hascomments'] = x.gamecomment__count > 0
-        x.icons['hasvideo'] = x.hasvideo
-        x.icons['isparser'] = x.isparser
-        x.icons['playonline'] = x.playonline
-        x.icons['downloadable'] = x.downloadable
-        x.icons['loonchator'] = x.loonchator_count > 0
 
     res = render(
         request, 'games/search_snippet.html', {
