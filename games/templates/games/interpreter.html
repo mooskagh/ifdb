@@ -20,7 +20,7 @@
 {% endblock %}
 {% block titlesection %}{{ game.title }} - {% endblock %}
 {% block content %}
-    <div class="content-box">
+    <div class="content-box-fullwidth">
         {% if conf.interpreter == 'urqw' %}
         <form class="interpreter-details" method="post"
               action="{% url 'store_interpreter_params' gameurl_id=data.pk %}">
@@ -59,7 +59,7 @@
     </div>
     <br>
 
-    <div class="content-box" id="game-container">
+    <div class="content-box-fullwidth" id="game-container">
         <div id="logo" style="text-align: center">
             <img style="opacity: 0.75" width="150" height="150" src="{% static 'urqw/logo.svg' %}">
         </div>

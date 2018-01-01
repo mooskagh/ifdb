@@ -492,6 +492,10 @@ textarea {
     display: inline-block;
 }
 
+.top-nav-login-box form * {
+    line-height: normal;
+}
+
 .top-nav-login-box form input[type="password"] {
     width: 6em;
 }
