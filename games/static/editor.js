@@ -380,7 +380,7 @@ function GetCookie(name) {
       }
       }
 
-    var cats = $('<span class="narrow-list"/>').suggest({
+    var cats = $('<span class="typeinput"/>').suggest({
       minLength: 0,
       optToId: catToId,
       id: cat,

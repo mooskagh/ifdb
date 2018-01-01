@@ -22,6 +22,18 @@
             <div id="title_warning">Название не может быть пустым.</div>
             <textarea id="title"></textarea>
         </div>
+        <div class="rightpane">
+            <div class="fieldname">Дата релиза</div>
+            <input type="date" id="release_date">
+        </div>
+        <div class="rightpane">
+            <div class="fieldname">Авторы</div>
+            <div id="authors"></div>
+        </div>
+        <div class="rightpane">
+            <div class="fieldname">Свойства</div>
+            <div id="tags"></div>
+        </div>
         <div class="leftpane">
             <div class="fieldname">Изображения и ссылки</div>
             <div id="links"></div>
@@ -38,18 +50,6 @@
             <script type="text/javascript">
             $('#submit').click(EDITOR.SubmitGameJson);
             </script>
-        </div>
-        <div class="rightpane">
-            <div class="fieldname">Дата релиза</div>
-            <input type="date" id="release_date">
-        </div>
-        <div class="rightpane">
-            <div class="fieldname">Авторы</div>
-            <div id="authors"></div>
-        </div>
-        <div class="rightpane">
-            <div class="fieldname">Свойства</div>
-            <div id="tags"></div>
         </div>
         <script type="text/javascript">EDITOR.Init();</script>
         <div style="clear: both;"></div>

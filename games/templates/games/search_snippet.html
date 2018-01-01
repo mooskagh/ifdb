@@ -5,26 +5,26 @@
     <a href="{% url 'show_game' game_id=g.id %}"
        class="gamegallery-card"
        style="background-image: url({{ g.poster|default:'/static/noposter.png' }})">
+        {% if g.coms_count %}
+            <div class="gamegallery-comments">
+                {{ g.coms_count }}
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                  <path d="M40 4H8C5.79 4 4.02 5.79 4.02 8L4 44l8-8h28c2.21 0 4-1.79 4-4V8c0-2.21-1.79-4-4-4zm-4 24H12v-4h24v4zm0-6H12v-4h24v4zm0-6H12v-4h24v4z"/>
+                </svg>                        
+            </div>
+        {% endif %}
+
+        {% if g.rating.vote %}
+            <div class="gamegallery-ducks">
+                {% if g.rating.vote %}
+                    {% for x in g.rating.stars %}
+                        <img src="/static/duck{{x}}.png" />
+                    {% endfor %}
+                {% endif %}
+            </div>
+        {% endif %}
        <div class="gamegallery-bottom-container">
            <div class="gamegallery-bottom">
-
-                {% if g.coms_count or g.rating.vote %}
-                    <div class="gamegallery-ducks">
-                        {% if g.coms_count %}
-                            <div class="gamegallery-comments">
-                                {{ g.coms_count }}
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-                                  <path d="M40 4H8C5.79 4 4.02 5.79 4.02 8L4 44l8-8h28c2.21 0 4-1.79 4-4V8c0-2.21-1.79-4-4-4zm-4 24H12v-4h24v4zm0-6H12v-4h24v4zm0-6H12v-4h24v4z"/>
-                                </svg>                        
-                            </div>
-                        {% endif %}
-                        {% if g.rating.vote %}
-                            {% for x in g.rating.stars %}
-                                <img src="/static/duck{{x}}.png" />
-                            {% endfor %}
-                        {% endif %}
-                    </div>
-                {% endif %}
                 {% if g.ds.creation_date %}
                     <div class="gamegallery-auxinfo">
                         Добавлено {{ g.ds.creation_date }}.

@@ -216,10 +216,10 @@ a.grid-box-subheader:hover {
     background-color: #f06292;
 }
 
-
 .content {
     margin: 50px auto 5px;
-    width: 1024px;
+    max-width: 1024px;
+    width: 100%;
 }
 
 .content-wide {
@@ -228,6 +228,7 @@ a.grid-box-subheader:hover {
 
 .content-box-inner {
     padding: 5px 20px 20px;
+    text-align: right;
 }
 
 .content-box-outer {
@@ -241,6 +242,7 @@ a.grid-box-subheader:hover {
     padding: 20px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
     border-radius: 2px;
+    text-align: right;    
 }
 
 .content-moder-line {
@@ -256,7 +258,6 @@ a.grid-box-subheader:hover {
     border: none;
     color: #fff;
     margin: 2px;
-    padding: 2px;
     text-align: center;
     vertical-align: middle;
     text-decoration: none;
@@ -550,13 +551,26 @@ textarea {
 }
 
 .leftpane {
+    text-align: left;
     float: left;
-    width: 680px;
+    width: 100%;
 }
 
 .rightpane {
-    margin-left: 686px;
+    text-align: left;
+    display: inline-block;
+    width: 100%;
 }
+
+@media only screen and (min-width: 800px)  {
+    .leftpane {
+        width: 65%;
+    }
+    .rightpane {
+        width: 34%;
+    }
+}
+
 
 .rightpane button,
 .rightpane input[type="submit"] {
@@ -585,7 +599,6 @@ textarea {
 
 .gamegallery-container {
     text-align: center;
-    /* margin: 0 20px; */
 }
 
 .gamegallery-card {
@@ -594,7 +607,7 @@ textarea {
     display: inline-block;
     height: 180px;
     width: 180px;
-    margin: 0;
+    margin: 1px 0;
     background-repeat: no-repeat;
     background-size: cover;
     background-position: center;
@@ -603,6 +616,7 @@ textarea {
     text-decoration: none;
     text-align: left;
     position: relative;
+    vertical-align: top;
 }
 
 .gamegallery-bottom-container {
@@ -651,12 +665,18 @@ textarea {
 
 .gamegallery-ducks {
     text-align: right;
+    padding: 2px;
+    background-color: rgba(255,255,255,0.3);
+    float: right;
+    height: 18px;
 }
 
 .gamegallery-comments {
     float: left;
     white-space: nowrap;
     font-style: normal;
+    background-color: rgba(0,0,0,0.2);
+    padding: 2px;
 }
 
 .gamegallery-comments svg {
@@ -924,16 +944,16 @@ span.gameinfo-author {
 }
 
 textarea#title {
-    width: 670px;
+    width: 100%;
 }
 
 textarea#description {
-    width: 670px;
+    width: 100%;
     height: 300px;
 }
 
 #import_url {
-    width: 550px;
+    width: calc(100% - 120px);
 }
 
 .entry {
@@ -1097,13 +1117,18 @@ button#submit,
     background-color: #fdd !important;
 }
 
+.typeinput {
+    width: calc( ( 100% - 113px ) * 0.25);
+    display: inline-block;
+}
+
 .urlinput {
-    width: 350px;
+    width: calc( ( 100% - 113px ) * 0.75);
     margin-right: 0.2em;
 }
 
 .descinput {
-    width: 655px;
+    width: calc(100% - 16px);
     margin-top: 0.2em;
     margin-right: 0.2em;
 }
@@ -1229,20 +1254,6 @@ progress::-webkit-progress-value {
 }
 
 
-@media only screen and (min-width: 650px)  {
-    .search-box-pair {
-        clear: both;
-    }
-    .search-box .search-box-key {
-        text-align: right;
-        float: left;
-    }
-    .search-box .search-box-value {
-        margin-left: 185px;
-    }
-}
-
-
 .search-box .search-text {
     width: 70%;
 }
@@ -1253,8 +1264,8 @@ progress::-webkit-progress-value {
 }
 
 .slideritem-outer {
-    height: 400px;
-    width: 500px;
+    height: 100%;
+    width: 100%;
 }
 
 .slideritem-inner {
@@ -1264,7 +1275,7 @@ progress::-webkit-progress-value {
 }
 
 .slideritem-inner img {
-    max-width: 500px;
+    max-width: 100%;
 }
 
 .slideritem {
@@ -1275,32 +1286,18 @@ progress::-webkit-progress-value {
     max-height: 90px;
 }
 
-.start-lunchator {
-    display: block;
-    margin: auto;
-    width: 200px;
-    background-color: #ff5431;
-    border: none;
-    color: #fff;
-    text-align: center;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
-    font-size: 14px;
-    text-decoration: none;
-    cursor: pointer;
-    border-radius: 2px;
-    padding: 10px;
-}
-
 .largeslider {
     text-align: center;
     margin: 10px auto;
-    width: 600px;
+    width: calc(100% - 80px);
+    max-width: 500px;
 }
 
 .smallslider {
     text-align: center;
     margin: 10px auto;
-    width: 400px;
+    width: calc(100% - 120px);
+    max-width: 400px;
 }
 
 .videothumb {
@@ -1322,7 +1319,19 @@ progress::-webkit-progress-value {
     .grid-box {
         width: 300px;
     }
+
+    .search-box-pair {
+        clear: both;
+    }
+    .search-box .search-box-key {
+        text-align: right;
+        float: left;
+    }
+    .search-box .search-box-value {
+        margin-left: 185px;
+    }
 }
+
 
 @media only screen and (min-width: 800px)  {
     .top-nav-hamburger-menu {
