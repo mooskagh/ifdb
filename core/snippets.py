@@ -427,7 +427,7 @@ def BlogSnippet(request,
         default_age=default_age)
 
 
-def MultipartSnippet(request, parts, default_age=0):
+def MultipartSnippet(request, parts, default_age=0, force_age=None):
     age = None
     content = ''
     for x in parts:
@@ -442,6 +442,8 @@ def MultipartSnippet(request, parts, default_age=0):
 
     if age is None:
         age = default_age
+    if force_age is not None:
+        age = force_age
     return {'age': age, 'content': content}
 
 
