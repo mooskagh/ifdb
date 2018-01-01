@@ -173,7 +173,7 @@ var SEARCH = (function() {
             // console.log(a, b, c, d, e, f);
         };
 
-        function UpdateSearchList() {
+        function UpdateSearchList(preventStatePush) {
             if (timer) {
                 clearTimeout(timer);
                 timer = null;
@@ -181,10 +181,12 @@ var SEARCH = (function() {
             var enc = new BaseXVarintEncoder();
             $('[data-val]').trigger('encode-query', [enc]);
             gan('send', 'event', 'search', 'query', enc.value());
-            window.history.pushState({
-                    'dirty': 'yes!'
-                },
-                null, '?q=' + enc.value());
+            if (!preventStatePush) {
+                window.history.pushState({
+                        'dirty': 'yes!'
+                    },
+                    null, '?q=' + enc.value());
+            }
             fetcher.loadResults(enc.value());
         }
 
@@ -336,7 +338,7 @@ var SEARCH = (function() {
             $('[data-type]').show();
         });
 
-        UpdateSearchList();
+        UpdateSearchList(true);
     }
 
     var res = {};
