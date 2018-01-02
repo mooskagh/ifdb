@@ -87,11 +87,9 @@ class GameDetailsBuilder:
                  BuildPackageUserFingerprint(
                      self.request.user
                      if self.request.user.is_authenticated else None, x.id)))
-        can_comment = self.request.perm(self.game.comment_perm)
         return {
-            'edit_perm': self.request.perm(self.game.edit_perm),
-            'comment_perm': can_comment,
-            'delete_perm': False,
+            'comment_perm': self.request.perm(self.game.comment_perm),
+            'vote_perm': self.request.perm(self.game.vote_perm),
             'added_date': added_date,
             'authors': authors,
             'participants': participants,

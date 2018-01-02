@@ -77,7 +77,7 @@
             </tr>
         </table>
     {% endif %}
-    {% if user.is_authenticated %}
+    {% if vote_perm %}
         {% if votes.user_played %}
             <button id="voting_button">Изменить мой голос</button>
         {% else %}
