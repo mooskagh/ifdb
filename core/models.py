@@ -54,7 +54,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         help_text=_('Designates whether the user can log into this admin '
                     'site.'))
     is_active = models.BooleanField(
-        _('Active'),
+        'Active',
         default=True,
         help_text=_('Designates whether this user should be treated as '
                     'active. Unselect this instead of deleting accounts.'))
