@@ -22,7 +22,7 @@ from django.core.exceptions import SuspiciousOperation
 from django.http import Http404
 from django.http.response import JsonResponse
 from django.shortcuts import render, redirect
-from django.db.models import Count, Exists, OuterRef, Q, Subquery
+from django.db.models import Count, OuterRef, Subquery
 from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils import timezone
@@ -70,13 +70,13 @@ def store_game(request):
     return redirect(reverse('show_game', kwargs={'game_id': id}))
 
 
-@perm_required(PERM_ADD_GAME)
 def vote_game(request):
     if request.method != 'POST':
         return render(request, 'games/error.html', {
             'message': 'Что-то не так!' + ' (2)'
         })
     game = Game.objects.get(id=int(request.POST.get('game_id')))
+    request.perm.Ensure(game.vote_perm)
 
     try:
         obj = GameVote.objects.get(game=game, user=request.user)
