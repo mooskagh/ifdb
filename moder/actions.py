@@ -4,6 +4,7 @@ from django.urls import reverse
 class ModerAction:
     TITLE = '(no title)'
     ICON = None
+    PERM = '@admin'
 
     def __init__(self, request, obj):
         self.request = request
@@ -18,24 +19,29 @@ class ModerAction:
     def GetTitle(self):
         return self.TITLE
 
-    @staticmethod
-    def IsEnabled(request, object):
-        return False
+    @classmethod
+    def IsAllowed(cls, request, object):
+        return request.perm(cls.PERM)
 
 
 class GameEditAction(ModerAction):
     TITLE = 'Править'
     ICON = 'svg/edit.svg'
 
-    @staticmethod
-    def IsEnabled(request, obj):
+    @classmethod
+    def IsAllowed(cls, request, obj):
         return request.perm(obj.edit_perm)
 
     def GetUrl(self):
         return reverse('edit_game', kwargs={'game_id': self.obj.id})
 
 
+class GameCloneAction(ModerAction):
+    TITLE = 'Клонировать'
+
+
 GAMES_ACTIONS = [
+    #    GameCloneAction,
     GameEditAction,
 ]
 
@@ -47,7 +53,7 @@ CONTEXTS = {
 def GetModerActions(request, context, obj=None):
     res = []
     for x in CONTEXTS[context]:
-        if x.IsEnabled(request, obj):
+        if x.IsAllowed(request, obj):
             res.append(x(request, obj))
 
     return res
