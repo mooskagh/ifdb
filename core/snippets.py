@@ -237,6 +237,7 @@ def LastUrlCat(request, cat, max_secs, min_count, max_count):
         res.append({
             'lag': delta,
             'url': x.url.original_url,
+            'local_url': x.GetLocalUrl(),
             'game': x.game.title,
             'id': x.game.id,
             'desc': x.description,
@@ -285,6 +286,12 @@ def LastUrlCatSnippet(request,
                     'link': x['url'],
                     'newtab': True,
                 }
+        elif cat in ['poster', 'screenshot']:
+            v['image'] = {
+                'src': x['local_url'],
+                'link': x['url'],
+                'newtab': True,
+            }
         items.append(v)
     return ItemsSnippet(request, items, -urls[0]['lag'])
 
