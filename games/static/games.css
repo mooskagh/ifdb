@@ -159,14 +159,44 @@ a.grid-box-line:hover {
 .grid-box-header {
     color: #fff;
     background-color: #757575;
-    padding: 10px 10px;
-    font-size: 110%;
+    padding: 0 0 0 10px;
+    font-size: 14px;
+    line-height: 34px;
+    vertical-align: middle;
     display: block;
-    text-decoration: none;
 }
 
-a.grid-box-header:hover {
+.grid-box-header svg {
+    display: inline-block;
+    fill: currentColor;
+    height: 20px;
+    width: 20px;
+    vertical-align: middle;
+}
+
+.grid-box-header a {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    margin: 0;
+}
+
+.grid-box-header a:hover {
     text-decoration: underline;
+}
+
+.grid-box-header-buttons {
+    float: right;
+    white-space: nowrap;
+}
+
+.grid-box-header-buttons a {
+    display: inline-block;
+}
+
+.grid-box-header-buttons a:hover {
+    display: inline-block;
+    background-color: rgba(128,128,128,0.3);
 }
 
 .grid-box-subheader {

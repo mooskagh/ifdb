@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import (TaskQueueElement, User, Package, PackageVersion,
-                     PackageSession, Document, Snippet, FeedCache, BlogFeed)
+                     PackageSession, Document, Snippet, SnippetPin, FeedCache,
+                     BlogFeed)
 from django.contrib.sessions.models import Session
 
 
@@ -70,6 +71,11 @@ class SnippetAdmin(admin.ModelAdmin):
     ]
     search_fields = ['pk', 'title']
     list_filter = ['view_perm', 'order', 'is_async']
+
+
+@admin.register(SnippetPin)
+class SnippetPinAdmin(admin.ModelAdmin):
+    list_display = ['snippet', 'user', 'is_hidden', 'order']
 
 
 @admin.register(FeedCache)

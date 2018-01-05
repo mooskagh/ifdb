@@ -193,6 +193,9 @@ class Snippet(models.Model):
     class Meta:
         default_permissions = ()
 
+    def __str__(self):
+        return self.title
+
     title = models.CharField(max_length=256)
     url = models.CharField(max_length=256, null=True, blank=True)
     style_json = models.CharField(max_length=256)
@@ -202,6 +205,18 @@ class Snippet(models.Model):
     show_start = models.DateTimeField(null=True, blank=True)
     show_end = models.DateTimeField(null=True, blank=True)
     is_async = models.BooleanField(default=False)
+
+
+class SnippetPin(models.Model):
+    class Meta:
+        default_permissions = ()
+        unique_together = (("snippet", "user"), )
+
+    snippet = models.ForeignKey(Snippet, on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    is_hidden = models.BooleanField(default=False)
+    order = models.SmallIntegerField(null=True, blank=True)
 
 
 class FeedCache(models.Model):

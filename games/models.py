@@ -27,9 +27,9 @@ class Game(models.Model):
         max_length=255,
         default='(alias game_comment)')
     delete_perm = models.CharField(
-        _('Comment permission'), max_length=255, default='(alias game_delete)')
+        _('Delete permission'), max_length=255, default='(alias game_delete)')
     vote_perm = models.CharField(
-        _('Comment permission'), max_length=255, default='(alias game_vote)')
+        _('Vote permission'), max_length=255, default='(alias game_vote)')
     tags = models.ManyToManyField('GameTag', blank=True)
     added_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

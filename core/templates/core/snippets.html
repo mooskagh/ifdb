@@ -1,13 +1,27 @@
 {% load static %}
+{% load tags %}
 
 <div class="grid-container">
   {% for s in snippets %}
   <div class="grid-box {{ s.box_style }}">
+    <div class="grid-box-header">
+      <div class="grid-box-header-buttons">
+        {% if s.icons.star_off %}
+          <a href="{% url 'pin_snippet' s.id %}" title="Закрепить наверху">{% include "svg/star_off.svg" %}</a>
+        {% endif %}
+        {% if s.icons.star_on %}
+          <a href="{% url "forget_snippet" id=s.id %}" title="Открепить">{% include "svg/star_on.svg" %}</a>
+        {% endif %}
+        {% if s.icons.hide %}
+          <a href="{% url "hide_snippet" id=s.id %}" title="Скрыть">{% include "svg/close.svg" %}</a>
+        {% endif %}
+      </div>
     {% if s.url %}
-      <a class="grid-box-header" href="{{ s.url }}"{% if s.box_style.newtab %}target="_blank"{% endif %}>{{ s.title }}</a>
+      <a href="{{ s.url }}"{% if s.box_style.newtab %}target="_blank"{% endif %}>{{ s.title }}</a>
     {% else %}
-      <div class="grid-box-header">{{ s.title }}</div>
+      {{ s.title }}
     {% endif %}
+    </div>
     {% if s.async_snippet_id %}
       <div class="grid-box-item grid-box-async" grid-box-snippet-id="{{s.async_snippet_id}}">
         <img src="{% static 'ellipsis.gif' %}">

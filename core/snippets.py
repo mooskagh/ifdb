@@ -1,10 +1,12 @@
-from .models import Snippet
+from .models import Snippet, SnippetPin
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
-from django.db.models import Max, Count
+from django.db.models import Max
+from django.shortcuts import redirect
+from django.views.decorators.cache import never_cache
 from games.models import GameURL, GameComment
 from games.search import MakeSearch
 from games.tools import (FormatLag, ExtractYoutubeId, FormatDateShort,
@@ -489,16 +491,21 @@ def AsyncSnippet(request):
     return HttpResponse(x.get('content', ''))
 
 
+def SnippetVisible(request, snippet):
+    now = timezone.now()
+    if not request.perm(snippet.view_perm):
+        return False
+    if snippet.show_start and snippet.show_start > now:
+        return False
+    if snippet.show_end and snippet.show_end < now:
+        return False
+    return True
+
+
 def RenderSnippets(request):
     snippets = []
-    now = timezone.now()
     for x in Snippet.objects.order_by('order'):
-
-        if not request.perm(x.view_perm):
-            continue
-        if x.show_start and x.show_start > now:
-            continue
-        if x.show_end and x.show_end < now:
+        if not SnippetVisible(request, x):
             continue
 
         async_id = None
@@ -516,7 +523,9 @@ def RenderSnippets(request):
 
         box_style = "grid-box-%s" % style['color'] if 'color' in style else ''
 
+        icons = {}
         snippets.append({
+            'id': x.id,
             'title': x.title,
             'url': x.url,
             'box_style': box_style,
@@ -524,8 +533,99 @@ def RenderSnippets(request):
             'content': data.get('content'),
             'age': data.get('age', 365 * 24 * 60 * 60),
             'order': x.order,
+            'icons': icons,
         })
 
-    snippets.sort(key=lambda y: (y['order'], y['age']))
+    if request.user.is_authenticated:
+        hids = set()
+        pins = dict()
+        for x in SnippetPin.objects.filter(user=request.user):
+            if x.is_hidden:
+                hids.add(x.snippet_id)
+            else:
+                pins[x.snippet_id] = x.order
+        pref = []
+        snip = []
+        hid = []
+        for x in snippets:
+            x['icons']['hide'] = True
+            if x['id'] in hids:
+                hid.append(x)
+            elif x['id'] in pins:
+                x['order'] = -pins[x['id']]
+                x['icons']['star_on'] = True
+                pref.append(x)
+            else:
+                x['icons']['star_off'] = True
+                snip.append(x)
+
+        pref.sort(key=lambda y: y['order'])
+        snip.sort(key=lambda y: (y['order'], y['age']))
+        snippets = pref + snip
+        if hid:
+            items = []
+            for x in hid:
+                items.append({
+                    'link':
+                    reverse('forget_snippet', kwargs={
+                        'id': x['id']
+                    }),
+                    'lines': [{
+                        'text': x['title'],
+                    }]
+                })
+            snippets.append({
+                'title': ('Скрытые карточки'),
+                'box_style': {},
+                'content': (ItemsSnippet(request, items)['content']),
+                'icons': {},
+            })
+
+    else:
+        snippets.sort(key=lambda y: (y['order'], y['age']))
 
     return render_to_string('core/snippets.html', {'snippets': snippets})
+
+
+@never_cache
+def ForgetSnippet(request, id):
+    if request.user.is_authenticated:
+        SnippetPin.objects.filter(snippet_id=id, user=request.user.id).delete()
+
+    return redirect('/')
+
+
+@never_cache
+def PinSnippet(request, id):
+    if request.user.is_authenticated:
+        y = Snippet.objects.get(pk=id)
+        if not SnippetVisible(request, y):
+            raise PermissionDenied()
+        x = SnippetPin.objects.filter(
+            user=request.user.id, order__isnull=False).order_by('-order')[:1]
+        print(x)
+        order = (x[0].order + 1) if x else 0
+        SnippetPin.objects.update_or_create(
+            snippet_id=id,
+            user=request.user,
+            defaults={
+                'is_hidden': False,
+                'order': order
+            })
+    return redirect('/')
+
+
+@never_cache
+def HideSnippet(request, id):
+    if request.user.is_authenticated:
+        y = Snippet.objects.get(pk=id)
+        if not SnippetVisible(request, y):
+            raise PermissionDenied()
+        SnippetPin.objects.update_or_create(
+            snippet_id=id,
+            user=request.user,
+            defaults={
+                'is_hidden': True,
+                'order': None
+            })
+    return redirect('/')
