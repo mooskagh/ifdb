@@ -69,3 +69,17 @@ class GameEditAction(GameAction):
 
     def GetUrl(self):
         return reverse('edit_game', kwargs={'game_id': self.obj.id})
+
+
+@RegisterAction
+class GameDeleteAction(GameAction):
+    TITLE = 'Удалить'
+    LINES = 'Удалить эту игру?'
+
+    @classmethod
+    def IsAllowed(cls, request, obj):
+        return request.perm(obj.delete_perm)
+
+    def OnAction(self, action, form):
+        self.obj.delete()
+        return "Удалено!"

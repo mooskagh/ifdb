@@ -67,6 +67,8 @@ def ResetPermissions():
         x.comment_perm = '(alias game_comment)'
         x.view_perm = '(alias game_view)'
         x.edit_perm = '(alias game_edit)'
+        x.delete_perm = '(alias game_delete)'
+        x.vote_perm = '(alias game_vote)'
         x.save()
     for x in Personality.objects.all():
         print(x.name)

@@ -12,6 +12,7 @@ AUTHOR_ROLES = [
     ['programmer', 'Программист'],
     ['member', 'Участник (прочие)'],
     ['composer', 'Композитор'],
+    ['orig_author', 'Автор оригинала'],
 ]
 
 TAG_CATS = [
