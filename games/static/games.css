@@ -111,6 +111,7 @@ a.grid-box-line:hover {
 
 .grid-box-lines-container {
     width: 100%;
+    min-width: 0;
 }
 
 .grid-box-inline-icon {
