@@ -76,7 +76,7 @@ a.author-link:hover {
     border-top: 1px solid #ebebeb;
     border-radius: 2px;    
     background-color: #fff;
-    display: block;
+    display: flex;
     text-decoration: none;
     color: inherit;
 }
@@ -107,6 +107,10 @@ a.grid-box-line:hover {
     font-size: 11px;
     color: #989898;
     text-align: right;
+}
+
+.grid-box-lines-container {
+    width: 100%;
 }
 
 .grid-box-inline-icon {
@@ -145,6 +149,7 @@ a.grid-box-line:hover {
 .grid-box-icon {
     max-width: 73px;
     max-height: 55px;
+    vertical-align: middle;
 }
 
 .grid-box-icon-container {
@@ -153,7 +158,15 @@ a.grid-box-line:hover {
     display: block;
     float: left;
     text-align: center;
-    vertical-align: center;
+    flex-shrink: 0;
+    flex-grow: 0;
+    white-space: nowrap;
+}
+
+.grid-box-icon-helper {
+    display: inline-block;
+    height: 100%;
+    vertical-align: middle;
 }
 
 .grid-box-header {

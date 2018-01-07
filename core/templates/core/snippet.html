@@ -19,6 +19,7 @@
       {% endif %}
           {% if x.image.src %}        
             <img class="grid-box-icon" src="{{ x.image.src }}">
+            <span class="grid-box-icon-helper"></span>
           {% endif %}
       {% if x.image.link %}
         </a>
@@ -26,6 +27,7 @@
         </div>
       {% endif %}
     {% endif %}
+    <div class="grid-box-lines-container">
     {% for y in x.lines %}
       {% if y.link %}
         <a class="grid-box-line{% for z in  y.style %} grid-box-line-{{z}}{% endfor %}" href="{{y.link}}" {% if y.newtab %}target="_blank"{% endif %}>
@@ -44,6 +46,7 @@
         </div>
       {% endif %}
     {% endfor %}
+    </div>
   {% if x.link %}
     </a>
   {% else %}
