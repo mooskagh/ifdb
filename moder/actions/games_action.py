@@ -1,6 +1,8 @@
-from games.models import Game, GameURL, GameAuthor
+from games.models import Game, GameURL, GameAuthor, GameComment, GameVote
+from core.models import Package
 from django.urls import reverse
 from html import escape
+from django import forms
 
 from moder.actions.tools import ModerAction, RegisterAction
 
@@ -12,15 +14,55 @@ def GenLinkButton(text, link, new_tab=False):
 
 
 class GameAction(ModerAction):
+    PERM = '@moder'
     MODEL = Game
+
+
+@RegisterAction
+class GameCombineAction(GameAction):
+    TITLE = 'Объединить'
+
+    class Form(forms.Form):
+        other_game = forms.IntegerField(
+            label='С какой игрой объединять? (id)', min_value=1)
+
+    def GetForm(self, var):
+        return self.Form(var)
+
+    def DoAction(self, action, form, execute):
+        fro = Game.objects.get(pk=form['other_game'])
+        if execute:
+            to = self.obj
+            if not to.release_date:
+                to.release_date = fro.release_date
+
+            desc = to.description or ''
+            desc += fro.description or ''
+            to.description = desc
+            to.save()
+
+            to.tags.add(*fro.tags.all())
+
+            for y in [GameURL, GameAuthor, GameVote, GameComment, Package]:
+                for x in y.objects.filter(game=fro):
+                    x.game = to
+                    x.save()
+
+            fro.delete()
+
+            return "Done!"
+        else:
+            return "Будем мержить с: %s" % fro
 
 
 @RegisterAction
 class GameCloneAction(GameAction):
     TITLE = 'Клонировать'
-    LINES = 'Клонировать эту игру?'
 
-    def OnAction(self, action, form):
+    def DoAction(self, action, form, execute):
+        if not execute:
+            return "Клонировать эту игру?"
+
         fro = self.obj
         to = Game()
         for field in [
@@ -74,12 +116,14 @@ class GameEditAction(GameAction):
 @RegisterAction
 class GameDeleteAction(GameAction):
     TITLE = 'Удалить'
-    LINES = 'Удалить эту игру?'
 
     @classmethod
     def IsAllowed(cls, request, obj):
         return request.perm(obj.delete_perm)
 
-    def OnAction(self, action, form):
-        self.obj.delete()
-        return "Удалено!"
+    def DoAction(self, action, form, execute):
+        if execute:
+            self.obj.delete()
+            return "Удалено!"
+        else:
+            return "Удалить эту игру?"

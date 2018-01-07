@@ -321,7 +321,23 @@ a.grid-box-subheader:hover {
     margin: 10px auto;
     display: block;
     text-align: left;
-    max-width: 400px;
+    max-width: 700px;
+}
+
+.moder-table {
+    width: 100%;
+}
+
+.moder-table th {
+    text-align: right;
+    vertical-align: bottom;
+}
+
+.moder-table .errorlist {
+    color: #ff5431;
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }
 
 .comment-box {

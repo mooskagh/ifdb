@@ -1,6 +1,9 @@
 import json
 from django.http.response import JsonResponse
+from logging import getLogger
 from django.template.loader import render_to_string
+
+logger = getLogger('web')
 
 BUTTON_LABELS = {
     'ok': 'OK',
@@ -13,8 +16,6 @@ class ModerAction:
     ICON = None
     PERM = '@admin'
     MODEL = None
-    LINES = []
-    FORM = None
     BUTTONS = ['ok', 'cancel']
     BUTTONS_NEED_FORM = {'ok'}
 
@@ -22,6 +23,9 @@ class ModerAction:
         self.request = request
         self.obj = obj
         self.state = {}
+
+    def GetForm(self, val):
+        return None
 
     def GetIcon(self):
         return self.ICON
@@ -39,30 +43,56 @@ class ModerAction:
             return ''
 
     def OnAction(self, action, form):
-        return "(no action defined)"
+        execute = 'form' in self.state
+        buttons = []
+        if execute:
+            form = self.state['form']
+            buttons = [{'id': 'cancel', 'label': 'ОК!'}]
+        else:
+            self.state['form'] = form
+            buttons = [{
+                'id': 'ok',
+                'label': 'ОК'
+            }, {
+                'id': 'cancel',
+                'label': 'Cancel'
+            }]
+        return {
+            'raw': self.DoAction(action, form, execute),
+            'buttons': buttons
+        }
+
+    def DoAction(self, action, form, execute):
+        return "(no action defined: %s, Execute:%s)" % (action, execute)
 
     def Handle(self, form, action):
         if (action == 'cancel'):
             return None
 
+        f = self.GetForm(form if action else None)
         buttons = []
-        lines = []
-        raw = None
-        if action and (not self.FORM or action not in self.BUTTONS_NEED_FORM):
-            raw = self.OnAction(action, form)
-            buttons.append({'id': 'cancel', 'label': 'ОК!'})
-        else:
+        override = {}
+        rendered_form = ''
+        if 'form' not in self.state and f and not f.is_valid() and (
+                not action or action in self.BUTTONS_NEED_FORM):
             for x in self.BUTTONS:
                 buttons.append({'id': x, 'label': BUTTON_LABELS[x]})
-            lines = self.LINES
 
-            if isinstance(lines, str):
-                lines = [lines]
+            if f:
+                rendered_form = f.as_table()
+        else:
+            if f and f.is_valid():
+                form_data = f.cleaned_data
+            else:
+                form_data = {}
+            override = self.OnAction(action, form_data)
 
         return render_to_string('moder/moder.html', {
-            'lines': lines,
-            'raw': raw,
+            'raw': None,
+            'form': rendered_form,
             'buttons': buttons,
+            **
+            override,
         })
 
     def SetState(self, state):
@@ -118,6 +148,7 @@ def GetModerActions(request, context, obj=None):
 #     object: {ctx, cls, obj}
 #     state: {}  // any obj
 #     content: 'lines + form + buttons' or undefined, which means close snippet
+#     error: (if error)
 
 
 def HandleAction(request):
@@ -138,7 +169,11 @@ def HandleAction(request):
 
     action = action(request, obj)
     action.SetState(j.get('state', {}))
-    content = action.Handle(form=j.get('form', {}), action=j.get('action'))
+    try:
+        content = action.Handle(form=j.get('form', {}), action=j.get('action'))
+    except Exception as e:
+        logger.exception("Error while running moder action")
+        return JsonResponse({'error': str(e)})
 
     return JsonResponse({
         'object': object,

@@ -1,19 +1,15 @@
-{% if lines %}
-  {% for x in lines %}
-    <p>{{ x }}</p>
-  {% endfor %}
-{% endif %}
-
 {% if form %}
 <form>
-  {{ form|safe }}
+  <table class="moder-table">
+    {{ form|safe }}
+  </table>
 </form>
 {% endif %}
 
 {% if raw %}
-<div>
+<pre>
   {{ raw | safe }}
-</div>
+</pre>
 {% endif %}
 
 {% if buttons %}  

@@ -49,7 +49,9 @@ $(function() {
         cache: false,
         dataType: 'json'
       }).done(function(data) {
-        if (data.content) {
+        if (data.error) {
+          moderFrame.html("Ошибка: " + data.error);
+        } else if (data.content) {         
           moderFrame.html(data.content);
 
           moderFrame.find('button[action-action]').click(function(g) {
