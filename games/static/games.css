@@ -330,7 +330,7 @@ a.grid-box-subheader:hover {
 
 .moder-table th {
     text-align: right;
-    vertical-align: bottom;
+    vertical-align: middle;
 }
 
 .moder-table .errorlist {

@@ -24,7 +24,10 @@ class GameCombineAction(GameAction):
 
     class Form(forms.Form):
         other_game = forms.IntegerField(
-            label='С какой игрой объединять? (id)', min_value=1)
+            label='С какой игрой объединять? (id)',
+            min_value=1,
+            help_text='Все данные с указанной игры будут скопированы в эту, '
+            'а сама та игра будет удалена')
 
     def GetForm(self, var):
         return self.Form(var)
@@ -52,7 +55,7 @@ class GameCombineAction(GameAction):
 
             return "Done!"
         else:
-            return "Будем мержить с: %s" % fro
+            return "Будем объединять с: %s" % fro
 
 
 @RegisterAction
