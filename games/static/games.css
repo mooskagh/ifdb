@@ -283,16 +283,15 @@ a.grid-box-subheader:hover {
     text-align: left;    
 }
 
-.content-moder-line {
+.moder-line {
     text-align: right;
 }
 
-.content-moder-line a {
+.moder-line a {
     display: inline-block;
     min-width: 16px;
     height: 18px;
     line-height: 18px;
-    vertical-align: middle;
     border-radius: 2.5px;
     background-color: #ff5431;
     border: none;
@@ -301,14 +300,28 @@ a.grid-box-subheader:hover {
     text-align: center;
     vertical-align: middle;
     text-decoration: none;
-    padding: 2px 2px;
+    padding: 0 2px;
 }
 
-.content-moder-line a svg {
+.moder-line a svg {
     width: 12px;
     height: 12px;
     fill: currentColor;
     margin: 0 1px;
+}
+
+.moder-frame {
+    border: 1px solid #ff5431;
+    margin: 10px;
+    padding: 10px;
+    text-align: center;
+}
+
+.moder-frame form {
+    margin: 10px auto;
+    display: block;
+    text-align: left;
+    max-width: 400px;
 }
 
 .comment-box {
@@ -530,7 +543,8 @@ textarea {
     line-height: normal;
 }
 
-.top-nav-login-box form input[type="password"] {
+.top-nav-login-box form input[type="password"],
+.top-nav-login-box form input[type="text"] {
     width: 6em;
 }
 
@@ -546,7 +560,10 @@ textarea {
     margin-top: 5px;
     margin-bottom: 5px;
     padding: 0;
-    display: inline-block;
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
 }
 
 .top-nav-hamburger-menu svg {

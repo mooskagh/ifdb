@@ -24,6 +24,7 @@ urlpatterns = [
     url(r'^adminz/', admin.site.urls, name='admin'),
     url(r'^', include('core.urls'), name='api'),
     url(r'^', include('games.urls'), name='games'),
+    url(r'^', include('moder.urls'), name='moder'),
 ]
 
 if settings.DEBUG:

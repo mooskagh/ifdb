@@ -1,0 +1,17 @@
+{% if lines %}
+  {% for x in lines %}
+    <p>{{ x }}</p>
+  {% endfor %}
+{% endif %}
+
+{% if form %}
+<form>
+  {{ form|safe }}
+</form>
+{% endif %}
+
+{% if buttons %}  
+  {% for x in buttons %}
+    <button action-action="{{ x.id }}">{{ x.label }}</button>
+  {% endfor %}
+{% endif %}

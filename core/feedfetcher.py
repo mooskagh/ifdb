@@ -73,8 +73,8 @@ def FetchUrqFeed():
         items.append(
             PseudoFeed(
                 id=id,
-                title=title,
-                author=author,
+                title=unescape(title),
+                author=unescape(author),
                 date_published=datetime.fromtimestamp(int(date_published)),
                 link=link))
     ProcessFeedEntries('urq', items)

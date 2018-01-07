@@ -7,25 +7,32 @@
     <link rel="stylesheet" type="text/css" href="{% static 'slick/slick-theme.css' %}"/>
     <script type="text/javascript" src="{% static 'slick/slick.min.js' %}"></script>
     {% endif %}
-    <script src="/static/game-details.js"></script>
+    <script src="{% static 'game-details.js'%}"></script>
+    <script src="{% static 'actions.js'%}"></script>
 {% endblock %}
 {% block titlesection %}{{ game.title }} - {% endblock %}
 {% block content %}
     <div class="content-box-outer">
         {% if moder_actions %}
-        <div class="content-moder-line">
+        <div class="moder-line">
             {% for x in moder_actions %}
-                {% if x.GetUrl %}
-                    <a href="{{ x.GetUrl }}" title="{{ x.GetTitle }}">
-                        {% if x.GetIcon %}
-                            {% include x.GetIcon %}
-                        {% else %}
-                            {{ x.GetTitle }}
-                        {% endif %}
-                    </a>
-                {% else %}
-                    (not implemented)
-                {% endif %}
+                <a 
+                    {% if x.GetUrl %}
+                        href="{{ x.GetUrl }}"
+                    {% else %}
+                        href="javascript:;"
+                        action-context="{{ x.GetContext }}"
+                        action-class="{{ x.GetClassName }}"
+                        action-object="{{ x.GetObjId }}"
+                    {% endif %}
+                    title="{{ x.GetTitle }}"
+                    >
+                    {% if x.GetIcon %}
+                        {% include x.GetIcon %}
+                    {% else %}
+                        {{ x.GetTitle }}
+                    {% endif %}
+                </a>
             {% endfor %}
         </div>
         {% endif %}
@@ -51,7 +58,7 @@
                                 <a href="{% url 'play_in_interpreter' gameurl_id=x.pk %}" class="button-like">{{x.description}}</a>
                             {% else %}
                                 <span class="button-like">
-                                    <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}">
+                                    <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}" target="_blank">
                                         {% if x.url.is_broken %}
                                             <img src="{% static 'brokenlink.svg' %}"/>
                                         {% endif %}

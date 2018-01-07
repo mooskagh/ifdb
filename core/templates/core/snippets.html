@@ -17,7 +17,7 @@
         {% endif %}
       </div>
     {% if s.url %}
-      <a href="{{ s.url }}"{% if s.box_style.newtab %}target="_blank"{% endif %}>{{ s.title }}</a>
+      <a href="{{ s.url }}"{% if s.style.newtab %}target="_blank"{% endif %}>{{ s.title }}</a>
     {% else %}
       {{ s.title }}
     {% endif %}
