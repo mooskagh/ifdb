@@ -97,6 +97,7 @@ class GameCloneAction(GameAction):
 
 @RegisterAction
 class GameAdminzAction(GameAction):
+    PERM = '@admin'
     TITLE = 'Админка'
 
     def GetUrl(self):
