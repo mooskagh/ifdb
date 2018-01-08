@@ -487,10 +487,12 @@ class SB_AuxFlags(SB_Flags):
         'Редактированные людьми',
         'Со ссылками, общими с другими играми',
         'С битыми ссылками',
+        'С более чем одним автором',
     ]
 
     ANNOTATIONS = {
         1: (Count('gameauthor')),
+       10: (Count('gameauthor')),
     }
 
     QUERIES = {
@@ -517,6 +519,8 @@ class SB_AuxFlags(SB_Flags):
                     gameurl__game__count__gt=1)),
         9:
         Q(gameurl__url__is_broken=True),
+       10:
+        Q(gameauthor__count__gt=1),
     }
 
 
