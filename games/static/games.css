@@ -748,6 +748,10 @@ textarea {
     height: 45px;
 }
 
+.gamegallery-votecount {
+    color: black;
+}
+
 .gamegallery-author {
     display: block;
     font-size: 90%;
@@ -769,7 +773,7 @@ textarea {
 .gamegallery-ducks {
     text-align: right;
     padding: 2px;
-    background-color: rgba(255,255,255,0.3);
+    background-color: rgba(255,255,255,0.6);
     float: right;
     height: 18px;
 }

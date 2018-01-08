@@ -20,6 +20,9 @@
                     {% for x in g.rating.stars %}
                         <img src="/static/duck{{x}}.png" />
                     {% endfor %}
+                    <span class="gamegallery-votecount">
+                        ({{g.rating.scores}})
+                    </span>
                 {% endif %}
             </div>
         {% endif %}
