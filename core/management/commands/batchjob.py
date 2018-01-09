@@ -221,11 +221,10 @@ def FixGameAuthors():
         if x.author.hidden_for:
             logger.info('HiddenFor [%s] find in game [%s]' % (x.author,
                                                               x.game))
-            if x.game.edit_time is None:
-                x.author = x.author.hidden_for
-                x.save()
-            else:
+            if x.game.edit_time is not None:
                 logger.warning('Game [%s] NOT AUTOUPDATEABLE!' % x.game)
+            x.author = x.author.hidden_for
+            x.save()
 
     logger.info('*** Fixing game duplicate aliases')
     for g in Game.objects.all():
@@ -246,11 +245,10 @@ def FixGameAuthors():
 
             logger.info('Game [%s], over [%s] we are keeping [%s]' %
                         (g, v, v[record]))
-            if g.edit_time is None:
-                for i, y in enumerate(v):
+            for i, y in enumerate(v):
                     if i != record:
                         y.delete()
-            else:
+            if g.edit_time is not None:
                 logger.warning('Game [%s] NOT AUTOUPDATEABLE!' % g)
 
     logger.info('*** Killing hanging personalities')
