@@ -203,7 +203,8 @@ def show_author(request, author_id):
                                                'game__gameauthor_set__author',
                                                'game__gamevote_set'):
             if g.game.id in existing:
-                continue
+                pass
+                # continue
             existing.add(g.game.id)
             gs = games.setdefault(g.role, [])
             rating = ComputeGameRating(
