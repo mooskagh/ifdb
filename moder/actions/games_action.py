@@ -14,7 +14,7 @@ def GenLinkButton(text, link, new_tab=False):
 
 
 class GameAction(ModerAction):
-    PERM = '@moder'
+    PERM = '@gardener'
     MODEL = Game
 
 

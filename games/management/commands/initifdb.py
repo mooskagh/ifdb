@@ -13,6 +13,7 @@ AUTHOR_ROLES = [
     ['member', 'Участник (прочие)'],
     ['composer', 'Композитор'],
     ['orig_author', 'Автор оригинала'],
+    ['voiceover', 'Актёр озвучания'],
 ]
 
 TAG_CATS = [
@@ -38,7 +39,7 @@ TAG_CATS = [
         'search': '@all'
     }],
     ['version', 'Версия', True, {
-        'search': '@admin'
+        'search': '@all'
     }],
 ]
 

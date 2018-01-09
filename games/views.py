@@ -15,19 +15,20 @@ from .tools import (RenderMarkdown, ComputeGameRating, ComputeHonors,
 from .updater import UpdateGame, Importer2Json
 from core.snippets import RenderSnippets
 from django import forms
-from django.db import models
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import SuspiciousOperation
+from django.db import models
+from django.db.models import Count, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from django.http import Http404
 from django.http.response import JsonResponse
 from django.shortcuts import render, redirect
-from django.db.models import Count, OuterRef, Subquery
-from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from ifdb.permissioner import perm_required
+from moder.actions.tools import GetModerActions
 
 PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
 logger = getLogger('web')
@@ -180,6 +181,7 @@ def show_author(request, author_id):
         res['honor'] = ComputeHonors(int(author_id))
         res['honor_stars'] = StarsFromRating(res['honor'])
         res['honor_str'] = "%.1f" % res['honor']
+        res['moder_actions'] = GetModerActions(request, 'Personality', a)
 
         urls = {}
         cats = []
