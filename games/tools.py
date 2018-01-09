@@ -162,7 +162,7 @@ def ComputeHonors(author=None):
         for votes in games.values():
             sms += DiscountRating(sum(votes) / len(votes), len(votes))
         res[a] = DiscountRating(
-            sms / len(games), len(games), P1=2.3, P2=0.8, P3=1.4)
+            sms / len(games), len(games), P1=2.3, P2=0.6, P3=1.7)
     if author:
         return res.get(author, 0.0)
     else:
