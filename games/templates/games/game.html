@@ -8,34 +8,11 @@
     <script type="text/javascript" src="{% static 'slick/slick.min.js' %}"></script>
     {% endif %}
     <script src="{% static 'game-details.js'%}"></script>
-    <script src="{% static 'actions.js'%}"></script>
 {% endblock %}
 {% block titlesection %}{{ game.title }} - {% endblock %}
 {% block content %}
     <div class="content-box-outer">
-        {% if moder_actions %}
-        <div class="moder-line">
-            {% for x in moder_actions %}
-                <a 
-                    {% if x.GetUrl %}
-                        href="{{ x.GetUrl }}"
-                    {% else %}
-                        href="javascript:;"
-                        action-context="{{ x.GetContext }}"
-                        action-class="{{ x.GetClassName }}"
-                        action-object="{{ x.GetObjId }}"
-                    {% endif %}
-                    title="{{ x.GetTitle }}"
-                    >
-                    {% if x.GetIcon %}
-                        {% include x.GetIcon %}
-                    {% else %}
-                        {{ x.GetTitle }}
-                    {% endif %}
-                </a>
-            {% endfor %}
-        </div>
-        {% endif %}
+        {% include 'moder/moder_line.html' with actions=moder_actions only %}
         <div class="content-box-inner">
             <div class="leftpane">
                 <div class="game-header">

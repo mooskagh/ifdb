@@ -79,7 +79,12 @@ class ModerAction:
                 buttons.append({'id': x, 'label': BUTTON_LABELS[x]})
 
             if f:
-                rendered_form = f.as_table()
+                if hasattr(f, 'as_form'):
+                    rendered_form = f.as_form()
+                else:
+                    rendered_form = (
+                        '<table class="moder-form-table">%s</table>' %
+                        f.as_table())
         else:
             if f and f.is_valid():
                 form_data = f.cleaned_data

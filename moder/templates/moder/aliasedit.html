@@ -1,0 +1,45 @@
+<table class="moder-wide-table">
+  <tr>
+    <th>Кол-во игр</th>
+    <th>Псевдоним¹</th>
+    <th>Id автора²</th>
+    <th>Переместить в</th>
+    <th>Удалить</th>
+  </tr>
+  {% for x in items %}
+  <tr>
+    <td>{{ x.gamecount }}</td>
+    <td><input name="alias{{ x.id }}" type="text" value="{{ x.alias }}"/></td>
+    <td><input name="personality{{ x.id }}" type="number" value="{{ x.personality }}" /></td>
+    <td>
+      <select name="moveto{{ x.id }}">
+        {% for y in x.move_to %}
+          <option min="0" value="{{ y.id }}" {% if x.moveto == y.id %}selected{% endif %}>{{ y.name }}</option>
+        {% endfor %} <!--""-->
+      </select>
+      <br><label><input name="alwaysmove{{ x.id }}" type="checkbox" {% if x.alwaysmove %}checked{% endif %}/> Всегда перемещать³</label>
+    </td>
+    <td>
+      <label><input name="delete{{ x.id }}" type="checkbox" {% if x.delete %}checked{% endif %} /> Удалить</label>
+      <br><label><input name="alwaysdelete{{ x.id }}" type="checkbox" {% if x.alwaysdelete %}checked{% endif %}/> Всегда удалять³</label>
+    </td>
+  </tr>
+{% endfor %}
+</table>
+{% if errors %}
+<ul class="moder-wide-table-errorlist">
+  <li>Ошибки:</li>
+  {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+</ul>
+{% endif %}
+¹ Лучше, чтобы в псевдонимах не было запятых! Тогда список авторов игры
+  лучше смотрится! Чтобы "Имя Фамилия", а не "Фамилия, Имя".
+<br>
+² Если в это поле записать 0 -- для этих псевдонимов будет создана новая свежая
+  страница автора (нужно для разъединения авторов, если второй автор ещё не
+  создан). 
+<br>
+³ "Всегда перемещать" и "Всегда удалять" значит, что если робот увидит данное
+  имя у новых игр, он автоматически предпримет данное действие. Это нужно для
+  частых опечаток (вроде Петр -> Пётр) и частых ошибок робота (вроде "2007г").
+
