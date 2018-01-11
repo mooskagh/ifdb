@@ -53,6 +53,22 @@ class GameCombineAction(GameAction):
 
             fro.delete()
 
+            urls = set()
+            for y in GameURL.objects.filter(game=to):
+                v = (y.url_id, y.category_id)
+                if v in urls:
+                    y.delete()
+                else:
+                    urls.add(v)
+
+            authors = set()
+            for y in GameAuthor.objects.filter(game=to).select_related():
+                v = (y.role_id, y.author.personality_id)
+                if v in authors:
+                    y.delete()
+                else:
+                    authors.add(v)
+
             return "Done!"
         else:
             return "Будем объединять с: %s" % fro
