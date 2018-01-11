@@ -638,15 +638,16 @@ textarea {
 }
 
 .top-nav-drawer {
-    padding-top: 20px;
-    top: 40px;
-    position: fixed;
-    left: -140px;
-    height: 100%;
-    z-index: 100;
-    width: 140px;
     background-color: inherit;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    height: 100%;
+    left: -140px;
+    padding-top: 20px;
+    position: fixed;
+    top: 40px;
     transition: .25s ease-in-out;
+    width: 140px;
+    z-index: 100;
 }
 
 .top-nav-drawer a:hover {
