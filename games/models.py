@@ -52,8 +52,8 @@ class URL(models.Model):
     def GetLocalUrl(self):
         return self.local_url or self.original_url
 
-    def HasLocalUrl(self):
-        return self.local_url is not None
+    def HasLocalCopy(self):
+        return not self.is_uploaded and self.local_url is not None
 
     def GetFs(self):
         return settings.UPLOADS_FS if self.is_uploaded else settings.BACKUPS_FS
@@ -109,8 +109,8 @@ class GameURL(models.Model):
         return "%s (%s): %s" % (self.game.title, self.category,
                                 self.url.original_url)
 
-    def HasLocalUrl(self):
-        return self.category.allow_cloning and self.url.HasLocalUrl()
+    def HasLocalCopy(self):
+        return self.category.allow_cloning and self.url.HasLocalCopy()
 
     def GetLocalUrl(self):
         if self.category.allow_cloning:

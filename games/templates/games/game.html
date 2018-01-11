@@ -58,7 +58,7 @@
                                     {% endif %}
                                     {{x.description}}
                                 </a>
-                                {% if x.HasLocalUrl %}
+                                {% if x.HasLocalCopy %}
                                     <a title="Скачать резервную копию" href="{{ x.GetLocalUrl }}" download><img src="{% static 'localbackup.svg' %}"/></a>
                                 {% endif %}
                             </span>
