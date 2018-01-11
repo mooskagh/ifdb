@@ -1,7 +1,7 @@
 import re
 from django.core.management.base import BaseCommand
 from games.models import (InterpretedGameUrl, URL, Game, GameAuthor,
-                          Personality, PersonalityAlias)
+                          Personality, PersonalityAlias, GameURL)
 from core.models import TaskQueueElement
 import subprocess
 import os.path
@@ -246,8 +246,8 @@ def FixGameAuthors():
             logger.info('Game [%s], over [%s] we are keeping [%s]' %
                         (g, v, v[record]))
             for i, y in enumerate(v):
-                    if i != record:
-                        y.delete()
+                if i != record:
+                    y.delete()
             if g.edit_time is not None:
                 logger.warning('Game [%s] NOT AUTOUPDATEABLE!' % g)
 
@@ -260,6 +260,19 @@ def FixGameAuthors():
         gameauthor__isnull=True).delete()
 
 
+def FixDuplicateUrls():
+    logger.info('Fixing duplicate URLs')
+    for x in Game.objects.all():
+        urls = set()
+        for y in GameURL.objects.filter(game=x):
+            v = (y.url_id, y.category_id)
+            if v in urls:
+                logger.info("Game %s, url %s, removing" % (x, y))
+                y.delete()
+            else:
+                urls.add(v)
+
+
 class Command(BaseCommand):
     help = 'Does some batch processing.'
 
@@ -270,6 +283,7 @@ class Command(BaseCommand):
         options = {
             'removeauthors-destructiv': RemoveAuthors,
             'fixgameauthors': FixGameAuthors,
+            'fixurldups': FixDuplicateUrls,
             'resetperms': ResetPermissions,
         }
         if cmd in options:
