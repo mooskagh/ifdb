@@ -125,6 +125,7 @@ class TaskQueueElement(models.Model):
     pending = models.BooleanField(default=True)
     success = models.BooleanField(default=False)
     fail = models.BooleanField(default=False)
+    log = models.TextField(blank=True)
 
 
 class Package(models.Model):

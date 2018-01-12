@@ -2,8 +2,9 @@ from .models import TaskQueueElement
 from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
-from logging import getLogger
 from croniter import croniter
+from io import StringIO
+import logging
 import datetime
 import importlib
 import json
@@ -11,7 +12,9 @@ import os
 import signal
 import time
 
-logger = getLogger('worker')
+logger = logging.getLogger('worker')
+
+MAX_LOG_SIZE = 128 * 1024
 
 
 def IsPosix():
@@ -102,13 +105,23 @@ def Worker():
             break
         t = (TaskQueueElement.objects.filter(pending=True)
              .filter(Q(dependency=None) | Q(dependency__success=True)).filter(
-                 Q(scheduled_time=None) | Q(
-                     scheduled_time__lte=timezone.now())).order_by(
-                         'priority', 'enqueue_time'))
+                 Q(scheduled_time=None)
+                 | Q(scheduled_time__lte=timezone.now())).order_by(
+                     'priority', 'enqueue_time'))
         logger.info('%d tasks waiting' % t.count())
         if t:
             t = t[0]
-            logger.info('Running %s' % t)
+
+            log_stream = StringIO()
+            log_handler = logging.StreamHandler(stream=log_stream)
+            log_handler.setLevel('INFO')
+            log_handler.setFormatter(
+                logging.Formatter(
+                    fmt=('%(levelname).1s%(asctime)s.%(msecs)03d %(name)s '
+                         '%(filename)s:%(lineno)d] %(message)s'),
+                    datefmt='%m%d %H:%M:%S'))
+            logging.getLogger().addHandler(log_handler)
+
             t.pending = False
             t.start_time = timezone.now()
             t.save()
@@ -116,6 +129,8 @@ def Worker():
             i = importlib.import_module(call['module'])
             func = getattr(i, call['name'])
             try:
+                logger.info("Running %s: %s(%s, %s)" %
+                            (t, func.__name__, call['argv'], call['kwarg']))
                 func(*call['argv'], **call['kwarg'])
                 if t.cron:
                     iter = croniter(t.cron, timezone.now())
@@ -147,15 +162,23 @@ def Worker():
                         i = importlib.import_module(failcall['module'])
                         func = getattr(i, failcall['name'])
                         try:
+                            logger.info("Running failure handler %s(%s, %s)" %
+                                        (func.__name__, repr(t), repr(call)))
                             func(t, call)
                         except Exception as e:
                             logger.exception(e)
+
+            logging.getLogger().removeHandler(log_handler)
+            new_log = (t.log + '\n' + '=' * 60 + '\n' +
+                       log_stream.getvalue())[-MAX_LOG_SIZE:]
+            t.log = new_log
+            t.save()
             continue
         else:
-            t = (TaskQueueElement.objects.filter(
-                pending=True
-            ).filter(Q(dependency=None) | Q(dependency__success=True)).filter(
-                scheduled_time__isnull=False).order_by('scheduled_time'))[:1]
+            t = (TaskQueueElement.objects.filter(pending=True).filter(
+                Q(dependency=None) | Q(dependency__success=True)).filter(
+                    scheduled_time__isnull=False).order_by('scheduled_time')
+                 )[:1]
             delta = 60 * 60 * 6
             if t:
                 t = t[0]
