@@ -3,6 +3,7 @@ from games.models import (Personality, PersonalityUrl, PersonalityAlias,
                           GameAuthor)
 from django.db.models import Count
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django import forms
 from html import escape
 
@@ -10,6 +11,37 @@ from html import escape
 class AuthorAction(ModerAction):
     PERM = '@gardener'
     MODEL = Personality
+
+
+@RegisterAction
+class AuthorAdminzAction(AuthorAction):
+    PERM = '@admin'
+    TITLE = 'Админки'
+
+    def OnAction(self, action, form):
+        lines = [('Автор',
+                  reverse(
+                      "admin:games_personality_change", args=(self.obj.id, )))]
+        for x in PersonalityAlias.objects.filter(
+                personality=self.obj).order_by('pk'):
+            lines.append((x.name,
+                          reverse(
+                              "admin:games_personalityalias_change",
+                              args=(x.id, ))))
+
+        for x in PersonalityUrl.objects.filter(
+                personality=self.obj).order_by('pk'):
+            lines.append((('%s: %s' % (x.description, x.url))[:80],
+                          reverse(
+                              "admin:games_personalityurl_change",
+                              args=(x.id, ))))
+
+        res = ''
+        for x in lines:
+            if isinstance(x, tuple):
+                res += '<a href="%s" target="_blank">%s</a>' % (x[1], x[0])
+
+        return {'form': res, 'buttons': [{'id': 'cancel', 'label': 'ОК!'}]}
 
 
 @RegisterAction
@@ -233,6 +265,16 @@ class AuthorCombineAction(AuthorAction):
                 x.save()
 
         fro.delete()
+
+        games = set()
+        for x in PersonalityAlias.objects.filter(personality=to):
+            for y in GameAuthor.objects.filter(author=x):
+                val = (y.role_id, y.game_id)
+                if val in games:
+                    y.delete()
+                else:
+                    games.add(val)
+
         return "Done!"
 
 

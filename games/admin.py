@@ -7,19 +7,30 @@ from .models import (Game, PersonalityAlias, GameTagCategory, GameTag, URL,
 
 class GameAuthorAdmin(admin.TabularInline):
     model = GameAuthor
-    raw_id_fields = ['game']
+    readonly_fields = ('id', )
+    raw_id_fields = ['game', 'author']
     extra = 1
 
 
 class InlinePersonalityUrlAdmin(admin.TabularInline):
     model = PersonalityUrl
-    raw_id_fields = ['url']
+    readonly_fields = ('id', )
+    raw_id_fields = ['url', 'personality']
+    extra = 1
+
+
+class InlineGameURLAdmin(admin.TabularInline):
+    model = GameURL
+    readonly_fields = ('id', )
+    raw_id_fields = ['url', 'game']
     extra = 1
 
 
 @admin.register(PersonalityUrl)
 class PersonalityUrlAdmin(admin.ModelAdmin):
     list_display = ['personality', 'description', 'category', 'url']
+    raw_id_fields = ['personality', 'url']
+    search_fields = ['pk', 'personality', 'description', 'url']
 
 
 @admin.register(Game)
@@ -28,7 +39,7 @@ class GameAdmin(admin.ModelAdmin):
     list_filter = ['creation_time', 'added_by']
     search_fields = ['pk', 'title']
 
-    inlines = [GameAuthorAdmin]
+    inlines = [GameAuthorAdmin, InlineGameURLAdmin]
 
 
 class InlinePersonalityAliasAdmin(admin.TabularInline):
@@ -94,6 +105,8 @@ class URLAdmin(admin.ModelAdmin):
         'ok_to_clone', 'is_uploaded', 'is_broken', 'creation_date', 'creator'
     ]
 
+    inlines = [InlineGameURLAdmin, InlinePersonalityUrlAdmin]
+
 
 @admin.register(GameURLCategory)
 class GameURLCategoryAdmin(admin.ModelAdmin):
@@ -116,6 +129,7 @@ class GameURLAdmin(admin.ModelAdmin):
     list_display = ['description', '_game', 'category', '_url']
     search_fields = ['pk', 'description', 'game__title', 'url__id']
     list_filter = ['category']
+    raw_id_fields = ['game', 'url']
 
 
 @admin.register(GameAuthorRole)
@@ -129,6 +143,7 @@ class GameAuthorAdmin(admin.ModelAdmin):
     list_display = ['game', 'author', 'role']
     search_fields = ['pk', 'game', 'author']
     list_filter = ['role']
+    raw_id_fields = ['game', 'author']
 
 
 @admin.register(GameVote)
@@ -143,6 +158,7 @@ class GameCommentAdmin(admin.ModelAdmin):
     list_display = ['game', 'user', 'creation_time', 'subject', 'is_deleted']
     list_filter = ['creation_time', 'is_deleted']
     search_fields = ['pk', 'subject', 'text']
+    raw_id_fields = ['game', 'parent']
 
 
 @admin.register(InterpretedGameUrl)
