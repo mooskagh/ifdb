@@ -210,9 +210,19 @@ class PersonalityAlias(models.Model):
     personality = models.ForeignKey(
         Personality, null=True, blank=True, on_delete=models.SET_NULL)
     name = models.CharField(max_length=255)
+    keep_if_empty = models.BooleanField(default=False)
     hidden_for = models.ForeignKey(
         'PersonalityAlias', null=True, blank=True, on_delete=models.SET_NULL)
     is_blacklisted = models.BooleanField(default=False)
+
+
+class PersonalityAliasRedirect(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    name = models.CharField(max_length=255, unique=True, db_index=True)
+    hidden_for = models.ForeignKey(
+        PersonalityAlias, null=True, blank=True, on_delete=models.CASCADE)
 
 
 class GameAuthorRole(models.Model):

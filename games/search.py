@@ -712,7 +712,9 @@ class SB_AuthorSorting(SearchBit):
         for x in authors:
             x.honor = honors.get(x.id, 0.0)
         if self.method == self.HONOUR:
-            authors.sort(key=lambda x: x.honor, reverse=self.desc)
+            authors.sort(
+                key=lambda x: (self.desc != (x.honor == 0.0), x.honor),
+                reverse=self.desc)
 
         return authors
 

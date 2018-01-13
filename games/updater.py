@@ -4,7 +4,7 @@ from .importer import Importer
 from .models import (GameURL, Game, URL, GameTag, GameAuthorRole,
                      PersonalityAlias, GameTagCategory, GameURLCategory,
                      GameAuthor, Personality, PersonalityURLCategory,
-                     PersonalityUrl)
+                     PersonalityUrl, PersonalityAliasRedirect)
 from .tasks.uploads import CloneFile, RecodeGame, MarkBroken
 from core.taskqueue import Enqueue
 from dateutil.parser import parse as parse_date
@@ -23,35 +23,20 @@ def NormalizeName(x):
 FIRST_LAST_RE = re.compile(r'^(\w+) (\w+)$')
 
 
-def GetOrCreateAlias(alias, is_automated):
+def GetOrCreateAlias(alias):
     if not alias.strip():
         return None
-    if is_automated:
-        x = PersonalityAlias.objects.filter(name=alias)
-        if x:
-            x = x[0]
-            if x.is_blacklisted:
-                return None
-            if x.hidden_for:
-                return x.hidden_for.id
-            return x.id
-        aliases = list(PersonalityAlias.objects.all())
-        candidates = [NormalizeName(alias)]
-        m = FIRST_LAST_RE.match(candidates[0])
-        if m:
-            candidates.append('%s %s' % (m.group(2), m.group(1)))
-        for x in aliases:
-            if x.is_blacklisted:
-                continue
-            for y in candidates:
-                if NormalizeName(x.name) == y:
-                    if x.hidden_for:
-                        return x.hidden_for.id
-                    return x.id
-        return PersonalityAlias.objects.create(name=alias).id
+    try:
+        x = PersonalityAliasRedirect.objects.get(name=alias)
+        return x.hidden_for_id
+    except PersonalityAliasRedirect.DoesNotExist:
+        pass
 
-    else:
-        return PersonalityAlias.objects.get_or_create(name=alias)[0].id
+    x = PersonalityAlias.objects.filter(name=alias)
+    if x:
+        return x[0].id
+
+    return PersonalityAlias.objects.create(name=alias).id
 
 
 def UpdateGameAuthors(request, game, authors, update):
@@ -65,8 +50,7 @@ def UpdateGameAuthors(request, game, authors, update):
     authors_to_add = []  # (role_id, author_id)
     for (role, author, *rest) in authors:
         if not isinstance(author, int):
-            author = GetOrCreateAlias(author, getattr(request, 'is_fake',
-                                                      False))
+            author = GetOrCreateAlias(author)
             if not author:
                 continue
         if not isinstance(role, int):
