@@ -53,7 +53,8 @@ def GetCandidates():
     return res
 
 
-PLUT_URL = re.compile(r'https?://urq.plut.info/(?:node/\d+|[^/]+)')
+PLUT_URL = re.compile(
+    r'https?://(?:urq.plut.info|plut.info/urq)/(?:node/\d+|[^/]+)')
 PLUT_TITLE = re.compile(r'<h1 class="title">(.*?)</h1>')
 PLUT_DESC = re.compile(
     r'<div class="field field-name-body field-type-text-with-summary '
