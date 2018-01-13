@@ -45,7 +45,6 @@ class GameAdmin(admin.ModelAdmin):
 class InlinePersonalityAliasAdmin(admin.TabularInline):
     model = PersonalityAlias
     readonly_fields = ('id', )
-    raw_id_fields = ['hidden_for']
     extra = 1
 
 
@@ -57,7 +56,7 @@ class PersonalityAliasAdmin(admin.ModelAdmin):
     list_display = ['name', 'pk', 'keep_if_empty', '_game_count']
     search_fields = ['pk', 'name']
     inlines = [GameAuthorAdmin]
-    raw_id_fields = ['personality', 'hidden_for']
+    raw_id_fields = ['personality']
 
 
 @admin.register(PersonalityAliasRedirect)

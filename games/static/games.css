@@ -1083,6 +1083,10 @@ textarea#description {
 }
 
 .entry {
+    margin: 0;
+}
+
+.entry-url {
     margin: 10px 0 0 0;
 }
 

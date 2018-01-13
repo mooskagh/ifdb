@@ -68,14 +68,6 @@ def store_game(request):
             'message': 'У игры должно быть название.'
         })
 
-    for x in j['links']:
-        (cat, desc, url) = x
-        if not cat or not desc:
-            res = CategorizeUrl(url, desc, cat or None)
-            x[1] = res['description']
-            x[0] = GameURLCategory.objects.get(
-                symbolic_id=res['urlcat_slug']).id
-
     id = UpdateGame(request, j)
     return redirect(reverse('show_game', kwargs={'game_id': id}))
 
@@ -459,6 +451,23 @@ def json_gameinfo(request):
             g['links'].append((x.category_id, x.description or '',
                                x.url.original_url))
     return JsonResponse(res)
+
+
+def json_categorizeurl(request):
+    url = request.GET.get('url')
+    desc = request.GET.get('desc') or ''
+    cat = request.GET.get('cat')
+    if cat:
+        cat = GameURLCategory.objects.get(pk=cat).symbolic_id
+    else:
+        cat = None
+
+    res = CategorizeUrl(url, desc, cat)
+    return JsonResponse({
+        'desc': (res['description']),
+        'cat':
+        (GameURLCategory.objects.get(symbolic_id=res['urlcat_slug']).id),
+    })
 
 
 def json_author_search(request):

@@ -79,7 +79,7 @@ def CategorizeUrl(url, desc='', category=None, base=None):
     for (host, path, query, slug, ddesc) in URL_CATEGORIZER_RULES:
         if host:
             if host.startswith('@'):
-                if purl.hostname and not re.match(host[1:], purl.hostname):
+                if not purl.hostname or not re.match(host[1:], purl.hostname):
                     continue
             elif host != purl.hostname:
                 continue

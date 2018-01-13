@@ -28,6 +28,9 @@ urlpatterns = [
 
     # API
     url(r'^json/gameinfo/', views.json_gameinfo, name='json_gameinfo'),
+    url(r'^json/categorizeurl/',
+        views.json_categorizeurl,
+        name='json_categorizeurl'),
     url(r'^json/upload/', views.upload, name='upload'),
     url(r'^json/import/', views.doImport, name='import'),
     url(r'^json/search/', views.json_search, name='json_search'),
@@ -37,7 +40,8 @@ urlpatterns = [
     url(
         r'^accounts/register/$',
         RegistrationView.as_view(form_class=RegistrationForm),
-        name='registration_register', ),
+        name='registration_register',
+    ),
     url(r'^accounts/',
         include('registration.backends.hmac.urls'
                 if settings.REQUIRE_ACCOUNT_ACTIVATION else

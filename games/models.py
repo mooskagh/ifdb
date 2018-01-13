@@ -211,9 +211,6 @@ class PersonalityAlias(models.Model):
         Personality, null=True, blank=True, on_delete=models.SET_NULL)
     name = models.CharField(max_length=255)
     keep_if_empty = models.BooleanField(default=False)
-    hidden_for = models.ForeignKey(
-        'PersonalityAlias', null=True, blank=True, on_delete=models.SET_NULL)
-    is_blacklisted = models.BooleanField(default=False)
 
 
 class PersonalityAliasRedirect(models.Model):

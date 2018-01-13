@@ -111,11 +111,23 @@ function GetCookie(name) {
       return this.input.val() === '';
     },
 
-    value: function() {
-      var val = this.input.val();
-      if (this.options.optToId.hasOwnProperty(val))
-        return this.options.optToId[val];
-      return val;
+    value: function(newVal) {
+      if (newVal === undefined) {
+        var val = this.input.val();
+        if (this.options.optToId.hasOwnProperty(val))
+          return this.options.optToId[val];
+        return val;
+      } else {
+        for (var key in this.options.optToId) {
+          if (this.options.optToId.hasOwnProperty(key)) {
+            if (this.options.optToId[key] === newVal) {
+              this.input.val(key);
+              return;
+            }
+          }
+        }      
+        this.input.val('');
+      }
     },
 
     txtvalue: function(newVal) {
@@ -378,7 +390,7 @@ function GetCookie(name) {
   });
 
   function CreateUrlEntry(categories, cat, url, desc) {
-    var entry = $('<div class="entry"></div>');
+    var entry = $('<div class="entry-url"></div>');
     var catToId = {};
     var enabledCats = {};
     for (var i = 0; i < categories.length; ++i) {
@@ -394,30 +406,29 @@ function GetCookie(name) {
       id: cat,
       showAll: true,
       allowNew: false,
-      placeholder: '(автоматически)',
     });
 
     var desc_lab = $('<label><span class="inputlabel">Описание:&nbsp;</span></label>');
-    var desc_el = $('<input class="descinput" placeholder="(по умолчанию)">');
+    var desc_el = $('<input class="descinput">');
     var cats_lab = $('<label><span class="inputlabel">Тип&nbsp;ссылки:&nbsp;</span></label>');
-    var url_el = $('<input class="urlinput" placeholder="URL">');
+    var url_el = $('<input class="urlinput">');
     var url_lab = $('<label><span class="inputlabel">URL:&nbsp;</span></label>');
     var or_el = $('<span>или</span>');
     var button_el = $('<button id="upload_button">Закачать</button>');
     var file_el = $('<input type="file" style="display:none;">');
     var delicon = $('<span class="ico">&#10006; </span>');
     var progress = $('<progress></progress>').hide();
-    desc_el.appendTo(desc_lab);
-    desc_lab.appendTo(entry);
-    delicon.appendTo(entry);
-    cats.appendTo(cats_lab);
-    cats_lab.appendTo(entry);
     url_el.appendTo(url_lab);
     url_lab.appendTo(entry);
     or_el.appendTo(entry);
     button_el.appendTo(entry);
+    delicon.appendTo(entry);
     file_el.appendTo(entry);
     progress.appendTo(entry);
+    desc_el.appendTo(desc_lab);
+    desc_lab.appendTo(entry);
+    cats.appendTo(cats_lab);
+    cats_lab.appendTo(entry);
 
     button_el.click(function() {
       file_el.click();
@@ -453,6 +464,8 @@ function GetCookie(name) {
       });
       req.done(function(json) {
         url_el.val(json.url);
+        CheckInput();
+        CategorizeUrl();
       });
       req.fail(function(jqXHR, textStatus) {
         progress.hide();
@@ -500,12 +513,27 @@ function GetCookie(name) {
     function CheckInput() {
       if (obj.onchar) obj.onchar(obj);
     }
+
+    function CategorizeUrl() {
+      var val = url_el.val();
+      if (val && !(desc_el.val() && cats.suggest('value'))) {
+        $.getJSON('/json/categorizeurl/', {
+          'url': val,
+          'desc': desc_el.val(),
+          'cat': cats.suggest('value')}, function(data) {
+            desc_el.val(data.desc);
+            cats.suggest('value', data.cat);
+        });
+      }
+    }
+
     cats.on('creminput', CheckInput);
     url_el.on('keydown', CheckInput);
     desc_el.on('keydown', CheckInput);
     url_el.on('input', function() {
       url_el.removeClass('invalidinput');
     });
+    url_el.on('blur', CategorizeUrl);
     desc_el.on('input', function() {
       desc_el.removeClass('invalidinput');
     });
@@ -515,7 +543,13 @@ function GetCookie(name) {
     });
 
     obj.IsValid = function() {
-      var valid = true;
+      var valid = cats.suggest('isValid');
+      if (desc_el.val() === '') {
+        desc_el.addClass('invalidinput');
+        valid = false;
+      } else {
+        desc_el.removeClass('invalidinput');
+      }      
       if (url_el.val() === '') {
         url_el.addClass('invalidinput');
         valid = false;
@@ -566,13 +600,13 @@ function GetCookie(name) {
             return;
           }
         }
-        }
+      }
 
       function OnInput(obj) {
         if (obj == objs[objs.length - 1]) {
           self.AddEntry();
         }
-        }
+      }
 
       if (objs.length > 0) objs[objs.length - 1].delicon.show();
       var el = CreateUrlEntry(this.options.categories, cat, url, desc);
