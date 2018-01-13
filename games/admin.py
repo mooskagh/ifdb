@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (Game, PersonalityAlias, GameTagCategory, GameTag, URL,
                      GameURLCategory, GameURL, GameAuthorRole, GameAuthor,
                      GameVote, GameComment, InterpretedGameUrl, Personality,
-                     PersonalityUrl)
+                     PersonalityUrl, PersonalityAliasRedirect)
 
 
 class GameAuthorAdmin(admin.TabularInline):
@@ -54,12 +54,17 @@ class PersonalityAliasAdmin(admin.ModelAdmin):
     def _game_count(self, obj):
         return len(obj.gameauthor_set.all())
 
-    list_display = [
-        'name', 'pk', 'is_blacklisted', 'hidden_for', '_game_count'
-    ]
+    list_display = ['name', 'pk', 'keep_if_empty', '_game_count']
     search_fields = ['pk', 'name']
     inlines = [GameAuthorAdmin]
     raw_id_fields = ['personality', 'hidden_for']
+
+
+@admin.register(PersonalityAliasRedirect)
+class PersonalityAliasRedirectAdmin(admin.ModelAdmin):
+    raw_id_fields = ['hidden_for']
+    list_display = ['name', 'hidden_for']
+    search_fields = ['name', 'hidden_for']
 
 
 @admin.register(Personality)

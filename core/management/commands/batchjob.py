@@ -1,7 +1,8 @@
 import re
 from django.core.management.base import BaseCommand
 from games.models import (InterpretedGameUrl, URL, Game, GameAuthor,
-                          Personality, PersonalityAlias, GameURL)
+                          Personality, PersonalityAlias, GameURL,
+                          PersonalityAliasRedirect)
 from core.models import TaskQueueElement
 import subprocess
 import os.path
@@ -189,43 +190,6 @@ def RemoveAuthors():
 
 # TODO Run that as a periodic job.
 def FixGameAuthors():
-    logger.info('*** Fixing blacklisted aliases')
-    for x in PersonalityAlias.objects.filter(is_blacklisted=True):
-        if x.personality:
-            logger.info('Remove personality from alias [%s]' % x)
-            x.personality = None
-            x.save()
-        if x.hidden_for:
-            logger.info('Remove hidden_for from alias [%s]' % x)
-            x.hidden_for = None
-            x.save()
-
-    logger.info('*** Checking hidden_for to be correct')
-    for x in PersonalityAlias.objects.filter(
-            hidden_for__isnull=False).select_related():
-        if x.personality != None:
-            x.personality = None
-            logger.info('Resetting hidden_for for alias [%s]' % x)
-            x.save()
-
-    logger.info('*** Applying blacklist/hidden_for for non-edited games')
-    for x in GameAuthor.objects.select_related():
-        if x.author.is_blacklisted:
-            logger.info('Blacklisted [%s] find in game [%s]' % (x.author,
-                                                                x.game))
-            if x.game.edit_time is None:
-                x.delete()
-            else:
-                logger.warning('Game [%s] NOT AUTOUPDATEABLE!' % x.game)
-            continue
-        if x.author.hidden_for:
-            logger.info('HiddenFor [%s] find in game [%s]' % (x.author,
-                                                              x.game))
-            if x.game.edit_time is not None:
-                logger.warning('Game [%s] NOT AUTOUPDATEABLE!' % x.game)
-            x.author = x.author.hidden_for
-            x.save()
-
     logger.info('*** Fixing game duplicate aliases')
     for g in Game.objects.all():
         clusters = dict()
@@ -256,8 +220,7 @@ def FixGameAuthors():
 
     logger.info('*** Killing hanging aliases')
     PersonalityAlias.objects.filter(
-        is_blacklisted=False, hidden_for__isnull=True,
-        gameauthor__isnull=True).delete()
+        keep_if_empty=False, gameauthor__isnull=True).delete()
 
 
 def FixDuplicateUrls():
@@ -273,6 +236,15 @@ def FixDuplicateUrls():
                 urls.add(v)
 
 
+def PopulateAliasRedirects():
+    for x in PersonalityAlias.objects.all():
+        if not x.hidden_for and not x.is_blacklisted:
+            continue
+        PersonalityAliasRedirect.objects.create(
+            name=x.name, hidden_for=x.hidden_for)
+        x.delete()
+
+
 class Command(BaseCommand):
     help = 'Does some batch processing.'
 
@@ -285,6 +257,7 @@ class Command(BaseCommand):
             'fixgameauthors': FixGameAuthors,
             'fixurldups': FixDuplicateUrls,
             'resetperms': ResetPermissions,
+            'populateredirects-destruktiv': PopulateAliasRedirects,
         }
         if cmd in options:
             options[cmd]()

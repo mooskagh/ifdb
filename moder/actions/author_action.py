@@ -1,6 +1,6 @@
 from moder.actions.tools import ModerAction, RegisterAction
 from games.models import (Personality, PersonalityUrl, PersonalityAlias,
-                          GameAuthor)
+                          GameAuthor, PersonalityAliasRedirect)
 from django.db.models import Count
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -156,13 +156,15 @@ class AliasEditAction(AuthorAction):
         log = []
         new_pers = None
         for x in PersonalityAlias.objects.filter(personality=self.obj):
-            if x.name != F('alias', x.id):
+            curalias = F('alias', x.id)
+            curid = x.id
+            if x.name != curalias:
                 if execute:
-                    x.name = F('alias', x.id)
+                    x.name = curalias
                     x.save()
                 else:
-                    log.append('[%s] будет переименован в [%s]' %
-                               (x.name, F('alias', x.id)))
+                    log.append('[%s] будет переименован в [%s]' % (x.name,
+                                                                   curalias))
 
             if x.personality_id != F('personality', x.id):
                 if F('personality', x.id):
@@ -187,39 +189,33 @@ class AliasEditAction(AuthorAction):
                                    'свежая страница автора.' % x.name)
 
             if x.id != F('moveto', x.id):
+                moveto = F('moveto', x.id)
                 if execute:
                     for y in GameAuthor.objects.filter(author=x.id):
-                        y.author_id = x.id
+                        y.author_id = moveto
                         y.save()
+                    x.delete()
                 else:
                     log.append('Псевдоним [%s] подмешается в [%s]' %
                                (x.name,
                                 PersonalityAlias.objects.get(
                                     pk=F('moveto', x.id)).name))
-                if F('alwaysmove', x.id):
+                if F('alwaysmove', curid):
                     if execute:
-                        x.personality = None
-                        x.hidden_for_id = F('moveto', x.id)
-                        x.save()
+                        PersonalityAliasRedirect.objects.create(
+                            name=curalias, hidden_for_id=moveto)
                     else:
                         log.append('(и это будет автоматически происходить с'
                                    ' этим псевдонимом в будущем)')
-                else:
-                    if execute:
-                        x.delete()
-                        continue
-
-            if F('delete', x.id):
+            elif F('delete', x.id):
                 if execute:
-                    if F('alwaysdelete', x.id):
-                        x.personality = None
-                        x.is_blacklisted = True
-                        x.save()
-                    else:
-                        x.delete()
+                    x.delete()
                 else:
                     log.append('Псевдоним [%s] будет удалён' % x.name)
-                    if F('alwaysdelete', x.id):
+                if F('alwaysdelete', curid):
+                    if execute:
+                        PersonalityAliasRedirect.objects.create(name=curalias)
+                    else:
                         log.append('(и это будет автоматически происходить с'
                                    ' этим псевдонимом в будущем)')
 
