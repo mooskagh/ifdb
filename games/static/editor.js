@@ -329,9 +329,17 @@ function GetCookie(name) {
 
     isValid: function() {
       var isValid = true;
+      {
+        var dateRe = /^\d{4}-\d{2}-\d{2}$/;
+        var relDate = $('#release_date').val();
+        if (relDate && !dateRe.test(relDate)) {
+          $('#release_date').addClass('invalidinput');
+          isValid = false;
+        }
+      }
       for (var i = 0; i < this.options.objs.length - 1; ++i) {
         isValid &= this.options.objs[i].IsValid();
-        }
+      }
       return isValid;
     },
 
@@ -696,6 +704,16 @@ var EDITOR = (function() {
     }
 
   function InitEditor() {
+    $('#release_date').datepicker({ 
+      dateFormat: 'yy-mm-dd',
+      dayNamesMin: ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'],
+      autoSize: true,
+      firstDay: 1,
+      monthNames: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль',
+                   'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+    }).on('change input', function(e) {
+      $(e.target).removeClass('invalidinput');
+    });
     var params = {};
     var game_id = $('.gameedit').attr('game-id');
     if (game_id) params.game_id = game_id;
