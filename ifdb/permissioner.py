@@ -13,6 +13,7 @@ AUTH_GROUP = '@auth'
 SUPERUSER_GROUP = '@admin'
 NOTOR_GROUP = '@notor'
 TOR_GROUP = '@tor'
+CRAWLER_GROUP = '@crawler'
 
 # Add groups to the right if it's to the left.
 EXPAND_GROUPS = [
@@ -28,6 +29,16 @@ GROUP_ALIAS = {
     'personality_view': '@all',
     'personality_edit': '@moder',
 }
+
+CRAWLER_STRS = ['YandexBot', 'Googlebot']
+
+
+def IsCrawler(request):
+    useragent = request.META.get('HTTP_USER_AGENT', '')
+    for x in CRAWLER_STRS:
+        if x in useragent:
+            return True
+    return False
 
 
 def IsTor(request):
@@ -98,6 +109,9 @@ class Permissioner:
         if not user.is_authenticated:
             self.tokens.add(UNAUTH_GROUP)
             return
+
+        if IsCrawler(request):
+            self.tokens.add(CRAWLER_GROUP)
 
         self.tokens.add(AUTH_GROUP)
         if user.is_superuser:
