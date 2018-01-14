@@ -11,6 +11,7 @@ class UserLog(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True)
+    action = models.CharField(max_length=32)
     ip_addr = models.CharField(max_length=50, null=True, blank=True)
     session = models.CharField(max_length=32, null=True, blank=True)
     timestamp = models.DateTimeField()
@@ -20,7 +21,6 @@ class UserLog(models.Model):
     obj_id = models.IntegerField(null=True, blank=True)
     obj2_type = models.CharField(max_length=32, null=True, blank=True)
     obj2_id = models.IntegerField(null=True, blank=True)
-    action = models.CharField(max_length=32)
     before = models.TextField(null=True, blank=True)
     after = models.TextField(null=True, blank=True)
     note = models.TextField(null=True, blank=True)

@@ -95,9 +95,11 @@ def vote_game(request):
     game = Game.objects.get(id=int(request.POST.get('game_id')))
     request.perm.Ensure(game.vote_perm)
 
+    before = None
     try:
         obj = GameVote.objects.get(game=game, user=request.user)
         obj.edit_time = timezone.now()
+        before = {'stars': obj.star_rating}
     except GameVote.DoesNotExist:
         obj = GameVote()
         obj.game = game
@@ -107,6 +109,15 @@ def vote_game(request):
     obj.edit_time = timezone.now()
     obj.star_rating = int(request.POST.get('score'))
     obj.save()
+
+    LogAction(
+        request,
+        'gam-vote',
+        obj=game,
+        obj2=obj,
+        before=before,
+        after={'stars': obj.star_rating},
+        is_mutation=True)
 
     return redirect(reverse('show_game', kwargs={'game_id': game.id}))
 
@@ -168,6 +179,16 @@ def comment_game(request):
     comment.text = request.POST.get('text', None)
     comment.save()
 
+    LogAction(
+        request,
+        'gam-comment',
+        is_mutation=True,
+        obj=game,
+        obj2=comment,
+        after={
+            'username': comment.username,
+            'text': comment.text,
+        })
     return redirect(reverse('show_game', kwargs={'game_id': game.id}))
 
 
@@ -257,6 +278,7 @@ def show_author(request, author_id):
                         reverse=True))),
             })
 
+        LogAction(request, 'pers-view', is_mutation=False, obj=a)
         return render(request, 'games/author.html', res)
     except Personality.DoesNotExist:
         raise Http404
@@ -266,7 +288,6 @@ def list_games(request):
     s = MakeSearch(request.perm)
     query = request.GET.get('q', '')
     s.UpdateFromQuery(query)
-
     return render(request, 'games/search.html', s.ProduceBits())
 
 
@@ -561,6 +582,9 @@ def json_author_search(request):
     if elapsed_time > 2.0:
         logger.error("Time for author search query [%s] was %f" %
                      (query, elapsed_time))
+    if start == 0:
+        LogAction(
+            request, 'pers-search', after={'query': query}, is_mutation=False)
     return res
 
 
@@ -594,6 +618,10 @@ def json_search(request):
     if elapsed_time > 2.0:
         logger.error("Time for search query [%s] was %f" % (query,
                                                             elapsed_time))
+
+    if start == 0:
+        LogAction(
+            request, 'gam-search', after={'query': query}, is_mutation=False)
     return res
 
 

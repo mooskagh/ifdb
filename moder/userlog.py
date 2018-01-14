@@ -22,7 +22,8 @@ def LogAction(request,
               before=None,
               after=None):
     x = UserLog()
-    x.user = request.user
+    if request.user.is_authenticated:
+        x.user = request.user
     x.ip_addr = GetIpAddr(request)
     x.session = request.session.session_key
     x.timestamp = timezone.now()
