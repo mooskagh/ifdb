@@ -23,4 +23,5 @@ class UserLog(models.Model):
     obj2_id = models.IntegerField(null=True, blank=True)
     before = models.TextField(null=True, blank=True)
     after = models.TextField(null=True, blank=True)
+    useragent = models.TextField(null=True, blank=True)
     note = models.TextField(null=True, blank=True)

@@ -41,6 +41,7 @@ def LogAction(request,
     x.timestamp = timezone.now()
     x.perm = str(request.perm)
     x.action = action
+    x.useragent = request.META.get('HTTP_USER_AGENT')
     x.is_mutation = is_mutation
     if obj:
         obj_type = obj.__class__.__name__
