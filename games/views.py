@@ -30,12 +30,14 @@ from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from ifdb.permissioner import perm_required
 from moder.actions.tools import GetModerActions
+from moder.userlog import LogAction
 
 PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote
 logger = getLogger('web')
 
 
 def index(request):
+    LogAction(request, 'nav-index', is_mutation=False, obj=None)
     return render(request, 'games/index.html', {
         'snippets': RenderSnippets(request)
     })
@@ -159,6 +161,7 @@ def comment_game(request):
 def show_game(request, game_id):
     try:
         g = GameDetailsBuilder(game_id, request)
+        LogAction(request, 'gam-view', is_mutation=False, obj=g.game)
         return render(request, 'games/game.html', g.GetGameDict())
     except Game.DoesNotExist:
         raise Http404()

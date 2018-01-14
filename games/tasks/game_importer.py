@@ -5,6 +5,7 @@ from games.models import Game, URL
 from games.updater import UpdateGame, Importer2Json
 from ifdb.permissioner import Permissioner
 from logging import getLogger
+from django.contrib.sessions.backends.db import SessionStore
 
 logger = getLogger('worker')
 
@@ -20,6 +21,7 @@ class FakeRequest:
     def __init__(self, username):
         self.user = get_user_model().objects.get(username=username)
         self.perm = Permissioner(self)
+        self.session = SessionStore()
         self.is_fake = True
         self.META = {}
 
