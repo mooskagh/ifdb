@@ -2,8 +2,6 @@ from .models import UserLog
 from django.utils import timezone
 import json
 
-CRAWLER_STRS = ['YandexBot', 'Googlebot']
-
 
 def GetIpAddr(request):
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -11,14 +9,6 @@ def GetIpAddr(request):
         return x_forwarded_for.split(',')[0]
     else:
         return request.META.get('REMOTE_ADDR')
-
-
-def IsCrawler(request):
-    useragent = request.META.get('HTTP_USER_AGENT', '')
-    for x in CRAWLER_STRS:
-        if x in useragent:
-            return True
-    return False
 
 
 def LogAction(request,
@@ -31,7 +21,7 @@ def LogAction(request,
               obj2=None,
               before=None,
               after=None):
-    if IsCrawler(request):
+    if request.perm('(o @crawler @nolog)'):
         return
     x = UserLog()
     if request.user.is_authenticated:
