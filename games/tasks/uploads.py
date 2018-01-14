@@ -38,6 +38,7 @@ def ComeUpWithFilename(metadata):
 
 def CloneFile(id):
     url = URL.objects.get(id=id)
+    logger.info('Url is id %d, URL %s' % (url.id, url.original_url))
     f = FetchUrlToFileLike(url.original_url)
     fs = settings.BACKUPS_FS
     filename = fs.save(ComeUpWithFilename(f.metadata), f, max_length=64)
@@ -73,13 +74,17 @@ def GetConfiguration(game_url):
 
 def RecodeGame(game_url_id):
     game_url = GameURL.objects.select_related(
-        'url', 'category', 'game').prefetch_related('game__tags').get(
-            id=game_url_id)
+        'url', 'category',
+        'game').prefetch_related('game__tags').get(id=game_url_id)
+    logger.info('GamUrl %d, Game %d [%s], Url %d: %s' %
+                (game_url_id, game_url.game_id, game_url.game.title,
+                 game_url.url_id, game_url.url.original_url))
     metadata = {
         'url': game_url.url.original_url,
         'filename': game_url.url.original_filename
     }
     filename = ComeUpWithFilename(metadata)
+
     if game_url.category.symbolic_id != 'play_in_interpreter':
         logger.error(
             'Requested recoding of unknown category %s' % game_url.category)
