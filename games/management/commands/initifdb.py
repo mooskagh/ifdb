@@ -84,7 +84,7 @@ TAGS = [
 GAME_URL_CATS = [
     ['game_page', 'Эта игра на другом сайте', False],
     ['download_direct', 'Скачать (прямая ссылка)', True],
-    ['download_landing', 'Скачать (ссылка на сайт)', False],
+    ['download_landing', 'Скачать (ссылка на файлообменник)', False],
     [
         'play_in_interpreter', 'Открыть в интерпретаторе игр (UrqW и т.д.)',
         True

@@ -106,13 +106,12 @@ class Permissioner:
             self.tokens.add(TOR_GROUP)
         else:
             self.tokens.add(NOTOR_GROUP)
-        if not user.is_authenticated:
-            self.tokens.add(UNAUTH_GROUP)
-            return
-
         if IsCrawler(request):
             self.tokens.add(CRAWLER_GROUP)
 
+        if not user.is_authenticated:
+            self.tokens.add(UNAUTH_GROUP)
+            return
         self.tokens.add(AUTH_GROUP)
         if user.is_superuser:
             self.tokens.add(SUPERUSER_GROUP)

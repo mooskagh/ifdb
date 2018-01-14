@@ -4,6 +4,7 @@ from games.models import (InterpretedGameUrl, URL, Game, GameAuthor,
                           Personality, PersonalityAlias, GameURL,
                           PersonalityAliasRedirect)
 from core.models import TaskQueueElement
+from django.utils import timezone
 import subprocess
 import os.path
 import shutil
@@ -245,6 +246,31 @@ def PopulateAliasRedirects():
         x.delete()
 
 
+def TaskQueueCleanup():
+    now = timezone.now()
+    for x in TaskQueueElement.objects.all():
+        if not x.success:
+            continue
+        age = (now - x.finish_time).total_seconds() / (24 * 60 * 60)
+        if age < 14:
+            continue
+        if TaskQueueElement.objects.filter(dependency=x):
+            continue
+        logger.info('Killing old TaskQueueElement [%s], age %.1f' % (x, age))
+        x.delete()
+
+
+def RetryFailedJobs():
+    now = timezone.now()
+    for x in TaskQueueElement.objects.filter(fail=True):
+        logger.info('Retrying [%s]' % x)
+        x.enqueue_time = now
+        x.fail = False
+        x.pending = True
+        x.retries_left = 2
+        x.save()
+
+
 class Command(BaseCommand):
     help = 'Does some batch processing.'
 
@@ -253,11 +279,11 @@ class Command(BaseCommand):
 
     def handle(self, cmd, *args, **options):
         options = {
-            'removeauthors-destructiv': RemoveAuthors,
             'fixgameauthors': FixGameAuthors,
             'fixurldups': FixDuplicateUrls,
             'resetperms': ResetPermissions,
-            'populateredirects-destruktiv': PopulateAliasRedirects,
+            'cleanupqueue': TaskQueueCleanup,
+            'retryfailedjobs': RetryFailedJobs,
         }
         if cmd in options:
             options[cmd]()

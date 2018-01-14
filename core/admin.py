@@ -16,11 +16,12 @@ class SessionAdmin(admin.ModelAdmin):
 @admin.register(TaskQueueElement)
 class TaskQueueElementAdmin(admin.ModelAdmin):
     list_display = [
-        'pk', 'name', 'command_json', 'retries_left', 'scheduled_time',
-        'pending', 'success', 'fail'
+        'pk', 'name', 'command_json', 'retries_left', 'start_time',
+        'scheduled_time', 'pending', 'success', 'fail'
     ]
     list_filter = ['scheduled_time', 'pending', 'success', 'fail']
     search_fields = ['pk', 'name']
+    raw_id_fields = ['dependency']
 
 
 @admin.register(User)
