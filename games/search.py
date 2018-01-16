@@ -295,6 +295,10 @@ class SB_Text(SearchBit):
     def ModifyResult(self, games):
         # TODO(crem) Do something at query time.
         query = TokenizeText(self.text or '')
+        if not self.text:
+            return games
+        if not query:
+            return []
         res = []
 
         for g in games:
