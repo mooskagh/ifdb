@@ -258,6 +258,16 @@ class SB_Sorting(SearchBit):
         return True
 
 
+def MatchesPrefix(query, text):
+    for x in query:
+        for y in text:
+            if y.startswith(x):
+                break
+        else:
+            return False
+    return True
+
+
 class SB_Text(SearchBit):
     TYPE_ID = 1
 
@@ -286,13 +296,22 @@ class SB_Text(SearchBit):
         # TODO(crem) Do something at query time.
         query = TokenizeText(self.text or '')
         res = []
+
         for g in games:
             tokens = TokenizeText(g.title or '')
-            if not self.titles_only:
-                tokens |= TokenizeText(g.description or '')
-            if len(tokens & query) >= 0.7 * len(query):
+            if MatchesPrefix(query, tokens):
                 res.append(g)
+                continue
+
         return res
+
+        # for g in games:
+        #     tokens = TokenizeText(g.title or '')
+        #     if not self.titles_only:
+        #         tokens |= TokenizeText(g.description or '')
+        #     if len(tokens & query) >= 0.7 * len(query):
+        #         res.append(g)
+        # return res
 
 
 class SB_Tag(SearchBit):
@@ -751,15 +770,6 @@ class SB_AuthorName(SearchBit):
         return True
 
     def ModifyResult(self, authors):
-        def MatchesPrefix(query, text):
-            for x in query:
-                for y in text:
-                    if y.startswith(x):
-                        break
-                else:
-                    return False
-            return True
-
         query = TokenizeText(self.text or '')
         res = []
         for p in authors:
