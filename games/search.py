@@ -7,7 +7,7 @@ from .tools import (FormatDate, ComputeGameRating, ComputeHonors,
                     SnippetFromList)
 from django.db.models import Q, Count, prefetch_related_objects
 
-RE_WORD = re.compile(r"\w(?:[\w']+\w)?")
+RE_WORD = re.compile(r"\w(?:[\w']*\w)?")
 
 
 def TokenizeText(text):
