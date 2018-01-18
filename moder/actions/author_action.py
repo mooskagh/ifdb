@@ -249,7 +249,8 @@ class AuthorCombineAction(AuthorAction):
         for x in [to.bio, fro.bio]:
             val = x or ''
             if newbio and val:
-                newbio += '\n\n' + val
+                newbio += '\n\n'
+            newbio += val
 
         if newbio:
             to.bio = newbio

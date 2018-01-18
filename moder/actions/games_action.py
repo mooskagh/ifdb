@@ -43,7 +43,8 @@ class GameCombineAction(GameAction):
             for x in [to.description, fro.description]:
                 val = x or ''
                 if desc and val:
-                    desc += '\n\n' + val
+                    desc += '\n\n'
+                desc += val
             to.description = desc
             to.save()
 
