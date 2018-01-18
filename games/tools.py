@@ -121,7 +121,7 @@ def StarsFromRating(rating):
     return res
 
 
-def DiscountRating(x, count, P1=2.7, P2=0.45, P3=1.1):
+def DiscountRating(x, count, P1=2.7, P2=0.3, P3=1.3):
     #  return (x - P1) * (P2 + count) / (P2 + count + 1) + P1
     v = (x - P1) * (P2**(1 / count)) * P3 + P1
     if v > 5:
@@ -164,7 +164,7 @@ def ComputeHonors(author=None):
         for votes in games.values():
             gams.append(DiscountRating(sum(votes) / len(votes), len(votes)))
         gams.sort()
-        games_to_consider = len(gams) - int(len(gams) * 0.23)
+        games_to_consider = len(gams) - int(len(gams) * 0.26)
         sms = sum(gams[-games_to_consider:]) / games_to_consider
         res[a] = DiscountRating(sms, len(games), P1=2.3, P2=0.6, P3=1.7)
     if author:
