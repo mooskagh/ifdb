@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from games.models import (GameAuthorRole, GameTagCategory, GameTag,
                           GameURLCategory, PersonalityURLCategory)
+from contest.models import CompetitionURLCategory
 
 AUTHOR_ROLES = [
     ['author', 'Автор'],
@@ -108,6 +109,13 @@ PERSONALITY_URL_CATS = [
     ['other', 'Прочее', False],
 ]
 
+COMPETITION_URL_CATS = [
+    ['logo', 'Логотип', True],
+    ['official_page', 'Официальная страница конкурса', False],
+    ['other_site', 'Описание конкурса на другом сайте', False],
+    ['forum', 'Обсуждение конкурса', False],
+]
+
 
 class Command(BaseCommand):
     help = 'Populates initial tags/author categories/etc'
@@ -178,6 +186,20 @@ class Command(BaseCommand):
             (slug, desc, cloneable) = x
             self.stdout.write('PersUrl: %s (%s)... ' % (slug, desc), ending='')
             _, created = PersonalityURLCategory.objects.update_or_create(
+                symbolic_id=slug,
+                defaults={
+                    'title': desc,
+                    'allow_cloning': cloneable
+                })
+            if created:
+                self.stdout.write(self.style.SUCCESS('created.'))
+            else:
+                self.stdout.write(self.style.WARNING('already exists.'))
+
+        for x in COMPETITION_URL_CATS:
+            (slug, desc, cloneable) = x
+            self.stdout.write('CompUrl: %s (%s)... ' % (slug, desc), ending='')
+            _, created = CompetitionURLCategory.objects.update_or_create(
                 symbolic_id=slug,
                 defaults={
                     'title': desc,

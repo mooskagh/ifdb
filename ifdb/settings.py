@@ -112,7 +112,7 @@ logging.config.dictConfig({
             'format': ('%(levelname).1s%(asctime)s.%(msecs)03d %(name)s '
                        '%(filename)s:%(lineno)d] %(message)s'),
             'datefmt':
-            '%m%d %H:%M:%S',
+                '%m%d %H:%M:%S',
         }
     },
     'filters': {
@@ -229,6 +229,7 @@ INSTALLED_APPS = [
     'games',
     'core',
     'moder',
+    'contest',
 ]
 
 MIDDLEWARE = [
@@ -275,15 +276,15 @@ WSGI_APPLICATION = 'ifdb.wsgi.application'
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME':
-        'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+            'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
         'NAME':
-        'django.contrib.auth.password_validation.MinimumLengthValidator',
+            'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
         'NAME':
-        'django.contrib.auth.password_validation.CommonPasswordValidator',
+            'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     # {
     #     'NAME':
