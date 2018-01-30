@@ -77,7 +77,7 @@ def EnqueueOrGet(func, *argv, name=None, priority=100, **kwarg):
             t.save()
             NotifyWorker()
         return t
-    except TaskQueueElement.DoesNotExists:
+    except TaskQueueElement.DoesNotExist:
         return Enqueue(func, name=name, *argv, **kwarg)
 
 

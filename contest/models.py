@@ -7,6 +7,9 @@ class Competition(models.Model):
     class Meta:
         default_permissions = ()
 
+    def __str__(self):
+        return self.title
+
     # slug
     title = models.CharField(max_length=255)
     start_date = models.DateField(null=True, blank=True)
@@ -18,6 +21,9 @@ class CompetitionURLCategory(models.Model):
     class Meta:
         default_permissions = ()
 
+    def __str__(self):
+        return "%s (%s)" % (self.title, self.symbolic_id)
+
     symbolic_id = models.SlugField(
         max_length=32, null=True, blank=True, db_index=True, unique=True)
     title = models.CharField(max_length=255, db_index=True)
@@ -28,6 +34,9 @@ class CompetitionURL(models.Model):
     class Meta:
         default_permissions = ()
 
+    def __str__(self):
+        return "%s -- %s" % (self.competition, self.url)
+
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE)
     url = models.ForeignKey(URL, on_delete=models.CASCADE)
     category = models.ForeignKey(
@@ -35,18 +44,26 @@ class CompetitionURL(models.Model):
     description = models.CharField(null=True, blank=True, max_length=255)
 
 
-class Nomimation(models.Model):
+class CompetitionNomination(models.Model):
     class Meta:
         default_permissions = ()
 
+    def __str__(self):
+        return "%s -- %s" % (self.competition, self.title)
+
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE)
     title = models.CharField(null=True, blank=True, max_length=255)
-    description = models.TextField()
     gamelist = models.ForeignKey(
         'GameList', null=True, blank=True, on_delete=models.SET_NULL)
 
 
 class CompetitionDocument(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    def __str__(self):
+        return "%s -- [%s] -- %s" % (self.competition, self.slug, self.title)
+
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE)
     slug = models.SlugField(blank=True)
     title = models.CharField(max_length=256)
@@ -58,6 +75,7 @@ class CompetitionSchedule(models.Model):
     class Meta:
         default_permissions = ()
 
+    competition = models.ForeignKey(Competition, on_delete=models.CASCADE)
     when = models.DateTimeField()
     done = models.BooleanField()
     show = models.BooleanField()
