@@ -1,13 +1,7 @@
-import os
-import re
 from django.core.management.base import BaseCommand
 from games.models import (GameAuthorRole, GameTagCategory, GameTag,
                           GameURLCategory, PersonalityURLCategory, URL)
-from contest.models import (CompetitionURLCategory, Competition,
-                            CompetitionDocument, CompetitionURL,
-                            CompetitionNomination)
-from django.utils import timezone
-from games.importer import Importer
+from contest.models import (CompetitionURLCategory)
 
 AUTHOR_ROLES = [
     ['author', 'Автор'],
@@ -24,8 +18,8 @@ AUTHOR_ROLES = [
 ]
 
 TAG_CATS = [
-    ['admin', 'Админское', False, {
-        'all': '@admin'
+    ['admin', 'Служебные', False, {
+        'all': '@gardener'
     }],
     ['state', 'Стадия разработки', False, {
         'search': '@all'
@@ -121,108 +115,14 @@ COMPETITION_URL_CATS = [
     ['official_page', 'Официальная страница конкурса', False],
     ['other_site', 'Описание конкурса на другом сайте', False],
     ['review', 'Обзоры конкурса', False],
+    ['video', 'Видео', False],
     ['forum', 'Обсуждение конкурса', False],
+    ['download_direct', 'Архив игр конкурса', True],
 ]
-
-COMPETITION_DEFAULT_DOCS = {
-    '': 'Главная',
-    'rules': 'Правила конкурса',
-}
-
-COMP_RE = re.compile(r'@comp (.*)$')
-DATE_RE = re.compile(r'@date (\d\d\d\d-\d\d-\d\d)$')
-DOC_RE = re.compile(r'@doc (?:(\S+)(?: "([^"]+)")? )?(\S+)$')
-LINK_RE = re.compile(r'@link (?:(\S+)(?: "([^"]+)")? )?(\S+)$')
-EMPTY_RE = re.compile(r'^$')
-COMMIT_RE = re.compile(r'^@commit$')
-NOMINATION_RE = re.compile(r'^@nomination (.*)$')
 
 
 class Command(BaseCommand):
     help = 'Populates initial tags/author categories/etc'
-
-    def ImportCompetitions(self):
-        importer = None
-        cur_dir = os.path.dirname(os.path.realpath(__file__))
-        comp = None
-        filepath = os.path.join(cur_dir, 'competitions.txt')
-        for line in open(filepath, 'r'):
-            x = line.strip()
-            m = COMP_RE.match(x)
-            if m:
-                comp = None
-                title = m.group(1)
-                self.stdout.write('Competition: %s... ' % title, ending='')
-                if Competition.objects.filter(title=title).exists():
-                    self.stdout.write(self.style.WARNING('already exists.'))
-                    continue
-                comp = Competition()
-                comp.title = title
-                continue
-            if not comp:
-                continue
-            if EMPTY_RE.match(x):
-                continue
-            m = DATE_RE.match(x)
-            if m:
-                comp.end_date = m.group(1)
-                continue
-            m = DOC_RE.match(x)
-            if m:
-                slug = m.group(1) or ''
-                title = m.group(2) or COMPETITION_DEFAULT_DOCS[slug]
-                url = m.group(3)
-                if not importer:
-                    importer = Importer()
-
-                text = importer.Import(url)
-                doc = CompetitionDocument()
-                doc.slug = slug
-                doc.title = title
-                doc.text = text[0]['desc']
-                doc.competition = comp
-                doc.save()
-                continue
-            m = LINK_RE.match(x)
-            if m:
-                slug = m.group(1)
-                url = m.group(3)
-                for x, slug_title, ok_to_clone in COMPETITION_URL_CATS:
-                    if x == slug:
-                        break
-                else:
-                    ValueError("Unknown slug: %s" % slug)
-                title = m.group(2) or slug_title
-                try:
-                    u = URL.objects.get(original_url=url)
-                except URL.DoesNotExist:
-                    u = URL()
-                    u.original_url = url
-                    u.creation_date = timezone.now()
-                    u.ok_to_clone = ok_to_clone
-                    u.save()
-                cu = CompetitionURL()
-                cu.category = CompetitionURLCategory.objects.get(
-                    symbolic_id=slug)
-                cu.url = u
-                cu.description = title
-                cu.competition = comp
-                cu.save()
-                continue
-            if COMMIT_RE.match(x):
-                self.stdout.write(self.style.SUCCESS('commited.'))
-                comp.save()
-                continue
-            m = NOMINATION_RE.match(x)
-            if m:
-                n = CompetitionNomination()
-                n.competition = comp
-                n.title = m.group(1)
-                n.save()
-                continue
-
-            self.stdout.write(self.style.ERROR('Bad line: %s' % x))
-            raise ValueError()
 
     def handle(self, *args, **options):
         for x in AUTHOR_ROLES:
@@ -313,5 +213,3 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS('created.'))
             else:
                 self.stdout.write(self.style.WARNING('already exists.'))
-
-        self.ImportCompetitions()
