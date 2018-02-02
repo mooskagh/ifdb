@@ -37,6 +37,12 @@ class CompetitionURL(models.Model):
     def __str__(self):
         return "%s -- %s" % (self.competition, self.url)
 
+    def GetLocalUrl(self):
+        if self.category.allow_cloning:
+            return self.url.GetLocalUrl()
+        else:
+            return self.url.original_url
+
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE)
     url = models.ForeignKey(URL, on_delete=models.CASCADE)
     category = models.ForeignKey(

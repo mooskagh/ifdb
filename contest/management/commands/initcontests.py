@@ -48,7 +48,14 @@ def TitleToSlug(title):
     raise ValueError("Unknown title: [%s]" % title)
 
 
-def TitleToDate(title):
+def TitleToStartDate(title):
+    m = re.match(r'КРИЛ (\d+)', title)
+    if m:
+        return datetime.date(int(m.group(1)), 8, 1)
+    return None
+
+
+def TitleToEndDate(title):
     m = re.match(r'КРИЛ (\d+)', title)
     if m:
         return datetime.date(int(m.group(1)) + 1, 2, 1)
@@ -89,7 +96,8 @@ class Command(BaseCommand):
             comp = Competition()
             comp.title = title
             comp.slug = TitleToSlug(title)
-            comp.end_date = TitleToDate(title)
+            comp.start_date = TitleToStartDate(title)
+            comp.end_date = TitleToEndDate(title)
             comp.save()
 
             CompetitionNomination.objects.create(

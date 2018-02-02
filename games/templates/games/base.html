@@ -60,6 +60,7 @@
                     <a class="{% current 'index' %}" href="/">Главная</a>
                     <a class="{% current 'list_games' %}" href="{% url 'list_games' %}">Игры</a>
                     <a class="{% current 'list_authors' %}" href="{% url 'list_authors' %}">Авторы</a>
+                    <a class="{% current 'list_competitions' %}" href="{% url 'list_competitions' %}">Конкурсы</a>
                     <a class="{% current '/docs/' %}" href="{% url 'showdoc' 'index' %}">Справка</a>
                     {% if user.is_staff %}
                         <a href="/adminz">Админка</a>

@@ -719,6 +719,41 @@ textarea {
     font-style: italic;
 }
 
+.contests-container {
+    margin-top: 50px;
+    text-align: center;
+}
+
+.contest-card {
+    background-color: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+    display: inline-block;
+    height: 180px;
+    width: 300px;
+    margin: 10px;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center;
+    background-blend-mode: multiply;
+    color: #fff;
+    text-decoration: none;
+    text-align: left;
+    position: relative;
+    vertical-align: top;
+}
+
+.contest-title {
+    position: absolute;
+    bottom: 0;
+}
+
+.contest-title span {
+    background-color: rgba(0, 0, 0, 0.5);
+    font-size: 30px;
+    line-height: 45px;
+    margin: 2px;
+}
+
 .gamegallery-container {
     text-align: center;
 }

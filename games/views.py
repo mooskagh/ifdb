@@ -485,11 +485,14 @@ def BuildJsonGameInfo(request, game_id):
 
 def json_gameinfo(request):
     res = {
-        'authortypes': authors(request),
-        'tagtypes': tags(request),
-        'linktypes': linktypes(request),
-        'gamedata': BuildJsonGameInfo(request, request.GET.get(
-            'game_id', None)),
+        'authortypes':
+            authors(request),
+        'tagtypes':
+            tags(request),
+        'linktypes':
+            linktypes(request),
+        'gamedata':
+            BuildJsonGameInfo(request, request.GET.get('game_id', None)),
     }
     game_id = request.GET.get('game_id', None)
     if game_id:
@@ -530,8 +533,8 @@ def json_categorizeurl(request):
     res = CategorizeUrl(url, desc, cat)
     return JsonResponse({
         'desc': (res['description']),
-        'cat':
-        (GameURLCategory.objects.get(symbolic_id=res['urlcat_slug']).id),
+        'cat': (
+            GameURLCategory.objects.get(symbolic_id=res['urlcat_slug']).id),
     })
 
 
@@ -549,14 +552,14 @@ def json_author_search(request):
         limit=limit,
         annotate={
             'game_count':
-            Coalesce(
-                Subquery(
-                    GameAuthor.objects.filter(
-                        role__symbolic_id='author',
-                        author__personality=OuterRef('pk'))
-                    .values('author__personality').annotate(
-                        cnt=Count('game', distinct=True)).values('cnt'),
-                    output_field=models.IntegerField()), 0),
+                Coalesce(
+                    Subquery(
+                        GameAuthor.objects.filter(
+                            role__symbolic_id='author',
+                            author__personality=OuterRef('pk'))
+                        .values('author__personality').annotate(
+                            cnt=Count('game', distinct=True)).values('cnt'),
+                        output_field=models.IntegerField()), 0),
         })
 
     for x in authors:
