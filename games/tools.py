@@ -4,6 +4,10 @@ from django import template
 from django.db.models import F
 import statistics
 from .models import GameVote, GameURL
+from markdown.extensions import Extension
+from markdown.blockprocessors import BlockProcessor
+from markdown.util import AtomicString, etree
+import re
 
 
 def SnippetFromList(games, populate_authors=True):
@@ -173,9 +177,93 @@ def ComputeHonors(author=None):
         return res
 
 
-def RenderMarkdown(content):
-    return markdown.markdown(content, [
+def GroupByCategory(queryset, catfield, follow):
+    items = {}
+    cats = []
+    for x in queryset:
+        category = getattr(x, catfield)
+        if follow:
+            x = getattr(x, follow)
+        if category in items:
+            items[category].append(x)
+        else:
+            cats.append(category)
+            items[category] = [x]
+    cats.sort(key=lambda x: x.order)
+    res = []
+    for r in cats:
+        res.append({'category': r, 'items': items[r]})
+    return res
+
+
+def PartitionItems(queryset, partitions, catfield='category', follow=None):
+    links = GroupByCategory(queryset, catfield, follow=follow)
+    rest = []
+    cats = {x: None for y in partitions for x in y}
+    for x in links:
+        if x['category'].symbolic_id in cats:
+            cats[x['category'].symbolic_id] = x
+        else:
+            rest.append(x)
+
+    res = []
+    for x in partitions:
+        r = []
+        for y in x:
+            if cats[y] and cats[y]['items']:
+                for z in cats[y]['items']:
+                    r.append(z)
+        res.append(r)
+    return res + [rest]
+
+
+SNIPPET_PATTERN = re.compile(r'{{(\w+)}}')
+
+
+class MarkdownSnippetProcessor(BlockProcessor):
+    def test(self, parent, block):
+        return SNIPPET_PATTERN.match(block)
+
+    def run(self, parent, blocks):
+        block = blocks.pop(0)
+        m = SNIPPET_PATTERN.match(block)
+        snippet_call = "render_%s" % m.group(1)
+        if hasattr(self.provider, snippet_call):
+            val = self.md.htmlStash.store(
+                getattr(self.provider, snippet_call)())
+        else:
+            val = self.md.htmlStash.store(m.group(2) + '??')
+
+        h = etree.SubElement(parent, 'div')
+        h.text = AtomicString(val)
+
+    def handleMatcddh(self, m):
+        snippet_call = "render_%s" % m.group(2)
+        if hasattr(self.provider, snippet_call):
+            return self.md.htmlStash.store(
+                getattr(self.provider, snippet_call)())
+        else:
+            return self.md.htmlStash.store(m.group(2) + '??')
+
+
+class MarkdownSnippet(Extension):
+    def __init__(self, provider):
+        super().__init__()
+        self.provider = provider
+
+    def extendMarkdown(self, md, md_globals):
+        processor = MarkdownSnippetProcessor(md.parser)
+        processor.provider = self.provider
+        processor.md = md
+        md.parser.blockprocessors.add('snippets', processor, '_begin')
+
+
+def RenderMarkdown(content, snippet_provider=None):
+    extensions = [
         'markdown.extensions.extra', 'markdown.extensions.meta',
         'markdown.extensions.smarty', 'markdown.extensions.wikilinks',
         'del_ins'
-    ]) if content else ''
+    ]
+    if snippet_provider:
+        extensions.append(MarkdownSnippet(snippet_provider))
+    return markdown.markdown(content, extensions=extensions) if content else ''

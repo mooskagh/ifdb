@@ -16,9 +16,9 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('youtu.be', '^/?$', '^$', None, None),
     ('apero.ru', '^/?$', '^$', None, None),
     ('storymaze.ru', '^/?$', '^$', None, None),
-    ('', r'.*screenshot.*\.(png|jpg|gif|bmp|jpeg)', '', 'screenshot',
+    ('', r'(?i).*screenshot.*\.(png|jpg|gif|bmp|jpeg)', '', 'screenshot',
      'Скриншот'),
-    ('', r'.*\.(png|jpg|gif|bmp|jpeg)', '', 'poster', 'Обложка'),
+    ('', r'(?i).*\.(png|jpg|gif|bmp|jpeg)', '', 'poster', 'Обложка'),
     ('db.crem.xyz', '/f/uploads/.*', '', 'download_direct', 'Скачать'),
     ('ifwiki.ru', '/files/.*', '', 'download_direct', 'Скачать с IfWiki'),
     ('ifwiki.ru', '', '', 'game_page', 'Страница на IfWiki'),
@@ -50,7 +50,8 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('storymaze.ru', '', '', 'play_online', 'Играть онлайн'),
     ('hyperbook.ru', '/download.php', '', 'download_direct',
      'Скачать с hyperbook.ru'),
-    ('', r'.*\.(zip|rar|z5)', '', 'download_direct', 'Ссылка для скачивания'),
+    ('', r'(?i).*\.(zip|rar|z5)', '', 'download_direct',
+     'Ссылка для скачивания'),
 ]
 
 

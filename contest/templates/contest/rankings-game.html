@@ -1,0 +1,31 @@
+
+{% for g in items %}
+  {% if g.game %}
+    <a class="contest-result-item" href="{% url 'show_game' game_id=g.game.id %}">
+  {% else %}
+    <div class="contest-result-item">
+  {% endif %}
+    {% if g.head %}
+    <div class="contest-rank-container">
+      <span class="rank">{{ g.head.primary }}</span><br>{{ g.head.secondary }}
+    </div>
+    {% endif %}    
+    {% if g.game %}
+      {% if g.game.poster %}
+        <div class="contest-rank-thumb"
+             style="background-image: url({{ g.game.poster }})"
+        ></div>
+      {% endif %}
+    {% endif %}
+    <div class="contest-rank-lines-container">
+      {% if g.game %}
+        <div class="contest-rank-line headline">{{ g.game.title }}</div>
+        <div class="contest-rank-line">{{ g.game.authors }}</div>
+      {% endif %}
+    </div>
+  {% if g.game %}
+    </a>
+  {% else %}
+    </div>
+  {% endif %}
+{% endfor %}

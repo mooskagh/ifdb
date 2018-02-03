@@ -38,6 +38,8 @@ class IfwikiImporter:
 CATEGORY_STR = (
     r'ifwiki.ru/%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D1%8F:')
 
+ALLOW_INTERNAL_LINKS = False
+
 
 def _batch(iterable, n=40):
     l = len(iterable)
@@ -200,7 +202,7 @@ def ImportFromIfwiki(url):
 IFWIKI_URL = re.compile(r'(https?://ifwiki.ru)/([^/?]+)')
 IFWIKI_LINK_PARSE = re.compile(r'\[\[(.*?)\]\]')
 IFWIKI_LINK_INTERNALS_PARSE = re.compile(
-    r'^(?:([^:\]|]*)::?)?([^:\]|]+)(?:\|([^\]|]+))??(?:\|([^\]|]+))?$')
+    r'^(?:([^:\]|]*)::?)?([^:\]|]+)(?:\|([^\]|]+))?(?:\|([^\]]+))?$')
 
 IFWIKI_ROLES = [
     ('автор', 'author'),
@@ -250,7 +252,7 @@ class WikiAuthorParsingContext:
         typ = m.group(3)
         display_name = m.group(4)
 
-        if role in ['Медиа', 'Media', 'Изображение']:
+        if role in ['Медиа', 'Media', 'Изображение', 'Image']:
             self.AddUrl('/files/' + WikiQuote(name), display_name, 'avatar'
                         if typ == 'thumb' else 'download_direct', self.url)
         elif role:
@@ -284,7 +286,7 @@ class WikiParsingContext:
             return text  # Internal link without a category.
         role = m.group(1)
         name = m.group(2)
-        typ = m.group(3)
+        # typ = m.group(3)
         display_name = m.group(4)
 
         if role in IFWIKI_IGNORE_ROLES:
@@ -296,14 +298,13 @@ class WikiParsingContext:
                     'role_slug': (t),
                     'name': (display_name or name),
                     'url': ("http://ifwiki.ru/%s" % WikiQuote(name)),
-                    'urldesc':
-                    "Страница автора на ifwiki",
+                    'urldesc': "Страница автора на ifwiki",
                 })
                 break
         else:
-            if role in ['Медиа', 'Media']:
-                self.AddUrl('/files/' + WikiQuote(name), display_name, 'poster'
-                            if typ == 'thumb' else 'download_direct', self.url)
+            if role in ['Медиа', 'Media', 'Изображение', 'Image']:
+                self.AddUrl(
+                    '/files/' + WikiQuote(name), display_name, base=self.url)
             elif role in ['Изображение']:
                 self.AddUrl('/files/' + WikiQuote(name), display_name,
                             'screenshot', self.url)
@@ -320,6 +321,9 @@ class WikiParsingContext:
                     'role_slug': default_role,
                     'name': name,
                 })
+            elif ALLOW_INTERNAL_LINKS:
+                self.AddUrl("http://ifwiki.ru/%s" % WikiQuote(name),
+                            display_name or name)
         if display_name:
             return display_name
         if role:

@@ -1,0 +1,12 @@
+{% load tags %}
+
+{% for n in nominations %}
+  {% if n.title or nominations|length > 1 %}
+    <h3>{{ n.title|default:'Главная номинация' }}</h3>
+  {% endif %}
+  {% include './rankings-game.html' with items=n.ranked only %}
+  {% if n.unranked %}
+    <h4>Участники:</h4>
+  {% include './rankings-game.html' with items=n.unranked only %}
+  {% endif %}
+{% endfor %}

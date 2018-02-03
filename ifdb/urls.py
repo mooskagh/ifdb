@@ -25,6 +25,7 @@ urlpatterns = [
     url(r'^', include('core.urls'), name='api'),
     url(r'^', include('games.urls'), name='games'),
     url(r'^', include('moder.urls'), name='moder'),
+    url(r'^jam/', include('contest.urls'), name='contest'),
 ]
 
 if settings.DEBUG:
