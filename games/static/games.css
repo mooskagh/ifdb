@@ -684,6 +684,10 @@ textarea {
     width: 100%;
 }
 
+.rightpane img {
+    max-width: 100%;
+}
+
 @media only screen and (min-width: 800px)  {
     .leftpane {
         width: 65%;

@@ -68,15 +68,18 @@ def TitleToEndDate(title):
 # src_slug, src_url, src_desc, dst_cat, dst_doc_slug
 CATEGORIZATION_RULES = [
     ('', '@', '', 'other_site', ''),
-    ('forum', '', '', 'forum', None),
     ('', 'ifwiki', 'правила', 'other_site', 'rules'),
     ('download_direct', '', '', 'download_direct', ''),
     ('', '', 'обзор', 'review', ''),
+    ('forum', '', '', 'forum', None),
     ('', '', 'официаль', 'official_page', ''),
     ('video', '', '', 'video', ''),
     ('poster', '', '', 'logo', ''),
     ('screenshot', '', '', 'logo', ''),
 ]
+
+RESULTATIVE_COMPS = ['kril-', 'zok-']
+
 games.importer.ifwiki.ALLOW_INTERNAL_LINKS = True
 
 
@@ -116,9 +119,10 @@ class Command(BaseCommand):
 
                 doc = CompetitionDocument()
                 doc.slug = doc_slug
-                doc.title = data['title']
+                doc.title = data['title'] if doc_slug else 'Главная'
                 doc.text = data['desc']
                 doc.competition = comp
+                doc.view_perm = '@all'
                 doc.save()
 
                 for x in data['urls']:
@@ -162,5 +166,16 @@ class Command(BaseCommand):
                             urls_checked.add(url)
                             urls_to_check.append((url, dst_doc_slug))
                         break
+
+            for x in RESULTATIVE_COMPS:
+                if comp.slug.startswith(x):
+                    doc = CompetitionDocument()
+                    doc.slug = 'results'
+                    doc.title = 'Результаты'
+                    doc.text = '{{RESULTS}}'
+                    doc.competition = comp
+                    doc.view_perm = '@all'
+                    doc.save()
+                    break
 
             self.stdout.write(self.style.SUCCESS('done.'))

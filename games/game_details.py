@@ -1,6 +1,6 @@
 from .models import Game
 from .tools import (FormatDate, FormatTime, StarsFromRating, RenderMarkdown,
-                    ExtractYoutubeId)
+                    ExtractYoutubeId, PartitionItems)
 from .search import BaseXWriter
 from core.views import BuildPackageUserFingerprint
 from django.conf import settings
@@ -10,26 +10,6 @@ from statistics import mean
 from moder.actions.tools import GetModerActions
 
 logger = getLogger('web')
-
-
-def Partition(links, partitions):
-    rest = []
-    cats = {x: None for y in partitions for x in y}
-    for x in links:
-        if x['category'].symbolic_id in cats:
-            cats[x['category'].symbolic_id] = x
-        else:
-            rest.append(x)
-
-    res = []
-    for x in partitions:
-        r = []
-        for y in x:
-            if cats[y] and cats[y]['items']:
-                for z in cats[y]['items']:
-                    r.append(z)
-        res.append(r)
-    return res + [rest]
 
 
 def AnnotateMedia(media):
@@ -69,11 +49,15 @@ class GameDetailsBuilder:
         release_date = FormatDate(self.game.release_date)
         last_edit_date = FormatDate(self.game.edit_time)
         added_date = FormatDate(self.game.creation_time)
-        authors, participants = Partition(self.GetAuthors(), [('author', )])
-        media, online, download, links = Partition(
-            self.GetURLs(), [('poster', 'video', 'screenshot'),
-                             ('play_in_interpreter', 'play_online'),
-                             ('download_direct', 'download_landing')])
+        authors, participants = PartitionItems(
+            self.game.gameauthor_set.all(), [('author', )],
+            catfield='role',
+            follow='author')
+        media, online, download, links = PartitionItems(
+            self.game.gameurl_set.all(),
+            [('poster', 'video', 'screenshot'),
+             ('play_in_interpreter', 'play_online'),
+             ('download_direct', 'download_landing')])
         media = AnnotateMedia(media)
         md = RenderMarkdown(self.game.description)
         tags = self.GetTagsForDetails()
@@ -107,37 +91,6 @@ class GameDetailsBuilder:
             'comments': comments,
             'loonchator_links': loonchator_links,
         }
-
-    def GetAuthors(self):
-        authors = {}
-        roles = []
-        for x in self.game.gameauthor_set.all():
-            if x.role in authors:
-                authors[x.role].append(x.author)
-            else:
-                roles.append(x.role)
-                authors[x.role] = [x.author]
-        roles.sort(key=lambda x: x.order)
-        res = []
-        for r in roles:
-            res.append({'category': r, 'items': authors[r]})
-        return res
-
-    def GetURLs(self):
-        urls = {}
-        cats = []
-        for x in self.game.gameurl_set.all():
-            category = x.category
-            if category in urls:
-                urls[category].append(x)
-            else:
-                cats.append(category)
-                urls[category] = [x]
-        cats.sort(key=lambda x: x.order)
-        res = []
-        for r in cats:
-            res.append({'category': r, 'items': urls[r]})
-        return res
 
     def GetTagsForDetails(self):
         tags = {}

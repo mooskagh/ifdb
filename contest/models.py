@@ -10,8 +10,8 @@ class Competition(models.Model):
     def __str__(self):
         return self.title
 
-    # slug
     title = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=32)
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
     # Support for private contests (view_perm?)
@@ -28,6 +28,7 @@ class CompetitionURLCategory(models.Model):
         max_length=32, null=True, blank=True, db_index=True, unique=True)
     title = models.CharField(max_length=255, db_index=True)
     allow_cloning = models.BooleanField(default=True)
+    order = models.SmallIntegerField(default=0)
 
 
 class CompetitionURL(models.Model):
@@ -42,6 +43,9 @@ class CompetitionURL(models.Model):
             return self.url.GetLocalUrl()
         else:
             return self.url.original_url
+
+    def GetRemoteUrl(self):
+        return self.url.original_url
 
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE)
     url = models.ForeignKey(URL, on_delete=models.CASCADE)

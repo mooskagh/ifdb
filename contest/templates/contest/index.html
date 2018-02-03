@@ -3,7 +3,7 @@
 {% block content_wide %}
   <div class="contests-container">
     {% for x in contests %}
-        <a href="#"
+        <a href="{% url 'show_competition' slug=x.slug doc='' %}"
            class="contest-card"
            style="background-image: url({{ x.logo }})">
             <div class="contest-title">

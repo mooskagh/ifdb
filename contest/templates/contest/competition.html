@@ -1,0 +1,58 @@
+{% extends "games/base.html" %}
+{% load tags %}
+{% load static %}
+{% block titlesection %}{{ doc.title }} - {{ comp.title }} - {% endblock %}
+{% block content %}
+  <div class="content-box-outer">
+    {% include 'moder/moder_line.html' with actions=moder_actions only %}
+    <div class="content-box-inner">
+      <div class="leftpane">
+        <div class="game-header">
+          <h1>{{ comp.title }}</h1>
+          <h2>{{ doc.title }}</h2>
+          {% for x in docs %}
+            {% if not forloop.first %} | {% endif %}
+            <a href="{% url 'show_competition' slug=comp.slug doc=x.slug %}">{{x.title}}</a>
+          {% endfor %}                  
+        </div>
+      </div>
+      {% if logo %}
+        <div class="rightpane">
+          <img src="{{logo}}" />
+        </div>
+      {% endif %}
+      <div class="leftpane">
+        <div class="game-description">
+          {{ markdown|safe }}
+        </div>
+      </div>    
+      {% if links %}
+        <div class="rightpane">
+        <table>
+          {% for link in links %}
+            {% for x in link.items %}
+              <tr>
+                <td class="prop-category">
+                  {% if forloop.first %}
+                    {{ link.category.title }}:
+                  {% endif %}
+                </td>
+                <td class="prop-value">
+                  <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}">
+                    {% if x.url.is_broken %}
+                      <img src="{% static 'brokenlink.svg' %}"/>
+                    {% endif %}
+                    {{ x.description }}
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          {% endfor %}
+        </table>
+        </div>
+      {% endif %}
+
+      <div style="clear: both;"></div>
+    </div>
+  </div>
+{% endblock %}

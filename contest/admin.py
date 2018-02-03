@@ -6,7 +6,7 @@ from .models import (Competition, CompetitionURLCategory, CompetitionURL,
 
 @admin.register(Competition)
 class CompetitionAdmin(admin.ModelAdmin):
-    list_display = ['title', 'start_date', 'end_date']
+    list_display = ['slug', 'title', 'start_date', 'end_date']
     search_fields = ['title']
 
 

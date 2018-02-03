@@ -112,8 +112,8 @@ PERSONALITY_URL_CATS = [
 COMPETITION_URL_CATS = [
     ['logo', 'Логотип', True],
     ['video', 'Видеообзор конкурса', False],
-    ['official_page', 'Официальная страница конкурса', False],
-    ['other_site', 'Описание конкурса на другом сайте', False],
+    ['official_page', 'Официальная страница', False],
+    ['other_site', 'Конкурс на другом сайте', False],
     ['review', 'Обзоры конкурса', False],
     ['video', 'Видео', False],
     ['forum', 'Обсуждение конкурса', False],

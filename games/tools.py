@@ -173,9 +173,51 @@ def ComputeHonors(author=None):
         return res
 
 
+def GroupByCategory(queryset, catfield, follow):
+    items = {}
+    cats = []
+    for x in queryset:
+        category = getattr(x, catfield)
+        if follow:
+            x = getattr(x, follow)
+        if category in items:
+            items[category].append(x)
+        else:
+            cats.append(category)
+            items[category] = [x]
+    cats.sort(key=lambda x: x.order)
+    res = []
+    for r in cats:
+        res.append({'category': r, 'items': items[r]})
+    return res
+
+
+def PartitionItems(queryset, partitions, catfield='category', follow=None):
+    links = GroupByCategory(queryset, catfield, follow=follow)
+    rest = []
+    cats = {x: None for y in partitions for x in y}
+    for x in links:
+        if x['category'].symbolic_id in cats:
+            cats[x['category'].symbolic_id] = x
+        else:
+            rest.append(x)
+
+    res = []
+    for x in partitions:
+        r = []
+        for y in x:
+            if cats[y] and cats[y]['items']:
+                for z in cats[y]['items']:
+                    r.append(z)
+        res.append(r)
+    return res + [rest]
+
+
 def RenderMarkdown(content):
-    return markdown.markdown(content, [
-        'markdown.extensions.extra', 'markdown.extensions.meta',
-        'markdown.extensions.smarty', 'markdown.extensions.wikilinks',
-        'del_ins'
-    ]) if content else ''
+    return markdown.markdown(
+        content,
+        extensions=[
+            'markdown.extensions.extra', 'markdown.extensions.meta',
+            'markdown.extensions.smarty', 'markdown.extensions.wikilinks',
+            'del_ins'
+        ]) if content else ''
