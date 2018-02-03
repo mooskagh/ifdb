@@ -521,8 +521,8 @@ function GetCookie(name) {
           'url': val,
           'desc': desc_el.val(),
           'cat': cats.suggest('value')}, function(data) {
-            desc_el.val(data.desc);
-            cats.suggest('value', data.cat);
+            if (!desc_el.val()) desc_el.val(data.desc);
+            if (!cats.suggest('value')) cats.suggest('value', data.cat);
         });
       }
     }

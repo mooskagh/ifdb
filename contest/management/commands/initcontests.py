@@ -121,7 +121,7 @@ class Command(BaseCommand):
 
             urls_checked = {seed_url}
             urls_stored = set()
-            urls_to_check = [('(@)', '')]
+            urls_to_check = [('(@)', 'index')]
             used_slugs = set()
 
             while urls_to_check:
@@ -138,7 +138,8 @@ class Command(BaseCommand):
 
                 doc = CompetitionDocument()
                 doc.slug = doc_slug
-                doc.title = data['title'] if doc_slug else 'Главная'
+                doc.title = ('Описание конкурса'
+                             if doc_slug == 'index' else data['title'])
                 doc.text = data['desc']
                 doc.competition = comp
                 doc.view_perm = '@all'
@@ -198,7 +199,7 @@ class Command(BaseCommand):
                     is_comp = True
                     break
             doc = CompetitionDocument()
-            doc.slug = 'results'
+            doc.slug = ''
             doc.title = 'Результаты' if is_comp else 'Участники'
             doc.text = '{{RESULTS}}' if is_comp else '{{PARTICIPANTS}}'
             doc.competition = comp

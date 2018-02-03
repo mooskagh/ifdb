@@ -25,6 +25,7 @@ VERSION = open(os.path.join(BASE_DIR, 'version.txt')).read().strip()
 # SECURITY WARNING: keep the secret key used in production secret!
 if IS_PROD:
     SECRET_KEY = open('/home/ifdb/configs/django-secret.txt').read().strip()
+    VK_SERVICE_KEY = open('/home/ifdb/configs/vk.txt').read().strip()
     DEBUG = False
     ALLOWED_HOSTS = ['db.crem.xyz', 'db-staging.crem.xyz']
     DATABASES = {
@@ -60,6 +61,7 @@ if IS_PROD:
 
 else:
     SECRET_KEY = 'l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr'
+    VK_SERVICE_KEY = open('/home/crem/my/vk.key').read().strip()
     DEBUG = True
     ALLOWED_HOSTS = []
     # DATABASES = {

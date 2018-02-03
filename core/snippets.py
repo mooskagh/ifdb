@@ -395,8 +395,8 @@ def ThisDayInHistorySnippet(request, default_age=24 * 60 * 60):
         lines.append({
             'style': ('comment'),
             'text':
-            "%d год (%s назад)" % (x.release_date.year,
-                                   ConcoreNumeral(ago, 'год,года,лет')),
+                "%d год (%s назад)" % (x.release_date.year,
+                                       ConcoreNumeral(ago, 'год,года,лет')),
         })
         lines.append({'style': 'strong', 'text': x.title})
         lines.append({'text': ', '.join([y.author.name for y in x.authors])})
@@ -422,9 +422,12 @@ def BlogSnippet(request,
                 min_count=5,
                 max_count=30,
                 rest_str="Остальные блоги",
-                default_age=7 * 24 * 60 * 60):
+                default_age=7 * 24 * 60 * 60,
+                prefix=''):
     feed_ids = dict()
     for x in BlogFeed.objects.all():
+        if not x.feed_id.startswith(prefix):
+            continue
         feed_ids[x.feed_id] = {
             'title': x.title,
             'link': x.url,
@@ -584,12 +587,10 @@ def RenderSnippets(request):
                     'text': x['title'],
                 })
                 items.append({
-                    'link':
-                    reverse('forget_snippet', kwargs={
+                    'link': reverse('forget_snippet', kwargs={
                         'id': x['id']
                     }),
-                    'lines':
-                    lines,
+                    'lines': lines,
                 })
             snippets.append({
                 'title': ('Скрытые карточки'),
