@@ -8,7 +8,10 @@ from logging import getLogger
 from .crawler import FetchUrlToString
 from ast import literal_eval
 from collections import namedtuple
+from django.conf import settings
+from html2text import HTML2Text
 import re
+import vk
 
 logger = getLogger('worker')
 
@@ -39,6 +42,41 @@ def FetchFeed(url, feed_id, id_field='id'):
     logger.info("Fetching feed at %s, feed ud %s" % (url, feed_id))
     feed = feedparser.parse(url)
     ProcessFeedEntries(feed_id, feed.entries, id_field)
+
+
+VK_RE = re.compile(r'https://vk.com/(.*)')
+
+
+def FetchVkFeed(api, url, feed_id):
+    logger.info("Fetching vk feed %s" % url)
+    m = VK_RE.match(url)
+    gid = api.groups.getById(group_ids=m.group(1))[0]['gid']
+    posts = api.wall.get(owner_id=-gid)
+    now = timezone.now()
+    tt = HTML2Text()
+    tt.body_width = 0
+    for x in posts:
+        if isinstance(x, int):
+            continue
+        if x['marked_as_ads']:
+            continue
+        item_id = x['id']
+        try:
+            f = FeedCache.objects.get(feed_id=feed_id, item_id=item_id)
+        except FeedCache.DoesNotExist:
+            f = FeedCache()
+            f.feed_id = feed_id
+            f.item_id = item_id
+            f.date_discovered = now
+        f.date_published = datetime.fromtimestamp(x['date'])
+        f.title = tt.handle(x['text']).strip()[:255] or '(пусто)'
+        f.url = "%s?w=wall-%d_%d" % (url, gid, item_id)
+        if 'signer_id' in x and x['signer_id']:
+            user = api.users.get(user_ids=x['signer_id'])
+            if user:
+                f.authors = "%s %s" % (user[0]['first_name'],
+                                       user[0]['last_name'])
+        f.save()
 
 
 def FetchIficionFeed():
@@ -86,5 +124,10 @@ def FetchFeeds():
     FetchUrqFeed()
     FetchFeed(
         'http://instead.syscall.ru/talk/feed.php', 'inst', id_field='title')
+    session = vk.Session(settings.VK_SERVICE_KEY)
+    api = vk.API(session, lang='ru')
     for x in BlogFeed.objects.all():
-        FetchFeed(x.rss, x.feed_id)
+        if x.feed_id.startswith('blog-'):
+            FetchFeed(x.rss, x.feed_id)
+        elif x.feed_id.startswith('vk-'):
+            FetchVkFeed(api, x.rss, x.feed_id)
