@@ -71,8 +71,13 @@ def FetchVkFeed(api, url, feed_id):
         f.date_published = datetime.fromtimestamp(x['date'])
         f.title = tt.handle(x['text']).strip()[:255] or '(пусто)'
         f.url = "%s?w=wall-%d_%d" % (url, gid, item_id)
-        if 'signer_id' in x and x['signer_id']:
-            user = api.users.get(user_ids=x['signer_id'])
+        user_id = None
+        if x['from_id'] > 0:
+            user_id = x['from_id']
+        elif 'signer_id' in x and x['signer_id']:
+            user_id = x['signer_id']
+        if user_id:
+            user = api.users.get(user_ids=user_id)
             if user:
                 f.authors = "%s %s" % (user[0]['first_name'],
                                        user[0]['last_name'])
