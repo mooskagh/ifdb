@@ -130,7 +130,7 @@ def FetchFeeds():
     FetchFeed(
         'http://instead.syscall.ru/talk/feed.php', 'inst', id_field='title')
     session = vk.Session(settings.VK_SERVICE_KEY)
-    api = vk.API(session, lang='ru', timeout=60)
+    api = vk.API(session, lang='ru', timeout=60, v='5.71')
     for x in BlogFeed.objects.all():
         if x.feed_id.startswith('blog-'):
             FetchFeed(x.rss, x.feed_id)
