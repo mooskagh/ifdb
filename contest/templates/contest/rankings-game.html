@@ -1,3 +1,4 @@
+{% load tags %}
 
 {% for g in items %}
   {% if g.game %}
@@ -11,11 +12,9 @@
     </div>
     {% endif %}    
     {% if g.game %}
-      {% if g.game.poster %}
         <div class="contest-rank-thumb"
-             style="background-image: url({{ g.game.poster }})"
+             style="background-image: url({{ g.game.poster|default:'/static/noposter.png' }})"
         ></div>
-      {% endif %}
     {% endif %}
     <div class="contest-rank-lines-container">
       {% if g.game %}

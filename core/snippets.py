@@ -7,10 +7,13 @@ from django.utils import timezone
 from django.db.models import Max
 from django.shortcuts import redirect
 from django.views.decorators.cache import never_cache
+from contest.models import (Competition, CompetitionSchedule, CompetitionURL)
+from contest.views import CompetitionGameFetcher
 from games.models import GameURL, GameComment
 from games.search import MakeSearch
 from games.tools import (FormatLag, ExtractYoutubeId, FormatDateShort,
-                         SnippetFromList, ComputeGameRating, ConcoreNumeral)
+                         FormatDate, SnippetFromList, ComputeGameRating,
+                         ConcoreNumeral)
 from .models import FeedCache, Game, BlogFeed
 import json
 
@@ -131,8 +134,6 @@ def GameListSnippet(request,
         games.sort(key=GetKey, reverse=inv)
     items = []
     for x in games:
-        item = {}
-        item['image'] = {'src': x.poster or '/static/noposter_7355.png'}
         lines = []
         for y in reversed(annotate):
             text = None
@@ -442,6 +443,136 @@ def BlogSnippet(request,
         max_count=max_count,
         rest_str=rest_str,
         default_age=default_age)
+
+
+def ContestSnippet(
+        request,
+        slug,
+        show_games=True,
+        show_schedule=True,
+        show_links=[
+            'official_page',
+            'other_site',
+            'forum',
+        ],
+        annotate=['stars', 'comments', 'added_age'],
+):
+    comp = Competition.objects.get(slug=slug)
+    #if not request.perm(comp.view_perm):
+    #    return {}
+
+    res = []
+    if show_schedule:
+        items = CompetitionSchedule.objects.filter(
+            competition=comp, show=True).order_by('when')
+        if items:
+            res.append({
+                'style': 'subheader',
+                'text': 'Расписание',
+            })
+            now = timezone.now()
+            for x in items:
+                res.append({
+                    'lines': [
+                        {
+                            'text':
+                                FormatDate(x.when),
+                            'style': (['float-right'] +
+                                      (['dimmed'] if x.when < now else [])),
+                        },
+                        {
+                            'text': x.title,
+                            'style': 'strong'
+                        },
+                    ]
+                })
+    if show_links:
+        links = CompetitionURL.objects.filter(
+            category__symbolic_id__in=show_links, competition=comp)
+        if links:
+            res.append({
+                'style': 'subheader',
+                'text': 'Ссылки',
+            })
+            for x in links:
+                res.append({
+                    'lines': [{
+                        'text': x.description,
+                        'link': x.GetRemoteUrl(),
+                        'newtab': True,
+                    }]
+                })
+    if show_games:
+        games = CompetitionGameFetcher(comp).FetchSnippetData()
+        if games:
+            now = timezone.now()
+            for entry in games:
+                res.append({
+                    'style': 'subheader',
+                    'text': entry['title'] or 'Участники',
+                })
+                for z in entry['ranked'] + entry['unranked']:
+                    lines = []
+                    item = {}
+                    item['lines'] = lines
+                    item['head'] = z.head if hasattr(z, 'head') else None
+                    if z.game:
+                        x = z.game
+                        for y in reversed(annotate):
+                            text = None
+                            svg = None
+                            highlighted = False
+                            if y == 'added_age':
+                                text = FormatLag(-x.added_age)
+                                highlighted = x.added_age <= 24 * 60 * 60
+                            elif y == 'release_age':
+                                text = FormatLag(-x.release_date)
+                                highlighted = x.release_date <= 24 * 60 * 60
+                            elif y == 'comments':
+                                if z.coms_count:
+                                    text = '%d' % z.coms_count
+                                    svg = COMMENT_SVG
+                                    highlighted = (
+                                        now - z.coms_recent
+                                    ).total_seconds() < 24 * 60 * 60
+                            elif y == 'stars':
+                                if x.rating['avg']:
+                                    text = x.rating['avg_txt']
+                                    svg = DUCK_SVG
+                            styles = ['float-right']
+                            styles.append('recent-comment'
+                                          if highlighted else 'comment')
+                            if text:
+                                lines.append({
+                                    'style': styles,
+                                    'text': text,
+                                    'svg': svg
+                                })
+                        if not z.comment:
+                            lines.append({'style': 'comment'})
+                        lines.append({'style': 'strong', 'text': x.title})
+                        lines.append({'text': x.authors})
+                        if z.comment:
+                            lines.append({'text': z.comment, 'style': 'weak'})
+                        item['image'] = {
+                            'src': x.poster or '/static/noposter_7355.png',
+                        }
+                        item['link'] = {
+                            reverse('show_game', kwargs={
+                                'game_id': x.id
+                            })
+                        }
+                    else:
+                        lines.append({})
+                        if z.comment:
+                            lines.append({'text': z.comment})
+                        else:
+                            lines.append({})
+                        lines.append({})
+
+                    res.append(item)
+
+    return ItemsSnippet(request, res)
 
 
 def MultipartSnippet(request, parts, default_age=0, force_age=None):

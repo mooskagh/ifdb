@@ -12,7 +12,7 @@ import re
 
 def SnippetFromList(games, populate_authors=True):
     posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
-        game__in=games).select_related('url'))
+        game__in=games).select_related('url', 'category'))
     screenshots = (GameURL.objects.filter(category__symbolic_id='screenshot')
                    .filter(game__in=games).select_related('url'))
 
