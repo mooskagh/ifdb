@@ -39,6 +39,12 @@ COMPETITION_URLS = [
     for x in range(2010, 2017)
 ] + [
     'https://ifwiki.ru/%D0%9F%D0%B0%D1%80%D0%BE%D0%B2%D0%BE%D0%B7%D0%B8%D0%BA_3'
+] + [
+    'https://ifwiki.ru/%D0%9B%D0%9E%D0%9A_' + str(x)
+    for x in range(2004, 2015)
+] + [
+    'https://ifwiki.ru/%D0%9B%D0%9E%D0%9A_2015-2016',
+    'https://ifwiki.ru/%D0%9B%D0%9E%D0%9A_2017',
 ]
 
 
@@ -51,6 +57,9 @@ def TitleToSlug(title):
         return 'zok-' + m.group(1)
     if 'Паровоз' in title:
         return 'parovoz-2017'
+    if 'ЛОК' in title:
+        m = re.search(r'(\d\d\d\d)$', title)
+        return 'lok-' + m.group(1)
     raise ValueError("Unknown title: [%s]" % title)
 
 
@@ -70,6 +79,9 @@ def TitleToEndDate(title):
         return datetime.date(int(m.group(1)), 4, 1)
     if 'Паровоз' in title:
         return datetime.date(2017, 11, 26)
+    if 'ЛОК' in title:
+        m = re.search(r'(\d\d\d\d)$', title)
+        return datetime.date(int(m.group(1)), 10, 1)
     raise ValueError("Unknown title: [%s]" % title)
 
 
@@ -80,6 +92,9 @@ def TitleToTag(title):
     if 'Зимн' in title:
         m = re.search(r'(\d\d\d\d)', title)
         return 'ЗОК-' + m.group(1)
+    if 'ЛОК' in title:
+        m = re.search(r'(\d\d\d\d)$', title)
+        return 'ЛОК-' + m.group(1)
     if 'Паровоз' in title:
         return 'Паровозик-2017'
 

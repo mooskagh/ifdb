@@ -11,6 +11,12 @@
   {% else %}
     <div class="grid-box-item">
   {% endif %}
+    {% if x.head %}
+      <div class="grid-box-item-head-container">
+        <span class="rank">{{ x.head.primary }}</span><br />
+        {{ x.head.secondary }}
+      </div>
+    {% endif %}
     {% if x.image %}
       {% spaceless %}
       {% if x.image.link %}
@@ -32,7 +38,7 @@
     <div class="grid-box-lines-container">
     {% for y in x.lines %}
       {% if y.link %}
-        <a class="grid-box-line{% for z in  y.style %} grid-box-line-{{z}}{% endfor %}" href="{{y.link}}" {% if y.newtab %}target="_blank"{% endif %}>
+        <a class="grid-box-line{% for z in y.style %} grid-box-line-{{z}}{% endfor %}" href="{{y.link}}" {% if y.newtab %}target="_blank"{% endif %}>
       {% else %}
         <div class="grid-box-line{% for z in y.style %} grid-box-line-{{z}}{% endfor %}">
       {% endif %}

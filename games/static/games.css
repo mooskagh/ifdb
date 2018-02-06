@@ -85,6 +85,20 @@ a.grid-box-item:hover {
     background-color: #eee;
 }
 
+.grid-box-item-head-container {
+    width: 55px;
+    text-align: center;
+    flex-shrink: 0;
+    flex-grow: 0;
+    background-color: #bdbdbd;
+    color: #fff;
+    padding-top: 5px;
+}
+
+.grid-box-item-head-container .rank {
+    font-size: 20px;
+}
+
 .grid-box-line {
     height: 20px;
     overflow: hidden;
@@ -107,6 +121,10 @@ a.grid-box-line:hover {
     font-size: 11px;
     color: #989898;
     text-align: right;
+}
+
+.grid-box-line-weak {
+    height: 15px;
 }
 
 .grid-box-lines-container {
@@ -230,7 +248,8 @@ a.grid-box-subheader:hover {
     background-color: #009688;
 }
 
-.grid-box-green .grid-box-subheader {
+.grid-box-green .grid-box-subheader,
+.grid-box-green .grid-box-item-head-container {
     background-color: #4db6ac;
 }
 
@@ -238,7 +257,8 @@ a.grid-box-subheader:hover {
     background-color: #3f51b5;
 }
 
-.grid-box-blue .grid-box-subheader {
+.grid-box-blue .grid-box-subheader,
+.grid-box-blue .grid-box-item-head-container {
     background-color: #7986cb;
 }
 
@@ -247,7 +267,8 @@ a.grid-box-subheader:hover {
     color: black;
 }
 
-.grid-box-yellow .grid-box-subheader {
+.grid-box-yellow .grid-box-subheader,
+.grid-box-yellow .grid-box-item-head-container {
     background-color: #ffca28;
     color: black;
 }
@@ -256,7 +277,8 @@ a.grid-box-subheader:hover {
     background-color: #e91e63;
 }
 
-.grid-box-red .grid-box-subheader {
+.grid-box-red .grid-box-subheader,
+.grid-box-red .grid-box-item-head-container {
     background-color: #f06292;
 }
 
