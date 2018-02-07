@@ -12,6 +12,19 @@ import datetime
 from collections import defaultdict
 
 
+def FormatHead(g, options):
+    if options.get('listtype') == 'parovoz':
+        if g.date:
+            end = g.date + datetime.timedelta(days=6)
+            return {
+                'primary': g.date.strftime('%d.%m'),
+                'secondary': end.strftime('— %d.%m')
+            }
+    else:
+        if g.rank:
+            return {'primary': g.rank, 'secondary': 'место'}
+
+
 class CompetitionGameFetcher:
     def __init__(self, comp):
         self.comp = comp
@@ -75,11 +88,7 @@ class CompetitionGameFetcher:
         for x in raw:
             for y in ['unranked', 'ranked']:
                 for z in x[y]:
-                    if self.options.get('listtype') == 'parovoz':
-                        z.head = self.FormatParovoz(z)
-                    else:
-                        z.head = self.FormatHead(z)
-
+                    z.head = FormatHead(z, self.options)
                     if z.game:
                         g = z.game
                         g.added_age = None
@@ -96,18 +105,6 @@ class CompetitionGameFetcher:
                         votes = [x.star_rating for x in g.gamevote_set.all()]
                         g.rating = ComputeGameRating(votes)
         return raw
-
-    def FormatHead(self, g):
-        if g.rank:
-            return {'primary': g.rank, 'secondary': 'место'}
-
-    def FormatParovoz(self, g):
-        if g.date:
-            end = g.date + datetime.timedelta(days=6)
-            return {
-                'primary': g.date.strftime('%d.%m'),
-                'secondary': end.strftime('— %d.%m')
-            }
 
 
 class SnippetProvider:

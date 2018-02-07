@@ -54,10 +54,56 @@ a.author-link:hover {
     font-weight: normal;
 }
 
+.game-banner {
+    background-color: #eee;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);    
+    color: black;
+    display: inline-flex;    
+    font-size: 15px;
+    margin: 0;
+    text-decoration: none;
+    margin: 3px;
+    justify-content: center;
+}
+
+.game-banner-rank {
+    line-height: 30px;
+    float: left;
+    color: white;
+    background-color: #ff5431;
+    padding: 0 10px;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;    
+}
+
+.game-banner-rank div {
+    text-align: center;
+    white-space: nowrap;
+}
+
+.game-banner-rank .rank {
+    line-height: 30px;
+    font-size: 24px;
+}
+
+.game-banner-nomination {
+    font-size: 12px;
+}
+
+.game-banner-text {
+    white-space: nowrap;
+    min-width: 0;
+    width: 100%;
+    padding: 0 5px;    
+    display: flex;
+    justify-content: center;
+    flex-direction: column;    
+}
+
 .grid-container {
     margin: 50px auto;
 }
-
 
 .grid-box {
     background-color: #ebebeb;
@@ -716,6 +762,8 @@ textarea {
     }
     .rightpane {
         width: 34%;
+        display: block;
+        float: right;
     }
 }
 

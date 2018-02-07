@@ -66,6 +66,26 @@
                     </div>
                     {% endif %}
                 </div>
+                {% for x in competitions %}
+                    <a href="{% url 'show_competition' slug=x.slug doc='' %}" class="game-banner">
+                        <div class="game-banner-rank"><div>
+                            {% if x.head %}
+                                <span class="rank">{{ x.head.primary }}</span>
+                                    {{ x.head.secondary }}
+                            {% else %}
+                                Участник
+                            {% endif %}
+                        </div></div>
+                        <div class="game-banner-text">
+                            {{ x.title }}
+                            {% if x.nomination %}
+                                <div class="game-banner-nomination">
+                                    {{ x.nomination }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </a>
+                {% endfor %}
             </div>
             {% if media %}
             <div class="leftpane slider-container">

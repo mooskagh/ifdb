@@ -2,12 +2,15 @@ from .models import Game
 from .tools import (FormatDate, FormatTime, StarsFromRating, RenderMarkdown,
                     ExtractYoutubeId, PartitionItems)
 from .search import BaseXWriter
+from contest.models import GameListEntry
+from contest.views import FormatHead
 from core.views import BuildPackageUserFingerprint
 from django.conf import settings
 from django.urls import reverse
 from logging import getLogger
 from statistics import mean
 from moder.actions.tools import GetModerActions
+import json
 
 logger = getLogger('web')
 
@@ -63,6 +66,7 @@ class GameDetailsBuilder:
         tags = self.GetTagsForDetails()
         votes = self.GetGameScore()
         comments = self.GetGameComments()
+        competitions = self.GetCompetitions()
         loonchator_links = []
         for x in self.game.package_set.all():
             loonchator_links.append(
@@ -90,7 +94,26 @@ class GameDetailsBuilder:
             'votes': votes,
             'comments': comments,
             'loonchator_links': loonchator_links,
+            'competitions': competitions,
         }
+
+    def GetCompetitions(self):
+        comps = GameListEntry.objects.filter(
+            game=self.game,
+            gamelist__competition__isnull=False).select_related(
+                'gamelist', 'gamelist__competition')
+        res = []
+        for x in comps:
+            opts = json.loads(x.gamelist.competition.options)
+            item = {
+                'slug': x.gamelist.competition.slug,
+                'title': x.gamelist.competition.title,
+                'nomination': x.gamelist.title,
+                'head': FormatHead(x, opts),
+            }
+
+            res.append(item)
+        return res
 
     def GetTagsForDetails(self):
         tags = {}

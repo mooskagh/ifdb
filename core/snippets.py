@@ -458,6 +458,7 @@ def ContestSnippet(
         annotate=['stars', 'comments', 'added_age'],
 ):
     comp = Competition.objects.get(slug=slug)
+    # TODO(crem) Check permisions when there is support for them.
     #if not request.perm(comp.view_perm):
     #    return {}
 
@@ -557,11 +558,11 @@ def ContestSnippet(
                         item['image'] = {
                             'src': x.poster or '/static/noposter_7355.png',
                         }
-                        item['link'] = {
-                            reverse('show_game', kwargs={
+                        item['link'] = reverse(
+                            'show_game', kwargs={
                                 'game_id': x.id
                             })
-                        }
+
                     else:
                         lines.append({})
                         if z.comment:
