@@ -55,7 +55,7 @@ a.author-link:hover {
 }
 
 .game-banner {
-    background-color: #eee;
+    background-color: #f1f1f1;
     box-shadow: 0 1px 3px rgba(0, 0, 0, .3);    
     color: black;
     display: inline-flex;    
@@ -829,7 +829,7 @@ textarea {
 }
 
 .contest-result-item {
-    background-color: #fff;
+    background-color: #f1f1f1;
     border-radius: 2px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
     color: black;
