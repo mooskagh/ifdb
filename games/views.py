@@ -29,7 +29,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from ifdb.permissioner import perm_required
-from moder.actions.tools import GetModerActions
+from moder.actions import GetModerActions
 from moder.userlog import LogAction
 
 PERM_ADD_GAME = '@auth'  # Also for file upload, game import, vote

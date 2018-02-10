@@ -1,4 +1,4 @@
 from . import tools
-from . import games_action, author_action
+from . import games_action, author_action, comp_actions
 
-HandleActions = tools.HandleAction
+GetModerActions = tools.GetModerActions

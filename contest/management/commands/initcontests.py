@@ -130,12 +130,13 @@ class Command(BaseCommand):
             data = importer.DispatchImport(seed_url)
             title = data['title']
             self.stdout.write('Competition: %s... ' % title, ending='')
-            if Competition.objects.filter(title=title).exists():
+            slug = TitleToSlug(title)
+            if Competition.objects.filter(slug=slug).exists():
                 self.stdout.write(self.style.WARNING('already exists.'))
                 continue
             comp = Competition()
             comp.title = title
-            comp.slug = TitleToSlug(title)
+            comp.slug = slug
             comp.start_date = TitleToStartDate(title)
             comp.end_date = TitleToEndDate(title)
             comp.save()

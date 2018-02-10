@@ -337,7 +337,7 @@ def FeedSnippet(request,
             'style': 'strong',
             'text': (x.title),
         }]
-        if feed_ids[x.feed_id].get('show_author', True):
+        if feed_ids[x.feed_id].get('show_author', True) and x.authors:
             lines.append({'text': (x.authors)})
 
         items[x.feed_id].append({

@@ -11,7 +11,7 @@ class Competition(models.Model):
         return self.title
 
     title = models.CharField(max_length=255)
-    slug = models.SlugField(max_length=32)
+    slug = models.SlugField(max_length=32, unique=True)
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
     options = models.TextField(default='{}')
