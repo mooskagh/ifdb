@@ -5,8 +5,9 @@ from .models import (GameURL, Game, URL, GameTag, GameAuthorRole,
                      PersonalityAlias, GameTagCategory, GameURLCategory,
                      GameAuthor, Personality, PersonalityURLCategory,
                      PersonalityUrl, PersonalityAliasRedirect)
-from .tasks.uploads import CloneFile, RecodeGame, MarkBroken
+from .tasks.uploads import RecodeGame
 from core.taskqueue import Enqueue
+from games.tools import CreateUrl
 from dateutil.parser import parse as parse_date
 from django.utils import timezone
 
@@ -211,21 +212,10 @@ def UpdatePersonalityUrls(importer, request, alias_id, data, update):
         for c in PersonalityURLCategory.objects.filter(id__in=cats_to_check):
             cat_to_cloneable[c.id] = c.allow_cloning
 
-        game_to_task = {}
         for u, c in urls_to_add:
             if u not in url_to_id:
-                url = URL()
-                url.original_url = u
-                url.creation_date = timezone.now()
-                url.creator = request.user
-                url.ok_to_clone = cat_to_cloneable[c]
-                url.save()
-                if url.ok_to_clone:
-                    game_to_task[url.id] = Enqueue(
-                        CloneFile,
-                        url.id,
-                        name='CloneGame(%d)' % url.id,
-                        onfail=MarkBroken)
+                url = CreateUrl(
+                    u, ok_to_clone=cat_to_cloneable[c], creator=request.user)
                 url_to_id[u] = url.id
 
         objs = []
@@ -289,21 +279,10 @@ def UpdateGameUrls(request, game, data, update, kill_existing=True):
         for c in GameURLCategory.objects.filter(id__in=cats_to_check):
             cat_to_cloneable[c.id] = c.allow_cloning
 
-        game_to_task = {}
         for u, c in urls_to_add:
             if u not in url_to_id:
-                url = URL()
-                url.original_url = u
-                url.creation_date = timezone.now()
-                url.creator = request.user
-                url.ok_to_clone = cat_to_cloneable[c]
-                url.save()
-                if url.ok_to_clone:
-                    game_to_task[url.id] = Enqueue(
-                        CloneFile,
-                        url.id,
-                        name='CloneGame(%d)' % url.id,
-                        onfail=MarkBroken)
+                url = CreateUrl(
+                    u, ok_to_clone=cat_to_cloneable[c], creator=request.user)
                 url_to_id[u] = url.id
 
         objs = []
@@ -315,11 +294,7 @@ def UpdateGameUrls(request, game, data, update, kill_existing=True):
             obj.description = desc or None
             if GameURLCategory.IsRecodable(cat):
                 obj.save()
-                Enqueue(
-                    RecodeGame,
-                    obj.id,
-                    name='RecodeGame(%d)' % obj.id,
-                    dependency=game_to_task.get(url_to_id[url]))
+                Enqueue(RecodeGame, obj.id, name='RecodeGame(%d)' % obj.id)
             else:
                 objs.append(obj)
         GameURL.objects.bulk_create(objs)

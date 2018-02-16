@@ -1,0 +1,23 @@
+{% extends "games/base.html" %}
+{% load tags %}
+{% load static %}
+{% block titlesection %} {{ doc.title }} - {{ doc.competition.title }} - {% endblock %}
+{% block scripts %}
+    <script src="/static/formedit.js"></script>
+{% endblock %}
+{% block content %}
+  <div class="content-box">
+    <form class="full-width-form" method="post">
+      {% csrf_token %}
+      <h1>{{ doc.competition.title }} </h1>
+      <h1>{{ doc.title }} </h1>
+      <table>
+        {{ form }}
+      </table>
+      <div>
+        <br/>
+        <input type="submit" value="Сохранить изменения"/>
+      </div>
+    </form>
+  </div>
+{% endblock %}

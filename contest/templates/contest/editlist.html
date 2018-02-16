@@ -1,0 +1,21 @@
+{% extends "games/base.html" %}
+{% load tags %}
+{% load static %}
+{% block titlesection %} {{ gamelist.competition.title }} - {% endblock %}
+{% block scripts %}
+    <script src="/static/formedit.js"></script>
+{% endblock %}
+{% block content %}
+  <div class="content-box">
+    <form class="full-width-form" method="post">
+      {% csrf_token %}
+      <h1>{{ gamelist.competition.title }}</h1>
+      <h2>{{ gamelist.title|default:'(основная номинация)' }}</h2>
+      {% include './form_inline.html' with formset=entries only %}
+      <div>
+        <br/>
+        <input type="submit" value="Сохранить изменения"/>
+      </div>
+    </form>
+  </div>
+{% endblock %}

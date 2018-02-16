@@ -25,3 +25,39 @@ class CompetitionAdminzAction(CompetitionAction):
     def GetUrl(self):
         return reverse(
             "admin:contest_competitiondocument_change", args=(self.obj.id, ))
+
+
+@RegisterAction
+class CompetitionEditorLink(CompetitionAction):
+    TITLE = 'Править текст'
+
+    def GetUrl(self):
+        return reverse("edit_compdoc", args=(self.obj.id, ))
+
+    @classmethod
+    def IsAllowed(cls, request, object):
+        if request.perm(cls.PERM):
+            return True
+
+        obj = cls.EnsureObj(object)
+        if obj and obj.competition and obj.competition.owner == request.user:
+            return True
+        return False
+
+
+@RegisterAction
+class CompetitionEditorLink(CompetitionAction):
+    TITLE = 'Править событие'
+
+    def GetUrl(self):
+        return reverse("edit_competition", args=(self.obj.competition.id, ))
+
+    @classmethod
+    def IsAllowed(cls, request, object):
+        if request.perm(cls.PERM):
+            return True
+
+        obj = cls.EnsureObj(object)
+        if obj and obj.competition and obj.competition.owner == request.user:
+            return True
+        return False

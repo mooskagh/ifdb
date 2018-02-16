@@ -3,10 +3,13 @@ from urllib.parse import urlparse, parse_qs
 from django import template
 from django.db.models import F
 import statistics
-from .models import GameVote, GameURL
+from .models import GameVote, GameURL, URL
 from markdown.extensions import Extension
 from markdown.blockprocessors import BlockProcessor
 from markdown.util import AtomicString, etree
+from django.utils import timezone
+from core.taskqueue import Enqueue
+from games.tasks.uploads import CloneFile, MarkBroken
 import re
 
 
@@ -259,3 +262,18 @@ def RenderMarkdown(content, snippet_provider=None):
     if snippet_provider:
         extensions.append(MarkdownSnippet(snippet_provider))
     return markdown.markdown(content, extensions=extensions) if content else ''
+
+
+def CreateUrl(url, *, ok_to_clone, creator=None):
+    try:
+        u = URL.objects.get(original_url=url)
+    except URL.DoesNotExist:
+        u = URL()
+        u.original_url = url
+        u.creation_date = timezone.now()
+        u.save()
+    if ok_to_clone and not u.ok_to_clone:
+        u.ok_to_clone = ok_to_clone
+        u.save()
+        Enqueue(CloneFile, u.id, name='CloneUrl(%d)' % u.id, onfail=MarkBroken)
+    return u

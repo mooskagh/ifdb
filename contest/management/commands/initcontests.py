@@ -2,11 +2,9 @@ import re
 import datetime
 import games.importer.ifwiki
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 from games.importer import Importer
-from core.taskqueue import Enqueue
-from games.models import URL, GameTagCategory, GameTag
-from games.tasks.uploads import CloneFile, MarkBroken
+from games.models import GameTagCategory, GameTag
+from games.tools import CreateUrl
 from contest.models import (CompetitionURLCategory, Competition,
                             CompetitionDocument, CompetitionURL, GameList,
                             GameListEntry)
@@ -191,20 +189,7 @@ class Command(BaseCommand):
                         cat = CompetitionURLCategory.objects.get(
                             symbolic_id=dst_cat)
 
-                        try:
-                            u = URL.objects.get(original_url=url)
-                        except URL.DoesNotExist:
-                            u = URL()
-                            u.original_url = url
-                            u.creation_date = timezone.now()
-                            u.ok_to_clone = cat.allow_cloning
-                            u.save()
-                            if u.ok_to_clone:
-                                Enqueue(
-                                    CloneFile,
-                                    u.id,
-                                    name='CloneUrl(%d)' % u.id,
-                                    onfail=MarkBroken)
+                        u = CreateUrl(url, ok_to_clone=cat.allow_cloning)
                         cu = CompetitionURL()
                         cu.competition = comp
                         cu.url = u

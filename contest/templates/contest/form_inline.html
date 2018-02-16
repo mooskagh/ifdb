@@ -1,0 +1,63 @@
+{{ formset.management_form }}
+{{ formset.non_form_errors }}
+<table class="inline-tabbed">
+  <thead><tr>
+    {% for field in formset.form.visible_fields %}
+      <th>{{ field.label }}
+        {% if field.help_text %}
+          <br/><span class="help-text">{{ field.help_text }}</span>
+        {% endif %}
+      </th>      
+    {% endfor %}
+   {% if formset.can_delete %}
+        <th>Удалить?</th>
+    {% endif %}    
+    {% for field in formset.form.GetButtonLabels %}
+      <th>{{ field }}</th>
+    {% endfor %}
+  </tr></thead>
+  <tbody class="form-content-{{ formset.prefix }}">
+    {% for form in formset %}
+      <tr>
+        {% for field in form.visible_fields %}
+          <td>
+            {% if forloop.first %}
+              {% for f in form.hidden_fields %}
+                {{ f }}
+              {% endfor %}
+            {% endif %}
+            {% if field.errors %}{{ field.errors }}{% endif %}
+            {{ field }}
+          </td>
+        {% endfor %}
+        {% for field in form.GetButtons %}
+          <td class="button-container">
+            {% if field.url %}
+              <a class="button-like" href="{{ field.url }}" target="_blank">
+                {{ field.text }}
+              </a>
+            {% endif %}
+          </td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+    <tr class="form-empty-{{ formset.prefix }}">
+      {% for field in formset.empty_form.visible_fields %}
+        <td>
+          {% if forloop.first %}
+            {% for f in formset.empty_form.hidden_fields %}
+              {{ f }}
+            {% endfor %}
+          {% endif %}
+          {{ field }}
+        </td>
+      {% endfor %}
+    </tr>
+  </tbody>
+</table>
+<a class="button-like form-addbutton-{{ formset.prefix }}" href="javascript:;">
+  Добавить ещё
+</a>
+<script type="text/javascript">
+  FORMEDIT.Adder('{{ formset.prefix }}');
+</script>

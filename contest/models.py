@@ -1,5 +1,6 @@
 from django.db import models
 from games.models import Game, URL
+from django.conf import settings
 
 
 # Create your models here.
@@ -15,6 +16,12 @@ class Competition(models.Model):
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
     options = models.TextField(default='{}')
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True)
+    published = models.BooleanField()
     # Support for private contests (view_perm?)
 
 
@@ -66,7 +73,7 @@ class CompetitionDocument(models.Model):
     slug = models.SlugField(blank=True)
     title = models.CharField(max_length=256)
     text = models.TextField()
-    view_perm = models.CharField(max_length=256, default="@admin")
+    view_perm = models.CharField(max_length=256, default="@all")
 
 
 class CompetitionSchedule(models.Model):

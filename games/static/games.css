@@ -340,7 +340,6 @@ a.grid-box-subheader:hover {
 
 .content-box-inner {
     padding: 5px 20px 20px;
-    text-align: right;
 }
 
 .content-box-outer {
@@ -354,7 +353,6 @@ a.grid-box-subheader:hover {
     padding: 20px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
     border-radius: 2px;
-    text-align: right;    
 }
 
 .content-box-fullwidth {
@@ -893,6 +891,52 @@ textarea {
 
 .contest-rank-line.headline {
     font-size: 16px;
+}
+
+.full-width-form table,
+.full-width-form td input[type=text] {
+    width: 100%;
+}
+
+.full-width-form .button-container {
+    width: 100px;
+}
+
+.full-width-form .help-text {
+    color: #625B61;
+    font-size: 10px;
+    font-style: italic;
+    font-weight: normal;
+}
+
+.full-width-form td {
+    text-align: left;
+}
+
+.full-width-form .inline-tabbed td {
+    text-align: center;
+}
+
+.full-width-form td input[type=number] {
+    width: 50px;
+}
+
+
+.full-width-form tbody th {
+    max-width: 50px;
+    text-align: right;
+}
+
+.full-width-form .errorlist {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    color: red;
+}
+
+.full-width-form textarea {
+    width: 100%;
+    min-height: 800px;
 }
 
 .gamegallery-container {
