@@ -10,6 +10,8 @@ from games.tools import ConcoreNumeral, CreateUrl
 
 YEARS = range(timezone.now().year + 1, 1990, -1)
 
+EDIT_PERM = '@auth'
+
 
 class CompetitionForm(forms.Form):
     id = forms.IntegerField(widget=widgets.HiddenInput())
@@ -117,7 +119,7 @@ def edit_competition(request, id):
     if comp.owner:
         request.perm.Ensure('[%d]' % comp.owner_id)
     else:
-        request.perm.Ensure('@gardener')
+        request.perm.Ensure(EDIT_PERM)
 
     main = CompetitionForm(
         request.POST or None,
@@ -253,7 +255,7 @@ def edit_complist(request, id):
     if comp.owner:
         request.perm.Ensure('[%d]' % comp.owner_id)
     else:
-        request.perm.Ensure('@gardener')
+        request.perm.Ensure(EDIT_PERM)
 
     ListEntries = forms.formset_factory(
         ListEntryForm,
@@ -319,7 +321,7 @@ def edit_compdoc(request, id):
     if comp.owner:
         request.perm.Ensure('[%d]' % comp.owner_id)
     else:
-        request.perm.Ensure('@gardener')
+        request.perm.Ensure(EDIT_PERM)
 
     form = DocumentForm(
         request.POST or None,
