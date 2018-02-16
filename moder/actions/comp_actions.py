@@ -37,6 +37,7 @@ class CompetitionEditorLink(CompetitionAction):
 
     @classmethod
     def IsAllowed(cls, request, object):
+        obj = cls.EnsureObj(object)
         if obj and obj.competition and obj.competition.owner:
             return obj.competition.owner == request.user
         else:
@@ -53,6 +54,7 @@ class CompetitionEditorLink(CompetitionAction):
 
     @classmethod
     def IsAllowed(cls, request, object):
+        obj = cls.EnsureObj(object)
         if obj and obj.competition and obj.competition.owner:
             return obj.competition.owner == request.user
         else:
