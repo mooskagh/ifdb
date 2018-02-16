@@ -64,7 +64,7 @@ class URL(models.Model):
         null=True, blank=True, max_length=2048, db_index=True)
     original_filename = models.CharField(null=True, blank=True, max_length=255)
     content_type = models.CharField(null=True, blank=True, max_length=255)
-    ok_to_clone = models.BooleanField(default=True)
+    ok_to_clone = models.BooleanField(default=False)
     is_uploaded = models.BooleanField(default=False)
     is_broken = models.BooleanField(default=False)
     creation_date = models.DateTimeField()
