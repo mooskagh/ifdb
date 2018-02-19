@@ -144,8 +144,8 @@ def GameListSnippet(request,
                 text = FormatLag(-x.added_age)
                 highlighted = x.added_age <= 24 * 60 * 60
             elif y == 'release_age':
-                text = FormatLag(-x.release_date)
-                highlighted = x.release_date <= 24 * 60 * 60
+                text = FormatLag(-x.release_age)
+                highlighted = x.release_age <= 24 * 60 * 60
             elif y == 'comments':
                 if x.coms_count:
                     text = '%d' % x.coms_count
@@ -412,7 +412,7 @@ def PopularGamesSnippet(
         default_age=22 * 60 * 60,
         daily_decay=3,
         anonymous_factor=0.3,
-        annotate=['stars', 'comments', 'added_age'],
+        annotate=['stars', 'comments', 'release_age'],
 ):
     ids = next(
         zip(*GetPopularGameids(
@@ -446,8 +446,8 @@ def PopularGamesSnippet(
                 text = FormatLag(-x.added_age)
                 highlighted = x.added_age <= 24 * 60 * 60
             elif y == 'release_age':
-                text = FormatLag(-x.release_date)
-                highlighted = x.release_date <= 24 * 60 * 60
+                text = FormatLag(-x.release_age)
+                highlighted = x.release_age <= 24 * 60 * 60
             elif y == 'comments':
                 if x.coms_count:
                     text = '%d' % x.coms_count
