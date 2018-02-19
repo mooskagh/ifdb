@@ -4,7 +4,7 @@ from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
-from django.db.models import Max
+from django.db.models import Max, Count
 from django.shortcuts import redirect
 from django.views.decorators.cache import never_cache
 from contest.models import (Competition, CompetitionSchedule, CompetitionURL)
@@ -14,6 +14,7 @@ from games.search import MakeSearch
 from games.tools import (FormatLag, ExtractYoutubeId, FormatDateShort,
                          FormatDate, SnippetFromList, ComputeGameRating,
                          ConcoreNumeral)
+from moder.tools import GetPopularGameids
 from .models import FeedCache, Game, BlogFeed
 import json
 
@@ -167,9 +168,7 @@ def GameListSnippet(request,
                 'src': x.poster or '/static/noposter_7355.png',
             },
             'lines': lines,
-            'link': reverse('show_game', kwargs={
-                'game_id': x.id
-            })
+            'link': reverse('show_game', kwargs={'game_id': x.id})
         })
     return ItemsSnippet(request, items, age)
 
@@ -208,9 +207,7 @@ def CommentsSnippet(request):
             'image': {
                 'src': y.poster or '/static/noposter_7355.png'
             },
-            'link': (reverse('show_game', kwargs={
-                'game_id': x.game.id
-            })),
+            'link': (reverse('show_game', kwargs={'game_id': x.game.id})),
             'lines': [
                 {
                     'style': 'float-left',
@@ -280,9 +277,7 @@ def LastUrlCatSnippet(request,
                 },
                 {
                     'text': (x['game']),
-                    'link': reverse('show_game', kwargs={
-                        'game_id': x['id']
-                    })
+                    'link': reverse('show_game', kwargs={'game_id': x['id']})
                 },
             ]
         }
@@ -406,9 +401,71 @@ def ThisDayInHistorySnippet(request, default_age=24 * 60 * 60):
                 'src': x.poster or '/static/noposter_7355.png',
             },
             'lines': (lines),
-            'link': (reverse('show_game', kwargs={
-                'game_id': x.id
-            })),
+            'link': (reverse('show_game', kwargs={'game_id': x.id})),
+        })
+    return ItemsSnippet(request, items, default_age)
+
+
+def PopularGamesSnippet(
+        request,
+        count=5,
+        default_age=22 * 60 * 60,
+        annotate=['stars', 'comments', 'added_age'],
+):
+    ids = next(zip(*GetPopularGameids().most_common(count)))
+    games = Game.objects.filter(id__in=ids).annotate(
+        coms_count=Count('gamecomment'),
+        coms_recent=Max('gamecomment__creation_time')).prefetch_related(
+            'gamevote_set')
+    SnippetFromList(games)
+    id_to_game = {x.id: x for x in games}
+    now = timezone.now()
+
+    for x in games:
+        if x.creation_time:
+            x.added_age = (now - x.creation_time).total_seconds()
+        if x.release_date:
+            x.release_age = (now.date() - x.release_date).total_seconds()
+        votes = [y.star_rating for y in x.gamevote_set.all()]
+        x.rating = ComputeGameRating(votes)
+
+    items = []
+    for i in ids:
+        lines = []
+        x = id_to_game[i]
+        for y in reversed(annotate):
+            text = None
+            svg = None
+            highlighted = False
+            if y == 'added_age':
+                text = FormatLag(-x.added_age)
+                highlighted = x.added_age <= 24 * 60 * 60
+            elif y == 'release_age':
+                text = FormatLag(-x.release_date)
+                highlighted = x.release_date <= 24 * 60 * 60
+            elif y == 'comments':
+                if x.coms_count:
+                    text = '%d' % x.coms_count
+                    svg = COMMENT_SVG
+                    highlighted = (
+                        now - x.coms_recent).total_seconds() < 24 * 60 * 60
+            elif y == 'stars':
+                if x.rating['avg']:
+                    text = x.rating['avg_txt']
+                    svg = DUCK_SVG
+            styles = ['float-right']
+            styles.append('recent-comment' if highlighted else 'comment')
+            if text:
+                lines.append({'style': styles, 'text': text, 'svg': svg})
+        lines.append({'style': 'comment'})
+        lines.append({'style': 'strong', 'text': x.title})
+        lines.append({'text': ', '.join([y.author.name for y in x.authors])})
+        items.append({
+            'image': {
+                'src': x.poster or '/static/noposter_7355.png',
+            },
+            'lines': lines,
+            'link': reverse('show_game', kwargs={'game_id': x.id})
         })
     return ItemsSnippet(request, items, default_age)
 
@@ -562,9 +619,7 @@ def ContestSnippet(
                             'src': x.poster or '/static/noposter_7355.png',
                         }
                         item['link'] = reverse(
-                            'show_game', kwargs={
-                                'game_id': x.id
-                            })
+                            'show_game', kwargs={'game_id': x.id})
 
                     else:
                         lines.append({})
@@ -722,9 +777,7 @@ def RenderSnippets(request):
                     'text': x['title'],
                 })
                 items.append({
-                    'link': reverse('forget_snippet', kwargs={
-                        'id': x['id']
-                    }),
+                    'link': reverse('forget_snippet', kwargs={'id': x['id']}),
                     'lines': lines,
                 })
             snippets.append({
