@@ -1,6 +1,6 @@
 from contest.models import (Competition, CompetitionURLCategory,
                             CompetitionURL, GameList, GameListEntry,
-                            CompetitionDocument)
+                            CompetitionDocument, CompetitionSchedule)
 from django import forms
 from django.forms import widgets
 from django.shortcuts import render, redirect
@@ -64,14 +64,23 @@ class NominationsForm(forms.Form):
         if id:
             return [{
                 'url':
-                    reverse('edit_complist', kwargs={
-                        'id': id
-                    }),
+                    reverse('edit_complist', kwargs={'id': id}),
                 'text':
                     'Править (%s)' % ConcoreNumeral(
                         GameListEntry.objects.filter(gamelist_id=id).count(),
                         'игра,игры,игр'),
             }]
+
+
+class ScheduleForm(forms.Form):
+    id = forms.IntegerField(widget=widgets.HiddenInput(), required=False)
+    title = forms.CharField(label='Текст', required=True)
+    when = forms.DateTimeField(
+        label='Дата',
+        required=True,
+        widget=widgets.SelectDateWidget(years=YEARS))
+    show = forms.BooleanField(
+        label='Показывать?', required=False, initial=True)
 
 
 class DocumentsForm(forms.Form):
@@ -90,9 +99,7 @@ class DocumentsForm(forms.Form):
         id = self.initial.get('id')
         if id:
             return [{
-                'url': reverse('edit_compdoc', kwargs={
-                    'id': id
-                }),
+                'url': reverse('edit_compdoc', kwargs={'id': id}),
                 'text': 'Редактировать',
             }]
 
@@ -155,6 +162,17 @@ def edit_competition(request, id):
         } for x in GameList.objects.filter(competition=comp).order_by('order')
                  ])
 
+    Schedule = forms.formset_factory(ScheduleForm, extra=0, can_delete=True)
+    schedule = Schedule(
+        request.POST or None,
+        prefix='schedule',
+        initial=[{
+            'id': x.id,
+            'when': x.when,
+            'title': x.title,
+        } for x in CompetitionSchedule.objects.filter(
+            competition=comp).order_by('when')])
+
     Documents = forms.formset_factory(
         DocumentsForm, extra=0, can_delete=True, formset=DocumentsFormSet)
     documents = Documents(
@@ -166,7 +184,7 @@ def edit_competition(request, id):
             'title': x.title
         } for x in CompetitionDocument.objects.filter(competition=comp)])
 
-    fs = [main, urls, nominations, documents]
+    fs = [main, urls, nominations, schedule, documents]
 
     if request.POST and all(map(lambda x: x.is_valid(), fs)):
         if main.has_changed():
@@ -207,6 +225,15 @@ def edit_competition(request, id):
 
         ProcessFormset(nominations, GameList, PopulateNomination)
 
+        def PopulateSchedule(v, cl):
+            v.when = cl['when']
+            v.show = cl['show']
+            v.title = cl['title']
+            if v.done is None:
+                v.done = False
+
+        ProcessFormset(schedule, CompetitionSchedule, PopulateSchedule)
+
         def PopulateDocument(v, cl):
             v.slug = cl['slug']
             v.title = cl['title']
@@ -221,6 +248,7 @@ def edit_competition(request, id):
             'mainform': main,
             'urlform': urls,
             'nomiform': nominations,
+            'scheduform': schedule,
             'docuform': documents,
         })
 

@@ -519,6 +519,7 @@ def ContestSnippet(
             'forum',
         ],
         annotate=['stars', 'comments', 'added_age'],
+        age=14 * 24 * 60 * 60,
 ):
     try:
         comp = Competition.objects.get(slug=slug)
@@ -637,7 +638,7 @@ def ContestSnippet(
 
                     res.append(item)
 
-    return ItemsSnippet(request, res)
+    return ItemsSnippet(request, res, age)
 
 
 def MultipartSnippet(request, parts, default_age=0, force_age=None):
