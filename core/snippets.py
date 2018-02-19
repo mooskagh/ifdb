@@ -446,8 +446,9 @@ def PopularGamesSnippet(
                 text = FormatLag(-x.added_age)
                 highlighted = x.added_age <= 24 * 60 * 60
             elif y == 'release_age':
-                text = FormatLag(-x.release_age)
-                highlighted = x.release_age <= 24 * 60 * 60
+                if (x.release_date):
+                    text = FormatLag(-x.release_age)
+                    highlighted = x.release_age <= 24 * 60 * 60
             elif y == 'comments':
                 if x.coms_count:
                     text = '%d' % x.coms_count
