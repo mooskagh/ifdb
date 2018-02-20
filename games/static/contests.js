@@ -14,7 +14,7 @@ var CONTESTS = (function() {
       function tryFlush(pos) {
         if (!cur_occupation) return;
         var total = cur_occupation.length;
-        if (pos) {
+        if (pos !== undefined) {
           for (var i = 1; i < total; ++i) {
             if (cur_occupation[i] > pos) return;
           }
@@ -34,7 +34,7 @@ var CONTESTS = (function() {
           }
         }
 
-        if (pos && cur_occupation[0] > pos) {
+        if (pos !== undefined && cur_occupation[0] > pos) {
           cur_occupation.length = 1;
           working_set = [[]];
         } else {
