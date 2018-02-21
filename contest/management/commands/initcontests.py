@@ -22,7 +22,7 @@ EMPTY_RE = re.compile(r'^$')
 COMMIT_RE = re.compile(r'^@commit$')
 NOMINATION_RE = re.compile(r'^@nomination (.*)$')
 
-COMPETITION_URLS = [
+COMPETITION_URLS_OLD = [
     'https://ifwiki.ru/%D0%9A%D0%A0%D0%98%D0%9B_' + str(x)
     for x in range(2006, 2018)
 ] + [
@@ -45,6 +45,10 @@ COMPETITION_URLS = [
     'https://ifwiki.ru/%D0%9B%D0%9E%D0%9A_2017',
 ]
 
+COMPETITION_URLS = [
+    'https://ifwiki.ru/QSP-Compo_' + str(x) for x in range(2009, 2018)
+]
+
 
 def TitleToSlug(title):
     m = re.match(r'КРИЛ (\d+)', title)
@@ -58,6 +62,9 @@ def TitleToSlug(title):
     if 'ЛОК' in title:
         m = re.search(r'(\d\d\d\d)$', title)
         return 'lok-' + m.group(1)
+    if 'QSP-Compo' in title:
+        m = re.search(r'(\d\d\d\d)$', title)
+        return 'qspcompo-' + m.group(1)
     raise ValueError("Unknown title: [%s]" % title)
 
 
@@ -80,6 +87,9 @@ def TitleToEndDate(title):
     if 'ЛОК' in title:
         m = re.search(r'(\d\d\d\d)$', title)
         return datetime.date(int(m.group(1)), 10, 1)
+    if 'QSP-Compo' in title:
+        m = re.search(r'(\d\d\d\d)$', title)
+        return datetime.date(int(m.group(1)), 3, 31)
     raise ValueError("Unknown title: [%s]" % title)
 
 
@@ -95,6 +105,9 @@ def TitleToTag(title):
         return 'ЛОК-' + m.group(1)
     if 'Паровоз' in title:
         return 'Паровозик-2017'
+    if 'QSP-Compo' in title:
+        m = re.search(r'(\d\d\d\d)$', title)
+        return 'QSP-Compo ' + m.group(1)
 
 
 # src_slug, src_url, src_desc, dst_cat, dst_doc_slug
@@ -112,7 +125,7 @@ CATEGORIZATION_RULES = [
     ('screenshot', '', '', 'logo', ''),
 ]
 
-RESULTATIVE_COMPS = ['kril-', 'zok-']
+RESULTATIVE_COMPS = ['kril-', 'zok-', 'qspcompo-']
 
 games.importer.ifwiki.ALLOW_INTERNAL_LINKS = True
 
@@ -137,6 +150,7 @@ class Command(BaseCommand):
             comp.slug = slug
             comp.start_date = TitleToStartDate(title)
             comp.end_date = TitleToEndDate(title)
+            comp.published = True
             comp.save()
 
             gamelist = GameList.objects.create(competition=comp)
