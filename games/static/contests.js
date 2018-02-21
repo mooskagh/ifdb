@@ -2,7 +2,7 @@ var CONTESTS = (function() {
   'use strict';
   function LayoutContestBoxes() {
     var left = 60;
-    var right = 15;
+    var right = 0;
     var min_width = 400;
     var card_width = 320;
     var gap = 20;
