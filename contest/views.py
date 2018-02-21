@@ -185,9 +185,9 @@ SHOW_LINKS = [
 ]
 
 COLOR_RULES = [
-    ('kril', 'yellow'),
+    ('kril', 'green'),
     ('parovoz', 'red'),
-    ('lok', 'green'),
+    ('lok', 'yellow'),
     ('zok', 'blue'),
 ]
 
