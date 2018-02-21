@@ -2,15 +2,19 @@ var CONTESTS = (function() {
   'use strict';
   function LayoutContestBoxes() {
     var left = 60;
-    var right = 0;
+    var right = 10;
     var min_width = 400;
-    var card_width = 320;
+    var min_card_width = 280;
     var gap = 20;
     var minimum_presence = 20;
     var minimum_month = 20;
 
     function doResize() {
-      var columns = Math.floor(($(window).width() - right - left) / card_width);
+      var total_width = ($(window).width() - right - left);
+      var columns = Math.floor(
+          ($(window).width() - right - left) / (min_card_width + gap));
+      var card_width = (total_width + gap) / columns;
+
       if (columns < 1) columns = 1;
       var end_days = new Array(columns).fill(0);
 
@@ -43,7 +47,8 @@ var CONTESTS = (function() {
           if (best_val < cur_pixel) best_val = cur_pixel;
           if (first === undefined) first = best_val;
           contest.css('top', best_val)
-              .css('left', left + best_idx * card_width);
+              .css('left', left + best_idx * card_width)
+              .css('width', card_width - gap);
           end_days[best_idx] = best_val + gap + contest.height();
         }
 
