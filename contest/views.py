@@ -174,11 +174,9 @@ def show_competition(request, slug, doc=''):
 
 
 MONTHS = [
-    'январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август',
-    'сентябрь', 'октябрь', 'ноябрь', 'декабрь'
+    'янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт',
+    'ноя', 'дек'
 ]
-
-PIXELS_PER_DAY = 3
 
 SHOW_LINKS = [
     'official_page',
@@ -242,8 +240,8 @@ def list_competitions(request):
         if x.start_date and x.start_date < d:
             d = x.start_date
 
-        if x.end_date - relativedelta.relativedelta(months=2) < d:
-            d = x.end_date - relativedelta.relativedelta(months=2)
+        if x.end_date - relativedelta.relativedelta(months=18) < d:
+            d = x.end_date - relativedelta.relativedelta(months=18)
 
         x.box_color = None
         for pref, col in COLOR_RULES:
@@ -251,13 +249,9 @@ def list_competitions(request):
                 x.box_color = col
                 break
         if x.end_date < now.date():
-            x.top = (30 + (end_date - x.end_date).days) * PIXELS_PER_DAY
-            if x.start_date:
-                x.height = (x.end_date - x.start_date).days * PIXELS_PER_DAY
+            x.top = (1 + (end_date - x.end_date).days)
         else:
             x.top = 0
-            if x.start_date:
-                x.height = ((end_date - x.start_date).days) * PIXELS_PER_DAY
         x.logo = logos.get(x.id)
 
         items = []
@@ -312,26 +306,17 @@ def list_competitions(request):
     while d != end_date:
         days = (d + relativedelta.relativedelta(months=1) - d).days
         ruler.append({
-            'year': d.year,
-            'month': MONTHS[d.month - 1],
+            'label': "%s '%02d" % (MONTHS[d.month - 1], d.year % 100),
             'days': days,
-            'pixels': days * PIXELS_PER_DAY,
             'long': d.month == 12,
         })
         total_height += days
         d += relativedelta.relativedelta(months=1)
-    ruler.append({
-        'month': 'текущие',
-        'days': 30,
-        'pixels': 30 * PIXELS_PER_DAY,
-        'long': True
-    })
+    ruler.append({'label': 'текущие', 'days': 1, 'long': True})
     ruler.reverse()
 
-    return render(
-        request, 'contest/index.html', {
-            'ruler': ruler,
-            'contests': contests,
-            'upcoming': upcoming,
-            'total_height': PIXELS_PER_DAY * total_height,
-        })
+    return render(request, 'contest/index.html', {
+        'ruler': ruler,
+        'contests': contests,
+        'upcoming': upcoming,
+    })
