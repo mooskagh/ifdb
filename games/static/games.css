@@ -224,6 +224,10 @@ a.grid-box-line:hover {
     font-size: 13px;
 }
 
+.grid-box-line-light {
+    color: #989898;
+}
+
 .grid-box-icon {
     max-width: 73px;
     max-height: 55px;

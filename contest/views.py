@@ -209,7 +209,6 @@ def list_competitions(request):
                 },
                 {
                     'text': x.title,
-                    'style': 'strong'
                 },
             ]
         })
@@ -219,7 +218,6 @@ def list_competitions(request):
             category__symbolic_id__in=SHOW_LINKS).select_related():
         links[x.competition_id].append({
             'lines': [{
-                'style': 'strong',
                 'text': x.description,
                 'link': x.GetRemoteUrl(),
                 'newtab': True,
@@ -285,13 +283,16 @@ def list_competitions(request):
                     item['tinyhead'] = FormatHead(z, options)
                     if z.game:
                         g = z.game
-                        lines.append({'style': 'strong', 'text': g.title})
+                        lines.append({'text': g.title})
                         item['link'] = reverse(
                             'show_game', kwargs={'game_id': g.id})
 
                     else:
                         if z.comment:
-                            lines.append({'text': z.comment})
+                            lines.append({
+                                'text': z.comment,
+                                'style': ['light']
+                            })
                         else:
                             lines.append({})
                     items.append(item)
