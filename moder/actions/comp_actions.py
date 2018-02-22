@@ -28,7 +28,7 @@ class CompetitionAdminzAction(CompetitionAction):
 
 
 @RegisterAction
-class CompetitionEditorLink(CompetitionAction):
+class CompetitionDocLink(CompetitionAction):
     TITLE = 'Править текст'
     PERM = '@auth'
 
@@ -51,6 +51,23 @@ class CompetitionEditorLink(CompetitionAction):
 
     def GetUrl(self):
         return reverse("edit_competition", args=(self.obj.competition.id, ))
+
+    @classmethod
+    def IsAllowed(cls, request, object):
+        obj = cls.EnsureObj(object)
+        if obj and obj.competition and obj.competition.owner:
+            return obj.competition.owner == request.user
+        else:
+            return request.perm(cls.PERM)
+
+
+@RegisterAction
+class CompetitionListLink(CompetitionAction):
+    TITLE = 'Править список игр'
+    PERM = '@auth'
+
+    def GetUrl(self):
+        return reverse("edit_complist", args=(self.obj.competition.id, ))
 
     @classmethod
     def IsAllowed(cls, request, object):

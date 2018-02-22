@@ -70,8 +70,12 @@
                     <a href="{% url 'show_competition' slug=x.slug doc='' %}" class="game-banner">
                         <div class="game-banner-rank"><div>
                             {% if x.head %}
-                                <span class="rank">{{ x.head.primary }}</span>
-                                    {{ x.head.secondary }}
+                                {% if x.head.combined %}
+                                        {{ x.head.combined }}
+                                {% else %}
+                                    <span class="rank">{{ x.head.primary }}</span>
+                                        {{ x.head.secondary }}
+                                {% endif %}
                             {% else %}
                                 Участник
                             {% endif %}

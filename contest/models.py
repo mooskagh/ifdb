@@ -112,6 +112,7 @@ class GameListEntry(models.Model):
 
     gamelist = models.ForeignKey(GameList, on_delete=models.CASCADE)
     rank = models.IntegerField(null=True, blank=True)
+    result = models.CharField(max_length=255, null=True, blank=True)
     game = models.ForeignKey(
         Game, null=True, blank=True, on_delete=models.SET_NULL)
     date = models.DateField(null=True, blank=True)

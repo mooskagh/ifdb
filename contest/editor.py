@@ -56,20 +56,20 @@ class NominationsForm(forms.Form):
         label='Название номинации',
         help_text='Может быть пустым, например, если номинация всего одна')
 
-    def GetButtonLabels(self):
-        return ['Список игр']
+    # def GetButtonLabels(self):
+    #     return ['Список игр']
 
-    def GetButtons(self):
-        id = self.initial.get('id')
-        if id:
-            return [{
-                'url':
-                    reverse('edit_complist', kwargs={'id': id}),
-                'text':
-                    'Править (%s)' % ConcoreNumeral(
-                        GameListEntry.objects.filter(gamelist_id=id).count(),
-                        'игра,игры,игр'),
-            }]
+    # def GetButtons(self):
+    #     id = self.initial.get('id')
+    #     if id:
+    #         return [{
+    #             'url':
+    #                 reverse('edit_complist', kwargs={'id': id}),
+    #             'text':
+    #                 'Править (%s)' % ConcoreNumeral(
+    #                     GameListEntry.objects.filter(gamelist_id=id).count(),
+    #                     'игра,игры,игр'),
+    #         }]
 
 
 class ScheduleForm(forms.Form):
@@ -243,13 +243,23 @@ def edit_competition(request, id):
         return redirect(request.get_full_path())
 
     return render(
-        request, 'contest/edit.html', {
-            'comp': comp,
-            'mainform': main,
-            'urlform': urls,
-            'nomiform': nominations,
-            'scheduform': schedule,
-            'docuform': documents,
+        request,
+        'contest/edit.html', {
+            'comp':
+                comp,
+            'mainform':
+                main,
+            'urlform':
+                urls,
+            'nomiform':
+                nominations,
+            'scheduform':
+                schedule,
+            'docuform':
+                documents,
+            'gamecount':
+                GameListEntry.objects.filter(gamelist__competition=comp)
+                .count(),
         })
 
 
@@ -265,6 +275,11 @@ class ListEntryForm(forms.Form):
 
     id = forms.IntegerField(widget=widgets.HiddenInput(), required=False)
     rank = forms.IntegerField(required=False, label='Место')
+    result = forms.CharField(
+        required=False,
+        label='Результат',
+        help_text='напр. "выбор жюри"',
+        widget=forms.TextInput(attrs={'style': 'width: 100px;'}))
     gameid = forms.IntegerField(required=False, label='id игры')
     gamename = forms.CharField(
         required=False, disabled=True, label='Название игры')
@@ -278,8 +293,7 @@ class ListEntryForm(forms.Form):
 
 
 def edit_complist(request, id):
-    gamelist = GameList.objects.get(pk=id)
-    comp = gamelist.competition
+    comp = Competition.objects.get(pk=id)
     if comp.owner:
         request.perm.Ensure('[%d]' % comp.owner_id)
     else:
@@ -295,13 +309,15 @@ def edit_complist(request, id):
         initial=[{
             'id': x.id,
             'rank': x.rank,
+            'result': x.result,
             'gameid': x.game_id,
             'gamename': x.game.title if x.game else None,
             'comment': x.comment,
             'date': x.date,
             'gamelist': x.gamelist_id,
-        } for x in GameListEntry.objects.filter(
-            gamelist=id).order_by('rank', 'date', 'game__title')],
+        } for x in GameListEntry.objects.filter(gamelist__competition=comp)
+                 .order_by('gamelist__order', 'gamelist__id', 'rank', 'date',
+                           'result', 'game__title')],
         form_kwargs={
             'competition': comp,
         })
@@ -314,7 +330,7 @@ def edit_complist(request, id):
                 cl = f.cleaned_data
                 if cl['id']:
                     v = GameListEntry.objects.get(
-                        pk=cl['id'], gamelist_id=gamelist.id)
+                        pk=cl['id'], gamelist__competition=comp)
                 else:
                     v = GameListEntry()
                 if cl['DELETE']:
@@ -323,6 +339,7 @@ def edit_complist(request, id):
                     continue
                 v.gamelist_id = cl['gamelist']
                 v.rank = cl['rank']
+                v.result = cl['result']
                 v.game_id = cl['gameid']
                 v.comment = cl['comment']
                 v.date = cl['date']
@@ -330,7 +347,7 @@ def edit_complist(request, id):
         return redirect(request.get_full_path())
 
     return render(request, 'contest/editlist.html', {
-        'gamelist': gamelist,
+        'competition': comp,
         'entries': entries,
     })
 

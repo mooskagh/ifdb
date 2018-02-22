@@ -13,15 +13,23 @@
   {% endif %}
     {% if x.head %}
       <div class="grid-box-item-head-container">
-        <span class="rank">{{ x.head.primary }}</span><br />
-        {{ x.head.secondary }}
+        {% if x.head.combined %}
+          {{ x.head.combined }}
+        {% else %}
+          <span class="rank">{{ x.head.primary }}</span><br />
+          {{ x.head.secondary }}
+        {% endif %}
       </div>
     {% endif %}
     {% if x.tinyhead %}
       <div class="grid-box-item-head-container-tiny">
-        {{ x.tinyhead.primary }}
-        <span class="rank-tiny">{{ x.tinyhead.secondary }}</span>
-      </div>
+        {% if x.tinyhead.combined %}
+          <span class="rank-tiny">{{ x.tinyhead.combined }}</span>
+        {% else %}
+          {{ x.tinyhead.primary }}
+          <span class="rank-tiny">{{ x.tinyhead.secondary }}</span>
+        {% endif %}
+        </div>
     {% endif %}
     {% if x.image %}
       {% spaceless %}

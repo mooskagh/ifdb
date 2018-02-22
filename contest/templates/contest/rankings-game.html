@@ -8,7 +8,11 @@
   {% endif %}
     {% if g.head %}
     <div class="contest-rank-container">
-      <span class="rank">{{ g.head.primary }}</span><br>{{ g.head.secondary }}
+      {% if g.head.combined %}
+        <span class="rank-combined">{{ g.head.combined }}</span>
+      {% else %}
+        <span class="rank">{{ g.head.primary }}</span><br>{{ g.head.secondary }}
+      {% endif %}
     </div>
     {% endif %}    
     {% if g.game %}

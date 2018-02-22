@@ -27,6 +27,8 @@ def FormatHead(g, options):
                 'secondary': end.strftime('— %d.%m')
             }
     else:
+        if g.result:
+            return {'combined': g.result}
         if g.rank:
             return {'primary': g.rank, 'secondary': 'место'}
 
@@ -49,7 +51,7 @@ class CompetitionGameFetcher:
                             'game__gamevote_set',
                             'game__gameauthor_set__role',
                             'game__gameauthor_set__author',
-                        ).order_by('rank', 'date', 'game__title'):
+                        ).order_by('rank', 'date', 'result', 'game__title'):
                 if y.rank is None:
                     unranked.append(y)
                 else:

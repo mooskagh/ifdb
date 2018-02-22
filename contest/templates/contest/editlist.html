@@ -1,7 +1,7 @@
 {% extends "games/base.html" %}
 {% load tags %}
 {% load static %}
-{% block titlesection %} {{ gamelist.competition.title }} - {% endblock %}
+{% block titlesection %} {{ competition.title }} - {% endblock %}
 {% block scripts %}
     <script src="/static/formedit.js"></script>
 {% endblock %}
@@ -9,8 +9,7 @@
   <div class="content-box">
     <form class="full-width-form" method="post">
       {% csrf_token %}
-      <h1>{{ gamelist.competition.title }}</h1>
-      <h2>{{ gamelist.title|default:'(основная номинация)' }}</h2>
+      <h1>{{ competition.title }}</h1>
       {% include './form_inline.html' with formset=entries only %}
       <div>
         <br/>
