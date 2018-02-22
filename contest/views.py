@@ -290,7 +290,7 @@ def list_competitions(request):
                     item['tinyhead'] = FormatHead(z, options)
                     if z.game:
                         g = z.game
-                        lines.append({'text': g.title, 'style': ['strong']})
+                        lines.append({'text': g.title})
                         item['link'] = reverse(
                             'show_game', kwargs={'game_id': g.id})
 
