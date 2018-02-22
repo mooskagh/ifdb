@@ -214,6 +214,7 @@ def list_competitions(request):
                 },
                 {
                     'text': x.title,
+                    'style': ['strong'],
                 },
             ]
         })
@@ -226,6 +227,7 @@ def list_competitions(request):
                 'text': x.description,
                 'link': x.GetRemoteUrl(),
                 'newtab': True,
+                'style': ['strong'],
             }]
         })
 
@@ -288,7 +290,7 @@ def list_competitions(request):
                     item['tinyhead'] = FormatHead(z, options)
                     if z.game:
                         g = z.game
-                        lines.append({'text': g.title})
+                        lines.append({'text': g.title, 'style': ['strong']})
                         item['link'] = reverse(
                             'show_game', kwargs={'game_id': g.id})
 
