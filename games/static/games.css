@@ -349,6 +349,50 @@ a.grid-box-subheader:hover {
     background-color: #f06292;
 }
 
+.grid-box-salad .grid-box-header {
+    background-color: #4caf50;
+}
+
+.grid-box-salad .grid-box-subheader,
+.grid-box-salad .grid-box-item-head-container-tiny,
+.grid-box-salad .grid-box-item-head-container {
+    background-color: #81c784;
+    color: black;
+}
+
+.grid-box-brown .grid-box-header {
+    background-color: #795548;
+}
+
+.grid-box-brown .grid-box-subheader,
+.grid-box-brown .grid-box-item-head-container-tiny,
+.grid-box-brown .grid-box-item-head-container {
+    background-color: #a1887f;
+}
+
+.grid-box-orange .grid-box-header {
+    background-color: #ff9800;
+    color: black;
+}
+
+.grid-box-orange .grid-box-subheader,
+.grid-box-orange .grid-box-item-head-container-tiny,
+.grid-box-orange .grid-box-item-head-container {
+    background-color: #ffb74d;
+    color: black;
+}
+
+.grid-box-black .grid-box-header {
+    background-color: #000;
+    font-family: monospace;
+}
+
+.grid-box-black .grid-box-subheader,
+.grid-box-black .grid-box-item-head-container-tiny,
+.grid-box-black .grid-box-item-head-container {
+    background-color: #424242;
+}
+
 .content {
     margin: 50px auto 5px;
     max-width: 1024px;

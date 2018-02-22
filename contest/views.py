@@ -191,6 +191,9 @@ COLOR_RULES = [
     ('parovoz', 'red'),
     ('lok', 'yellow'),
     ('zok', 'blue'),
+    ('parserfest', 'black'),
+    ('zh', 'brown'),
+    ('qspcompo', 'salad'),
 ]
 
 
