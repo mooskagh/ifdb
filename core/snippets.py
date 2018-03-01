@@ -440,6 +440,8 @@ def PopularGamesSnippet(
     items = []
     for i in ids:
         lines = []
+        if i not in id_to_game:
+          continue
         x = id_to_game[i]
         for y in reversed(annotate):
             text = None
