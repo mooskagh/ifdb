@@ -30,7 +30,8 @@ GROUP_ALIAS = {
     'personality_edit': '@moder',
 }
 
-CRAWLER_STRS = ['YandexBot', 'Googlebot', 'YandexMobileBot', 'MegaIndex.ru']
+CRAWLER_STRS = ['YandexBot', 'Googlebot', 'YandexMobileBot', 'MegaIndex.ru',
+                'Barkrowler', 'DotBot']
 
 
 def IsCrawler(request):
