@@ -173,7 +173,7 @@ def ComputeHonors(author=None):
         gams.sort()
         games_to_consider = len(gams) - int(len(gams) * 0.26)
         sms = sum(gams[-games_to_consider:]) / games_to_consider
-        res[a] = DiscountRating(sms, len(games), P1=2.3, P2=0.6, P3=1.7)
+        res[a] = DiscountRating(sms, len(games), P1=2.3, P2=0.2, P3=2.2)
     if author:
         return res.get(author, 0.0)
     else:
