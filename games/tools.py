@@ -277,3 +277,11 @@ def CreateUrl(url, *, ok_to_clone, creator=None):
         u.save()
         Enqueue(CloneFile, u.id, name='CloneUrl(%d)' % u.id, onfail=MarkBroken)
     return u
+
+
+def GetIpAddr(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        return x_forwarded_for.split(',')[0]
+    else:
+        return request.META.get('REMOTE_ADDR')

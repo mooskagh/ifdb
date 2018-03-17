@@ -1,0 +1,99 @@
+<h3>Голосование</h3>
+{% if error %}
+  {{ error }}
+{% else %}
+{% if success_text %}
+ <div class="success-message">{{ success_text }}</div>
+{% endif %} 
+<form method="post">
+{% csrf_token %}
+{% for formset in sections %}
+  {{ formset.management_form }}
+  {{ formset.non_form_errors }}
+  {% for form in formset %}
+    <div class="contestvote-cell">
+      <div class="contestvote-gameinfo">
+        <div class="contestvote-gameinfo-line">
+          <span class="contestvote-gameinfo-line-title">Игра:</span>
+          <span class="contestvote-gameinfo-line-value">
+            <a href="{% url 'show_game' game_id=form.game.id %}" target="_blank">
+              {{ form.game.title }}
+            </a>
+            </span>
+        </div>
+        <div class="contestvote-gameinfo-line">
+          <span class="contestvote-gameinfo-line-title">
+            {% if form.game.authors|length == 1 %}Автор:{% else %}Авторы:{% endif %}
+          </span>
+          <span class="contestvote-gameinfo-line-value">
+            {% for x in form.game.authors %}
+                <span class="contestvote-gameinfo-author">
+                    <a href="{% url 'show_author' author_id=x.personality.id %}" target="_blank">{{ x.name }}</a>{% if not forloop.last %}, {% endif %}
+                </span>
+            {% endfor %}            
+          </span>
+        </div>
+        {% if form.gameentry.comment %}
+          <div class="contestvote-gameinfo-line">
+            <span class="contestvote-gameinfo-line-value">
+              {{ form.gameentry.comment }}
+            </span>
+          </div>
+        {% endif %}
+      </div>
+      <div class="contestvote-controls-container">        
+        {{ form.non_field_errors }}
+        <div class="contestvote-showhide-container">
+          <label class="contestvote-showhide">{{ form.has_vote }}</label>
+        </div>
+        {% for f in form.hidden_fields %}{{ f }}{% endfor %}        
+        <table class="contestvote-controls">
+        {% for field in form.visible_fields %}
+          {% if field.name != 'has_vote' %}
+            <tr>
+              <th>{{ field.label_tag }}</th>
+              <td>
+                {{ field.errors }}
+                {{ field }}
+                {% if field.help_text %}
+                  <div class="contestvote-help">
+                    ({{ field.help_text|safe }})
+                  </div>
+                {% endif %}
+              </td>
+            </tr>
+          {% endif %}
+        {% endfor %}
+        </table>        
+        <script>
+          (function(){
+            function Update(x) {
+              var checked = x.is(':checked');
+              if (checked) {
+                x.checkboxradio('option', 'label', '❌');                
+                x.closest('.contestvote-controls-container')
+                  .find('.contestvote-controls').show();
+              } else {
+                x.checkboxradio('option', 'label', 'Оценить');
+                x.closest('.contestvote-controls-container')
+                  .find('.contestvote-controls').hide();
+              }
+            };
+            var checkbox = $('#{{form.has_vote.auto_id}}').checkboxradio({
+              icon: false,
+              create: function(event, ui) {
+                Update($(event.target));
+              }
+            }).on("change", function(e) { Update($(e.target)); });
+          })();
+        </script>
+      </div>
+      <div style="clear: both;"></div>
+    </div>
+  {% endfor %}
+{% endfor %}
+<div class="contestvote-submit-container">
+  <input type="submit" value="Проголосовать"/>
+</div>
+</form>
+{% endif %}

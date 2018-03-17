@@ -118,3 +118,38 @@ class GameListEntry(models.Model):
     date = models.DateField(null=True, blank=True)
     comment = models.CharField(max_length=255, null=True, blank=True)
     # TODO (Add "authors" field for upcoming games in trainli support)
+
+
+class CompetitionVote(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    FIELD_TYPE_TO_FIELD = {
+        'IntegerField': 'int_val',
+        'BooleanField': 'bool_val',
+        'CharField': 'text_val',
+    }
+
+    def __str__(self):
+        return "%s -- %s -- %s -- %s" % (self.competition, self.user,
+                                         self.game, self.field)
+
+    def GetVal(self, typ):
+        return getattr(self, self.FIELD_TYPE_TO_FIELD[typ])
+
+    def SetVal(self, typ, val):
+        setattr(self, self.FIELD_TYPE_TO_FIELD[typ], val)
+
+    competition = models.ForeignKey(Competition, on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    when = models.DateTimeField()
+    section = models.CharField(max_length=255, null=True, blank=True)
+    game = models.ForeignKey(Game, on_delete=models.CASCADE)
+    field = models.CharField(max_length=255)
+    bool_val = models.NullBooleanField(null=True, blank=True)
+    int_val = models.IntegerField(null=True, blank=True)
+    text_val = models.TextField(null=True, blank=True)
+    ip_addr = models.CharField(max_length=50, null=True, blank=True)
+    session = models.CharField(max_length=32, null=True, blank=True)
+    perm = models.TextField(null=True, blank=True)

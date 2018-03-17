@@ -6,7 +6,7 @@ from django.forms import widgets
 from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.urls import reverse
-from games.tools import ConcoreNumeral, CreateUrl
+from games.tools import CreateUrl
 
 YEARS = range(timezone.now().year + 1, 1990, -1)
 
@@ -55,21 +55,6 @@ class NominationsForm(forms.Form):
         required=False,
         label='Название номинации',
         help_text='Может быть пустым, например, если номинация всего одна')
-
-    # def GetButtonLabels(self):
-    #     return ['Список игр']
-
-    # def GetButtons(self):
-    #     id = self.initial.get('id')
-    #     if id:
-    #         return [{
-    #             'url':
-    #                 reverse('edit_complist', kwargs={'id': id}),
-    #             'text':
-    #                 'Править (%s)' % ConcoreNumeral(
-    #                     GameListEntry.objects.filter(gamelist_id=id).count(),
-    #                     'игра,игры,игр'),
-    #         }]
 
 
 class ScheduleForm(forms.Form):

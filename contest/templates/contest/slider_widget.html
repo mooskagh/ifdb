@@ -1,0 +1,21 @@
+
+<script>
+$(function() {
+  function UpdateValue(val) {
+    $("#{{widget.attrs.id}}").val(val);
+    $("#{{widget.attrs.id}}-slider-handle").text(val);
+  }
+  $( "#{{widget.attrs.id}}-slider" ).slider({
+    min: {{slider.min}},
+    max: {{slider.max}},
+    value: {{widget.value|default:'undefined'}},
+    step: {{slider.step}},
+    create: function() { UpdateValue($(this).slider("value")); },
+    slide: function( event, ui ) { UpdateValue(ui.value); }
+  });
+});
+</script>
+<input type="hidden" name="{{ widget.name }}" {% include "django/forms/widgets/attrs.html" %}/>
+<div id="{{widget.attrs.id}}-slider" class="slider">
+  <div id="{{widget.attrs.id}}-slider-handle" class="ui-slider-handle slider-handle"></div>
+</div>

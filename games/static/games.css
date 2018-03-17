@@ -54,6 +54,90 @@ a.author-link:hover {
     font-weight: normal;
 }
 
+.success-message {
+    border: 1px solid #ff5431;
+    margin: 10px auto;
+    max-width: 400px;
+    padding: 20px;
+    text-align: center;
+}
+
+.contestvote-cell {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+    margin: 5px 0;
+}
+
+.contestvote-gameinfo {
+    padding: 5px;
+}
+
+.contestvote-gameinfo a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.contestvote-gameinfo a:hover {
+    text-decoration: underline;
+}
+
+.contestvote-gameinfo-line-title {
+    font-weight: bold;
+}
+
+.contestvote-controls {
+    margin: 5px;
+}
+
+.contestvote-controls th {
+    vertical-align: top;
+    font-weight: bold;
+    text-align: right;
+}
+
+.contestvote-controls textarea {
+    width: 100%;
+    height: 5em;
+    font: inherit;
+    font-size: 12px;
+    margin-bottom: 0;
+}
+
+.contestvote-help {
+    font-size: 11px;
+    color: #989898;
+    text-align: center;
+}
+
+.contestvote-showhide {
+    text-align: center;
+}
+
+.contestvote-showhide-container {
+    text-align: right;
+}
+
+.slider {
+    width: calc(100% - 3em);
+    margin: 5px auto;
+}
+
+.ui-slider .ui-slider-handle.slider-handle {
+    height: 1.6em;
+    line-height: 1.6em;
+    margin-top: -.8em;
+    margin-left: -1.5em;
+    text-align: center;
+    top: 50%;
+    width: 3em;
+    background: #ff5431;
+    color: white;
+}
+
+.contestvote-submit-container {
+    margin: 10px;
+    text-align: center;
+}
+
 .game-banner {
     background-color: #f1f1f1;
     box-shadow: 0 1px 3px rgba(0, 0, 0, .3);    
@@ -1793,6 +1877,10 @@ progress::-webkit-progress-value {
     }
     .search-box .search-box-value {
         margin-left: 185px;
+    }
+    .contestvote-gameinfo {
+        float: left;
+        width: 33%;
     }
 }
 

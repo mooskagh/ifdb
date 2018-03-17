@@ -1,5 +1,6 @@
 from .models import (Competition, CompetitionURL, CompetitionDocument,
                      GameList, CompetitionSchedule)
+from .voting import RenderVoting
 from collections import defaultdict
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Count, Max
@@ -116,7 +117,9 @@ class CompetitionGameFetcher:
 
 
 class SnippetProvider:
-    def __init__(self, comp):
+    def __init__(self, request, comp):
+        self.request = request
+        self.comp = comp
         self.fetcher = CompetitionGameFetcher(comp)
 
     def render_RESULTS(self):
@@ -126,6 +129,9 @@ class SnippetProvider:
 
     def render_PARTICIPANTS(self):
         return self.render_RESULTS()
+
+    def render_VOTING(self):
+        return RenderVoting(self.request, self.comp)
 
 
 def show_competition(request, slug, doc=''):
@@ -163,7 +169,7 @@ def show_competition(request, slug, doc=''):
             'doc':
                 docobj,
             'markdown':
-                RenderMarkdown(docobj.text, SnippetProvider(comp)),
+                RenderMarkdown(docobj.text, SnippetProvider(request, comp)),
             'logo':
                 logo,
             'docs':

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (Competition, CompetitionURLCategory, CompetitionURL,
                      CompetitionDocument, CompetitionSchedule, GameList,
-                     GameListEntry)
+                     GameListEntry, CompetitionVote)
 
 
 @admin.register(Competition)
@@ -55,4 +55,17 @@ class GameListEntryAdmin(admin.ModelAdmin):
 
     list_display = ['Competition', 'List', 'rank', 'game', 'date', 'comment']
     list_filter = ['gamelist__competition', 'gamelist__title']
+    raw_id_fields = ['game']
+
+
+@admin.register(CompetitionVote)
+class CompetitionVoteAdmin(admin.ModelAdmin):
+    def val(self, obj):
+        if obj.bool_val is not None:
+            return obj.bool_val
+        if obj.int_val is not None:
+            return obj.int_val
+        return obj.text_val
+
+    list_display = ['competition', 'user', 'game', 'field', 'val']
     raw_id_fields = ['game']
