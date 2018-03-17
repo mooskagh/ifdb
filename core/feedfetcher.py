@@ -134,7 +134,7 @@ def FetchUrqFeed():
 def FetchFeeds():
     FetchFeed('https://ifhub.club/rss/full', 'ifhub')
     FetchIficionFeed()
-    FetchUrqFeed()
+    # FetchUrqFeed()
     FetchFeed(
         'http://instead.syscall.ru/talk/feed.php', 'inst', id_field='title')
     session = vk.Session(settings.VK_SERVICE_KEY)
