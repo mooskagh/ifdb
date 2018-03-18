@@ -62,6 +62,12 @@ INS_PREFIX = 'instead-games.ru'
 #CategorizeUrl(url, desc='', category=None, base=None):
 
 
+def TrimPrefix(s, prefix):
+    if s.startswith(prefix):
+        return s[len(prefix):]
+    return s
+
+
 def ImportFromInstead(url):
     try:
         html = FetchUrlToString(url)
@@ -76,7 +82,7 @@ def ImportFromInstead(url):
     m = INS_HEAD.search(html)
     if not m:
         return {'error': 'Не найдена игра на странице'}
-    res['title'] = unescape(m.group(1))
+    res['title'] = TrimPrefix(unescape(m.group(1)), '[URQ] ')
 
     m = INS_DESC.search(html)
     if m:
@@ -108,8 +114,7 @@ def ImportFromInstead(url):
 
         for m in INS_LINK.finditer(panel):
             u = unescape(m.group(1))
-            if u.startswith(INS_PREFIX):
-                u = u[len(INS_PREFIX):]
+            u = TrimPrefix(u, INS_PREFIX)
             res['urls'].append(
                 CategorizeUrl(u, unescape(m.group(2)), base=url))
 
