@@ -55,7 +55,7 @@ INS_SCREENSHOT = re.compile('<img class="border" src="([^"]+)"')
 INS_PANEL = re.compile('<div id="panel">(.*?)</div>', re.DOTALL)
 INS_AUTHOR = re.compile('<b>Автор</b>: ([^<]+)<br>')
 INS_DATE = re.compile(r'<b>Дата</b>: (\d{4}\.\d{2}\.\d{2})<br>')
-INS_LINK = re.compile(r'<a href="([^"]+)"[^>]*>([^<]+)</a>')
+INS_LINK = re.compile(r'<a [^>]*href="([^"]+)"[^>]*>([^<]+)</a>')
 
 INS_PREFIX = 'instead-games.ru'
 

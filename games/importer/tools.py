@@ -34,6 +34,7 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ('rilarhiv.ru', '', '', 'download_direct', 'Скачать с РилАрхива'),
     ('instead-games.ru', '.*/download/.*', '', 'download_direct',
      'Скачать с инстеда'),
+    ('instead-games.ru', '/instead-em/.*', '', 'play_online', 'Играть онлайн'),
     ('instead-games.ru', '/forum/.*', '', 'forum', 'Форум на инстеде'),
     ('instead-games.ru', '', '', 'game_page', 'Страница на инстеде'),
     ('instead.syscall.ru', '.*/forum/.*', '', 'forum', 'Форум на инстеде'),
