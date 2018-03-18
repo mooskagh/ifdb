@@ -207,11 +207,12 @@ enricher.AddRule(
         'r?inform.*',
         'r?tads.*',
         'ripurq',
+        'instead',
     ),
     AddTag('os_win'))
 enricher.AddRule(
-    HasTag('platform', 'r?tads.*', 'r?inform.*'), AddTag(
-        'os_linux', 'os_macos'))
+    HasTag('platform', 'r?tads.*', 'r?inform.*', 'instead'),
+    AddTag('os_linux', 'os_macos'))
 enricher.AddRule(HasTag('platform', 'dosurq'), AddTag('os_dos'))
 enricher.AddRule(
     And(HasTag('platform', 'qsp'), HasUrlCategory('play_online')),
