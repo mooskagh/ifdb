@@ -23,15 +23,17 @@ EXPAND_GROUPS = [
 GROUP_ALIAS = {
     'game_view': '@all',
     'game_edit': '(a @auth (n @ban))',
-    'game_comment': '(a @notor (n @ban))',
+    'game_comment': '(a @auth (n @ban))',  # '(a @notor (n @ban))',
     'game_delete': '@moder',
     'game_vote': '(a @auth (n @ban))',
     'personality_view': '@all',
     'personality_edit': '@moder',
 }
 
-CRAWLER_STRS = ['YandexBot', 'Googlebot', 'YandexMobileBot', 'MegaIndex.ru',
-                'Barkrowler', 'DotBot']
+CRAWLER_STRS = [
+    'YandexBot', 'Googlebot', 'YandexMobileBot', 'MegaIndex.ru', 'Barkrowler',
+    'DotBot'
+]
 
 
 def IsCrawler(request):

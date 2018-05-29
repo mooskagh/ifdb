@@ -50,6 +50,7 @@ var CONTESTS = (function() {
               .css('left', left + best_idx * card_width)
               .css('width', card_width - gap);
           end_days[best_idx] = best_val + gap + contest.height();
+          contest.addClass('fixed-contest-box');
         }
 
         if (calm_ruler.length != 0 && first !== undefined) {

@@ -1423,8 +1423,13 @@ span.gameinfo-author {
 }
 
 .contest-box {
+    margin-left: 100px;
+}
+
+.contest-box.fixed-contest-box {
     left: 100px;
     position: absolute;
+    margin-left: inherit;
 }
 
 .contest-img {
