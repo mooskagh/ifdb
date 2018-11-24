@@ -37,12 +37,12 @@ def GetCandidates():
 
     while True:
         r = FetchUrlToString(
-            r'https://urq.plut.info/games?page=' + str(page), use_cache=False)
+            r'http://urq.plut.info/games?page=' + str(page), use_cache=False)
 
         found = False
 
         for m in PLUT_LISTING_TITLE_RE.finditer(r):
-            res.append('https://urq.plut.info' + unescape(m.group(1)))
+            res.append('http://urq.plut.info' + unescape(m.group(1)))
             found = True
 
         if not found:

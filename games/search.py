@@ -303,6 +303,8 @@ class SB_Text(SearchBit):
 
         for g in games:
             tokens = TokenizeText(g.title or '')
+            if not self.titles_only:
+                tokens |= TokenizeText(g.description or '')
             if MatchesPrefix(query, tokens):
                 res.append(g)
                 continue
