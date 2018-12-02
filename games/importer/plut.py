@@ -96,7 +96,7 @@ def ParseFields(html):
 def ImportFromPlut(url):
     try:
         html = FetchUrlToString(url)
-    except Exception as e:
+    except Exception:
         return {'error': 'Не открывается что-то этот URL.'}
 
     res = {'priority': 50}
