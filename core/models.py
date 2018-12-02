@@ -34,7 +34,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         })
     username = models.CharField(
         _('username'),
-        max_length=30,
+        max_length=60,
         unique=True,
         blank=True,
         null=True,
@@ -233,7 +233,7 @@ class FeedCache(models.Model):
     item_id = models.CharField(max_length=512)
     date_published = models.DateTimeField()
     date_discovered = models.DateTimeField()
-    title = models.CharField(max_length=256)
+    title = models.CharField(max_length=512)
     authors = models.CharField(max_length=256)
     url = models.CharField(max_length=2048)
 
