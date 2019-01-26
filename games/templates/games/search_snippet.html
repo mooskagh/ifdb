@@ -28,6 +28,12 @@
         {% endif %}
        <div class="gamegallery-bottom-container">
            <div class="gamegallery-bottom">
+                <div class="gamegallery-title">{{ g.title }}</div>
+                <div class="gamegallery-author">
+                    {% for x in g.authors %}        
+                        {{x.author.name}}{% if not forloop.last %},{% endif %}                
+                    {% endfor %}
+                </div>
                 {% if g.ds.creation_date %}
                     <div class="gamegallery-auxinfo">
                         Добавлено {{ g.ds.creation_date }}.
@@ -37,14 +43,8 @@
                     <div class="gamegallery-auxinfo">
                         Игра вышла {{ g.ds.release_date }}.
                     </div>
-                {% endif %}
                 <div style="clear: both;"></div>
-                <div class="gamegallery-author">
-                    {% for x in g.authors %}        
-                        {{x.author.name}}{% if not forloop.last %},{% endif %}                
-                    {% endfor %}
-                </div>
-                <div class="gamegallery-title">{{ g.title }}</div>
+                {% endif %}
             </div>
        </div>
     </a>
