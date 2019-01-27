@@ -32,7 +32,8 @@ GROUP_ALIAS = {
 
 CRAWLER_STRS = [
     'YandexBot', 'Googlebot', 'YandexMobileBot', 'MegaIndex.ru', 'Barkrowler',
-    'DotBot'
+    'DotBot', 'BLEXBot', 'MauiBot', 'AhrefsBot', 'Mail.RU_Bot', 'SemrushBot',
+    'bingbot', 'Twitterbot', 'Discordbot', 'MJ12bot', 'CCBot'
 ]
 
 
