@@ -28,7 +28,7 @@ class PlutImporter:
 
 
 PLUT_LISTING_TITLE_RE = re.compile(
-    r'<td class="views-field views-field-title" >\s*<a href="([^"]+)"')
+    r'<td\s+class="views-field views-field-title"\s*>\s*<a href="([^"]+)"')
 
 
 def GetCandidates():
