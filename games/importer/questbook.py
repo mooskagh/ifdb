@@ -92,7 +92,11 @@ def ImportFromQuestBook(url):
 
     res = {'priority': 51, 'authors': []}
     tags = [{'cat_slug': 'platform', 'tag': 'Questbook'}]
-    urls = []
+    urls = [{
+        'urlcat_slug': 'game_page',
+        'description': 'Страница на квестбуке',
+        'url': url,
+    }]
 
     m = QUESTBOOK_TITLE.search(html)
     if not m:

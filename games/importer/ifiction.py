@@ -111,7 +111,6 @@ def ImportFromIfiction(url):
         for m in LINK_RE.finditer(m.group(1)):
             myurl = ResolveRedirect(m.group(1), url)
             desc = unescape(m.group(2))
-            print(myurl, desc)
             res['urls'].append(CategorizeUrl(myurl, desc, base=url))
 
     m = POSTER_URL.search(html)
