@@ -1,7 +1,7 @@
 var FORMEDIT = (function() {
   'use strict';
 
-  var re = new RegExp('__prefix__', 'gs');
+  var re = new RegExp('__prefix__', 'g');
 
   function Adder(prefix) {
     $('.form-empty-' + prefix).hide();
