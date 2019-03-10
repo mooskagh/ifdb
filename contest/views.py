@@ -74,11 +74,12 @@ class CompetitionGameFetcher:
                     if z.game:
                         games.add(z.game_id)
 
-        posters = (GameURL.objects.filter(category__symbolic_id='poster')
-                   .filter(game__in=games).select_related('url'))
-        screenshots = (
-            GameURL.objects.filter(category__symbolic_id='screenshot')
-            .filter(game__in=games).select_related('url'))
+        posters = (GameURL.objects.filter(
+            category__symbolic_id='poster').filter(
+                game__in=games).select_related('url'))
+        screenshots = (GameURL.objects.filter(
+            category__symbolic_id='screenshot').filter(
+                game__in=games).select_related('url'))
         author_objs = GameAuthor.objects.filter(
             game__in=games,
             role__symbolic_id='author').select_related('author')
@@ -200,6 +201,7 @@ COLOR_RULES = [
     ('parserfest', 'black'),
     ('zh', 'brown'),
     ('qspcompo', 'salad'),
+    ('kontigr', 'purple'),
 ]
 
 
@@ -215,8 +217,9 @@ def list_competitions(request):
                 {
                     'text':
                         FormatDate(x.when),
-                    'style': (['float-right'] + (['dimmed']
-                                                 if x.when < now else [])),
+                    'style':
+                        (['float-right'] + (['dimmed'] if x.when < now else [])
+                         ),
                 },
                 {
                     'text': x.title,
