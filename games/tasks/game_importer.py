@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from games.importer.tools import (Importer, HashizeUrl, GetBagOfWords,
                                   ComputeSimilarity)
 from games.models import Game, URL
+from games.importer.discord import PostNewGameToDiscord
 from games.updater import UpdateGame, Importer2Json
 from ifdb.permissioner import Permissioner
 from logging import getLogger
@@ -80,16 +81,16 @@ class ImportedGame:
         self.is_error = 'title' not in self.content
 
         if self.is_error:
-            logger.warning("Was unable to fetch: %s\n%s" % (self.seed_urls,
-                                                            self.content))
+            logger.warning(
+                "Was unable to fetch: %s\n%s" % (self.seed_urls, self.content))
             return False
 
         for x in self.seed_urls:
             if x in self.new_urls:
                 continue
             if x in error_urls:
-                logger.error("Was unable to fetch old url %s: %s" %
-                             (x, error_urls[x]))
+                logger.error(
+                    "Was unable to fetch old url %s: %s" % (x, error_urls[x]))
                 return False
 
         self.seed_urls = [
@@ -119,11 +120,14 @@ class ImportedGame:
                 logger.warning("Failed to fetch %s" % self)
                 return
         game = Importer2Json(self.content)
+        is_new_game = not self.game
         if self.game:
             game['game_id'] = self.game.id
         logger.info("Updating %s" % self)
-        UpdateGame(
+        id = UpdateGame(
             request, game, update_edit_time=False, kill_existing_urls=False)
+        if is_new_game:
+            PostNewGameToDiscord(id)
 
     def __str__(self):
         s = 'Game: [%s]' % self.title
@@ -142,9 +146,8 @@ class GameSet:
     def AddGame(self, game):
         for u in game.HashizedUrls():
             if u in self.url_to_game:
-                logger.warning(
-                    "Game [%s] has the same URL [%s] has game [%s]" %
-                    (game, u, self.url_to_game[u]))
+                logger.warning("Game [%s] has the same URL [%s] has game [%s]"
+                               % (game, u, self.url_to_game[u]))
             else:
                 self.url_to_game[u] = game
 
@@ -175,8 +178,8 @@ class GameSet:
 
         if len(similar_games) > 1:
             logger.warning("Found %d similar games while importing [%s]:\n%s" %
-                           (len(similar_games), game,
-                            '\n'.join([str(x) for x in similar_games])))
+                           (len(similar_games), game, '\n'.join(
+                               [str(x) for x in similar_games])))
 
         best_game = None
         best_similariry = 0.0
@@ -190,8 +193,8 @@ class GameSet:
             if len(similar_games) > 0:
                 logger.error(
                     "Similar games are too dissimilar (%.2f) [%s]:\n%s" %
-                    (best_similariry, game,
-                     '\n'.join([str(x) for x in similar_games])))
+                    (best_similariry, game, '\n'.join(
+                        [str(x) for x in similar_games])))
 
             self.AddGame(game)
             return

@@ -53,6 +53,7 @@ if IS_PROD:
     SERVER_EMAIL = 'ersatzplut@gmail.com'
     EMAIL_HOST_PASSWORD = open(
         '/home/ifdb/configs/gmail-pass.txt').read().strip()
+    DISCORD_WEBHOOK = open('/home/ifdb/configs/discord.url').read().strip()
     CRAWLER_CACHE_DIR = None  # '/home/ifdb/tmp/urlcache/'
     TMP_DIR = '/home/ifdb/tmp/tmp/'
     LOG_DIR = '/home/ifdb/logs/'
@@ -62,6 +63,10 @@ if IS_PROD:
 else:
     SECRET_KEY = 'l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr'
     VK_SERVICE_KEY = open('/home/crem/my/vk.key').read().strip()
+    DISCORD_WEBHOOK = (
+        'https://discordapp.com/api/webhooks/556212956858286101'
+        '/LHKQcWH5df_hXKkn-jaPHeLozEXMHheohOzIW-r1DTbA_AqcaMJfPzW1y0AluqOJACus'
+    )
     DEBUG = True
     ALLOWED_HOSTS = []
     # DATABASES = {
@@ -113,8 +118,7 @@ logging.config.dictConfig({
         'google': {
             'format': ('%(levelname).1s%(asctime)s.%(msecs)03d %(name)s '
                        '%(filename)s:%(lineno)d] %(message)s'),
-            'datefmt':
-                '%m%d %H:%M:%S',
+            'datefmt': '%m%d %H:%M:%S',
         }
     },
     'filters': {
