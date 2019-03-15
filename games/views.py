@@ -6,10 +6,10 @@ import random
 from .game_details import GameDetailsBuilder, StarsFromRating
 from .importer import Importer
 from .importer.tools import CategorizeUrl
+from .importer.discord import PostNewGameToDiscord
 from .models import (GameURL, GameComment, Game, GameVote, InterpretedGameUrl,
                      URL, GameTag, GameAuthorRole, PersonalityAlias,
-                     GameTagCategory, GameURLCategory, GameAuthor, Personality,
-                     PersonalityURLCategory, PersonalityUrl)
+                     GameTagCategory, GameURLCategory, GameAuthor, Personality)
 from .search import MakeSearch, MakeAuthorSearch
 from .tools import (RenderMarkdown, ComputeGameRating, ComputeHonors,
                     SnippetFromList)
@@ -38,9 +38,8 @@ logger = getLogger('web')
 
 def index(request):
     LogAction(request, 'nav-index', is_mutation=False, obj=None)
-    return render(request, 'games/index.html', {
-        'snippets': RenderSnippets(request)
-    })
+    return render(request, 'games/index.html',
+                  {'snippets': RenderSnippets(request)})
 
 
 @ensure_csrf_cookie
@@ -60,17 +59,16 @@ def edit_game(request, game_id):
 
 def store_game(request):
     if request.method != 'POST':
-        return render(request, 'games/error.html', {
-            'message': 'Что-то не так!' + ' (1)'
-        })
+        return render(request, 'games/error.html',
+                      {'message': 'Что-то не так!' + ' (1)'})
     j = json.loads(request.POST.get('json'))
 
     if not j['title']:
-        return render(request, 'games/error.html', {
-            'message': 'У игры должно быть название.'
-        })
+        return render(request, 'games/error.html',
+                      {'message': 'У игры должно быть название.'})
 
     before = None
+    is_new_game = 'game_id' not in j
     if 'game_id' in j:
         before = BuildJsonGameInfo(request, j['game_id'])
         before['game_id'] = str(j['game_id'])
@@ -84,14 +82,16 @@ def store_game(request):
         obj_id=id,
         before=before,
         after=j)
+    print(is_new_game)
+    if is_new_game:
+        PostNewGameToDiscord(id)
     return redirect(reverse('show_game', kwargs={'game_id': id}))
 
 
 def vote_game(request):
     if request.method != 'POST':
-        return render(request, 'games/error.html', {
-            'message': 'Что-то не так!' + ' (2)'
-        })
+        return render(request, 'games/error.html',
+                      {'message': 'Что-то не так!' + ' (2)'})
     game = Game.objects.get(id=int(request.POST.get('game_id')))
     request.perm.Ensure(game.vote_perm)
 
@@ -158,9 +158,8 @@ ANONYMOUS_ANIMALS = [
 
 def comment_game(request):
     if request.method != 'POST':
-        return render(request, 'games/error.html', {
-            'message': 'Что-то не так!' + ' (3)'
-        })
+        return render(request, 'games/error.html',
+                      {'message': 'Что-то не так!' + ' (3)'})
     game = Game.objects.get(id=int(request.POST.get('game_id')))
     request.perm.Ensure(game.comment_perm)
 
@@ -337,9 +336,7 @@ def store_interpreter_params(request, gameurl_id):
         u.save()
 
         return redirect(
-            reverse('play_in_interpreter', kwargs={
-                'gameurl_id': gameurl_id
-            }))
+            reverse('play_in_interpreter', kwargs={'gameurl_id': gameurl_id}))
     raise SuspiciousOperation
 
 
@@ -556,8 +553,8 @@ def json_author_search(request):
                     Subquery(
                         GameAuthor.objects.filter(
                             role__symbolic_id='author',
-                            author__personality=OuterRef('pk'))
-                        .values('author__personality').annotate(
+                            author__personality=OuterRef('pk')).
+                        values('author__personality').annotate(
                             cnt=Count('game', distinct=True)).values('cnt'),
                         output_field=models.IntegerField()), 0),
         })
@@ -583,8 +580,8 @@ def json_author_search(request):
     elapsed_time = timeit.default_timer() - start_time
 
     if elapsed_time > 2.0:
-        logger.error("Time for author search query [%s] was %f" %
-                     (query, elapsed_time))
+        logger.error(
+            "Time for author search query [%s] was %f" % (query, elapsed_time))
     if start == 0:
         LogAction(
             request, 'pers-search', after={'query': query}, is_mutation=False)
@@ -619,8 +616,8 @@ def json_search(request):
     elapsed_time = timeit.default_timer() - start_time
 
     if elapsed_time > 2.0:
-        logger.error("Time for search query [%s] was %f" % (query,
-                                                            elapsed_time))
+        logger.error(
+            "Time for search query [%s] was %f" % (query, elapsed_time))
 
     if start == 0:
         LogAction(
