@@ -10,7 +10,7 @@ from .importer.discord import PostNewGameToDiscord
 from .models import (GameURL, GameComment, Game, GameVote, InterpretedGameUrl,
                      URL, GameTag, GameAuthorRole, PersonalityAlias,
                      GameTagCategory, GameURLCategory, GameAuthor, Personality)
-from .search import MakeSearch, MakeAuthorSearch
+from .search import MakeSearch, MakeAuthorSearch, EncodeSearch
 from .tools import (RenderMarkdown, ComputeGameRating, ComputeHonors,
                     SnippetFromList)
 from .updater import UpdateGame, Importer2Json
@@ -55,6 +55,11 @@ def edit_game(request, game_id):
     game = Game.objects.get(id=game_id)
     request.perm.Ensure(game.edit_perm)
     return render(request, 'games/edit.html', {'game_id': game.id})
+
+
+def search_game(request):
+    search_string = EncodeSearch(request.GET.get('q'))
+    return redirect('%s?q=%s' % (reverse('list_games'), search_string))
 
 
 def store_game(request):

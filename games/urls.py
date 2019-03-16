@@ -13,6 +13,7 @@ urlpatterns = [
     url(r'^game/vote/', views.vote_game, name='vote_game'),
     url(r'^game/store/', views.store_game, name='store_game'),
     url(r'^game/comment/', views.comment_game, name='comment_game'),
+    url(r'^game/search/', views.search_game, name='search_game'),
     url(r'^game/$', views.list_games, name='list_games'),
     url(r'^game/(?P<game_id>\d+)/', views.show_game, name='show_game'),
     url(r'^game/interpreter/(?P<gameurl_id>\d+)/store/',
@@ -42,9 +43,10 @@ urlpatterns = [
         RegistrationView.as_view(form_class=RegistrationForm),
         name='registration_register',
     ),
-    url(r'^accounts/',
-        include('registration.backends.hmac.urls'
-                if settings.REQUIRE_ACCOUNT_ACTIVATION else
+    url(
+        r'^accounts/',
+        include('registration.backends.hmac.urls' if settings.
+                REQUIRE_ACCOUNT_ACTIVATION else
                 'registration.backends.simple.urls')),
 ]
 
