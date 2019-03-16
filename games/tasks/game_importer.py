@@ -3,7 +3,7 @@ from games.importer.tools import (Importer, HashizeUrl, GetBagOfWords,
                                   ComputeSimilarity)
 from games.models import Game, URL
 from games.importer.discord import PostNewGameToDiscord
-from games.updater import UpdateGame, Importer2Json
+from games.updater import UpdateGame, Importer2Json, UpdateGameUrls
 from ifdb.permissioner import Permissioner
 from logging import getLogger
 from django.contrib.sessions.backends.db import SessionStore
@@ -129,6 +129,22 @@ class ImportedGame:
         if is_new_game:
             PostNewGameToDiscord(id)
 
+    def StoreOnlyUrls(self, request):
+        if not self.content:
+            if not self.Fetch():
+                logger.warning("Failed to fetch %s" % self)
+                return
+        game = Importer2Json(self.content)
+        if not self.game:
+            return
+        logger.info("Updating URLs only: %s" % self)
+        id = UpdateGameUrls(
+            request,
+            self.game,
+            game.get('links', []),
+            True,
+            kill_existing=False)
+
     def __str__(self):
         s = 'Game: [%s]' % self.title
         if self.game:
@@ -209,7 +225,7 @@ class GameSet:
         return self.games
 
 
-def ImportGames():
+def ImportGames(append_urls=False):
     importer = Importer()
     existing_urls = set(
         [HashizeUrl(x.original_url) for x in URL.objects.all()])
@@ -248,10 +264,21 @@ def ImportGames():
             continue
         if x.IsUpdateable():
             x.Store(fake_request)
+        elif append_urls and x.NewUrls():
+            new_urls = '\n'.join(x.NewUrls())
+            logger.warning(
+                'Force adding new URLs for existing non-updateable game:'
+                '\n%s\nNew urls are:\n%s' % (x, new_urls))
+            x.StoreOnlyUrls(fake_request)
+
         else:
             new_urls = '\n'.join(x.NewUrls())
             logger.error('New URLs for existing non-updateable game:'
                          '\n%s\nNew urls are:\n%s' % (x, new_urls))
+
+
+def ImportForceUpdateUrls():
+    ImportGames(True)
 
 
 def ForceReimport():
