@@ -115,7 +115,6 @@ COMPETITION_URL_CATS = [
     ['official_page', 'Официальная страница', False],
     ['other_site', 'Конкурс на другом сайте', False],
     ['review', 'Обзоры конкурса', False],
-    ['video', 'Видео', False],
     ['forum', 'Обсуждение конкурса', False],
     ['download_direct', 'Архив игр конкурса', True],
 ]
@@ -127,12 +126,10 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         for x in AUTHOR_ROLES:
             (slug, desc) = x
-            self.stdout.write(
-                'Author role: %s (%s)... ' % (slug, desc), ending='')
+            self.stdout.write('Author role: %s (%s)... ' % (slug, desc),
+                              ending='')
             _, created = GameAuthorRole.objects.update_or_create(
-                symbolic_id=slug, defaults={
-                    'title': desc
-                })
+                symbolic_id=slug, defaults={'title': desc})
             if created:
                 self.stdout.write(self.style.SUCCESS('created.'))
             else:
@@ -164,9 +161,7 @@ class Command(BaseCommand):
             self.stdout.write('Tag: %s (%s)... ' % (slug, desc), ending='')
             c = GameTagCategory.objects.get(symbolic_id=cat)
             _, created = GameTag.objects.update_or_create(
-                symbolic_id=slug, category=c, defaults={
-                    'name': desc
-                })
+                symbolic_id=slug, category=c, defaults={'name': desc})
             if created:
                 self.stdout.write(self.style.SUCCESS('created.'))
             else:
