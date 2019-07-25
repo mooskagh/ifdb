@@ -17,14 +17,12 @@ class CompetitionForm(forms.Form):
     id = forms.IntegerField(widget=widgets.HiddenInput())
     title = forms.CharField(label='Название события')
     slug = forms.CharField(label='URL: db.crem.xyz/jam/', label_suffix='')
-    start_date = forms.DateField(
-        label='Дата начала',
-        required=False,
-        widget=widgets.SelectDateWidget(years=YEARS))
-    end_date = forms.DateField(
-        label='Дата окончания',
-        required=False,
-        widget=widgets.SelectDateWidget(years=YEARS))
+    start_date = forms.DateField(label='Дата начала',
+                                 required=False,
+                                 widget=widgets.SelectDateWidget(years=YEARS))
+    end_date = forms.DateField(label='Дата окончания',
+                               required=False,
+                               widget=widgets.SelectDateWidget(years=YEARS))
     published = forms.BooleanField(label='Показывать в списке', required=False)
 
     def clean(self):
@@ -60,21 +58,20 @@ class NominationsForm(forms.Form):
 class ScheduleForm(forms.Form):
     id = forms.IntegerField(widget=widgets.HiddenInput(), required=False)
     title = forms.CharField(label='Текст', required=True)
-    when = forms.DateTimeField(
-        label='Дата',
-        required=True,
-        widget=widgets.SelectDateWidget(years=YEARS))
-    show = forms.BooleanField(
-        label='Показывать?', required=False, initial=True)
+    when = forms.DateTimeField(label='Дата',
+                               required=True,
+                               widget=widgets.SelectDateWidget(years=YEARS))
+    show = forms.BooleanField(label='Показывать?',
+                              required=False,
+                              initial=True)
 
 
 class DocumentsForm(forms.Form):
     id = forms.IntegerField(widget=widgets.HiddenInput(), required=False)
-    slug = forms.CharField(
-        required=False,
-        label='Имя в URL',
-        help_text='Может быть пустым, для главной страницы',
-        label_suffix='')
+    slug = forms.CharField(required=False,
+                           label='Имя в URL',
+                           help_text='Может быть пустым, для главной страницы',
+                           label_suffix='')
     title = forms.CharField(label='Заголовок страницы', required=True)
 
     def GetButtonLabels(self):
@@ -113,30 +110,29 @@ def edit_competition(request, id):
     else:
         request.perm.Ensure(EDIT_PERM)
 
-    main = CompetitionForm(
-        request.POST or None,
-        prefix='main',
-        initial={
-            'id': comp.id,
-            'title': comp.title,
-            'slug': comp.slug,
-            'start_date': comp.start_date,
-            'end_date': comp.end_date,
-            'published': comp.published,
-        })
+    main = CompetitionForm(request.POST or None,
+                           prefix='main',
+                           initial={
+                               'id': comp.id,
+                               'title': comp.title,
+                               'slug': comp.slug,
+                               'start_date': comp.start_date,
+                               'end_date': comp.end_date,
+                               'published': comp.published,
+                           })
     Urls = forms.formset_factory(UrlForm, extra=0, can_delete=True)
-    urls = Urls(
-        request.POST or None,
-        prefix='urls',
-        initial=[{
-            'id': x.id,
-            'description': x.description,
-            'url': x.url,
-            'category': x.category_id
-        } for x in CompetitionURL.objects.filter(competition=comp)])
+    urls = Urls(request.POST or None,
+                prefix='urls',
+                initial=[{
+                    'id': x.id,
+                    'description': x.description,
+                    'url': x.url,
+                    'category': x.category_id
+                } for x in CompetitionURL.objects.filter(competition=comp)])
 
-    Nominations = forms.formset_factory(
-        NominationsForm, extra=0, can_delete=True)
+    Nominations = forms.formset_factory(NominationsForm,
+                                        extra=0,
+                                        can_delete=True)
     nominations = Nominations(
         request.POST or None,
         prefix='nominations',
@@ -148,18 +144,19 @@ def edit_competition(request, id):
                  ])
 
     Schedule = forms.formset_factory(ScheduleForm, extra=0, can_delete=True)
-    schedule = Schedule(
-        request.POST or None,
-        prefix='schedule',
-        initial=[{
-            'id': x.id,
-            'when': x.when,
-            'title': x.title,
-        } for x in CompetitionSchedule.objects.filter(
-            competition=comp).order_by('when')])
+    schedule = Schedule(request.POST or None,
+                        prefix='schedule',
+                        initial=[{
+                            'id': x.id,
+                            'when': x.when,
+                            'title': x.title,
+                        } for x in CompetitionSchedule.objects.filter(
+                            competition=comp).order_by('when')])
 
-    Documents = forms.formset_factory(
-        DocumentsForm, extra=0, can_delete=True, formset=DocumentsFormSet)
+    Documents = forms.formset_factory(DocumentsForm,
+                                      extra=0,
+                                      can_delete=True,
+                                      formset=DocumentsFormSet)
     documents = Documents(
         request.POST or None,
         prefix='docs',
@@ -228,8 +225,7 @@ def edit_competition(request, id):
         return redirect(request.get_full_path())
 
     return render(
-        request,
-        'contest/edit.html', {
+        request, 'contest/edit.html', {
             'comp':
                 comp,
             'mainform':
@@ -243,8 +239,8 @@ def edit_competition(request, id):
             'docuform':
                 documents,
             'gamecount':
-                GameListEntry.objects.filter(gamelist__competition=comp)
-                .count(),
+                GameListEntry.objects.filter(gamelist__competition=comp
+                                             ).count(),
         })
 
 
@@ -266,15 +262,16 @@ class ListEntryForm(forms.Form):
         help_text='напр. "выбор жюри"',
         widget=forms.TextInput(attrs={'style': 'width: 100px;'}))
     gameid = forms.IntegerField(required=False, label='id игры')
-    gamename = forms.CharField(
-        required=False, disabled=True, label='Название игры')
+    gamename = forms.CharField(required=False,
+                               disabled=True,
+                               label='Название игры')
     comment = forms.CharField(required=False, label='Комментарий')
-    date = forms.DateField(
-        label='Дата',
-        required=False,
-        widget=widgets.SelectDateWidget(years=YEARS))
-    gamelist = forms.ChoiceField(
-        label='Номинация', required=True, choices=[(None, '(нету)')])
+    date = forms.DateField(label='Дата',
+                           required=False,
+                           widget=widgets.SelectDateWidget(years=YEARS))
+    gamelist = forms.ChoiceField(label='Номинация',
+                                 required=True,
+                                 choices=[(None, '(нету)')])
 
 
 def edit_complist(request, id):
@@ -289,23 +286,23 @@ def edit_complist(request, id):
         extra=0,
         can_delete=True,
     )
-    entries = ListEntries(
-        request.POST or None,
-        initial=[{
-            'id': x.id,
-            'rank': x.rank,
-            'result': x.result,
-            'gameid': x.game_id,
-            'gamename': x.game.title if x.game else None,
-            'comment': x.comment,
-            'date': x.date,
-            'gamelist': x.gamelist_id,
-        } for x in GameListEntry.objects.filter(gamelist__competition=comp)
-                 .order_by('gamelist__order', 'gamelist__id', 'rank', 'date',
-                           'result', 'game__title')],
-        form_kwargs={
-            'competition': comp,
-        })
+    entries = ListEntries(request.POST or None,
+                          initial=[{
+                              'id': x.id,
+                              'rank': x.rank,
+                              'result': x.result,
+                              'gameid': x.game_id,
+                              'gamename': x.game.title if x.game else None,
+                              'comment': x.comment,
+                              'date': x.date,
+                              'gamelist': x.gamelist_id,
+                          } for x in GameListEntry.objects.filter(
+                              gamelist__competition=comp).order_by(
+                                  'gamelist__order', 'gamelist__id', 'rank',
+                                  'date', 'result', 'game__title')],
+                          form_kwargs={
+                              'competition': comp,
+                          })
 
     if request.POST and entries.is_valid():
         if entries.has_changed():
@@ -314,8 +311,8 @@ def edit_complist(request, id):
                     continue
                 cl = f.cleaned_data
                 if cl['id']:
-                    v = GameListEntry.objects.get(
-                        pk=cl['id'], gamelist__competition=comp)
+                    v = GameListEntry.objects.get(pk=cl['id'],
+                                                  gamelist__competition=comp)
                 else:
                     v = GameListEntry()
                 if cl['DELETE']:
@@ -340,8 +337,9 @@ def edit_complist(request, id):
 class DocumentForm(forms.Form):
     id = forms.IntegerField(widget=widgets.HiddenInput(), required=False)
     title = forms.CharField(required=False, label='Заголовок')
-    text = forms.CharField(
-        required=True, label='Текст', widget=widgets.Textarea())
+    text = forms.CharField(required=True,
+                           label='Текст',
+                           widget=widgets.Textarea())
 
 
 def edit_compdoc(request, id):
@@ -353,13 +351,12 @@ def edit_compdoc(request, id):
     else:
         request.perm.Ensure(EDIT_PERM)
 
-    form = DocumentForm(
-        request.POST or None,
-        initial={
-            'id': doc.id,
-            'title': doc.title,
-            'text': doc.text,
-        })
+    form = DocumentForm(request.POST or None,
+                        initial={
+                            'id': doc.id,
+                            'title': doc.title,
+                            'text': doc.text,
+                        })
 
     if request.POST and form.is_valid():
         if form.has_changed():
@@ -368,11 +365,10 @@ def edit_compdoc(request, id):
             doc.text = cl['text']
             doc.save()
         return redirect(
-            reverse(
-                'show_competition',
-                kwargs={
-                    'slug': comp.slug,
-                    'doc': doc.slug
-                }))
+            reverse('show_competition',
+                    kwargs={
+                        'slug': comp.slug,
+                        'doc': doc.slug
+                    }))
 
     return render(request, 'contest/editdoc.html', {'doc': doc, 'form': form})

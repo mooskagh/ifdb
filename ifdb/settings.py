@@ -59,8 +59,12 @@ if IS_PROD:
     LOG_DIR = '/home/ifdb/logs/'
     EXTRACTOR_PATH = '/bin/unar "%s" -o "%s"'
     WORKER_PID_FILE = os.path.join(TMP_DIR, 'ifdbworker.pid')
+    RECAPTCHA_PUBLIC_KEY = '6Lc1j68UAAAAAOT-Fk3aF-94XXMutiuPGrxtS2N9'
+    RECAPTCHA_PRIVATE_KEY = open(
+        '/home/ifdb/configs/recaptcha.txt').read().strip()
 
 else:
+    SILENCED_SYSTEM_CHECKS = ['captcha.recaptcha_test_key_error']
     SECRET_KEY = 'l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr'
     VK_SERVICE_KEY = open('/home/crem/my/vk.key').read().strip()
     DISCORD_WEBHOOK = (
@@ -234,6 +238,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'games',
+    'captcha',
     'core',
     'moder',
     'contest',
@@ -325,12 +330,12 @@ FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o2750
 STATIC_URL = '/static/'
 MEDIA_URL = '/f/'
 
-UPLOADS_FS = FileSystemStorage(
-    os.path.join(MEDIA_ROOT, 'uploads'), os.path.join(MEDIA_URL, 'uploads'))
-BACKUPS_FS = FileSystemStorage(
-    os.path.join(MEDIA_ROOT, 'backups'), os.path.join(MEDIA_URL, 'backups'))
-RECODES_FS = FileSystemStorage(
-    os.path.join(MEDIA_ROOT, 'recodes'), os.path.join(MEDIA_URL, 'recodes'))
+UPLOADS_FS = FileSystemStorage(os.path.join(MEDIA_ROOT, 'uploads'),
+                               os.path.join(MEDIA_URL, 'uploads'))
+BACKUPS_FS = FileSystemStorage(os.path.join(MEDIA_ROOT, 'backups'),
+                               os.path.join(MEDIA_URL, 'backups'))
+RECODES_FS = FileSystemStorage(os.path.join(MEDIA_ROOT, 'recodes'),
+                               os.path.join(MEDIA_URL, 'recodes'))
 
 REQUIRE_ACCOUNT_ACTIVATION = True
 ACCOUNT_ACTIVATION_DAYS = 7

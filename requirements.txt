@@ -8,6 +8,7 @@ cryptography==2.6.1
 defusedxml==0.5.0
 Django==2.0.1
 django-debug-toolbar==1.8
+django-recaptcha==2.0.4
 django-registration==2.2
 djangorestframework==3.6.3
 djangorestframework-jwt==1.11.0
