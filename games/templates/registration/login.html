@@ -13,7 +13,6 @@
                 Кстати, надо не имя пользователя вводить, а email.
             </p>
         {% endif %}
-
         {% csrf_token %}
         <table>
         <tr>
@@ -29,6 +28,10 @@
         <input type="submit" value="Войти" />
         <input type="hidden" name="next" value="{{ next }}" />
     </form>
+    {% if form.errors %}
+        <a href="{% url 'auth_password_reset' %}">Забыли пароль? — не беда!</a>
+    {% endif %}
+
 </div>
 
 {% endblock %}

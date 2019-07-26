@@ -112,8 +112,10 @@ else:
     EXTRACTOR_PATH = '/usr/bin/unar "%s" -o "%s"'
     LOG_DIR = os.path.join(BASE_DIR, 'tmp/logs')
     WORKER_PID_FILE = os.path.join(BASE_DIR, 'tmp/ifdbworker.pid')
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 LOGGING_CONFIG = None
+LOGIN_REDIRECT_URL = '/'
 
 logging.config.dictConfig({
     'version': 1,
@@ -231,7 +233,6 @@ INTERNAL_IPS = PrefixList(
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -242,6 +243,7 @@ INSTALLED_APPS = [
     'core',
     'moder',
     'contest',
+    'django.contrib.admin',
 ]
 
 MIDDLEWARE = [
