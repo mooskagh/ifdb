@@ -1160,6 +1160,7 @@ textarea {
 
 .game-description {
     margin-bottom: 1em;
+    font-size: 14px;
 }
 
 .game-description h1 {
@@ -1987,9 +1988,12 @@ h4,h5,h6 {
     .content {
         max-width: 1400px;
     }
+    .game-description {
+        font-size: 15px;
+    }
 
     .leftpane {
-        width: 1050px;
+        width: 1000px;
     }
     .rightpane {
         width: 340px;
