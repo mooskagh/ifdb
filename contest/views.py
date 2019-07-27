@@ -104,11 +104,11 @@ class CompetitionGameFetcher:
                         g.added_age = None
                         g.release_age = None
                         if g.creation_time:
-                            g.added_age = (
-                                now - g.creation_time).total_seconds()
+                            g.added_age = (now -
+                                           g.creation_time).total_seconds()
                         if g.release_date:
-                            g.release_age = (
-                                now.date() - g.release_date).total_seconds()
+                            g.release_age = (now.date() -
+                                             g.release_date).total_seconds()
                         g.poster = g2p.get(z.game_id)
                         g.authors = ', '.join(authors[g.id])
 
@@ -145,8 +145,8 @@ def show_competition(request, slug, doc=''):
     request.perm.Ensure(docobj.view_perm)
     LogAction(request, 'comp-view', is_mutation=False, obj=comp, obj2=docobj)
 
-    logos = CompetitionURL.objects.filter(
-        category__symbolic_id='logo', competition=comp)
+    logos = CompetitionURL.objects.filter(category__symbolic_id='logo',
+                                          competition=comp)
     logo = logos[0].GetLocalUrl() if logos else None
 
     links = []
@@ -300,8 +300,8 @@ def list_competitions(request):
                     if z.game:
                         g = z.game
                         lines.append({'text': g.title})
-                        item['link'] = reverse(
-                            'show_game', kwargs={'game_id': g.id})
+                        item['link'] = reverse('show_game',
+                                               kwargs={'game_id': g.id})
 
                     else:
                         if z.comment:
@@ -318,10 +318,10 @@ def list_competitions(request):
         else:
             contests.append(x)
 
-    d.replace(day=1)
+    d = d.replace(day=1)
     ruler = []
     total_height = 30
-    while d != end_date:
+    while d < end_date:
         days = (d + relativedelta.relativedelta(months=1) - d).days
         ruler.append({
             'label': "%s '%02d" % (MONTHS[d.month - 1], d.year % 100),

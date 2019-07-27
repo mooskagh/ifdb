@@ -13,9 +13,8 @@ class CompetitionAdminzAction(CompetitionAction):
     TITLE = 'Админка (event)'
 
     def GetUrl(self):
-        return reverse(
-            "admin:contest_competition_change",
-            args=(self.obj.competition.id, ))
+        return reverse("admin:contest_competition_change",
+                       args=(self.obj.competition.id, ))
 
 
 @RegisterAction
@@ -23,8 +22,8 @@ class CompetitionAdminzAction(CompetitionAction):
     TITLE = 'Админка (page)'
 
     def GetUrl(self):
-        return reverse(
-            "admin:contest_competitiondocument_change", args=(self.obj.id, ))
+        return reverse("admin:contest_competitiondocument_change",
+                       args=(self.obj.id, ))
 
 
 @RegisterAction
@@ -39,7 +38,7 @@ class CompetitionDocLink(CompetitionAction):
     def IsAllowed(cls, request, object):
         obj = cls.EnsureObj(object)
         if obj and obj.competition and obj.competition.owner:
-            return obj.competition.owner == request.user
+            return request.perm(('(o @admin [%d])' % obj.competition.owner.id))
         else:
             return request.perm(cls.PERM)
 
@@ -56,7 +55,7 @@ class CompetitionEditorLink(CompetitionAction):
     def IsAllowed(cls, request, object):
         obj = cls.EnsureObj(object)
         if obj and obj.competition and obj.competition.owner:
-            return obj.competition.owner == request.user
+            return request.perm(('(o @admin [%d])' % obj.competition.owner.id))
         else:
             return request.perm(cls.PERM)
 
@@ -73,6 +72,6 @@ class CompetitionListLink(CompetitionAction):
     def IsAllowed(cls, request, object):
         obj = cls.EnsureObj(object)
         if obj and obj.competition and obj.competition.owner:
-            return obj.competition.owner == request.user
+            return request.perm(('(o @admin [%d])' % obj.competition.owner.id))
         else:
             return request.perm(cls.PERM)

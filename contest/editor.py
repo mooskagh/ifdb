@@ -106,7 +106,7 @@ class DocumentsFormSet(forms.BaseFormSet):
 def edit_competition(request, id):
     comp = Competition.objects.get(pk=id)
     if comp.owner:
-        request.perm.Ensure('[%d]' % comp.owner_id)
+        request.perm.Ensure('(o @admin [%d])' % comp.owner_id)
     else:
         request.perm.Ensure(EDIT_PERM)
 
@@ -277,7 +277,7 @@ class ListEntryForm(forms.Form):
 def edit_complist(request, id):
     comp = Competition.objects.get(pk=id)
     if comp.owner:
-        request.perm.Ensure('[%d]' % comp.owner_id)
+        request.perm.Ensure('(o @admin [%d])' % comp.owner_id)
     else:
         request.perm.Ensure(EDIT_PERM)
 
@@ -347,7 +347,7 @@ def edit_compdoc(request, id):
     comp = doc.competition
 
     if comp.owner:
-        request.perm.Ensure('[%d]' % comp.owner_id)
+        request.perm.Ensure('(o @admin [%d])' % comp.owner_id)
     else:
         request.perm.Ensure(EDIT_PERM)
 
