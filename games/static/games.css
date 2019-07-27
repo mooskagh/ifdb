@@ -1988,10 +1988,6 @@ h4,h5,h6 {
     .content {
         max-width: 1400px;
     }
-    .game-description {
-        font-size: 15px;
-    }
-
     .leftpane {
         width: 1000px;
     }
