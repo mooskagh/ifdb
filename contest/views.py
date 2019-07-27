@@ -246,7 +246,7 @@ def list_competitions(request):
     contests = []
 
     d = now.date()
-    for x in Competition.objects.order_by('-end_date'):
+    for x in Competition.objects.filter(published=True).order_by('-end_date'):
         options = json.loads(x.options)
         if x.start_date and x.start_date < d:
             d = x.start_date
