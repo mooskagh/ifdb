@@ -3,25 +3,27 @@
         {% if likes.own_vote == 1 %}
             <a href="#" like-value="like-on">
                 <img src="{% static 'thumbup_on.svg' %}"/>
+                {{ likes.likes }}
             </a>
         {% else %}
             <a href="#" like-value="like-off">
                 <img src="{% static 'thumbup_off.svg' %}"/>
+                {{ likes.likes }}
             </a>
         {% endif %}
-        {{ likes.likes }}
     </a>
     &nbsp;
         {% if likes.own_vote == -1 %}
             <a href="#" like-value="dislike-on">
                 <img src="{% static 'thumbdown_on.svg' %}"/>
+                {{ likes.dislikes }}
             </a>
         {% else %}
             <a href="#" like-value="dislike-off">
                 <img src="{% static 'thumbdown_off.svg' %}"/>
+                {{ likes.dislikes }}
             </a>
         {% endif %}
-        {{ likes.dislikes }}
     </a>
 {% else %}
         <img src="{% static 'thumbup_off.svg' %}"/>
