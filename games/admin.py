@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (Game, PersonalityAlias, GameTagCategory, GameTag, URL,
                      GameURLCategory, GameURL, GameAuthorRole, GameAuthor,
                      GameVote, GameComment, InterpretedGameUrl, Personality,
-                     PersonalityUrl, PersonalityAliasRedirect)
+                     PersonalityUrl, PersonalityAliasRedirect, GameCommentVote)
 
 
 class GameAuthorAdmin(admin.TabularInline):
@@ -163,6 +163,13 @@ class GameCommentAdmin(admin.ModelAdmin):
     list_filter = ['creation_time', 'is_deleted']
     search_fields = ['pk', 'text']
     raw_id_fields = ['game', 'parent']
+
+
+@admin.register(GameCommentVote)
+class GameCommentVoteAdmin(admin.ModelAdmin):
+    list_display = ['comment', 'user', 'vote_time', 'vote']
+    raw_id_fields = ['comment']
+    search_fields = ['comment', 'user']
 
 
 @admin.register(InterpretedGameUrl)

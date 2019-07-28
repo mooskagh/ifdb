@@ -29,6 +29,8 @@ urlpatterns = [
 
     # API
     url(r'^json/gameinfo/', views.json_gameinfo, name='json_gameinfo'),
+    url(r'^json/commentvote/', views.json_commentvote,
+        name='json_commentvote'),
     url(r'^json/categorizeurl/',
         views.json_categorizeurl,
         name='json_categorizeurl'),

@@ -3,13 +3,14 @@ from logging import getLogger
 import os.path
 import timeit
 import random
-from .game_details import GameDetailsBuilder, StarsFromRating
+from .game_details import GameDetailsBuilder, StarsFromRating, GetCommentVotes
 from .importer import Importer
 from .importer.tools import CategorizeUrl
 from .importer.discord import PostNewGameToDiscord
 from .models import (GameURL, GameComment, Game, GameVote, InterpretedGameUrl,
                      URL, GameTag, GameAuthorRole, PersonalityAlias,
-                     GameTagCategory, GameURLCategory, GameAuthor, Personality)
+                     GameTagCategory, GameURLCategory, GameAuthor, Personality,
+                     GameCommentVote)
 from .search import MakeSearch, MakeAuthorSearch, EncodeSearch
 from .tools import (RenderMarkdown, ComputeGameRating, ComputeHonors,
                     SnippetFromList)
@@ -79,14 +80,13 @@ def store_game(request):
         before['game_id'] = str(j['game_id'])
 
     id = UpdateGame(request, j)
-    LogAction(
-        request,
-        'gam-store',
-        is_mutation=True,
-        obj_type='Game',
-        obj_id=id,
-        before=before,
-        after=j)
+    LogAction(request,
+              'gam-store',
+              is_mutation=True,
+              obj_type='Game',
+              obj_id=id,
+              before=before,
+              after=j)
     print(is_new_game)
     if is_new_game:
         PostNewGameToDiscord(id)
@@ -115,14 +115,13 @@ def vote_game(request):
     obj.star_rating = int(request.POST.get('score'))
     obj.save()
 
-    LogAction(
-        request,
-        'gam-vote',
-        obj=game,
-        obj2=obj,
-        before=before,
-        after={'stars': obj.star_rating},
-        is_mutation=True)
+    LogAction(request,
+              'gam-vote',
+              obj=game,
+              obj2=obj,
+              before=before,
+              after={'stars': obj.star_rating},
+              is_mutation=True)
 
     return redirect(reverse('show_game', kwargs={'game_id': game.id}))
 
@@ -183,17 +182,54 @@ def comment_game(request):
     comment.text = request.POST.get('text', None)
     comment.save()
 
-    LogAction(
-        request,
-        'gam-comment',
-        is_mutation=True,
-        obj=game,
-        obj2=comment,
-        after={
-            'username': comment.username,
-            'text': comment.text,
-        })
+    LogAction(request,
+              'gam-comment',
+              is_mutation=True,
+              obj=game,
+              obj2=comment,
+              after={
+                  'username': comment.username,
+                  'text': comment.text,
+              })
     return redirect(reverse('show_game', kwargs={'game_id': game.id}))
+
+
+def json_commentvote(request):
+    if request.method != 'POST':
+        return render(request, 'games/error.html',
+                      {'message': 'Что-то не так!' + ' (199)'})
+    comment_id = int(request.POST.get('comment'))
+
+    if request.user.is_authenticated:
+        old_vote = None
+        new_vote = {
+            'dislike-off': -1,
+            'like-off': 1
+        }.get(request.POST.get('cur_val'), None)
+
+        try:
+            vote = GameCommentVote.objects.get(user=request.user,
+                                               comment_id=comment_id)
+            old_vote = vote.vote
+        except GameCommentVote.DoesNotExist:
+            vote = GameCommentVote(comment_id=comment_id, user=request.user)
+
+        vote.vote_time = timezone.now()
+        if new_vote:
+            vote.vote = new_vote
+            vote.save()
+        else:
+            vote.delete()
+        LogAction(request,
+                  'gam-comment-like',
+                  is_mutation=True,
+                  obj_id=comment_id,
+                  before={'vote': old_vote},
+                  after={'vote': new_vote})
+
+    vote_set = GameCommentVote.objects.filter(comment_id=comment_id)
+    return render(request, 'games/game_comment_likes.html',
+                  {'likes': GetCommentVotes(vote_set, request.user)})
 
 
 def show_game(request, game_id):
@@ -276,10 +312,9 @@ def show_author(request, author_id):
             res['games'].append({
                 'role': (role.title),
                 'games': (SnippetFromList(
-                    sorted(
-                        games[role],
-                        key=lambda x: x.creation_time,
-                        reverse=True))),
+                    sorted(games[role],
+                           key=lambda x: x.creation_time,
+                           reverse=True))),
             })
 
         LogAction(request, 'pers-view', is_mutation=False, obj=a)
@@ -314,14 +349,13 @@ class NullBooleanField(forms.NullBooleanField):
 
 class UrqwInterpreterForm(forms.Form):
     does_work = NullBooleanField(label="Работоспособность игры")
-    variant = ChoiceField(
-        label="Вариант URQ",
-        required=False,
-        choices=[
-            (None, "Без специальных правил"),
-            ('ripurq', "Rip URQ 1.4"),
-            ('dosurq', "Dos URQ 1.35"),
-        ])
+    variant = ChoiceField(label="Вариант URQ",
+                          required=False,
+                          choices=[
+                              (None, "Без специальных правил"),
+                              ('ripurq', "Rip URQ 1.4"),
+                              ('dosurq', "Dos URQ 1.35"),
+                          ])
 
 
 def store_interpreter_params(request, gameurl_id):
@@ -480,8 +514,8 @@ def BuildJsonGameInfo(request, game_id):
 
         g['links'] = []
         for x in game.gameurl_set.select_related('url').all():
-            g['links'].append((x.category_id, x.description or '',
-                               x.url.original_url))
+            g['links'].append((x.category_id, x.description
+                               or '', x.url.original_url))
     return g
 
 
@@ -518,8 +552,8 @@ def json_gameinfo(request):
 
         g['links'] = []
         for x in game.gameurl_set.select_related('url').all():
-            g['links'].append((x.category_id, x.description or '',
-                               x.url.original_url))
+            g['links'].append((x.category_id, x.description
+                               or '', x.url.original_url))
     return JsonResponse(res)
 
 
@@ -535,8 +569,8 @@ def json_categorizeurl(request):
     res = CategorizeUrl(url, desc, cat)
     return JsonResponse({
         'desc': (res['description']),
-        'cat': (
-            GameURLCategory.objects.get(symbolic_id=res['urlcat_slug']).id),
+        'cat':
+            (GameURLCategory.objects.get(symbolic_id=res['urlcat_slug']).id),
     })
 
 
@@ -555,13 +589,12 @@ def json_author_search(request):
         annotate={
             'game_count':
                 Coalesce(
-                    Subquery(
-                        GameAuthor.objects.filter(
-                            role__symbolic_id='author',
-                            author__personality=OuterRef('pk')).
-                        values('author__personality').annotate(
-                            cnt=Count('game', distinct=True)).values('cnt'),
-                        output_field=models.IntegerField()), 0),
+                    Subquery(GameAuthor.objects.filter(
+                        role__symbolic_id='author',
+                        author__personality=OuterRef('pk')
+                    ).values('author__personality').annotate(
+                        cnt=Count('game', distinct=True)).values('cnt'),
+                             output_field=models.IntegerField()), 0),
         })
 
     for x in authors:
@@ -585,11 +618,13 @@ def json_author_search(request):
     elapsed_time = timeit.default_timer() - start_time
 
     if elapsed_time > 2.0:
-        logger.error(
-            "Time for author search query [%s] was %f" % (query, elapsed_time))
+        logger.error("Time for author search query [%s] was %f" %
+                     (query, elapsed_time))
     if start == 0:
-        LogAction(
-            request, 'pers-search', after={'query': query}, is_mutation=False)
+        LogAction(request,
+                  'pers-search',
+                  after={'query': query},
+                  is_mutation=False)
     return res
 
 
@@ -621,12 +656,14 @@ def json_search(request):
     elapsed_time = timeit.default_timer() - start_time
 
     if elapsed_time > 2.0:
-        logger.error(
-            "Time for search query [%s] was %f" % (query, elapsed_time))
+        logger.error("Time for search query [%s] was %f" %
+                     (query, elapsed_time))
 
     if start == 0:
-        LogAction(
-            request, 'gam-search', after={'query': query}, is_mutation=False)
+        LogAction(request,
+                  'gam-search',
+                  after={'query': query},
+                  is_mutation=False)
     return res
 
 

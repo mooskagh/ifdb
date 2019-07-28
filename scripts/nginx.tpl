@@ -13,7 +13,7 @@ server {
     server_name db.crem.xyz;
 
     error_log    /home/ifdb/logs/nginx-error.log;
-    access_log    /home/ifdb/logs/nginx-access.log;
+    access_log    /home/ifdb/logs/nginx-access.log main;
 
     listen 443 ssl;
     listen [::]:443 ssl;

@@ -1,4 +1,4 @@
-from .models import Game
+from .models import Game, GameCommentVote
 from .tools import (FormatDate, FormatTime, StarsFromRating, RenderMarkdown,
                     ExtractYoutubeId, PartitionItems)
 from .search import BaseXWriter
@@ -39,6 +39,28 @@ def AnnotateMedia(media):
     return res
 
 
+def GetCommentVotes(vote_set, user):
+    likes = vote_set.filter(vote=1).count()
+    dislikes = vote_set.filter(vote=-1).count()
+    own_vote = 0
+
+    if user and not user.is_authenticated:
+        user = None
+    allow_vote = user is not None
+
+    try:
+        own_vote = vote_set.get(user=user).vote
+    except GameCommentVote.DoesNotExist:
+        pass
+
+    return {
+        'likes': likes,
+        'dislikes': dislikes,
+        'allow_vote': allow_vote,
+        'own_vote': own_vote,
+    }
+
+
 class GameDetailsBuilder:
     def __init__(self, game_id, request):
         self.game = Game.objects.prefetch_related(
@@ -52,10 +74,10 @@ class GameDetailsBuilder:
         release_date = FormatDate(self.game.release_date)
         last_edit_date = FormatDate(self.game.edit_time)
         added_date = FormatDate(self.game.creation_time)
-        authors, participants = PartitionItems(
-            self.game.gameauthor_set.all(), [('author', )],
-            catfield='role',
-            follow='author')
+        authors, participants = PartitionItems(self.game.gameauthor_set.all(),
+                                               [('author', )],
+                                               catfield='role',
+                                               follow='author')
         media, online, download, links = PartitionItems(
             self.game.gameurl_set.all(),
             [('poster', 'video', 'screenshot'),
@@ -180,7 +202,9 @@ class GameDetailsBuilder:
     #
     def GetGameComments(self):
         res = []
-        for v in self.game.gamecomment_set.select_related('user'):
+        for v in self.game.gamecomment_set.select_related(
+                'user').prefetch_related('gamecommentvote_set'):
+            likes = GetCommentVotes(v.gamecommentvote_set, self.request.user)
             res.append({
                 'id': v.id,
                 'user_id': v.user.id if v.user else None,
@@ -191,6 +215,7 @@ class GameDetailsBuilder:
                 'edited': FormatTime(v.edit_time),
                 'text': RenderMarkdown(v.text),
                 'is_deleted': v.is_deleted,
+                'likes': likes,
             })
 
         parent_to_cluster = {}
@@ -204,8 +229,8 @@ class GameDetailsBuilder:
                     clusters.append([v])
                 elif v['parent_id'] in parent_to_cluster:
                     clusters[parent_to_cluster[v['parent_id']]].append(v)
-                    parent_to_cluster[v['id']] = parent_to_cluster[v[
-                        'parent_id']]
+                    parent_to_cluster[v['id']] = parent_to_cluster[
+                        v['parent_id']]
                 else:
                     swap.append(v)
             res = swap
