@@ -198,7 +198,7 @@ def json_commentvote(request):
     if request.method != 'POST':
         return render(request, 'games/error.html',
                       {'message': 'Что-то не так!' + ' (199)'})
-    comment_id = int(request.POST.get('comment'))
+    comment = GameComment.objects.get(id=int(request.POST.get('comment')))
 
     if request.user.is_authenticated:
         old_vote = None
@@ -209,10 +209,10 @@ def json_commentvote(request):
 
         try:
             vote = GameCommentVote.objects.get(user=request.user,
-                                               comment_id=comment_id)
+                                               comment_id=comment.id)
             old_vote = vote.vote
         except GameCommentVote.DoesNotExist:
-            vote = GameCommentVote(comment_id=comment_id, user=request.user)
+            vote = GameCommentVote(comment_id=comment.id, user=request.user)
 
         vote.vote_time = timezone.now()
         if new_vote:
@@ -223,13 +223,14 @@ def json_commentvote(request):
         LogAction(request,
                   'gam-comment-like',
                   is_mutation=True,
-                  obj_id=comment_id,
+                  obj=comment,
                   before={'vote': old_vote},
                   after={'vote': new_vote})
 
-    vote_set = GameCommentVote.objects.filter(comment_id=comment_id)
+    vote_set = GameCommentVote.objects.filter(comment_id=comment.id)
+
     return render(request, 'games/game_comment_likes.html',
-                  {'likes': GetCommentVotes(vote_set, request.user)})
+                  {'likes': GetCommentVotes(vote_set, request.user, comment)})
 
 
 def show_game(request, game_id):

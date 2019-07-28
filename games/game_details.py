@@ -39,14 +39,15 @@ def AnnotateMedia(media):
     return res
 
 
-def GetCommentVotes(vote_set, user):
+def GetCommentVotes(vote_set, user, comment):
     likes = vote_set.filter(vote=1).count()
     dislikes = vote_set.filter(vote=-1).count()
     own_vote = 0
 
     if user and not user.is_authenticated:
         user = None
-    allow_vote = user is not None
+    allow_vote = (user is not None and comment.user != user
+                  and not comment.is_deleted)
 
     try:
         own_vote = vote_set.get(user=user).vote
@@ -204,7 +205,8 @@ class GameDetailsBuilder:
         res = []
         for v in self.game.gamecomment_set.select_related(
                 'user').prefetch_related('gamecommentvote_set'):
-            likes = GetCommentVotes(v.gamecommentvote_set, self.request.user)
+            likes = GetCommentVotes(v.gamecommentvote_set, self.request.user,
+                                    v)
             res.append({
                 'id': v.id,
                 'user_id': v.user.id if v.user else None,
