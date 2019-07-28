@@ -1829,6 +1829,15 @@ progress::-webkit-progress-value {
     display: none;
 }
 
+.likes img {
+    height: 1.3em;
+}
+
+.likes a {
+    text-decoration: none;
+    color: inherit;
+}
+
 .authors-header {
     display: none;
 }

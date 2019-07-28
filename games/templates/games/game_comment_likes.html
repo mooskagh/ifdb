@@ -1,0 +1,32 @@
+{% load static %}
+{% if likes.allow_vote %}
+        {% if likes.own_vote == 1 %}
+            <a href="#" like-value="like-on">
+                <img src="{% static 'thumbup_on.svg' %}"/>
+            </a>
+        {% else %}
+            <a href="#" like-value="like-off">
+                <img src="{% static 'thumbup_off.svg' %}"/>
+            </a>
+        {% endif %}
+        {{ likes.likes }}
+    </a>
+    &nbsp;
+        {% if likes.own_vote == -1 %}
+            <a href="#" like-value="dislike-on">
+                <img src="{% static 'thumbdown_on.svg' %}"/>
+            </a>
+        {% else %}
+            <a href="#" like-value="dislike-off">
+                <img src="{% static 'thumbdown_off.svg' %}"/>
+            </a>
+        {% endif %}
+        {{ likes.dislikes }}
+    </a>
+{% else %}
+        <img src="{% static 'thumbup_off.svg' %}"/>
+        {{ likes.likes }}
+    &nbsp;
+        <img src="{% static 'thumbdown_off.svg' %}"/>
+        {{ likes.dislikes }}
+{% endif %}
