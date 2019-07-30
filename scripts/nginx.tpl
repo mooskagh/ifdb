@@ -80,7 +80,7 @@ server {
         include     /home/ifdb/configs/uwsgi_params;
     }
 
-{% if c.conf == 'kontigr' %}
+{% elif c.conf == 'kontigr' %}
     location /f/  {
         alias /home/ifdb/files/;
     }
