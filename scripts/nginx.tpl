@@ -43,9 +43,9 @@ server {
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
-    if ($scheme != "https") {
-        return 301 https://$host$request_uri;
-    } # managed by Certbot
+    # if ($scheme != "https") {
+    #    return 301 https://$host$request_uri;
+    # } # managed by Certbot
 
 {% elif c.host == 'staging' %}
     server_name db-staging.crem.xyz;
