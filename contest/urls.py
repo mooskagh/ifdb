@@ -4,6 +4,7 @@ from . import editor
 
 urlpatterns = [
     url(r'^$', views.list_competitions, name='list_competitions'),
+    url(r'^showvotes/(?P<id>\d+)/$', views.list_votes, name='view_compvotes'),
     url(r'^edit/(?P<id>\d+)/$',
         editor.edit_competition,
         name='edit_competition'),

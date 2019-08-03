@@ -1,13 +1,17 @@
 from .models import (Competition, CompetitionURL, CompetitionDocument,
-                     GameList, CompetitionSchedule)
+                     GameList, CompetitionSchedule, GameListEntry,
+                     CompetitionVote)
 from .voting import RenderVoting
 from collections import defaultdict
+from django import forms
+from django.forms import widgets
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Max
 from django.http import Http404
 from django.shortcuts import render
 from django.template.loader import render_to_string
-from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
 from games.models import GameURL, GameAuthor
@@ -336,3 +340,146 @@ def list_competitions(request):
         'contests': contests,
         'upcoming': upcoming,
     })
+
+
+class NominationSelectionForm(forms.Form):
+    def __init__(self, *args, competition=None, **argw):
+        super().__init__(*args, **argw)
+        if competition:
+            self.fields['category'].choices = [
+                (x.id, x.title or '(основная)')
+                for x in GameList.objects.filter(
+                    competition=competition).order_by('order')
+            ]
+
+    category = forms.ChoiceField(label='Номинация',
+                                 required=True,
+                                 choices=[(None, '(нету)')])
+
+
+class VotesToShow(forms.Form):
+    def __init__(self, *args, nomination=None, **argw):
+        super().__init__(*args, **argw)
+        if nomination:
+            self.fields['fields'].choices = [(x['name'], x['label'])
+                                             for x in nomination['fields']]
+
+    shown = forms.BooleanField(initial=True,
+                               widget=widgets.HiddenInput(),
+                               required=False)
+
+    fields = forms.MultipleChoiceField(label='Поля',
+                                       required=True,
+                                       widget=forms.CheckboxSelectMultiple)
+
+    showtime = forms.BooleanField(label='Показывать время', required=False)
+
+    highlight = forms.DateTimeField(label='Выделять новее чем',
+                                    required=False,
+                                    input_formats=['%Y-%m-%d %H:%M'])
+
+
+def FirstNotNone(*argv):
+    for x in argv:
+        if x is not None:
+            return x
+    return None
+
+
+def list_votes(request, id):
+    comp = Competition.objects.get(pk=id)
+    options = json.loads(comp.options)
+    voting = options.get('voting')
+    if not voting:
+        raise PermissionDenied
+    if comp.owner:
+        request.perm.Ensure('(o @admin [%d])' % comp.owner_id)
+    else:
+        request.perm.Ensure('(o @admin)')
+
+    if 'category' in request.GET:
+        nomination_form = NominationSelectionForm(request.GET,
+                                                  competition=comp)
+    else:
+        nomination_form = NominationSelectionForm(
+            {
+                'category':
+                    GameList.objects.filter(competition=comp).order_by('order')
+                    [0].id,
+            },
+            competition=comp)
+
+    if nomination_form.is_valid():
+        selected_nomination = int(nomination_form.cleaned_data['category'])
+        prefix = 'n%d' % selected_nomination
+        nom = next(x for x in voting['sections']
+                   if x['nomination'] == selected_nomination)
+        if '%s-shown' % prefix in request.GET:
+            details_form = VotesToShow(request.GET,
+                                       nomination=nom,
+                                       prefix=prefix)
+        else:
+            details_form = VotesToShow(
+                {
+                    '%s-fields' % prefix: [nom['fields'][0]['name']],
+                    '%s-highlight' % prefix: (
+                        timezone.now() -
+                        datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M"),
+                },
+                nomination=nom,
+                prefix=prefix)
+    else:
+        details_form = {'as_ul': ''}
+
+    if nomination_form.is_valid() and details_form.is_valid():
+        games = GameListEntry.objects.filter(
+            gamelist_id=selected_nomination).select_related('game')
+
+        raw_votes = list(
+            CompetitionVote.objects.filter(
+                competition=comp,
+                nomination_id=selected_nomination).select_related())
+
+        fields_to_show = details_form.cleaned_data['fields']
+
+        groupped_votes = {}
+        for v in raw_votes:
+            groupped_votes.setdefault(v.user_id, {
+                'name': v.user.username,
+                'votes': {}
+            })['votes'].setdefault(v.game_id, {})[v.field] = {
+                'value': FirstNotNone(v.bool_val, v.text_val, v.int_val),
+                'timestamp': v.when,
+            }
+
+        fields_order = {y['name']: x for x, y in enumerate(nom['fields'])}
+        print(fields_order)
+
+        votes = []
+        for _, x in sorted(groupped_votes.items()):
+            vote_per_game = []
+            for y in games:
+                game_votes = x['votes'].get(y.id, {})
+                vote_per_game.append([
+                    x for key, x in sorted(game_votes.items(),
+                                           key=lambda z: fields_order[z[0]])
+                    if key in fields_to_show
+                ])
+            votes.append({'name': x['name'], 'votes': vote_per_game})
+
+        print(votes)
+        table = {
+            'games': [x.game for x in games],
+            'votes': votes,
+            'showtime': details_form.cleaned_data['showtime'],
+            'highlight': details_form.cleaned_data['highlight'],
+        }
+    else:
+        table = {}
+
+    return render(
+        request, 'contest/showvotes.html', {
+            'nomination_form': nomination_form,
+            'details_form': details_form,
+            'table': table
+        })

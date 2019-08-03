@@ -1,3 +1,4 @@
+import json
 from moder.actions.tools import ModerAction, RegisterAction
 from contest.models import CompetitionDocument
 from django.urls import reverse
@@ -71,6 +72,27 @@ class CompetitionListLink(CompetitionAction):
     @classmethod
     def IsAllowed(cls, request, object):
         obj = cls.EnsureObj(object)
+        if obj and obj.competition and obj.competition.owner:
+            return request.perm(('(o @admin [%d])' % obj.competition.owner.id))
+        else:
+            return request.perm(cls.PERM)
+
+
+@RegisterAction
+class VotingLink(CompetitionAction):
+    TITLE = 'Голосование'
+    PERM = '@auth'
+
+    def GetUrl(self):
+        return reverse("view_compvotes", args=(self.obj.competition.id, ))
+
+    @classmethod
+    def IsAllowed(cls, request, object):
+        obj = cls.EnsureObj(object)
+        options = json.loads(obj.competition.options)
+        voting = options.get('voting')
+        if not voting:
+            return False
         if obj and obj.competition and obj.competition.owner:
             return request.perm(('(o @admin [%d])' % obj.competition.owner.id))
         else:

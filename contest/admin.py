@@ -67,5 +67,7 @@ class CompetitionVoteAdmin(admin.ModelAdmin):
             return obj.int_val
         return obj.text_val
 
-    list_display = ['competition', 'user', 'game', 'field', 'val']
-    raw_id_fields = ['game']
+    list_display = [
+        'competition', 'user', 'game', 'nomination', 'field', 'val'
+    ]
+    raw_id_fields = ['game', 'nomination']

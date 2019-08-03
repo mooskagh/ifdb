@@ -1019,6 +1019,82 @@ textarea {
     font-size: 16px;
 }
 
+.full-width-admin {
+    background: white;
+    margin-top: 40px;
+    text-align: left;
+    position: relative;
+    padding: 5px;
+}
+
+.full-width-admin form {
+    padding: 0.5em;
+}
+
+.full-width-admin form ul {
+    padding: 0;
+}
+
+.full-width-admin table {
+    border-collapse: collapse;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    margin-bottom: 1em;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.full-width-admin table td, .full-width-admin table th {
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    min-width: 5em;
+}
+
+.full-width-admin table div {
+    padding: 0.3em;
+}
+
+.full-width-admin table th {
+    text-align: center;
+    padding: 0.2em;
+}
+
+.full-width-admin table hr {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 0;
+    margin: 0;
+}
+
+.full-width-admin .highlight {
+    background-color: rgba(100,255,100,0.4);
+}
+
+.admin-form {
+    list-style-type: none;
+}
+
+.admin-form>li {
+    display: inline-block;
+    padding: 1em;
+    white-space: nowrap;
+}
+
+.admin-form>li>ul {
+    display: inline-block;
+}
+
+.admin-form>li>ul>li {
+    display: inline-block;
+}
+
+.admin-form>li>label {
+    font-weight: 800;
+}
+
+.admin-form .errorlist {
+    list-style-type: none;
+    color: red;
+}
+
+
 .full-width-form table,
 .full-width-form td input[type=text] {
     width: 100%;

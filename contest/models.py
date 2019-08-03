@@ -151,7 +151,9 @@ class CompetitionVote(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL,
                              on_delete=models.CASCADE)
     when = models.DateTimeField()
-    section = models.CharField(max_length=255, null=True, blank=True)
+    nomination = models.ForeignKey(GameList,
+                                   null=True,
+                                   on_delete=models.SET_NULL)
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     field = models.CharField(max_length=255)
     bool_val = models.NullBooleanField(null=True, blank=True)

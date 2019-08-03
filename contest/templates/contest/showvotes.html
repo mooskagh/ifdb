@@ -1,0 +1,46 @@
+{% extends "games/base.html" %}
+{% block content_wide %}
+<div class="full-width-admin">
+    <form method="get">
+      <ul class="admin-form">
+          {{ nomination_form.as_ul }}
+          {{ details_form.as_ul }}
+          <li>
+            <input type="submit" value="Обновить"/>
+          </li>
+      </ul>
+    </form>
+    <table>
+      <tr>
+        <th>Игра/голоса</th>
+        {% for game in table.games %}
+        <th>
+          {{ game.title }}
+        </th>
+        {% endfor %}
+      </tr>
+      {% for x in table.votes %}
+        <tr>
+          <th>{{ x.name }}</th>
+          {% for y in x.votes %}
+            <td>
+              {% for z in y %}
+                <div class="{% if table.highlight and z.timestamp >= table.highlight %}
+                                highlight
+                            {% endif %}">
+                  {% if table.showtime %}
+                    <span class="game-auxinfo">{{ z.timestamp }}<br></span>
+                  {% endif %}
+                  {{ z.value }}
+                </div>
+                {% if not forloop.last %}
+                  <hr/>
+                {% endif %}                
+              {% endfor %}
+            </td>
+          {% endfor %}
+        </tr>
+      {% endfor %}      
+    </table>
+</div>
+{% endblock %}

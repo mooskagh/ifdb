@@ -51,11 +51,11 @@ WIDGETS = {
 
 
 class VotingFormSet(forms.BaseFormSet):
-    def __init__(self, *args, fields, games, section, **kwargs):
+    def __init__(self, *args, fields, games, nomination_id, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields = fields
         self.games = games
-        self.section_name = section
+        self.nomination_id = nomination_id
 
     def get_form_kwargs(self, index):
         kwargs = super().get_form_kwargs(index)
@@ -94,8 +94,8 @@ class VotingForm(forms.Form):
                 self.fields[name].default = default
 
     has_vote = forms.BooleanField(required=False)
-    game_id = forms.IntegerField(
-        widget=forms.widgets.HiddenInput(), disabled=True)
+    game_id = forms.IntegerField(widget=forms.widgets.HiddenInput(),
+                                 disabled=True)
 
 
 def RenderVotingImpl(request, comp, voting):
@@ -133,7 +133,6 @@ def RenderVotingImpl(request, comp, voting):
     before = []
     for i, section in enumerate(voting.get('sections', [])):
         nomination_id = section['nomination']
-        section_name = section.get('name')
         gamelist = GameListEntry.objects.filter(
             gamelist__competition=comp,
             gamelist__id=nomination_id).order_by('game__id').select_related()
@@ -147,7 +146,7 @@ def RenderVotingImpl(request, comp, voting):
                 for y in CompetitionVote.objects.filter(
                     competition=comp,
                     user=request.user,
-                    section=section_name,
+                    nomination_id=nomination_id,
                     game=x.game)
             }
             if votes:
@@ -159,13 +158,12 @@ def RenderVotingImpl(request, comp, voting):
                     initial[y['name']] = votes[y['name']].GetVal(y['type'])
 
             initials.append(initial)
-        fs = Fs(
-            request.POST or None,
-            prefix='f%d' % i,
-            fields=section['fields'],
-            games=gamelist,
-            section=section_name,
-            initial=initials)
+        fs = Fs(request.POST or None,
+                prefix='f%d' % i,
+                fields=section['fields'],
+                games=gamelist,
+                nomination_id=nomination_id,
+                initial=initials)
         fss.append(fs)
         res['sections'].append(fs)
         before.append(initials)
@@ -185,25 +183,27 @@ def RenderVotingImpl(request, comp, voting):
                     CompetitionVote.objects.filter(
                         competition=comp,
                         user=request.user,
-                        section=fs.section_name,
+                        nomination_id=fs.nomination_id,
                         game=cd['game_id']).delete()
                     continue
 
                 for field in fs.fields:
+                    print(field, dir(field))
                     try:
                         vote = CompetitionVote.objects.get(
                             competition=comp,
                             user=request.user,
-                            section=fs.section_name,
+                            nomination_id=fs.nomination_id,
                             game=cd['game_id'],
                             field=field['name'])
+                        if vote.GetVal(field['type']) == cd[field['name']]:
+                            continue
                     except CompetitionVote.DoesNotExist:
-                        vote = CompetitionVote(
-                            competition=comp,
-                            user=request.user,
-                            section=fs.section_name,
-                            game_id=cd['game_id'],
-                            field=field['name'])
+                        vote = CompetitionVote(competition=comp,
+                                               user=request.user,
+                                               nomination_id=fs.nomination_id,
+                                               game_id=cd['game_id'],
+                                               field=field['name'])
                     vote.when = now
                     vote.SetVal(field['type'], cd[field['name']])
                     vote.ip_addr = GetIpAddr(request)
