@@ -1037,7 +1037,7 @@ textarea {
 
 .full-width-admin table {
     border-collapse: collapse;
-    border: 1px solid rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(0, 0, 0, 0.4);
     margin-bottom: 1em;
     margin-left: auto;
     margin-right: auto;
@@ -1058,7 +1058,9 @@ textarea {
 }
 
 .full-width-admin table hr {
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-top: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    height: 1px;
     padding: 0;
     margin: 0;
 }

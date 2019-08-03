@@ -453,13 +453,12 @@ def list_votes(request, id):
             }
 
         fields_order = {y['name']: x for x, y in enumerate(nom['fields'])}
-        print(fields_order)
 
         votes = []
         for _, x in sorted(groupped_votes.items()):
             vote_per_game = []
             for y in games:
-                game_votes = x['votes'].get(y.id, {})
+                game_votes = x['votes'].get(y.game.id, {})
                 vote_per_game.append([
                     x for key, x in sorted(game_votes.items(),
                                            key=lambda z: fields_order[z[0]])
@@ -467,7 +466,6 @@ def list_votes(request, id):
                 ])
             votes.append({'name': x['name'], 'votes': vote_per_game})
 
-        print(votes)
         table = {
             'games': [x.game for x in games],
             'votes': votes,
