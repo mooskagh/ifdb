@@ -113,8 +113,9 @@ def FetchUrqFeed():
     logger.info("Fetching http://urq.borda.ru")
     PseudoFeed = namedtuple(
         'PseudoFeed', ['author', 'id', 'date_published', 'title', 'link'])
-    x = FetchUrlToString(
-        "http://urq.borda.ru/", use_cache=False, encoding="cp1251")
+    x = FetchUrlToString("http://urq.borda.ru/",
+                         use_cache=False,
+                         encoding="cp1251")
     items = []
     for m in URQF_RE.finditer(x):
         (_, _, sect, id, _, title, count, _, _, author, date_published,
@@ -122,21 +123,22 @@ def FetchUrqFeed():
         link = 'http://urq.borda.ru/?1-%d-0-%d-0-%d-0-%d' % (
             int(sect), int(id), (int(count) // 20 * 20), int(date_published))
         items.append(
-            PseudoFeed(
-                id=id,
-                title=unescape(title),
-                author=unescape(author),
-                date_published=datetime.fromtimestamp(int(date_published)),
-                link=link))
+            PseudoFeed(id=id,
+                       title=unescape(title),
+                       author=unescape(author),
+                       date_published=datetime.fromtimestamp(
+                           int(date_published)),
+                       link=link))
     ProcessFeedEntries('urq', items)
 
 
 def FetchFeeds():
     FetchFeed('https://ifhub.club/rss/full', 'ifhub')
     FetchIficionFeed()
-    # FetchUrqFeed()
+    FetchUrqFeed()
     FetchFeed(
-        'http://instead.syscall.ru/talk/feed.php', 'inst', id_field='title')
+        'http://instead-games.ru/forum/index.php?p=/discussions/feed.rss',
+        'inst')
     session = vk.Session(settings.VK_SERVICE_KEY)
     api = vk.API(session, lang='ru', timeout=60, v='5.71')
     for x in BlogFeed.objects.all():
