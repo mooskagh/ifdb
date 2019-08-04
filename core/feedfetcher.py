@@ -115,9 +115,11 @@ def FetchUrqFeed():
         'PseudoFeed', ['author', 'id', 'date_published', 'title', 'link'])
     x = FetchUrlToString("http://urq.borda.ru/",
                          use_cache=False,
-                         encoding="cp1251")
+                         encoding="cp1251",
+                         headers={'Accept-Language': 'ru'})
     items = []
     for m in URQF_RE.finditer(x):
+        print(m)
         (_, _, sect, id, _, title, count, _, _, author, date_published,
          _) = literal_eval(m.group(1))
         link = 'http://urq.borda.ru/?1-%d-0-%d-0-%d-0-%d' % (
