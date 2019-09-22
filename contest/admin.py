@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (Competition, CompetitionURLCategory, CompetitionURL,
                      CompetitionDocument, CompetitionSchedule, GameList,
-                     GameListEntry, CompetitionVote)
+                     GameListEntry, CompetitionVote, CompetitionQuestion)
 
 
 @admin.register(Competition)
@@ -71,3 +71,9 @@ class CompetitionVoteAdmin(admin.ModelAdmin):
         'competition', 'user', 'game', 'nomination', 'field', 'val'
     ]
     raw_id_fields = ['game', 'nomination']
+
+
+@admin.register(CompetitionQuestion)
+class CompetitionQuestionAdmin(admin.ModelAdmin):
+    raw_id_fields = ['game']
+    list_display = ['game', 'question_id', 'text']

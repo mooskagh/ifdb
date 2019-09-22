@@ -162,3 +162,12 @@ class CompetitionVote(models.Model):
     ip_addr = models.CharField(max_length=50, null=True, blank=True)
     session = models.CharField(max_length=32, null=True, blank=True)
     perm = models.TextField(null=True, blank=True)
+
+
+class CompetitionQuestion(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    game = models.ForeignKey(Game, on_delete=models.CASCADE)
+    question_id = models.SlugField(max_length=32, db_index=True)
+    text = models.TextField()

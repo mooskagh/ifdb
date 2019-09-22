@@ -1,6 +1,7 @@
 import json
 import datetime
-from contest.models import (GameListEntry, CompetitionVote)
+from contest.models import (GameListEntry, CompetitionVote,
+                            CompetitionQuestion)
 from django import forms
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -44,9 +45,29 @@ class SliderWidget(forms.widgets.NumberInput):
         return res
 
 
+class QuestionWidget(forms.widgets.Textarea):
+    needs_game = True
+    template_name = 'contest/question_widget.html'
+
+    def __init__(self, *argv, game, question_id, **kwargs):
+        self.game = game
+        self.question_id = question_id
+        super().__init__(*argv, **kwargs)
+
+    def get_context(self, name, value, attrs):
+        res = super().get_context(name, value, attrs)
+        try:
+            res['question'] = CompetitionQuestion.objects.get(
+                game=self.game, question_id=self.question_id).text
+        except CompetitionQuestion.DoesNotExist:
+            res['question'] = "( — — — — — )"
+        return res
+
+
 WIDGETS = {
     'slider': SliderWidget,
     'textarea': forms.widgets.Textarea,
+    'question': QuestionWidget,
 }
 
 
@@ -85,7 +106,13 @@ class VotingForm(forms.Form):
             widget_name = y.pop('widget', None)
             widget_kwargs = y.pop('widget_kwargs', {})
             if widget_name:
-                widget = WIDGETS[widget_name](**widget_kwargs)
+                widget_class = widget = WIDGETS[widget_name]
+                if getattr(widget_class, 'needs_game', False):
+                    print(widget_kwargs)
+                    widget = WIDGETS[widget_name](game=self.game,
+                                                  **widget_kwargs)
+                else:
+                    widget = WIDGETS[widget_name](**widget_kwargs)
                 y['widget'] = widget
             field = getattr(forms, typ)(**y)
             self.fields[name] = field
@@ -98,12 +125,13 @@ class VotingForm(forms.Form):
                                  disabled=True)
 
 
-def RenderVotingImpl(request, comp, voting):
-    if not voting:
-        return {'error': 'В этом соревновании голосование не проводится.'}
+def RenderVotingImpl(request, comp, voting, preview):
+    if not preview:
+        if not voting:
+            return {'error': 'В этом соревновании голосование не проводится.'}
 
-    if not voting.get('open'):
-        return {'error': 'Голосование закрыто.'}
+        if not voting.get('open'):
+            return {'error': 'Голосование закрыто.'}
 
     now = timezone.now()
     if voting.get('start') and datetime.datetime.fromtimestamp(
@@ -223,9 +251,9 @@ def RenderVotingImpl(request, comp, voting):
     return res
 
 
-def RenderVoting(request, comp):
+def RenderVoting(request, comp, preview=False):
     options = json.loads(comp.options)
     voting = options.get('voting')
-    res = RenderVotingImpl(request, comp, voting)
+    res = RenderVotingImpl(request, comp, voting, preview=preview)
 
     return render_to_string('contest/voting.html', res, request=request)
