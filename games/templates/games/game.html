@@ -157,7 +157,7 @@
                         {% else %}
                             <label style="display: none;"><input name="anonymous" type="checkbox" checked="1" disabled="1">Анонимный комментарий</label>
                         {% endif %}
-                        <textarea placeholder="Добавить комментарий... (поддерживается markdown)" name="text" required></textarea>
+                        <textarea placeholder="Оставить отзыв... (поддерживается markdown)" name="text" required></textarea>
                         <input type="submit" value="Отправить" style="display: none;"/>
                     </form>
                     <form class="comment-input" id="reply-2" action="{% url 'comment_game' %}" method="post" style="display: none;"/>
@@ -169,7 +169,7 @@
                         {% else %}
                             <label><input name="anonymous" type="checkbox" checked="1" disabled="1">Анонимный комментарий</label>
                         {% endif %}
-                        <textarea class="active" placeholder="Добавить комментарий... (поддерживается markdown)" name="text" required></textarea>
+                        <textarea class="active" placeholder="Оставить отзыв... (поддерживается markdown)" name="text" required></textarea>
                         <input type="submit" value="Отправить"/>
                     </form>
                 {% endif %}
