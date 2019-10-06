@@ -5,6 +5,7 @@ from django.contrib import admin
 from contest.views import show_competition
 
 urlpatterns = [
+    url(r'^rss/', include('rss.urls'), name='rss'),
     url(r'^adminz/', admin.site.urls, name='admin'),
     url(r'^', include('games.urls'), name='games'),
     url(r'^', include('moder.urls'), name='moder'),
@@ -14,7 +15,6 @@ urlpatterns = [
         {'slug': 'kontigr-2019'},
         name='show_competition',
     ),
-    url(r'^rss/', include('rss.urls'), name='rss'),
 ]
 
 if settings.DEBUG:

@@ -15,7 +15,7 @@ def comments(request, jam_id=None):
         description="Комментарии на сайте %s" % site,
     )
 
-    for x in LastComments(event=jam_id):
+    for x in LastComments(event=jam_id, days=90, limit=100):
         fg.add_item(
             title=x.game.title,
             link='%s%s' %
