@@ -26,8 +26,9 @@ urlpatterns = [
     url(r'^', include('games.urls'), name='games'),
     url(r'^', include('moder.urls'), name='moder'),
     url(r'^jam/', include('contest.urls'), name='contest'),
+    url(r'^rss/', include('rss.urls'), name='rss'),
 ]
 
 if settings.DEBUG:
-    urlpatterns = static(
-        settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + urlpatterns
+    urlpatterns = static(settings.MEDIA_URL,
+                         document_root=settings.MEDIA_ROOT) + urlpatterns
