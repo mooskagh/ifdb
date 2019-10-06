@@ -13,7 +13,8 @@ urlpatterns = [
         show_competition,
         {'slug': 'kontigr-2019'},
         name='show_competition',
-    )
+    ),
+    url(r'^rss/', include('rss.urls'), name='rss'),
 ]
 
 if settings.DEBUG:

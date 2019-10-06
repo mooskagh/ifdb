@@ -186,7 +186,8 @@ logging.config.dictConfig({
     'loggers': {
         '': {
             'level': 0,
-            'handlers': ['debug', 'warnings', 'mail_admins', 'console'],
+            #'handlers': ['debug', 'warnings', 'mail_admins', 'console'],
+            'handlers': ['debug', 'warnings', 'console'],
         },
         'django': {
             'handlers': ['web'],
