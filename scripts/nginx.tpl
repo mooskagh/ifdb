@@ -21,8 +21,8 @@ server {
 
     listen 443 ssl;
     listen [::]:443 ssl;
-    ssl_certificate /etc/letsencrypt/live/crem.xyz/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/crem.xyz/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/db.crem.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/db.crem.xyz/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
@@ -37,8 +37,8 @@ server {
 
     listen 443 ssl;
     listen [::]:443 ssl;
-    ssl_certificate /etc/letsencrypt/live/kontigr.com.conf/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/kontigr.com.conf/privkey.pem; # managed by Certbot    
+    ssl_certificate /etc/letsencrypt/live/kontigr.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/kontigr.com/privkey.pem; # managed by Certbot    
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
