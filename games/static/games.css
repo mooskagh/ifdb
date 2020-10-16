@@ -92,6 +92,7 @@ a.author-link:hover {
 
 .contestvote-controls {
     margin: 5px;
+    min-width: 400px;
 }
 
 .contestvote-controls th {
@@ -119,7 +120,7 @@ a.author-link:hover {
 }
 
 .contestvote-showhide-container {
-    text-align: right;
+    float: right;
 }
 
 .slider {
