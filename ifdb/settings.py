@@ -47,14 +47,14 @@ if IS_PROD:
     else:
         STATIC_ROOT = os.path.abspath('/home/ifdb/static')
 
-    EMAIL_USE_TLS = True
-    EMAIL_HOST = 'smtp.gmail.com'
-    EMAIL_PORT = 587
-    EMAIL_HOST_USER = 'ersatzplut@gmail.com'
-    DEFAULT_FROM_EMAIL = 'ersatzplut@gmail.com'
-    SERVER_EMAIL = 'ersatzplut@gmail.com'
-    EMAIL_HOST_PASSWORD = open(
-        '/home/ifdb/configs/gmail-pass.txt').read().strip()
+    EMAIL_USE_TLS = False
+    EMAIL_HOST = 'localhost'
+    EMAIL_PORT = 25
+    EMAIL_HOST_USER = 'ifdb@crem.xyz'
+    DEFAULT_FROM_EMAIL = 'noreply@crem.xyz'
+    SERVER_EMAIL = 'ifdb@crem.xyz'
+    EMAIL_HOST_PASSWORD = ''  #open(
+    # '/home/ifdb/configs/gmail-pass.txt').read().strip()
     DISCORD_WEBHOOK = open('/home/ifdb/configs/discord.url').read().strip()
     CRAWLER_CACHE_DIR = None  # '/home/ifdb/tmp/urlcache/'
     TMP_DIR = '/home/ifdb/tmp/tmp/'
