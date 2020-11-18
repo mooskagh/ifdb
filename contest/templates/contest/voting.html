@@ -1,5 +1,17 @@
 {% if error %}
   {{ error }}
+  {% if show_signin %}
+    <form class="loginbox" method="post" action="{% url 'login' %}">
+        {% csrf_token %}
+        <input placeholder="E-mail" type="text" name="username" id="id_username" required maxlength="254" />
+        <input placeholder="Пароль" type="password" name="password" id="id_password" required />
+        <input type="submit" value="Войти" />
+        <input type="hidden" name="next" value="{{ request.path }}" />
+    </form>
+    <a href="{% url 'registration_register' %}" class="register" >
+        Регистрация
+    </a>
+  {% endif %}
 {% else %}
 {% if success_text %}
  <div class="success-message">{{ success_text }}</div>

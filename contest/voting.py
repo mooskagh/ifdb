@@ -152,7 +152,10 @@ def RenderVotingImpl(request, comp, voting, group, preview):
         }
 
     if not request.user.is_authenticated:
-        return {'error': 'Для того, чтобы проголосовать, залогиньтесь.'}
+        return {
+            'error': 'Для того, чтобы проголосовать, залогиньтесь.',
+            'show_signin': True,
+        }
 
     res = {'sections': []}
 
