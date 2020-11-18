@@ -255,6 +255,7 @@ def RenderVotingImpl(request, comp, voting, group, preview):
         )
         res['success_text'] = 'Ваш голос принят.'
 
+    res['captions'] = section.get('captions', {}).get(group, {})
     return res
 
 

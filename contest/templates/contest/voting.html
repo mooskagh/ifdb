@@ -1,4 +1,3 @@
-<h3>Голосование</h3>
 {% if error %}
   {{ error }}
 {% else %}
@@ -70,11 +69,13 @@
             function Update(x) {
               var checked = x.is(':checked');
               if (checked) {
-                x.checkboxradio('option', 'label', 'Не оценивать');                
+                x.checkboxradio('option', 'label',
+                    '{{ captions.notvote|default:'Не оценивать' }}');
                 x.closest('.contestvote-controls-container')
                   .find('.contestvote-controls').show();
               } else {
-                x.checkboxradio('option', 'label', 'Оценить');
+                x.checkboxradio('option', 'label',
+                    '{{ captions.vote|default:'Оценить' }}');
                 x.closest('.contestvote-controls-container')
                   .find('.contestvote-controls').hide();
               }
@@ -92,7 +93,7 @@
     </div>
   {% endfor %}
   <div class="contestvote-submit-container">
-    <input type="submit" value="Сохранить"/>
+    <input type="submit" value="{{ captions.save|default:'Сохранить' }}"/>
   </div>    
 {% endfor %}
 </form>
