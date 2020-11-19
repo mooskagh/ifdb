@@ -45,7 +45,7 @@ class SliderWidget(forms.widgets.NumberInput):
         return res
 
 
-class QuestionWidget(forms.widgets.Textarea):
+class QuestionWidget(forms.widgets.TextInput):
     needs_game = True
     template_name = 'contest/question_widget.html'
 
