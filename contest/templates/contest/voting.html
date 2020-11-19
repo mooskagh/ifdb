@@ -23,6 +23,11 @@
   {{ formset.non_form_errors }}
   {% for form in formset %}
     <div class="contestvote-cell">
+      <div class="contestvote-controls-container">        
+        {{ form.non_field_errors }}
+        <div class="contestvote-showhide-container">
+          <label class="contestvote-showhide">{{ form.has_vote }}</label>
+        </div>
       <div class="contestvote-gameinfo">
         <div class="contestvote-gameinfo-line">
           <span class="contestvote-gameinfo-line-title">Игра:</span>
@@ -52,30 +57,23 @@
           </div>
         {% endif %}
       </div>
-      <div class="contestvote-controls-container">        
-        {{ form.non_field_errors }}
-        <div class="contestvote-showhide-container">
-          <label class="contestvote-showhide">{{ form.has_vote }}</label>
-        </div>
         {% for f in form.hidden_fields %}{{ f }}{% endfor %}        
-        <table class="contestvote-controls">
+        <div class="contestvote-controls">
         {% for field in form.visible_fields %}
           {% if field.name != 'has_vote' %}
-            <tr>
-              <th>{{ field.label_tag }}</th>
-              <td>
-                {{ field.errors }}
-                {{ field }}
-                {% if field.help_text %}
-                  <div class="contestvote-help">
-                    ({{ field.help_text|safe }})
-                  </div>
-                {% endif %}
-              </td>
-            </tr>
+            <div class="contestvote-controls-label">{{ field.label_tag }}</div>
+            <div>
+              {{ field.errors }}
+              {{ field }}
+              {% if field.help_text %}
+                <div class="contestvote-controls-help">
+                  ({{ field.help_text|safe }})
+                </div>
+              {% endif %}
+            </div>
           {% endif %}
         {% endfor %}
-        </table>        
+        </div>        
         <script>
           (function(){
             function Update(x) {
@@ -100,7 +98,7 @@
             }).on("change", function(e) { Update($(e.target)); });
           })();
         </script>
-      </div>
+      </div>            
       <div style="clear: both;"></div>
     </div>
   {% endfor %}

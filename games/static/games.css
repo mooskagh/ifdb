@@ -95,10 +95,11 @@ a.author-link:hover {
     min-width: 400px;
 }
 
-.contestvote-controls th {
-    vertical-align: top;
+.contestvote-controls-label {
     font-weight: bold;
-    text-align: right;
+    white-space: nowrap;
+    margin-top: 10px;
+    text-align: center;
 }
 
 .contestvote-controls textarea {
@@ -109,9 +110,10 @@ a.author-link:hover {
     margin-bottom: 0;
 }
 
-.contestvote-help {
+.contestvote-controls-help {
     font-size: 11px;
     color: #989898;
+    margin: 5px;
     text-align: center;
 }
 
@@ -2043,8 +2045,6 @@ h4,h5,h6 {
         margin-left: 185px;
     }
     .contestvote-gameinfo {
-        float: left;
-        width: 33%;
     }
 }
 
