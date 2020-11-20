@@ -361,11 +361,10 @@ class NominationSelectionForm(forms.Form):
 
 
 class VotesToShow(forms.Form):
-    def __init__(self, *args, nomination=None, **argw):
+    def __init__(self, *args, fields, **argw):
         super().__init__(*args, **argw)
-        if nomination:
-            self.fields['fields'].choices = [(x['name'], x['label'])
-                                             for x in nomination['fields']]
+        self.fields['fields'].choices = [(x['name'], x['label'])
+                                         for x in fields]
 
     shown = forms.BooleanField(initial=True,
                                widget=widgets.HiddenInput(),
@@ -415,21 +414,21 @@ def list_votes(request, id):
     if nomination_form.is_valid():
         selected_nomination = int(nomination_form.cleaned_data['category'])
         prefix = 'n%d' % selected_nomination
-        nom = next(x for x in voting['sections']
-                   if x['nomination'] == selected_nomination)
+        nom = next(x for x in voting['view_nominations']
+                   if x == selected_nomination)
         if '%s-shown' % prefix in request.GET:
             details_form = VotesToShow(request.GET,
-                                       nomination=nom,
+                                       fields=voting['fields'],
                                        prefix=prefix)
         else:
             details_form = VotesToShow(
                 {
-                    '%s-fields' % prefix: [nom['fields'][0]['name']],
+                    '%s-fields' % prefix: [voting['fields'][0]['name']],
                     '%s-highlight' % prefix: (
                         timezone.now() -
                         datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M"),
                 },
-                nomination=nom,
+                fields=voting['fields'],
                 prefix=prefix)
     else:
         details_form = {'as_ul': ''}
@@ -455,16 +454,18 @@ def list_votes(request, id):
                 'timestamp': v.when,
             }
 
-        fields_order = {y['name']: x for x, y in enumerate(nom['fields'])}
+        fields_order = {y['name']: x for x, y in enumerate(voting['fields'])}
 
         votes = []
         for _, x in sorted(groupped_votes.items()):
             vote_per_game = []
             for y in games:
                 game_votes = x['votes'].get(y.game.id, {})
+                print(game_votes)
                 vote_per_game.append([
-                    x for key, x in sorted(game_votes.items(),
-                                           key=lambda z: fields_order[z[0]])
+                    x for key, x in sorted(
+                        game_votes.items(),
+                        key=lambda z: fields_order.get(z[0], -1))
                     if key in fields_to_show
                 ])
             votes.append({'name': x['name'], 'votes': vote_per_game})

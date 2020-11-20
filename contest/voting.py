@@ -65,32 +65,53 @@ class QuestionWidget(forms.widgets.TextInput):
 
 
 WIDGETS = {
-    'slider': SliderWidget,
-    'textarea': forms.widgets.Textarea,
     'question': QuestionWidget,
+    'slider': SliderWidget,
+    'text': forms.widgets.TextInput,
+    'textarea': forms.widgets.Textarea,
 }
 
 
 class VotingFormSet(forms.BaseFormSet):
-    def __init__(self, *args, fields, games, nomination_id, **kwargs):
+    def __init__(self,
+                 *args,
+                 fields,
+                 games,
+                 nomination_id,
+                 additional_label=None,
+                 **kwargs):
         super().__init__(*args, **kwargs)
         self.fields = fields
         self.games = games
         self.nomination_id = nomination_id
+        self.additional_label = additional_label
 
     def get_form_kwargs(self, index):
         kwargs = super().get_form_kwargs(index)
         kwargs['fields'] = self.fields
         if index is not None and index < len(self.games):
             kwargs['game'] = self.games[index]
+        if self.additional_label:
+            try:
+                kwargs['additional_label'] = CompetitionQuestion.objects.get(
+                    game=kwargs['game'].game,
+                    question_id=self.additional_label).text
+            except CompetitionQuestion.DoesNotExist:
+                pass
         return kwargs
 
 
 class VotingForm(forms.Form):
-    def __init__(self, *args, fields, game=None, **kwargs):
+    def __init__(self,
+                 *args,
+                 fields,
+                 game=None,
+                 additional_label=None,
+                 **kwargs):
         super().__init__(*args, **kwargs)
         self.gameentry = game
         self.game = None
+        self.additional_label = additional_label
         if game and game.game:
             self.game = game.game
             self.game.authors = [
@@ -126,9 +147,6 @@ class VotingForm(forms.Form):
 
 def RenderVotingImpl(request, comp, voting, group, preview):
     if not preview:
-        if not voting:
-            return {'error': 'В этом соревновании голосование не проводится.'}
-
         if not voting.get('open'):
             return {'error': 'Голосование закрыто.'}
 
@@ -262,9 +280,166 @@ def RenderVotingImpl(request, comp, voting, group, preview):
     return res
 
 
+def DecodeTime(x):
+    if x is None:
+        return x
+    return datetime.datetime.fromtimestamp(x)
+
+
+def RenderVotingImplV2(request, comp, voting, section_name, preview):
+    section = voting['sections'].get(section_name)
+    if section is None:
+        return {'error': 'Что-то не так!'}
+
+    captions = section.get('captions', {})
+
+    now = timezone.now()
+    if not preview:
+        if not voting.get('open'):
+            return {
+                'error': captions.get('voting-closed', 'Голосование закрыто.')
+            }
+
+        start = DecodeTime(voting.get('start'))
+        if start and start > now:
+            return {
+                'error':
+                    captions.get(
+                        'vote-will-open',
+                        'Голосование откроется %s в %02d:%02d (по Гринвичу).')
+                    % (FormatDate(start), start.hour, start.minute)
+            }
+
+        end = DecodeTime(voting.get('end'))
+        if end and end <= now:
+            return {
+                'error':
+                    captions.get(
+                        'vote-has-closed',
+                        'Голосование закрылось %s в %02d:%02d (по Гринвичу).')
+                    % (FormatDate(end), end.hour, end.minute)
+            }
+
+    if not request.user.is_authenticated:
+        return {
+            'error':
+                captions.get('login-to-vote',
+                             'Для того, чтобы проголосовать, залогиньтесь.'),
+            'show_signin':
+                True,
+        }
+
+    fieldlist = section['fields']
+    nomination_id = section['nomination']
+    gamelist = GameListEntry.objects.filter(
+        gamelist__competition=comp,
+        gamelist__id=nomination_id).order_by('game__id').select_related()
+
+    initials = []
+    for x in gamelist:
+        initial = {}
+        initial['game_id'] = x.game.id
+        votes = {
+            y.field: y
+            for y in CompetitionVote.objects.filter(
+                competition=comp,
+                user=request.user,
+                nomination_id=nomination_id,
+                game=x.game,
+                field__in=fieldlist)
+        }
+        if votes or section.get('always_expanded'):
+            initial['has_vote'] = True
+        for y in voting['fields']:
+            if 'default' in y:
+                initial[y['name']] = y['default']
+            if y['name'] in votes:
+                initial[y['name']] = votes[y['name']].GetVal(y['type'])
+        initials.append(initial)
+
+    Fs = forms.formset_factory(VotingForm, formset=VotingFormSet, extra=0)
+    fs = Fs(request.POST or None,
+            prefix='voting_%d' % 0,
+            fields=[x for x in voting['fields'] if x['name'] in fieldlist],
+            games=gamelist,
+            nomination_id=nomination_id,
+            additional_label=section.get('additional_label'),
+            initial=initials)
+    res = {}
+    res['section'] = section
+    res['formset'] = fs
+
+    if request.POST and fs.is_valid():
+        for f in fs:
+            if not f.has_changed():
+                continue
+            cd = f.cleaned_data
+            if not section.get('always_expanded') and not cd['has_vote']:
+                CompetitionVote.objects.filter(competition=comp,
+                                               user=request.user,
+                                               nomination_id=fs.nomination_id,
+                                               field__in=fieldlist,
+                                               game=cd['game_id']).delete()
+                continue
+            for field in filter(lambda x: x['name'] in fieldlist, fs.fields):
+                if section.get('always_expanded') and not cd[field['name']]:
+                    try:
+                        CompetitionVote.objects.get(
+                            competition=comp,
+                            user=request.user,
+                            nomination_id=fs.nomination_id,
+                            game=cd['game_id'],
+                            field=field['name']).delete()
+                    except CompetitionVote.DoesNotExist:
+                        pass
+                    continue
+                try:
+                    vote = CompetitionVote.objects.get(
+                        competition=comp,
+                        user=request.user,
+                        nomination_id=fs.nomination_id,
+                        game=cd['game_id'],
+                        field=field['name'])
+                    if vote.GetVal(field['type']) == cd[field['name']]:
+                        continue
+                except CompetitionVote.DoesNotExist:
+                    vote = CompetitionVote(competition=comp,
+                                           user=request.user,
+                                           nomination_id=fs.nomination_id,
+                                           game_id=cd['game_id'],
+                                           field=field['name'])
+                vote.when = now
+                vote.SetVal(field['type'], cd[field['name']])
+                vote.ip_addr = GetIpAddr(request)
+                vote.session = request.session.session_key
+                vote.perm = str(request.perm)
+                vote.save()
+
+        LogAction(
+            request,
+            'comp-vote',
+            is_mutation=True,
+            obj=comp,
+            before=initials,
+            after=fs.cleaned_data,
+        )
+        res['success_text'] = captions.get('vote-accepted',
+                                           'Ваш голос принят.')
+
+    return res
+
+
 def RenderVoting(request, comp, group, preview=False):
     options = json.loads(comp.options)
     voting = options.get('voting')
-    res = RenderVotingImpl(request, comp, voting, group, preview=preview)
-
-    return render_to_string('contest/voting.html', res, request=request)
+    if not voting:
+        res = {'error': 'В этом соревновании голосование не проводится.'}
+        return render_to_string('contest/voting.html', res, request=request)
+    elif voting.get('version') == 2:
+        res = RenderVotingImplV2(request, comp, voting, group, preview=preview)
+        #import html
+        #return "%s" % html.escape(repr(res))
+        return render_to_string('contest/votingv2.html', res, request=request)
+    else:
+        res = RenderVotingImpl(request, comp, voting, group, preview=preview)
+        return render_to_string('contest/voting.html', res, request=request)
