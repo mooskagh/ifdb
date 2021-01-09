@@ -57,7 +57,8 @@ def ParseGameList(html_text, base):
         [urljoin(base, m.group(1)) for m in GAME_RE.finditer(html_text)])
 
 
-TITLE_RE = re.compile(r'<h1[^>]*><b><span[^>]*>([^<]+)</span></b></h1>')
+TITLE_RE = re.compile(r'<h1[^>]*>(?:<a [^>]+>)?<b><span[^>]*>([^<]+)'
+                      r'</span></b>(?:</a>)?</h1>')
 DESC_RE = re.compile(
     r'(?s)<div align="justify" style="font-size:1.2em; margin-top:10px;">'
     '(.*?)</div>')
