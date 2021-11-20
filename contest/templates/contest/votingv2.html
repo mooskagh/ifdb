@@ -106,9 +106,9 @@
       </div>            
       <div style="clear: both;"></div>
     </div>
+    <div class="contestvote-submit-container">
+      <input type="submit" value="{{ captions.save|default:'Сохранить' }}"/>
+    </div>    
   {% endfor %}
-  <div class="contestvote-submit-container">
-    <input type="submit" value="{{ captions.save|default:'Сохранить' }}"/>
-  </div>    
 </form>
 {% endif %}
