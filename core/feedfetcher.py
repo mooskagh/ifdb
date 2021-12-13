@@ -142,7 +142,7 @@ def FetchFeeds():
         'http://instead-games.ru/forum/index.php?p=/discussions/feed.rss',
         'inst')
     session = vk.Session(settings.VK_SERVICE_KEY)
-    api = vk.API(session, lang='ru', timeout=60, v='5.71')
+    api = vk.API(session, lang='ru', timeout=60, v='5.131')
     for x in BlogFeed.objects.all():
         if x.feed_id.startswith('blog-'):
             FetchFeed(x.rss, x.feed_id)
