@@ -53,8 +53,8 @@ class BaseXReader:
 
     def ReadString(self):
         size = self.ReadInt()
-        return ''.join([chr(self.ReadInt()) for x in range(size)]).encode(
-            'utf-16', 'surrogatepass').decode('utf-16')
+        return ''.join([chr(self.ReadInt()) for x in range(size)
+                        ]).encode('utf-16', 'surrogatepass').decode('utf-16')
 
     def ReadBool(self):
         return self.ReadInt() != 0
@@ -121,6 +121,7 @@ class BaseXWriter:
 
 
 class SearchBit:
+
     def __init__(self, val=0, hidden=False):
         self.val = val
         self.hidden = hidden
@@ -397,9 +398,8 @@ class SB_Authors(SearchBit):
         res['role'] = self.role
         items = []
         for x in (PersonalityAlias.objects.filter(
-                gameauthor__role=self.role).annotate(
-                    Count('gameauthor__game')).order_by(
-                        '-gameauthor__game__count')):
+                gameauthor__role=self.role).annotate(Count(
+                    'gameauthor__game')).order_by('-gameauthor__game__count')):
             items.append({
                 'id': x.id,
                 'name': x.name,
@@ -549,8 +549,8 @@ class SB_AuxFlags(SB_Flags):
             Q(release_date__isnull=True),
         3:
             Q(gameurl__interpretedgameurl__is_playable=True),
-        4: (Q(gameurl__interpretedgameurl__isnull=False) &
-            Q(gameurl__interpretedgameurl__is_playable__isnull=True)),
+        4: (Q(gameurl__interpretedgameurl__isnull=False)
+            & Q(gameurl__interpretedgameurl__is_playable__isnull=True)),
         5:
             Q(gameurl__interpretedgameurl__is_playable=False),
         6:
@@ -558,10 +558,9 @@ class SB_AuxFlags(SB_Flags):
         7:
             Q(edit_time__isnull=False),
         8:
-            Q(
-                gameurl__url__in=URL.objects.annotate(
-                    Count('gameurl__game', distinct=True)).filter(
-                        gameurl__game__count__gt=1)),
+            Q(gameurl__url__in=URL.objects.annotate(
+                Count('gameurl__game', distinct=True)).filter(
+                    gameurl__game__count__gt=1)),
         9:
             Q(gameurl__url__is_broken=True),
         10:
@@ -596,6 +595,7 @@ def LimitListlike(q, start, limit):
 
 
 class Search:
+
     def __init__(self, cls, perm):
         self.cls = cls
         self.perm = perm
@@ -622,10 +622,13 @@ class Search:
         return {'unhide_button': not unhide_all, 'search': res}
 
     def UpdateFromQuery(self, query):
-        reader = BaseXReader(query)
-        while not reader.Done():
-            key = reader.ReadInt()
-            self.id_to_bit[key].LoadFromQuery(reader)
+        try:
+            reader = BaseXReader(query)
+            while not reader.Done():
+                key = reader.ReadInt()
+                self.id_to_bit[key].LoadFromQuery(reader)
+        except TypeError:
+            pass
 
     def Search(self,
                *,
@@ -750,9 +753,9 @@ class SB_AuthorSorting(SearchBit):
         for x in authors:
             x.honor = honors.get(x.id, 0.0)
         if self.method == self.HONOUR:
-            authors.sort(
-                key=lambda x: (self.desc != (x.honor == 0.0), x.honor),
-                reverse=self.desc)
+            authors.sort(key=lambda x: (self.desc !=
+                                        (x.honor == 0.0), x.honor),
+                         reverse=self.desc)
 
         return authors
 
@@ -821,8 +824,8 @@ def GameListFromSearch(request, query, reltime_field, max_secs, min_count,
     res = []
     if reltime_field:
         for (i, x) in enumerate(games):
-            delta = (
-                getattr(x, reltime_field) - timezone.now()).total_seconds()
+            delta = (getattr(x, reltime_field) -
+                     timezone.now()).total_seconds()
             if -delta > max_secs and i >= min_count:
                 break
             res.append({

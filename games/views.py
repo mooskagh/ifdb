@@ -325,6 +325,7 @@ def show_author(request, author_id):
 
 
 def list_games(request):
+
     s = MakeSearch(request.perm)
     query = request.GET.get('q', '')
     s.UpdateFromQuery(query)
@@ -339,11 +340,13 @@ def list_authors(request):
 
 
 class ChoiceField(forms.ChoiceField):
+
     def bound_data(self, data, initial):
         return data
 
 
 class NullBooleanField(forms.NullBooleanField):
+
     def bound_data(self, data, initial):
         return data
 
@@ -398,8 +401,10 @@ def play_in_interpreter(request, gameurl_id):
 
     try:
         res['data'] = data = InterpretedGameUrl.objects.get(pk=gameurl_id)
-        res['format'] = os.path.splitext(data.recoded_filename
-                                         or o_u.url.local_filename)[1].lower()
+        filename = data.recoded_filename or o_u.url.local_filename
+        if not filename:
+            raise InterpretedGameUrl.DoesNotExist
+        res['format'] = os.path.splitext(filename)[1].lower()
         res['conf'] = json.loads(data.configuration_json)
 
         form = UrqwInterpreterForm({
