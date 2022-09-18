@@ -180,14 +180,14 @@ logging.config.dictConfig({
         'console': {
             'class': 'logging.StreamHandler',
             'formatter': 'google',
-            'level': 'INFO',
+            'level': 'ERROR',
         }
     },
     'loggers': {
         '': {
             'level': 0,
-            #'handlers': ['debug', 'warnings', 'mail_admins', 'console'],
-            'handlers': ['debug', 'warnings', 'console'],
+            'handlers': ['debug', 'warnings', 'mail_admins', 'console'],
+            #'handlers': ['debug', 'warnings', 'console'],
         },
         'django': {
             'handlers': ['web'],
@@ -216,10 +216,11 @@ logging.config.dictConfig({
     },
 })
 
-ADMINS = [('Alexander Lyashuk', 'mooskagh@gmail.com')]
+ADMINS = [('Alexander Lyashuk', 'crem@crem.xyz')]
 
 
 class PrefixList(list):
+
     def __contains__(self, key):
         for x in self:
             if key.startswith(x):
