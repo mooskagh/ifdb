@@ -34,6 +34,7 @@ BACKUPS_DIR = os.path.join(ROOT_DIR, 'backups')
 
 
 class Jump(BaseException):
+
     def __init__(self, whereto):
         self.whereto = whereto
 
@@ -49,6 +50,7 @@ def GenerateStringFromTemplate(template, params, gen_header):
 
 
 def RunCmdStep(cmd_line, doc=None):
+
     def f(context):
         click.secho('$ %s' % cmd_line, fg='yellow')
         r = os.system(cmd_line)
@@ -66,6 +68,7 @@ def RunCmdStep(cmd_line, doc=None):
 
 
 def GetFromTemplate(template, dst, params, gen_header=True):
+
     def f(context):
         cnt = GenerateStringFromTemplate(template, params, gen_header)
         with open(os.path.join(CONFIGS_DIR, dst), 'w') as fo:
@@ -77,6 +80,7 @@ def GetFromTemplate(template, dst, params, gen_header=True):
 
 
 def CheckFromTemplate(template, dst):
+
     def f(ctx):
         with open(os.path.join(CONFIGS_DIR, dst)) as f:
             cnt = f.read()
@@ -115,6 +119,7 @@ def RetryPrompt():
 
 
 class Pipeline:
+
     def __init__(self):
         self.steps = []
         self.start = 1
@@ -232,6 +237,9 @@ def red(ctx, message):
                     'host': 'kontigr',
                     'conf': 'wallpage'
                 }, {
+                    'host': 'zok',
+                    'conf': 'wallpage'
+                }, {
                     'host': 'staging',
                     'conf': 'deny'
                 }]
@@ -239,6 +247,7 @@ def red(ctx, message):
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-uwsgi'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-uwsgi-kontigr'))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-uwsgi-zok'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-worker'))
     p.Run('red')
 
@@ -263,12 +272,16 @@ def green(ctx):
                     'host': 'kontigr',
                     'conf': 'kontigr'
                 }, {
+                    'host': 'zok',
+                    'conf': 'zok'
+                }, {
                     'host': 'staging',
                     'conf': 'deny'
                 }]
             }))
     p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-uwsgi'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-uwsgi-kontigr'))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-uwsgi-zok'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-worker'))
     p.Run('green')
@@ -324,6 +337,9 @@ def stage(ctx, tag):
                     'host': 'kontigr',
                     'conf': 'kontigr'
                 }, {
+                    'host': 'zok',
+                    'conf': 'zok'
+                }, {
                     'host': 'staging',
                     'conf': 'staging'
                 }]
@@ -341,6 +357,9 @@ def stage(ctx, tag):
                 }, {
                     'host': 'kontigr',
                     'conf': 'kontigr'
+                }, {
+                    'host': 'zok',
+                    'conf': 'zok'
                 }, {
                     'host': 'staging',
                     'conf': 'deny'
@@ -397,6 +416,9 @@ def deploy(ctx, hot, from_master):
                         'host': 'kontigr',
                         'conf': 'wallpage'
                     }, {
+                        'host': 'zok',
+                        'conf': 'wallpage'
+                    }, {
                         'host': 'staging',
                         'conf': 'deny'
                     }]
@@ -405,6 +427,7 @@ def deploy(ctx, hot, from_master):
         p.AddStep(RunCmdStep('sudo /bin/systemctl reload nginx'))
         p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-uwsgi'))
         p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-uwsgi-kontigr'))
+        p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-uwsgi-zok'))
 
     p.AddStep(RunCmdStep('sudo /bin/systemctl stop ifdb-worker'))
 
@@ -448,9 +471,11 @@ def deploy(ctx, hot, from_master):
     if hot:
         p.AddStep(RunCmdStep('sudo /bin/systemctl restart ifdb-uwsgi'))
         p.AddStep(RunCmdStep('sudo /bin/systemctl restart ifdb-uwsgi-kontigr'))
+        p.AddStep(RunCmdStep('sudo /bin/systemctl restart ifdb-uwsgi-zok'))
     else:
         p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-uwsgi'))
         p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-uwsgi-kontigr'))
+        p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-uwsgi-zok'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl start ifdb-worker'))
 
     if not hot:
@@ -462,6 +487,9 @@ def deploy(ctx, hot, from_master):
                         'conf': 'wallpage'
                     }, {
                         'host': 'kontigr',
+                        'conf': 'wallpage'
+                    }, {
+                        'host': 'zok',
                         'conf': 'wallpage'
                     }, {
                         'host': 'staging',
@@ -485,6 +513,9 @@ def deploy(ctx, hot, from_master):
                         'host': 'kontigr',
                         'conf': 'kontigr'
                     }, {
+                        'host': 'zok',
+                        'conf': 'zok'
+                    }, {
                         'host': 'staging',
                         'conf': 'deny'
                     }]
@@ -505,6 +536,7 @@ def deploy(ctx, hot, from_master):
     p.AddStep(WriteVersionConfigAndGitTag)
     p.AddStep(RunCmdStep('sudo /bin/systemctl restart ifdb-uwsgi'))
     p.AddStep(RunCmdStep('sudo /bin/systemctl restart ifdb-uwsgi-kontigr'))
+    p.AddStep(RunCmdStep('sudo /bin/systemctl restart ifdb-uwsgi-zok'))
 
     if from_master:
         p.AddStep(RunCmdStep('git fetch . release:master'))
@@ -516,6 +548,7 @@ def deploy(ctx, hot, from_master):
 
 
 def JumpIfExists(var, if_true=1, if_false=1):
+
     def f(ctx):
         jmp = None
         if var in ctx:
@@ -603,6 +636,7 @@ def GetNextVersion(ctx):
 
 
 def Message(msg, text="Press Enter to continue..."):
+
     def f(ctx):
         click.secho(msg, fg='yellow')
         click.prompt(text)
@@ -640,6 +674,7 @@ def BuildVersionStr(major, minor, bugfix):
 
 
 def LoopStep(func, text='Should I?'):
+
     def f(ctx):
         while True:
             click.secho('Want to run [%s]' % func.__doc__, fg='yellow')
@@ -669,6 +704,7 @@ def print_diff_files(dcmp):
 
 
 def StagingDiff(filename):
+
     def f(ctx):
         if filename[-1] == '/':
             d1 = os.path.join(ROOT_DIR, filename)
@@ -697,6 +733,7 @@ def StagingDiff(filename):
 
 
 def ChDir(whereto):
+
     def f(ctx):
         os.chdir(whereto)
         ctx['chdir'] = whereto

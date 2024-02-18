@@ -1,0 +1,79 @@
+{% load tags %}
+<!DOCTYPE html>
+<html>
+    <head>
+    {% if not debug %}
+        <!-- Global site tag (gtag.js) - Google Analytics -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=UA-100707634-2"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'UA-100707634-2');
+          {% if user.is_authenticated %}ga('set', 'userId', '{{ user.id }}');{% endif %}
+          ga('send', 'pageview');
+        </script>
+    {% endif %}
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="/static/kontigr_favicon_transparent.png" />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/jqueryui-touch-punch/0.2.3/jquery.ui.touch-punch.min.js"></script>
+    <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">    
+    <link rel="stylesheet" type="text/css" media="screen" href="/static/games.css?b" />
+    {% block scripts %}{% endblock %}
+        <title>{% block titlesection %}{% endblock %}КОНТИГР</title>
+    </head>
+    <body>
+        <div class="root">
+
+            <header id="top-nav" {% if debug %}style="background-color: black;"{% endif %}>
+                <div class="top-nav-login-box">
+                    {% if user.is_authenticated %}
+                        <form class="loginbox" method="post" action="{% url 'logout' %}">
+                            {% csrf_token %}
+                            Вы <b>{{ user.username }}</b>.
+                            <input type="submit" value="Выйти" />
+                            <input type="hidden" name="next" value="{{ request.path }}" />
+                        </form>
+                    {% else %}
+                        <form class="loginbox" method="post" action="{% url 'login' %}">
+                            {% csrf_token %}
+                            <input placeholder="E-mail" type="text" name="username" id="id_username" required maxlength="254" />
+                            <input placeholder="Пароль" type="password" name="password" id="id_password" required />
+                            <input type="submit" value="Войти" />
+                            <input type="hidden" name="next" value="{{ request.path }}" />
+                        </form>
+                        <a href="{% url 'registration_register' %}" class="register {% current 'registration_register' %}" >
+                            Регистрация
+                        </a>
+                    {% endif %}
+                </div>
+
+                <input type="checkbox" id="top-nav-hamburger-menu"/>
+                <label class="top-nav-hamburger-menu" for="top-nav-hamburger-menu">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                        <path d="M6 36h36v-4H6v4zm0-10h36v-4H6v4zm0-14v4h36v-4H6z"/>
+                    </svg>
+                </label>
+                <nav class="top-nav-drawer">
+                    <a href="/">КОНТИГР-2022</a>
+                    <a href="/2021/">КОНТИГР-2021</a>
+                    <a href="/2020/">КОНТИГР-2020</a>
+                    <a href="/2019/">КОНТИГР-2019</a>
+                    {% if user.is_staff %}
+                        <a href="/adminz/">Админка</a>
+                    {% endif %}
+                </nav>
+            </header>
+
+                {% block content_wide %}
+                <div class="content">
+                    {% block content %}{% endblock %}
+                </div>
+                {% endblock %}
+            <div style="clear: both;"></div>
+        </div>
+    </body>
+</html>
