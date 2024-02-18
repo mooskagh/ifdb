@@ -11,6 +11,10 @@ upstream django-staging {
 upstream django-kontigr {
     server unix:///home/ifdb/configs/uwsgi-kontigr.socket;
 }
+{% elif c.conf == 'zok' %}
+upstream django-zok {
+    server unix:///home/ifdb/configs/uwsgi-zpl.socket;
+}
 {% endif %}
 server {
 {% if c.host == 'prod' %}
@@ -39,6 +43,23 @@ server {
     listen [::]:443 ssl;
     ssl_certificate /etc/letsencrypt/live/kontigr.com/fullchain.pem; # managed by Certbot
     ssl_certificate_key /etc/letsencrypt/live/kontigr.com/privkey.pem; # managed by Certbot    
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    if ($scheme != "https") {
+       return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+{% elif c.host == 'zok' %}
+    server_name zok.crem.xyz;
+
+    error_log    /home/ifdb/logs/nginx-zok-error.log;
+    access_log    /home/ifdb/logs/nginx-zok-access.log main;
+
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    ssl_certificate /etc/letsencrypt/live/zok.crem.xyz/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/zok.crem.xyz/privkey.pem; # managed by Certbot    
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
@@ -90,6 +111,20 @@ server {
 
     location / {
         uwsgi_pass  django-kontigr;
+        include     /home/ifdb/configs/uwsgi_params;
+    }
+
+{% elif c.conf == 'zok' %}
+    location /f/  {
+        alias /home/ifdb/files/;
+    }
+
+    location /static/ {
+        alias /home/ifdb/static/;
+    }
+
+    location / {
+        uwsgi_pass  django-zok;
         include     /home/ifdb/configs/uwsgi_params;
     }
 
