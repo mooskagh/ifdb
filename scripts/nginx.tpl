@@ -52,6 +52,7 @@ server {
 
 {% elif c.host == 'zok' %}
     server_name zok.crem.xyz;
+    server_name zok.quest;
 
     error_log    /home/ifdb/logs/nginx-zok-error.log;
     access_log    /home/ifdb/logs/nginx-zok-access.log main;

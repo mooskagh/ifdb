@@ -28,8 +28,12 @@ if IS_PROD:
     VK_SERVICE_KEY = open('/home/ifdb/configs/vk.txt').read().strip()
     DEBUG = False
     ALLOWED_HOSTS = [
-        'db.crem.xyz', 'db-staging.crem.xyz', 'kontigr.crem.xyz',
-        'kontigr.com', 'zok.crem.xyz'
+        'db.crem.xyz',
+        'db-staging.crem.xyz',
+        'kontigr.crem.xyz',
+        'kontigr.com',
+        'zok.crem.xyz',
+        'zok.quest',
     ]
     DATABASES = {
         'default': {
