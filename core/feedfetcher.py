@@ -146,5 +146,5 @@ def FetchFeeds():
     for x in BlogFeed.objects.all():
         if x.feed_id.startswith('blog-'):
             FetchFeed(x.rss, x.feed_id)
-        elif x.feed_id.startswith('vk-'):
-            FetchVkFeed(api, x.rss, x.feed_id)
+        # elif x.feed_id.startswith('vk-'):
+        #    FetchVkFeed(api, x.rss, x.feed_id)
