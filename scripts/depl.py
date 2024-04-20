@@ -145,7 +145,7 @@ class Pipeline:
     def MaybeLoadState(self):
         if os.path.isfile(self.StateFileName()):
             if click.confirm("Forgotten state found. Restore?"):
-                with open(self.StateFileName(), "b") as f:
+                with open(self.StateFileName(), "rb") as f:
                     self.context = pickle.load(f)
                     if "chdir" in self.context:
                         os.chdir(self.context["chdir"])
@@ -311,7 +311,7 @@ def green(ctx):
 def stage(ctx, tag):
     p = ctx.obj["pipeline"]
 
-    virtualenv_dir = STAGING_DIR / "virtualenv"
+    virtualenv_dir = STAGING_DIR / "venv"
     python_dir = virtualenv_dir / "bin/python"
 
     p.AddStep(KillStaging)
@@ -321,7 +321,7 @@ def stage(ctx, tag):
     )
     p.AddStep(ChDir(DISTRIB_DIR))
     p.AddStep(RunCmdStep("git checkout -b staging %s" % (tag or "")))
-    p.AddStep(RunCmdStep("virtualenv -p python3 %s" % virtualenv_dir))
+    p.AddStep(RunCmdStep("python3 -m venv %s" % virtualenv_dir))
     p.AddStep(StagingDiff(PROD_SUBDIR / "requirements.txt"))
     p.AddStep(
         RunCmdStep(
@@ -398,7 +398,7 @@ def deploy(ctx, hot, from_master):
         click.secho("Please specify --[no-]from-master!", fg="red", bold=True)
         raise click.Abort
     p = ctx.obj["pipeline"]
-    virtualenv_dir = ROOT_DIR / "virtualenv"
+    virtualenv_dir = ROOT_DIR / "venv"
     python_dir = virtualenv_dir / "bin/python"
 
     p.AddStep(
