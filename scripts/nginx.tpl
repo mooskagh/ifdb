@@ -18,7 +18,7 @@ upstream django-zok {
 {% endif %}
 server {
 {% if c.host == 'prod' %}
-    server_name db.crem.xyz;
+    server_name db.crem.xyz db-tmp.mooskagh.com;
 
     error_log    /home/ifdb/logs/nginx-error.log;
     access_log    /home/ifdb/logs/nginx-access.log main;
