@@ -33,7 +33,7 @@ ROOT_DIR = "/home/ifdb"
 CONFIGS_DIR = os.path.join(ROOT_DIR, "configs")
 STAGING_DIR = os.path.join(ROOT_DIR, "staging")
 BACKUPS_DIR = os.path.join(ROOT_DIR, "backups")
-DISTRIB_DIR = os.path.join(ROOT_DIR, "distrib")
+DISTRIB_DIR = os.path.join(ROOT_DIR, "distrib/ifdb")
 
 
 class Jump(BaseException):
