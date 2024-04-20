@@ -15,6 +15,7 @@ import socket
 import json
 import filecmp
 import shutil
+from pathlib import Path
 
 TEMPLATES = [
     {
@@ -24,16 +25,16 @@ TEMPLATES = [
 ]
 settings.configure(TEMPLATES=TEMPLATES)
 django.setup()
-os.path.realpath(__file__)
 
 IS_PROD = socket.gethostname() in ["crem.xyz", "flatty"]
-TPL_DIR = os.path.dirname(os.path.realpath(__file__))
-ROOT_DIR = "/home/ifdb"
+TPL_DIR = Path(os.path.dirname(os.path.realpath(__file__)))
+ROOT_DIR = Path("/home/ifdb")
 
-CONFIGS_DIR = os.path.join(ROOT_DIR, "configs")
-STAGING_DIR = os.path.join(ROOT_DIR, "staging")
-BACKUPS_DIR = os.path.join(ROOT_DIR, "backups")
-DISTRIB_DIR = os.path.join(ROOT_DIR, "distrib/ifdb")
+PROD_SUBDIR = Path("distrib/ifdb")
+CONFIGS_DIR = ROOT_DIR / "configs"
+STAGING_DIR = ROOT_DIR / "staging"
+BACKUPS_DIR = ROOT_DIR / "backups"
+DISTRIB_DIR = ROOT_DIR / PROD_SUBDIR
 
 
 class Jump(BaseException):
@@ -43,7 +44,7 @@ class Jump(BaseException):
 
 
 def GenerateStringFromTemplate(template, params, gen_header):
-    with open(os.path.join(TPL_DIR, template)) as f:
+    with open(TPL_DIR / template) as f:
         tpl = f.read()
     t = Template(tpl)
     c = Context(params)
@@ -76,7 +77,7 @@ def GetFromTemplate(template, dst, params, gen_header=True):
 
     def f(context):
         cnt = GenerateStringFromTemplate(template, params, gen_header)
-        with open(os.path.join(CONFIGS_DIR, dst), "w") as fo:
+        with open(CONFIGS_DIR / dst, "w") as fo:
             fo.write(cnt)
         return True
 
@@ -87,7 +88,7 @@ def GetFromTemplate(template, dst, params, gen_header=True):
 def CheckFromTemplate(template, dst):
 
     def f(ctx):
-        with open(os.path.join(CONFIGS_DIR, dst)) as f:
+        with open(CONFIGS_DIR / dst) as f:
             cnt = f.read()
 
         m = re.match(r"# Gen-hdr: ([^\n]+)\n(.*)", cnt, re.DOTALL)
@@ -104,8 +105,8 @@ def CheckFromTemplate(template, dst):
         if not diff:
             return True
         click.secho("Regenerated file does not match:", fg="red", bold=True)
-        for l in diff:
-            click.secho(l.rstrip(), fg="red")
+        for line in diff:
+            click.secho(line.rstrip(), fg="red")
 
     f.__doc__ = "Check file %s with template" % dst
     return f
@@ -138,7 +139,7 @@ class Pipeline:
         self.steps.append(func)
 
     def StateFileName(self):
-        return os.path.join(CONFIGS_DIR, "%s_state.json" % self.cmd_name)
+        return CONFIGS_DIR / f"{self.cmd_name}_state.json"
 
     def MaybeLoadState(self):
         if os.path.isfile(self.StateFileName()):
@@ -309,8 +310,8 @@ def green(ctx):
 def stage(ctx, tag):
     p = ctx.obj["pipeline"]
 
-    virtualenv_dir = os.path.join(STAGING_DIR, "virtualenv")
-    python_dir = os.path.join(virtualenv_dir, "bin/python")
+    virtualenv_dir = STAGING_DIR / "virtualenv"
+    python_dir = virtualenv_dir / "bin/python"
 
     p.AddStep(KillStaging)
     p.AddStep(CreateStaging)
@@ -320,17 +321,17 @@ def stage(ctx, tag):
     p.AddStep(ChDir(DISTRIB_DIR))
     p.AddStep(RunCmdStep("git checkout -b staging %s" % (tag or "")))
     p.AddStep(RunCmdStep("virtualenv -p python3 %s" % virtualenv_dir))
-    p.AddStep(StagingDiff("django/requirements.txt"))
+    p.AddStep(StagingDiff(PROD_SUBDIR / "requirements.txt"))
     p.AddStep(
         RunCmdStep(
             "%s/bin/pip install -r %s/requirements.txt --no-cache-dir"
             % (virtualenv_dir, DISTRIB_DIR)
         )
     )
-    p.AddStep(StagingDiff("django/games/migrations/"))
-    p.AddStep(StagingDiff("django/core/migrations/"))
-    p.AddStep(StagingDiff("django/games/management/commands/initifdb.py"))
-    p.AddStep(StagingDiff("django/scripts/nginx.tpl"))
+    p.AddStep(StagingDiff(PROD_SUBDIR / "games/migrations/"))
+    p.AddStep(StagingDiff(PROD_SUBDIR / "core/migrations/"))
+    p.AddStep(StagingDiff(PROD_SUBDIR / "games/management/commands/initifdb.py"))
+    p.AddStep(StagingDiff(PROD_SUBDIR / "scripts/nginx.tpl"))
     p.AddStep(
         RunCmdStep("%s %s/manage.py collectstatic --clear" % (python_dir, DISTRIB_DIR))
     )
@@ -396,13 +397,13 @@ def deploy(ctx, hot, from_master):
         click.secho("Please specify --[no-]from-master!", fg="red", bold=True)
         raise click.Abort
     p = ctx.obj["pipeline"]
-    virtualenv_dir = os.path.join(ROOT_DIR, "virtualenv")
-    python_dir = os.path.join(virtualenv_dir, "bin/python")
+    virtualenv_dir = ROOT_DIR / "virtualenv"
+    python_dir = virtualenv_dir / "bin/python"
 
     p.AddStep(
         RunCmdStep(
             "pg_dump ifdb > %s"
-            % os.path.join(BACKUPS_DIR, "database", time.strftime("%Y%m%d_%H%M"))
+            % (BACKUPS_DIR / "database" / time.strftime("%Y%m%d_%H%M"))
         )
     )
     p.AddStep(ChDir(DISTRIB_DIR))
@@ -470,9 +471,7 @@ def deploy(ctx, hot, from_master):
         p.AddStep(
             RunCmdStep(
                 "pg_dump ifdb > %s"
-                % os.path.join(
-                    BACKUPS_DIR, "database", time.strftime("%Y%m%d_%H%M-postmigr")
-                )
+                % (BACKUPS_DIR / "database" / time.strftime("%Y%m%d_%H%M-postmigr"))
             )
         )
 
@@ -610,7 +609,7 @@ def MaybeCreateNewBugfixVersion(ctx):
 def WriteVersionConfigAndGitTag(ctx):
     """Write current version into config."""
     v = ctx["new-version"]
-    with open(os.path.join(ROOT_DIR, "django/version.txt"), "w") as f:
+    with open(DISTRIB_DIR / "version.txt", "w") as f:
         f.write("%s" % v)
     if not RunCmdStep("git add version.txt")(ctx):
         return False
@@ -623,7 +622,7 @@ def WriteVersionConfigAndGitTag(ctx):
 
 def GetCurrentVersion():
     version_re = re.compile(r"v(\d+)\.(\d+)(?:\.(\d+))?")
-    cnt = open(os.path.join(ROOT_DIR, "django/version.txt")).read().strip()
+    cnt = open(DISTRIB_DIR / "version.txt").read().strip()
     m = version_re.match(cnt)
     if not m:
         click.secho(
@@ -733,20 +732,20 @@ def StagingDiff(filename):
 
     def f(ctx):
         if filename[-1] == "/":
-            d1 = os.path.join(ROOT_DIR, filename)
-            d2 = os.path.join(STAGING_DIR, filename)
+            d1 = ROOT_DIR / filename
+            d2 = STAGING_DIR / filename
             diff = print_diff_files(filecmp.dircmp(d1, d2, ["__pycache__"]))
             if not diff:
                 return True
         else:
-            t1 = open(os.path.join(ROOT_DIR, filename)).read().split("\n")
-            t2 = open(os.path.join(STAGING_DIR, filename)).read().split("\n")
+            t1 = open(ROOT_DIR / filename).read().split("\n")
+            t2 = open(STAGING_DIR / filename).read().split("\n")
             diff = list(difflib.context_diff(t1, t2))
             if not diff:
                 return True
             click.secho("File %s does not match:" % filename, fg="red", bold=True)
-            for l in diff:
-                click.secho(l.rstrip(), fg="red")
+            for line in diff:
+                click.secho(line.rstrip(), fg="red")
         if click.confirm("Do you want to continue?"):
             return True
         else:
@@ -769,17 +768,15 @@ def ChDir(whereto):
 
 def CreateStaging(ctx):
     """Create staging directory"""
-    d = os.path.join(STAGING_DIR)
-    os.mkdir(d)
+    os.mkdir(STAGING_DIR)
     return True
 
 
 def KillStaging(ctx):
     """Remove staging directory is exists"""
     RunCmdStep("uwsgi --stop /tmp/uwsgi-ifdb-staging.pid")(ctx)
-    d = os.path.join(STAGING_DIR)
-    if os.path.isdir(d):
-        shutil.rmtree(d)
+    if STAGING_DIR.isdir():
+        shutil.rmtree(STAGING_DIR)
     return True
 
 
