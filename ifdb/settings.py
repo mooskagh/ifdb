@@ -16,64 +16,63 @@ import os.path
 import logging.config
 from django.core.files.storage import FileSystemStorage
 
-IS_PROD = socket.gethostname() == 'crem.xyz'
+IS_PROD = socket.gethostname() in ["crem.xyz", "flatty"]
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-VERSION = open(os.path.join(BASE_DIR, 'version.txt')).read().strip()
+VERSION = open(os.path.join(BASE_DIR, "version.txt")).read().strip()
 
 # SECURITY WARNING: keep the secret key used in production secret!
 if IS_PROD:
-    SECRET_KEY = open('/home/ifdb/configs/django-secret.txt').read().strip()
-    VK_SERVICE_KEY = open('/home/ifdb/configs/vk.txt').read().strip()
+    SECRET_KEY = open("/home/ifdb/configs/django-secret.txt").read().strip()
+    VK_SERVICE_KEY = open("/home/ifdb/configs/vk.txt").read().strip()
     DEBUG = False
     ALLOWED_HOSTS = [
-        'db.crem.xyz',
-        'db-staging.crem.xyz',
-        'kontigr.crem.xyz',
-        'kontigr.com',
-        'zok.crem.xyz',
-        'zok.quest',
+        "db.crem.xyz",
+        "db-staging.crem.xyz",
+        "kontigr.crem.xyz",
+        "kontigr.com",
+        "zok.crem.xyz",
+        "zok.quest",
     ]
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql_psycopg2',
-            'NAME': 'ifdb',
-            'USER': 'ifdb',
-            'PASSWORD': open('/home/ifdb/configs/db-pass.txt').read().strip(),
-            'HOST': '',
-            'PORT': '',
+        "default": {
+            "ENGINE": "django.db.backends.postgresql_psycopg2",
+            "NAME": "ifdb",
+            "USER": "ifdb",
+            "PASSWORD": open("/home/ifdb/configs/db-pass.txt").read().strip(),
+            "HOST": "",
+            "PORT": "",
         }
     }
-    MEDIA_ROOT = os.path.abspath('/home/ifdb/files')
+    MEDIA_ROOT = os.path.abspath("/home/ifdb/files")
 
-    if 'staging' in BASE_DIR:
-        STATIC_ROOT = os.path.abspath('/home/ifdb/staging/static')
+    if "staging" in BASE_DIR:
+        STATIC_ROOT = os.path.abspath("/home/ifdb/staging/static")
     else:
-        STATIC_ROOT = os.path.abspath('/home/ifdb/static')
+        STATIC_ROOT = os.path.abspath("/home/ifdb/static")
 
     EMAIL_USE_TLS = False
-    EMAIL_HOST = 'localhost'
+    EMAIL_HOST = "localhost"
     EMAIL_PORT = 25
-    EMAIL_HOST_USER = 'ifdb@crem.xyz'
-    DEFAULT_FROM_EMAIL = 'noreply@crem.xyz'
-    SERVER_EMAIL = 'ifdb@crem.xyz'
-    EMAIL_HOST_PASSWORD = ''  #open(
+    EMAIL_HOST_USER = "ifdb@crem.xyz"
+    DEFAULT_FROM_EMAIL = "noreply@crem.xyz"
+    SERVER_EMAIL = "ifdb@crem.xyz"
+    EMAIL_HOST_PASSWORD = ""  # open(
     # '/home/ifdb/configs/gmail-pass.txt').read().strip()
-    DISCORD_WEBHOOK = open('/home/ifdb/configs/discord.url').read().strip()
+    DISCORD_WEBHOOK = open("/home/ifdb/configs/discord.url").read().strip()
     CRAWLER_CACHE_DIR = None  # '/home/ifdb/tmp/urlcache/'
-    TMP_DIR = '/home/ifdb/tmp/tmp/'
-    LOG_DIR = '/home/ifdb/logs/'
+    TMP_DIR = "/home/ifdb/tmp/tmp/"
+    LOG_DIR = "/home/ifdb/logs/"
     EXTRACTOR_PATH = '/bin/unar "%s" -o "%s"'
-    WORKER_PID_FILE = os.path.join(TMP_DIR, 'ifdbworker.pid')
-    RECAPTCHA_PUBLIC_KEY = '6Lc1j68UAAAAAOT-Fk3aF-94XXMutiuPGrxtS2N9'
-    RECAPTCHA_PRIVATE_KEY = open(
-        '/home/ifdb/configs/recaptcha.txt').read().strip()
+    WORKER_PID_FILE = os.path.join(TMP_DIR, "ifdbworker.pid")
+    RECAPTCHA_PUBLIC_KEY = "6Lc1j68UAAAAAOT-Fk3aF-94XXMutiuPGrxtS2N9"
+    RECAPTCHA_PRIVATE_KEY = open("/home/ifdb/configs/recaptcha.txt").read().strip()
 
 else:
-    SILENCED_SYSTEM_CHECKS = ['captcha.recaptcha_test_key_error']
-    SECRET_KEY = 'l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr'
-    VK_SERVICE_KEY = open('/home/crem/my/vk.key').read().strip()
+    SILENCED_SYSTEM_CHECKS = ["captcha.recaptcha_test_key_error"]
+    SECRET_KEY = "l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr"
+    VK_SERVICE_KEY = open("/home/crem/my/vk.key").read().strip()
     DISCORD_WEBHOOK = None
     DEBUG = True
     ALLOWED_HOSTS = []
@@ -84,144 +83,148 @@ else:
     #     }
     # }
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql_psycopg2',
-            'NAME': 'ifdbdev',
-            'USER': 'ifdbdev',
-            'PASSWORD': 'ifdb',
-            'HOST': 'localhost',
-            'PORT': '',
+        "default": {
+            "ENGINE": "django.db.backends.postgresql_psycopg2",
+            "NAME": "ifdbdev",
+            "USER": "ifdbdev",
+            "PASSWORD": "ifdb",
+            "HOST": "localhost",
+            "PORT": "",
         }
     }
 
-    MEDIA_ROOT = os.path.join(BASE_DIR, 'files')
+    MEDIA_ROOT = os.path.join(BASE_DIR, "files")
 
-    CRAWLER_CACHE_DIR = os.path.join(BASE_DIR, 'urlcache')
-    TMP_DIR = os.path.join(BASE_DIR, 'tmp')
+    CRAWLER_CACHE_DIR = os.path.join(BASE_DIR, "urlcache")
+    TMP_DIR = os.path.join(BASE_DIR, "tmp")
     DEBUG_TOOLBAR_PANELS = [
-        'debug_toolbar.panels.versions.VersionsPanel',
-        'debug_toolbar.panels.timer.TimerPanel',
-        'debug_toolbar.panels.settings.SettingsPanel',
-        'debug_toolbar.panels.headers.HeadersPanel',
-        'debug_toolbar.panels.request.RequestPanel',
-        'debug_toolbar.panels.sql.SQLPanel',
-        'debug_toolbar.panels.staticfiles.StaticFilesPanel',
-        'debug_toolbar.panels.templates.TemplatesPanel',
-        'debug_toolbar.panels.cache.CachePanel',
-        'debug_toolbar.panels.signals.SignalsPanel',
-        'debug_toolbar.panels.logging.LoggingPanel',
-        'debug_toolbar.panels.redirects.RedirectsPanel',
+        "debug_toolbar.panels.versions.VersionsPanel",
+        "debug_toolbar.panels.timer.TimerPanel",
+        "debug_toolbar.panels.settings.SettingsPanel",
+        "debug_toolbar.panels.headers.HeadersPanel",
+        "debug_toolbar.panels.request.RequestPanel",
+        "debug_toolbar.panels.sql.SQLPanel",
+        "debug_toolbar.panels.staticfiles.StaticFilesPanel",
+        "debug_toolbar.panels.templates.TemplatesPanel",
+        "debug_toolbar.panels.cache.CachePanel",
+        "debug_toolbar.panels.signals.SignalsPanel",
+        "debug_toolbar.panels.logging.LoggingPanel",
+        "debug_toolbar.panels.redirects.RedirectsPanel",
     ]
     # EXTRACTOR_PATH = '"C:/Program Files/7-Zip/7z.exe" x "%s" "-O%s"'
     EXTRACTOR_PATH = '/usr/bin/unar "%s" -o "%s"'
-    LOG_DIR = os.path.join(BASE_DIR, 'tmp/logs')
-    WORKER_PID_FILE = os.path.join(BASE_DIR, 'tmp/ifdbworker.pid')
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    LOG_DIR = os.path.join(BASE_DIR, "tmp/logs")
+    WORKER_PID_FILE = os.path.join(BASE_DIR, "tmp/ifdbworker.pid")
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 LOGGING_CONFIG = None
-LOGIN_REDIRECT_URL = '/'
+LOGIN_REDIRECT_URL = "/"
 
-logging.config.dictConfig({
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'google': {
-            'format': ('%(levelname).1s%(asctime)s.%(msecs)03d %(name)s '
-                       '%(filename)s:%(lineno)d] %(message)s'),
-            'datefmt': '%m%d %H:%M:%S',
-        }
-    },
-    'filters': {
-        'require_debug_false': {
-            '()': 'django.utils.log.RequireDebugFalse',
+logging.config.dictConfig(
+    {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "google": {
+                "format": (
+                    "%(levelname).1s%(asctime)s.%(msecs)03d %(name)s "
+                    "%(filename)s:%(lineno)d] %(message)s"
+                ),
+                "datefmt": "%m%d %H:%M:%S",
+            }
         },
-        'require_debug_true': {
-            '()': 'django.utils.log.RequireDebugTrue',
+        "filters": {
+            "require_debug_false": {
+                "()": "django.utils.log.RequireDebugFalse",
+            },
+            "require_debug_true": {
+                "()": "django.utils.log.RequireDebugTrue",
+            },
         },
-    },
-    'handlers': {
-        'debug': {
-            'class': 'logging.handlers.WatchedFileHandler',
-            'delay': True,
-            'encoding': 'utf-8',
-            'filename': os.path.join(LOG_DIR, 'all.DEBUG'),
-            'filters': ['require_debug_true'],
-            'formatter': 'google',
-            'level': 0,
+        "handlers": {
+            "debug": {
+                "class": "logging.handlers.WatchedFileHandler",
+                "delay": True,
+                "encoding": "utf-8",
+                "filename": os.path.join(LOG_DIR, "all.DEBUG"),
+                "filters": ["require_debug_true"],
+                "formatter": "google",
+                "level": 0,
+            },
+            "warnings": {
+                "class": "logging.handlers.WatchedFileHandler",
+                "encoding": "utf-8",
+                "filename": os.path.join(LOG_DIR, "all.WARN"),
+                "formatter": "google",
+                "level": "WARN",
+            },
+            "mail_admins": {
+                "class": "django.utils.log.AdminEmailHandler",
+                "filters": ["require_debug_false"],
+                "level": "ERROR",
+            },
+            "crawler": {
+                "class": "logging.handlers.WatchedFileHandler",
+                "encoding": "utf-8",
+                "filename": os.path.join(LOG_DIR, "crawler.INFO"),
+                "formatter": "google",
+                "level": "INFO",
+            },
+            "web": {
+                "class": "logging.handlers.WatchedFileHandler",
+                "encoding": "utf-8",
+                "filename": os.path.join(LOG_DIR, "web.INFO"),
+                "formatter": "google",
+                "level": "INFO",
+            },
+            "worker": {
+                "class": "logging.handlers.WatchedFileHandler",
+                "encoding": "utf-8",
+                "filename": os.path.join(LOG_DIR, "worker.INFO"),
+                "formatter": "google",
+                "level": "INFO",
+            },
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "google",
+                "level": "ERROR",
+            },
         },
-        'warnings': {
-            'class': 'logging.handlers.WatchedFileHandler',
-            'encoding': 'utf-8',
-            'filename': os.path.join(LOG_DIR, 'all.WARN'),
-            'formatter': 'google',
-            'level': 'WARN',
+        "loggers": {
+            "": {
+                "level": 0,
+                "handlers": ["debug", "warnings", "mail_admins", "console"],
+                #'handlers': ['debug', 'warnings', 'console'],
+            },
+            "django": {
+                "handlers": ["web"],
+                "level": 0,
+                "propagate": True,
+            },
+            "web": {
+                "handlers": ["web"],
+                "level": 0,
+                "propagate": True,
+            },
+            "crawler": {
+                "handlers": ["crawler"],
+                "level": 0,
+                "propagate": True,
+            },
+            "MARKDOWN": {
+                "level": "INFO",
+                "propagate": True,
+            },
+            "worker": {
+                "handlers": ["worker"],
+                "level": 0,
+                "propagate": True,
+            },
         },
-        'mail_admins': {
-            'class': 'django.utils.log.AdminEmailHandler',
-            'filters': ['require_debug_false'],
-            'level': 'ERROR',
-        },
-        'crawler': {
-            'class': 'logging.handlers.WatchedFileHandler',
-            'encoding': 'utf-8',
-            'filename': os.path.join(LOG_DIR, 'crawler.INFO'),
-            'formatter': 'google',
-            'level': 'INFO',
-        },
-        'web': {
-            'class': 'logging.handlers.WatchedFileHandler',
-            'encoding': 'utf-8',
-            'filename': os.path.join(LOG_DIR, 'web.INFO'),
-            'formatter': 'google',
-            'level': 'INFO',
-        },
-        'worker': {
-            'class': 'logging.handlers.WatchedFileHandler',
-            'encoding': 'utf-8',
-            'filename': os.path.join(LOG_DIR, 'worker.INFO'),
-            'formatter': 'google',
-            'level': 'INFO',
-        },
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'google',
-            'level': 'ERROR',
-        }
-    },
-    'loggers': {
-        '': {
-            'level': 0,
-            'handlers': ['debug', 'warnings', 'mail_admins', 'console'],
-            #'handlers': ['debug', 'warnings', 'console'],
-        },
-        'django': {
-            'handlers': ['web'],
-            'level': 0,
-            'propagate': True,
-        },
-        'web': {
-            'handlers': ['web'],
-            'level': 0,
-            'propagate': True,
-        },
-        'crawler': {
-            'handlers': ['crawler'],
-            'level': 0,
-            'propagate': True,
-        },
-        'MARKDOWN': {
-            'level': 'INFO',
-            'propagate': True,
-        },
-        'worker': {
-            'handlers': ['worker'],
-            'level': 0,
-            'propagate': True,
-        },
-    },
-})
+    }
+)
 
-ADMINS = [('Alexander Lyashuk', 'crem@crem.xyz')]
+ADMINS = [("Alexander Lyashuk", "crem@crem.xyz")]
 
 
 class PrefixList(list):
@@ -233,63 +236,62 @@ class PrefixList(list):
         return False
 
 
-INTERNAL_IPS = PrefixList(
-    ['127.', '10.162.', '212.51.151.122', '2a02:168:520c:'])
+INTERNAL_IPS = PrefixList(["127.", "10.162.", "212.51.151.122", "2a02:168:520c:"])
 
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'django.contrib.sites',
-    'games',
-    'captcha',
-    'core',
-    'moder',
-    'contest',
-    'django.contrib.admin',
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "django.contrib.sites",
+    "games",
+    "captcha",
+    "core",
+    "moder",
+    "contest",
+    "django.contrib.admin",
 ]
 
 SITE_ID = 1
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'ifdb.permissioner.permissioner',
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "ifdb.permissioner.permissioner",
 ]
 
 if DEBUG:
-    INSTALLED_APPS.append('django_extensions')
-    INSTALLED_APPS.append('debug_toolbar')
-    MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
+    INSTALLED_APPS.append("django_extensions")
+    INSTALLED_APPS.append("debug_toolbar")
+    MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
 
-ROOT_URLCONF = 'ifdb.urls'
+ROOT_URLCONF = "ifdb.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'ifdb.wsgi.application'
+WSGI_APPLICATION = "ifdb.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/1.10/ref/settings/#databases
@@ -299,16 +301,13 @@ WSGI_APPLICATION = 'ifdb.wsgi.application'
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME':
-            'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME':
-            'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME':
-            'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     # {
     #     'NAME':
@@ -317,37 +316,40 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
     },
-    'tor-ips': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'tor-ips',
-        'TIMEOUT': 60 * 60 * 24,
-    }
+    "tor-ips": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "tor-ips",
+        "TIMEOUT": 60 * 60 * 24,
+    },
 }
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.10/topics/i18n/
 
-LANGUAGE_CODE = 'ru-ru'
-TIME_ZONE = 'UTC'
+LANGUAGE_CODE = "ru-ru"
+TIME_ZONE = "UTC"
 USE_I18N = True
 USE_L10N = True
 USE_TZ = False
 
-AUTH_USER_MODEL = 'core.User'
+AUTH_USER_MODEL = "core.User"
 FILE_UPLOAD_PERMISSIONS = 0o644
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
-STATIC_URL = '/static/'
-MEDIA_URL = '/f/'
+STATIC_URL = "/static/"
+MEDIA_URL = "/f/"
 
-UPLOADS_FS = FileSystemStorage(os.path.join(MEDIA_ROOT, 'uploads'),
-                               os.path.join(MEDIA_URL, 'uploads'))
-BACKUPS_FS = FileSystemStorage(os.path.join(MEDIA_ROOT, 'backups'),
-                               os.path.join(MEDIA_URL, 'backups'))
-RECODES_FS = FileSystemStorage(os.path.join(MEDIA_ROOT, 'recodes'),
-                               os.path.join(MEDIA_URL, 'recodes'))
+UPLOADS_FS = FileSystemStorage(
+    os.path.join(MEDIA_ROOT, "uploads"), os.path.join(MEDIA_URL, "uploads")
+)
+BACKUPS_FS = FileSystemStorage(
+    os.path.join(MEDIA_ROOT, "backups"), os.path.join(MEDIA_URL, "backups")
+)
+RECODES_FS = FileSystemStorage(
+    os.path.join(MEDIA_ROOT, "recodes"), os.path.join(MEDIA_URL, "recodes")
+)
 
 REQUIRE_ACCOUNT_ACTIVATION = True
 ACCOUNT_ACTIVATION_DAYS = 7
