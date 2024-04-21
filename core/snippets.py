@@ -418,12 +418,15 @@ def PopularGamesSnippet(
         annotate=['stars', 'comments', 'release_age'],
         fetch_limit=1000,
 ):
-    ids = next(
-        zip(*GetPopularGameids(
-            daily_decay=daily_decay,
-            anonymous_factor=anonymous_factor,
-            fetch_limit=fetch_limit,
-        ).most_common(count)))
+    try:
+        ids = next(
+            zip(*GetPopularGameids(
+                daily_decay=daily_decay,
+                anonymous_factor=anonymous_factor,
+                fetch_limit=fetch_limit,
+            ).most_common(count)))
+    except StopIteration:
+        ids = []
     games = Game.objects.filter(id__in=ids).annotate(
         coms_count=Count('gamecomment'),
         coms_recent=Max('gamecomment__creation_time')).prefetch_related(
