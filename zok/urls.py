@@ -12,7 +12,7 @@ urlpatterns = [
     url(
         r'^(?P<doc>.*)$',
         show_competition,
-        {'slug': 'zok-2024'},
+        {'slug': 'zok-2025'},
         name='show_competition',
     ),
 ]
