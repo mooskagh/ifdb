@@ -1655,6 +1655,7 @@ input[type="submit"],
     text-decoration: none;
     cursor: pointer;
     border-radius: 2px;
+
 }
 
 .button-like a {
@@ -1664,6 +1665,7 @@ input[type="submit"],
     font-size: 14px;
     text-decoration: none;
     cursor: pointer;
+
 }
 
 
@@ -1673,6 +1675,7 @@ input[type="submit"],
     margin: 1px;
     padding: 1px 6px;
     white-space: nowrap;
+    display: inline-block;
 }
 
 .button-like img {

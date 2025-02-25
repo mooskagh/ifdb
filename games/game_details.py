@@ -17,7 +17,7 @@ logger = getLogger('web')
 
 def AnnotateMedia(media):
     res = []
-    media.sort(key=lambda x: x.description)
+    media.sort(key=lambda x: (x.category.symbolic_id == 'video', x.description))
     for y in media:
         val = {}
         if y.category.symbolic_id in ['poster', 'screenshot']:
@@ -82,7 +82,7 @@ class GameDetailsBuilder:
                                                follow='author')
         media, online, download, links = PartitionItems(
             self.game.gameurl_set.all(),
-            [('poster', 'video', 'screenshot'),
+            [('poster', 'screenshot'),
              ('play_in_interpreter', 'play_online'),
              ('download_direct', 'download_landing')])
         media = AnnotateMedia(media)
