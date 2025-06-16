@@ -1,0 +1,29 @@
+[tool.ruff]
+line-length = 79
+target-version = "py311"
+
+[tool.ruff.lint]
+# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
+select = ["E", "F"]
+# Ignore E203 (whitespace before ':') which conflicts with black
+ignore = ["E203"]
+
+[tool.ruff.lint.per-file-ignores]
+"*/settings.py" = ["F403", "F405"]
+"*/importer/*.py" = ["E722", "F841"]
+"*/management/commands/*.py" = ["E722", "F841"]
+"core/taskqueue.py" = ["F841"]
+"core/views.py" = ["E722"]
+"games/tasks/*.py" = ["F841"]
+"games/templatetags/*.py" = ["E722"]
+"games/tools.py" = ["E722"]
+"games/updater.py" = ["E722"]
+"ifdb/permissioner.py" = ["E722"]
+"scripts/*.py" = ["E722"]
+# Allow E402 for Django setup files
+"games/test_migration_comparison.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

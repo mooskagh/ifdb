@@ -9,10 +9,10 @@ check-django:
     @echo "Running Django system checks..."
     python manage.py check --verbosity=2
 
-# Run flake8 linting
-check-flake8:
-    @echo "Running flake8..."
-    flake8 .
+# Run ruff linting
+check-ruff:
+    @echo "Running ruff..."
+    ruff check .
 
 # Run mypy type checking
 check-mypy:
@@ -35,7 +35,7 @@ fix-black:
     black --preview --line-length=79 --enable-unstable-feature string_processing .
 
 # Run all read-only checks
-check: check-django check-flake8 check-tests
+check: check-django check-ruff check-tests
     @echo "All checks passed!"
 
 # Run all formatting fixes

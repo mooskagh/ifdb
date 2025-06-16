@@ -24,9 +24,8 @@ idna==2.9
 lxml==5.2.1
 Markdown==3.2.1
 markdown-del-ins==1.0.0
-mediawiki-parser==0.4.1
+mwparserfromhell==0.6.6
 oauthlib==3.1.0
-pijnu==20160727
 pipreqs==0.4.10
 psycopg2-binary==2.9.9
 pudb==2019.2
