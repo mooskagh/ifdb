@@ -6,3 +6,4 @@
 /loonchator/out
 /virtualenv
 __pycache__
+.env

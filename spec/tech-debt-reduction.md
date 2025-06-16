@@ -4,10 +4,11 @@
 
 ### Phase 1: Critical Security & Infrastructure ⚠️
 - [ ] 1.1: Django upgrade from 3.0.5 to 5.2 (latest stable)
-- [ ] 1.2: Security dependency audit and updates  
-- [ ] 1.3: Add comprehensive logging system
-- [ ] 1.4: Add type annotations to critical modules
-- [ ] 1.5: Set up proper development environment with modern tooling
+- [ ] 1.2: Replace mediawiki-parser with Python 3.13+ compatible alternative
+- [ ] 1.3: Security dependency audit and updates  
+- [ ] 1.4: Add comprehensive logging system
+- [ ] 1.5: Add type annotations to critical modules
+- [ ] 1.6: Set up proper development environment with modern tooling
 
 ### Phase 2: Code Architecture & Quality 🏗️
 - [ ] 2.1: Extract business logic from fat views using Managers/QuerySets/Models
@@ -37,24 +38,76 @@
 - [ ] 5.4: Add responsive design and mobile-first approach
 - [ ] 5.5: Implement component-based CSS architecture
 
-### Phase 6: Feature Cleanup & Enhancement 🧹
-- [ ] 6.1: Remove "Справка" (Help) section
-- [ ] 6.2: Enhance Authors section with better UI/UX
-- [ ] 6.3: Add comprehensive REST API with DRF
-- [ ] 6.4: Add API documentation
-- [ ] 6.5: Implement progressive web app features
+### Phase 6: Deployment Modernization 🚀
+- [ ] 6.1: Modernize deployment script (scripts/depl.py) with better error handling
+- [ ] 6.2: Add automated testing integration to deployment process  
+- [ ] 6.3: Improve systemd service configurations for reliability
+- [ ] 6.4: Add deployment rollback safety mechanisms
+- [ ] 6.5: Enhance monitoring and logging in deployment pipeline
+
+### Phase 7: Feature Cleanup & Enhancement 🧹
+- [ ] 7.1: Remove "Справка" (Help) section
+- [ ] 7.2: Enhance Authors section with better UI/UX
+- [ ] 7.3: Add comprehensive REST API with DRF
+- [ ] 7.4: Add API documentation
+- [ ] 7.5: Implement progressive web app features
 
 ---
 
 ## Phase 1: Critical Security & Infrastructure ⚠️
 
 **Priority**: CRITICAL
-**Estimated Time**: 4-5 weeks
-**Risk Level**: High (security vulnerabilities)
+**Estimated Time**: 5-6 weeks
+**Risk Level**: High (security vulnerabilities + dependency compatibility)
 
 ### 1.1 Django Upgrade (3.0.5 → 5.2)
 
 **Current Issue**: Using Django 3.0.5 (April 2020) with 4+ years of missing security patches.
+
+### 1.2 Replace mediawiki-parser Package
+
+**Current Issue**: mediawiki-parser==0.4.1 is incompatible with Python 3.13+ (fails to build), last working version was Python 3.11.3. Package is unmaintained since 2019.
+
+**GitHub Issue**: https://github.com/peter17/mediawiki-parser/issues/10 - ModuleNotFoundError during wheel building on Python 3.11.5+
+
+**Replacement Options**:
+
+1. **mwparserfromhell** (Recommended):
+   ```python
+   pip install mwparserfromhell
+   
+   # Usage migration
+   # Before (mediawiki-parser):
+   from mediawiki_parser import parse
+   parsed = parse(wikitext)
+   
+   # After (mwparserfromhell):
+   import mwparserfromhell
+   parsed = mwparserfromhell.parse(wikitext)
+   ```
+
+2. **wikitextparser** (Alternative):
+   ```python
+   pip install wikitextparser
+   
+   # Usage
+   import wikitextparser as wtp
+   parsed = wtp.parse(wikitext)
+   ```
+
+**Migration Steps**:
+1. Identify all usage of mediawiki-parser in codebase
+2. Replace with mwparserfromhell API calls
+3. Update requirements.txt
+4. Test wiki parsing functionality thoroughly
+5. Update any custom wiki parsing logic
+
+**Files to Update**:
+- Search for imports: `from mediawiki_parser import` or `import mediawiki_parser`
+- Likely in games/importer/ modules for wiki content parsing
+- Update requirements.txt: `mediawiki-parser==0.4.1` → `mwparserfromhell>=0.6.6`
+
+### 1.3 Django Upgrade Details
 
 **Major Version Jump Considerations**:
 - Django 3.0.5 → 5.2 is a significant jump (5 major versions)
@@ -175,7 +228,7 @@
    - Game imports
 3. Performance testing to ensure no regressions
 
-### 1.2 Security Dependency Audit
+### 1.4 Security Dependency Audit
 
 **Critical Updates for Django 5.2**:
 ```python
@@ -199,7 +252,7 @@ pip install --upgrade cryptography lxml requests
 python manage.py check --deploy
 ```
 
-### 1.3 Modern Logging System
+### 1.5 Modern Logging System
 
 **Django 5.2 Compatible Logging**:
 ```python
@@ -255,7 +308,7 @@ LOGGING = {
 }
 ```
 
-### 1.4 Type Annotations for Django 5.2
+### 1.6 Type Annotations for Django 5.2
 
 **Django 5.2 has improved type support**:
 ```python
@@ -278,7 +331,7 @@ class Game(models.Model):
         return self.gameauthor_set.all()
 ```
 
-### 1.5 Modern Development Environment
+### 1.7 Modern Development Environment
 
 **pyproject.toml** (Django 5.2 compatible):
 ```toml
@@ -565,8 +618,8 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 app.autodiscover_tasks()
 
 # Celery settings in Django settings.py
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_BROKER_URL = 'amqp://guest@localhost//'  # RabbitMQ
+CELERY_RESULT_BACKEND = 'rpc://'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -1205,25 +1258,306 @@ if DEBUG:
 
 ---
 
+---
+
+## Phase 6: Deployment Modernization 🚀
+
+**Priority**: Medium
+**Estimated Time**: 2-3 weeks
+**Dependencies**: Phase 1-2 complete
+
+### Current Deployment Analysis
+
+**Strengths of Current System** (`scripts/depl.py`):
+- Robust pipeline with state management and rollback capabilities
+- Multi-environment support (production, staging, variants)
+- Database backup automation
+- Template-based configuration management
+- Maintenance mode capabilities
+
+**Areas for Modernization**:
+- Better error handling and logging
+- Integration with automated testing
+- Enhanced monitoring capabilities
+- Improved systemd service reliability
+
+### 6.1 Modernize Deployment Script
+
+**Enhance `scripts/depl.py`**:
+```python
+# Enhanced error handling
+import logging
+from pathlib import Path
+from typing import Optional, Dict, Any
+
+class DeploymentError(Exception):
+    """Custom deployment exception with context."""
+    pass
+
+class ModernDeployment:
+    def __init__(self, environment: str):
+        self.environment = environment
+        self.logger = self._setup_logging()
+        
+    def _setup_logging(self) -> logging.Logger:
+        """Configure structured logging for deployment."""
+        logger = logging.getLogger(f'deployment.{self.environment}')
+        handler = logging.FileHandler(f'/var/log/ifdb/deploy-{self.environment}.log')
+        formatter = logging.Formatter(
+            '%(asctime)s %(levelname)s [%(name)s] %(message)s'
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        return logger
+    
+    def deploy_with_tests(self, version: str) -> bool:
+        """Deploy with integrated testing."""
+        try:
+            self.logger.info(f"Starting deployment of version {version}")
+            
+            # Pre-deployment checks
+            self._run_pre_deployment_tests()
+            
+            # Backup current state
+            backup_id = self._create_backup()
+            
+            # Deploy new version
+            self._deploy_version(version)
+            
+            # Post-deployment validation
+            if not self._validate_deployment():
+                self.logger.error("Deployment validation failed, rolling back")
+                self._rollback(backup_id)
+                return False
+                
+            self.logger.info(f"Deployment of {version} completed successfully")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Deployment failed: {e}")
+            raise DeploymentError(f"Deployment failed: {e}") from e
+    
+    def _run_pre_deployment_tests(self) -> None:
+        """Run tests before deployment."""
+        import subprocess
+        
+        # Run Django checks
+        result = subprocess.run(['python', 'manage.py', 'check', '--deploy'], 
+                              capture_output=True, text=True)
+        if result.returncode != 0:
+            raise DeploymentError(f"Django checks failed: {result.stderr}")
+        
+        # Run migrations check
+        result = subprocess.run(['python', 'manage.py', 'makemigrations', '--dry-run'], 
+                              capture_output=True, text=True)
+        if "No changes detected" not in result.stdout:
+            self.logger.warning("Pending migrations detected")
+```
+
+### 6.2 Enhanced SystemD Services
+
+**Improve service reliability** (`scripts/systemd/`):
+```ini
+# ifdb-uwsgi.service (enhanced)
+[Unit]
+Description=uWSGI instance to serve IFDB
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+User=ifdb
+Group=ifdb
+WorkingDirectory=/home/ifdb/ifdb
+Environment="PATH=/home/ifdb/venv/bin"
+ExecStart=/home/ifdb/venv/bin/uwsgi --ini /home/ifdb/configs/uwsgi.ini
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+KillSignal=SIGQUIT
+Type=notify
+NotifyAccess=all
+StandardError=syslog
+StandardOutput=syslog
+SyslogIdentifier=ifdb-uwsgi
+
+# Security enhancements
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/ifdb/files /home/ifdb/logs /home/ifdb/tmp
+ProtectHome=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### 6.3 Monitoring Integration
+
+**Add monitoring to deployment**:
+```python
+# Enhanced monitoring integration
+class DeploymentMonitor:
+    def __init__(self, environment: str):
+        self.environment = environment
+        
+    def notify_deployment_start(self, version: str) -> None:
+        """Notify monitoring systems of deployment start."""
+        # Discord webhook notification
+        self._send_discord_notification(
+            f"🚀 Starting deployment of {version} to {self.environment}"
+        )
+        
+        # Log deployment event
+        self._log_deployment_event("started", version)
+    
+    def validate_deployment_health(self) -> bool:
+        """Validate that deployment is healthy."""
+        checks = [
+            self._check_http_response(),
+            self._check_database_connection(),
+            self._check_static_files(),
+            self._check_celery_workers(),
+        ]
+        
+        return all(checks)
+    
+    def _check_celery_workers(self) -> bool:
+        """Check that Celery workers are responding."""
+        try:
+            from celery import current_app
+            stats = current_app.control.inspect().stats()
+            return bool(stats)
+        except Exception:
+            return False
+```
+
+### 6.4 Testing Integration
+
+**Add automated testing to deployment**:
+```bash
+#!/bin/bash
+# scripts/run_deployment_tests.sh
+
+set -e
+
+echo "Running pre-deployment tests..."
+
+# Python code quality
+echo "Checking code formatting..."
+black --check --line-length=79 --preview .
+
+echo "Running type checks..."
+mypy .
+
+echo "Running linter..."
+flake8 .
+
+echo "Running Django checks..."
+python manage.py check --deploy
+
+echo "Running unit tests..."
+python manage.py test --settings=ifdb.test_settings
+
+echo "Checking for pending migrations..."
+python manage.py makemigrations --dry-run --check
+
+echo "All tests passed!"
+```
+
+### 6.5 Configuration Management
+
+**Template-based configuration with validation**:
+```python
+# Enhanced configuration management
+from jinja2 import Environment, FileSystemLoader
+import yaml
+from typing import Dict, Any
+
+class ConfigManager:
+    def __init__(self, environment: str):
+        self.environment = environment
+        self.template_env = Environment(
+            loader=FileSystemLoader('scripts/templates')
+        )
+    
+    def generate_configs(self, variables: Dict[str, Any]) -> None:
+        """Generate configuration files from templates."""
+        configs = [
+            ('nginx.conf.j2', f'/etc/nginx/sites-available/ifdb-{self.environment}'),
+            ('uwsgi.ini.j2', f'/home/ifdb/configs/uwsgi-{self.environment}.ini'),
+            ('systemd.service.j2', f'/etc/systemd/system/ifdb-{self.environment}.service'),
+        ]
+        
+        for template_name, output_path in configs:
+            self._render_template(template_name, output_path, variables)
+    
+    def validate_config(self, config_path: str) -> bool:
+        """Validate configuration file syntax."""
+        if config_path.endswith('.ini'):
+            return self._validate_ini_config(config_path)
+        elif config_path.endswith('.conf'):
+            return self._validate_nginx_config(config_path)
+        return True
+```
+
+---
+
+## Phase 7: Feature Cleanup & Enhancement 🧹
+
+**Priority**: Medium
+**Estimated Time**: 2-3 weeks
+**Dependencies**: All previous phases
+
+### 7.1 Remove "Справка" Section
+
+**Implementation**:
+1. Remove URL patterns for help section
+2. Remove templates and static files
+3. Update navigation menus
+4. Add redirect for old URLs to prevent 404s
+
+### 7.2 Enhanced Authors Section
+
+**Current Issue**: Minimalistic author pages.
+
+**Enhancements**:
+1. **Rich Author Profiles**:
+   - Biography section
+   - Profile photos
+   - Social media links
+   - Game statistics
+
+2. **Author Relationship Mapping**:
+   - Collaboration network visualization
+   - Related authors suggestions
+   - Author influence metrics
+
+---
+
 ## Implementation Timeline & Dependencies
 
-**Total Estimated Time**: 22-26 weeks
+**Total Estimated Time**: 24-28 weeks
 **Critical Path**: 
 1. Phase 1 (Security) must be completed first
 2. Phase 5 (Frontend) can be done in parallel with Phase 2-4
-3. Phase 6 depends on all previous phases
+3. Phase 6 (Deployment) can be done in parallel with Phase 4-5
+4. Phase 7 depends on all previous phases
 
 **Resource Requirements**: 
-- Node.js for frontend build tools
-- Redis server for Celery
+- RabbitMQ server for Celery
 - Elasticsearch cluster  
 - Updated Python dependencies
 - Comprehensive testing environment
+- Traditional deployment infrastructure (git + venv + systemd)
 
 **Frontend-Specific Requirements**:
 - Modern browser support (ES2020+)
 - CSS Grid and Flexbox support
 - Node.js 18+ for build tools
-- Sass/PostCSS for CSS preprocessing
+- CSS custom properties (--vars) support
 
-This comprehensive plan addresses both the backend modernization and the critical frontend overhaul needed to bring IFDB's visual appearance and user experience up to contemporary standards.
+This comprehensive plan addresses backend modernization, critical frontend overhaul with structured CSS using custom properties, and deployment improvements while maintaining the traditional git-pull + venv deployment approach.

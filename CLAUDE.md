@@ -4,45 +4,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-IFDB (Interactive Fiction Database) is a Django-based web platform serving as a comprehensive database for Interactive Fiction games, primarily focused on the Russian-language IF community. It provides game cataloging, user reviews, competitions, and community features.
+db.crem.xyz is a Django-based web platform serving as a comprehensive database for Interactive Fiction games, primarily focused on the Russian-language IF community. It provides game cataloging, user reviews, competitions, and community features.
+
+## Environment Setup
+
+- Claude Code will run from appropriate venv, no need to activate it manually.
+- User will run the debug database and `./manage.py runserver` in different terminal, no need to run it from within Claude Code.
+- On fresh db, `./manage.py initifdb` would initialize default data.
+- All python files should be formatted with black with line length=79, and with `--preview` to split long literals.
+- black, mypy, flake8 and isort are installed system-wide, so run them without `python -m` prefix.
+- Do not do `manage.py runserver`, developer has it running in a separate window
+- When creating the todo list for particular task, always add the following items in the end:
+  - Check for opportunities to make code more idiomatic, elegant, concise, beautiful, nice and short.
+  - Are there any useful tests that are easy to add and.
+  - Run `just fix_and_check`, fix any issues.
+  - Commit the changes to git with a meaningful message.
+  - Check that there are no uncommitted changes.
+- Use Python type annotations, but not overdo it (fine to omit when takes too much boilerplate)
+- The python code should be idiomatic, elegant, short, beautiful and concise.
 
 ## Development Commands
 
-### Running the Application
-```bash
-python manage.py runserver  # Development server
-# OR use the convenience script:
-# ./run.cmd (Windows) or python manage.py runserver
-```
+### Custom Management Commands
 
-### Database Operations
 ```bash
-python manage.py makemigrations  # Create migrations
-python manage.py migrate        # Apply migrations
 python manage.py initifdb       # Initialize database with default data
-```
-
-### Data Management
-```bash
 python manage.py fillgames              # Import games from external sources
 python manage.py forcereimport          # Force re-import all games
 python manage.py initcontests           # Set up competition data
 python manage.py populatepackages       # Package management
-```
-
-### Background Processing
-```bash
 python manage.py ifdbworker  # Start background task worker
 ```
 
-### Testing
-```bash
-python manage.py test  # Run tests (basic Django tests available)
-```
-
 ## Architecture Overview
-
-### Django Apps Structure
 
 **games/** - Core game management
 - Central app handling game entries, authors, tags, ratings, and file resources
@@ -50,12 +44,14 @@ python manage.py test  # Run tests (basic Django tests available)
 - Manages online interpreter integration and file hosting
 
 **core/** - Infrastructure and user management  
+- "Snippets" for home page (latest games, comments, contests)
 - Custom user model with email authentication
 - Background task queue system via TaskQueueElement
 - Document/CMS management and RSS feed aggregation
 - File upload and storage handling
 
 **contest/** - Competition management
+- List of past, current, and future competitions in the IF community (not just hosted on that site)
 - IF competition hosting with flexible voting systems
 - Automated ranking calculations and results generation
 - Contest documentation and resource management
@@ -65,13 +61,12 @@ python manage.py test  # Run tests (basic Django tests available)
 - Change history and audit trails
 
 **rss/** - RSS feed generation
-- Provides feeds for comments, activities, and competitions
+- Provides feeds for comments, activities, and competitions -- never finished
 
 ### Multi-Site Configuration
 
 The project supports multiple domains with separate configurations:
-- Main IFDB site (kontigr.com, zok.quest) 
-- Different templates and settings per domain
+- Main IFDB site (kontigr.com, zok.quest) -- these sites show subset of db.crem.xyz for particular contests.
 - Environment detection based on hostname
 
 ### Permission System
@@ -96,11 +91,6 @@ Uses string-based permission expressions:
 
 ## Development Notes
 
-### Database Configuration
-- Development: PostgreSQL (ifdbdev/ifdbdev@localhost)
-- Production: PostgreSQL with external config files
-- Migrations are app-specific (games, core, contest, moder)
-
 ### Key Models Relationships
 - Game → GameAuthor → Personality (author management)
 - Game → GameTag → GameTagCategory (flexible tagging)
@@ -112,6 +102,3 @@ Multiple importers in `games/importer/` handle different sources:
 - ifwiki.py, apero.py, questbook.py, insteadgames.py
 - Automated enrichment and duplicate detection
 - Background processing via task queue
-
-### Version Management
-Current version stored in `version.txt` (v0.14.10)
