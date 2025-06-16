@@ -8,25 +8,29 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('games', '0006_auto_20171111_1121'),
+        ("games", "0006_auto_20171111_1121"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='gamecomment',
-            name='foreign_id',
+            model_name="gamecomment",
+            name="foreign_id",
         ),
         migrations.RemoveField(
-            model_name='gamecomment',
-            name='foreign_url',
+            model_name="gamecomment",
+            name="foreign_url",
         ),
         migrations.RemoveField(
-            model_name='gamecomment',
-            name='foreign_username',
+            model_name="gamecomment",
+            name="foreign_username",
         ),
         migrations.AlterField(
-            model_name='game',
-            name='comment_perm',
-            field=models.CharField(default='@all', max_length=255, verbose_name='Comment permission'),
+            model_name="game",
+            name="comment_perm",
+            field=models.CharField(
+                default="@all",
+                max_length=255,
+                verbose_name="Comment permission",
+            ),
         ),
     ]

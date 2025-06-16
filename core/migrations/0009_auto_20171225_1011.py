@@ -8,21 +8,28 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0008_merge_20171223_1132'),
+        ("core", "0008_merge_20171223_1132"),
     ]
 
     operations = [
         migrations.DeleteModel(
-            name='RssFeedsToCache',
+            name="RssFeedsToCache",
         ),
         migrations.AlterField(
-            model_name='snippet',
-            name='content_json',
+            model_name="snippet",
+            name="content_json",
             field=models.TextField(),
         ),
         migrations.AlterField(
-            model_name='user',
-            name='is_active',
-            field=models.BooleanField(default=True, help_text='Отметьте, если пользователь должен считаться активным. Уберите эту отметку вместо удаления учётной записи.', verbose_name='Действие'),
+            model_name="user",
+            name="is_active",
+            field=models.BooleanField(
+                default=True,
+                help_text=(
+                    "Отметьте, если пользователь должен считаться активным."
+                    " Уберите эту отметку вместо удаления учётной записи."
+                ),
+                verbose_name="Действие",
+            ),
         ),
     ]

@@ -6,13 +6,20 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0014_auto_20180102_0913'),
+        ("core", "0014_auto_20180102_0913"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='user',
-            name='is_active',
-            field=models.BooleanField(default=True, help_text='Отметьте, если пользователь должен считаться активным. Уберите эту отметку вместо удаления учётной записи.', verbose_name='Active'),
+            model_name="user",
+            name="is_active",
+            field=models.BooleanField(
+                default=True,
+                help_text=(
+                    "Отметьте, если пользователь должен считаться активным."
+                    " Уберите эту отметку вместо удаления учётной записи."
+                ),
+                verbose_name="Active",
+            ),
         ),
     ]

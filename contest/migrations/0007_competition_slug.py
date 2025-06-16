@@ -6,14 +6,14 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('contest', '0006_auto_20180130_2116'),
+        ("contest", "0006_auto_20180130_2116"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='competition',
-            name='slug',
-            field=models.SlugField(default='', max_length=32),
+            model_name="competition",
+            name="slug",
+            field=models.SlugField(default="", max_length=32),
             preserve_default=False,
         ),
     ]

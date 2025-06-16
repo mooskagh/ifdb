@@ -1,8 +1,18 @@
 from django.contrib import admin
-from .models import (TaskQueueElement, User, Package, PackageVersion,
-                     PackageSession, Document, Snippet, SnippetPin, FeedCache,
-                     BlogFeed)
 from django.contrib.sessions.models import Session
+
+from .models import (
+    BlogFeed,
+    Document,
+    FeedCache,
+    Package,
+    PackageSession,
+    PackageVersion,
+    Snippet,
+    SnippetPin,
+    TaskQueueElement,
+    User,
+)
 
 
 @admin.register(Session)
@@ -10,28 +20,40 @@ class SessionAdmin(admin.ModelAdmin):
     def _session_data(self, obj):
         return obj.get_decoded()
 
-    list_display = ['session_key', '_session_data', 'expire_date']
+    list_display = ["session_key", "_session_data", "expire_date"]
 
 
 @admin.register(TaskQueueElement)
 class TaskQueueElementAdmin(admin.ModelAdmin):
     list_display = [
-        'pk', 'name', 'command_json', 'retries_left', 'start_time',
-        'scheduled_time', 'pending', 'success', 'fail'
+        "pk",
+        "name",
+        "command_json",
+        "retries_left",
+        "start_time",
+        "scheduled_time",
+        "pending",
+        "success",
+        "fail",
     ]
-    list_filter = ['scheduled_time', 'pending', 'success', 'fail']
-    search_fields = ['pk', 'name']
-    raw_id_fields = ['dependency']
+    list_filter = ["scheduled_time", "pending", "success", "fail"]
+    search_fields = ["pk", "name"]
+    raw_id_fields = ["dependency"]
 
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
     list_display = [
-        'username', 'email', 'last_login', 'is_staff', 'is_superuser',
-        'is_active', 'pk'
+        "username",
+        "email",
+        "last_login",
+        "is_staff",
+        "is_superuser",
+        "is_active",
+        "pk",
     ]
-    search_fields = ['pk', 'username']
-    list_filter = ['last_login', 'is_active']
+    search_fields = ["pk", "username"]
+    list_filter = ["last_login", "is_active"]
 
 
 class InlinePackageVersionAdmin(admin.TabularInline):
@@ -41,9 +63,9 @@ class InlinePackageVersionAdmin(admin.TabularInline):
 
 @admin.register(Package)
 class PackageAdmin(admin.ModelAdmin):
-    search_fields = ['pk', 'name', 'game__title']
-    list_display = ['name', 'download_perm', 'edit_perm', 'game']
-    raw_id_fields = ['game']
+    search_fields = ["pk", "name", "game__title"]
+    list_display = ["name", "download_perm", "edit_perm", "game"]
+    raw_id_fields = ["game"]
     inlines = [InlinePackageVersionAdmin]
 
 
@@ -53,37 +75,46 @@ class PackageSessionAdmin(admin.ModelAdmin):
         return obj.package.game
 
     list_display = [
-        'package_gam', 'user', 'start_time', 'duration_secs', 'last_update',
-        'is_finished'
+        "package_gam",
+        "user",
+        "start_time",
+        "duration_secs",
+        "last_update",
+        "is_finished",
     ]
 
 
 @admin.register(Document)
 class DocumentAdmin(admin.ModelAdmin):
-    list_display = ['title', 'last_update', 'view_perm', 'list_perm', 'order']
-    list_filter = ['last_update', 'view_perm', 'list_perm']
-    search_fields = ['pk', 'title', 'text']
+    list_display = ["title", "last_update", "view_perm", "list_perm", "order"]
+    list_filter = ["last_update", "view_perm", "list_perm"]
+    search_fields = ["pk", "title", "text"]
 
 
 @admin.register(Snippet)
 class SnippetAdmin(admin.ModelAdmin):
     list_display = [
-        'title', 'view_perm', 'order', 'show_start', 'show_end', 'is_async'
+        "title",
+        "view_perm",
+        "order",
+        "show_start",
+        "show_end",
+        "is_async",
     ]
-    search_fields = ['pk', 'title']
-    list_filter = ['view_perm', 'order', 'is_async']
+    search_fields = ["pk", "title"]
+    list_filter = ["view_perm", "order", "is_async"]
 
 
 @admin.register(SnippetPin)
 class SnippetPinAdmin(admin.ModelAdmin):
-    list_display = ['snippet', 'user', 'is_hidden', 'order']
+    list_display = ["snippet", "user", "is_hidden", "order"]
 
 
 @admin.register(FeedCache)
 class FeedCacheAdmin(admin.ModelAdmin):
-    list_display = ['feed_id', 'item_id', 'date_published', 'title']
+    list_display = ["feed_id", "item_id", "date_published", "title"]
 
 
 @admin.register(BlogFeed)
 class BlogFeedAdmin(admin.ModelAdmin):
-    list_display = ['feed_id', 'title']
+    list_display = ["feed_id", "title"]

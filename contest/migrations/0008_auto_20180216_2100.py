@@ -6,13 +6,13 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('contest', '0007_auto_20180210_1918'),
+        ("contest", "0007_auto_20180210_1918"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='competitiondocument',
-            name='view_perm',
-            field=models.CharField(default='@all', max_length=256),
+            model_name="competitiondocument",
+            name="view_perm",
+            field=models.CharField(default="@all", max_length=256),
         ),
     ]

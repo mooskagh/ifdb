@@ -1,22 +1,23 @@
 #!/bin/env python3
 
-from django.conf import settings
-from django.template import Template, Context
-import click
 import difflib
-import django
+import filecmp
+import json
 import os
 import os.path
 import pickle
 import re
+import shutil
+import socket
 import sys
 import time
 import traceback
-import socket
-import json
-import filecmp
-import shutil
 from pathlib import Path
+
+import click
+import django
+from django.conf import settings
+from django.template import Context, Template
 
 TEMPLATES = [
     {
@@ -100,7 +101,9 @@ def CheckFromTemplate(template, dst):
         cnt = [x.rstrip() for x in m.group(2).split("\n")]
         tpl = [
             x.rstrip()
-            for x in GenerateStringFromTemplate(template, parms, False).split("\n")
+            for x in GenerateStringFromTemplate(template, parms, False).split(
+                "\n"
+            )
         ]
         diff = list(difflib.context_diff(tpl, cnt))
         if not diff:
@@ -175,7 +178,8 @@ class Pipeline:
             try:
                 click.echo(
                     click.style(
-                        "[%2d/%2d]" % (self.context["idx"] + 1, len(self.steps)),
+                        "[%2d/%2d]"
+                        % (self.context["idx"] + 1, len(self.steps)),
                         fg="green",
                     )
                     + " %s..." % task_f.__doc__
@@ -317,7 +321,9 @@ def stage(ctx, tag):
     p.AddStep(KillStaging)
     p.AddStep(CreateStaging)
     p.AddStep(
-        RunCmdStep("git clone git@bitbucket.org:mooskagh/ifdb.git %s" % DISTRIB_DIR)
+        RunCmdStep(
+            "git clone git@bitbucket.org:mooskagh/ifdb.git %s" % DISTRIB_DIR
+        )
     )
     p.AddStep(ChDir(DISTRIB_DIR))
     p.AddStep(RunCmdStep("git checkout -b staging %s" % (tag or "")))
@@ -331,15 +337,21 @@ def stage(ctx, tag):
     )
     p.AddStep(StagingDiff(PROD_SUBDIR / "games/migrations/"))
     p.AddStep(StagingDiff(PROD_SUBDIR / "core/migrations/"))
-    p.AddStep(StagingDiff(PROD_SUBDIR / "games/management/commands/initifdb.py"))
+    p.AddStep(
+        StagingDiff(PROD_SUBDIR / "games/management/commands/initifdb.py")
+    )
     p.AddStep(StagingDiff(PROD_SUBDIR / "scripts/nginx.tpl"))
     p.AddStep(
-        RunCmdStep("%s %s/manage.py collectstatic --clear" % (python_dir, DISTRIB_DIR))
+        RunCmdStep(
+            "%s %s/manage.py collectstatic --clear" % (python_dir, DISTRIB_DIR)
+        )
     )
     p.AddStep(StagingDiff("static/"))
     p.AddStep(RunCmdStep("chmod -R a+rX %s/static" % STAGING_DIR))
     p.AddStep(
-        RunCmdStep("%s/bin/uwsgi %s/uwsgi-staging.ini" % (virtualenv_dir, CONFIGS_DIR))
+        RunCmdStep(
+            "%s/bin/uwsgi %s/uwsgi-staging.ini" % (virtualenv_dir, CONFIGS_DIR)
+        )
     )
     p.AddStep(CheckFromTemplate("nginx.tpl", "nginx.conf"))
     p.AddStep(
@@ -379,7 +391,9 @@ def stage(ctx, tag):
     )
     p.AddStep(RunCmdStep("sudo /bin/systemctl reload nginx"))
     p.AddStep(
-        RunCmdStep("%s/bin/uwsgi --stop /tmp/uwsgi-ifdb-staging.pid" % virtualenv_dir)
+        RunCmdStep(
+            "%s/bin/uwsgi --stop /tmp/uwsgi-ifdb-staging.pid" % virtualenv_dir
+        )
     )
     p.Run("stage")
 
@@ -450,7 +464,9 @@ def deploy(ctx, hot, from_master):
 
     if not hot:
         p.AddStep(
-            Message("uWSGI is stopped now. You can break now to do manual steps.")
+            Message(
+                "uWSGI is stopped now. You can break now to do manual steps."
+            )
         )
 
     p.AddStep(RunCmdStep("git checkout release"))
@@ -468,26 +484,37 @@ def deploy(ctx, hot, from_master):
                 % (virtualenv_dir, DISTRIB_DIR)
             )
         )
-        p.AddStep(RunCmdStep("%s %s/manage.py migrate" % (python_dir, DISTRIB_DIR)))
+        p.AddStep(
+            RunCmdStep("%s %s/manage.py migrate" % (python_dir, DISTRIB_DIR))
+        )
         p.AddStep(
             RunCmdStep(
                 "pg_dump ifdb > %s"
-                % (BACKUPS_DIR / "database" / time.strftime("%Y%m%d_%H%M-postmigr"))
+                % (
+                    BACKUPS_DIR
+                    / "database"
+                    / time.strftime("%Y%m%d_%H%M-postmigr")
+                )
             )
         )
 
     if hot:
         p.AddStep(
-            RunCmdStep("%s %s/manage.py collectstatic" % (python_dir, DISTRIB_DIR))
+            RunCmdStep(
+                "%s %s/manage.py collectstatic" % (python_dir, DISTRIB_DIR)
+            )
         )
     else:
         p.AddStep(
             RunCmdStep(
-                "%s %s/manage.py collectstatic --clear" % (python_dir, DISTRIB_DIR)
+                "%s %s/manage.py collectstatic --clear"
+                % (python_dir, DISTRIB_DIR)
             )
         )
     if not hot:
-        p.AddStep(RunCmdStep("%s %s/manage.py initifdb" % (python_dir, DISTRIB_DIR)))
+        p.AddStep(
+            RunCmdStep("%s %s/manage.py initifdb" % (python_dir, DISTRIB_DIR))
+        )
 
     if hot:
         p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-uwsgi"))
@@ -541,7 +568,9 @@ def deploy(ctx, hot, from_master):
         p.AddStep(RunCmdStep("sudo /bin/systemctl reload nginx"))
         p.AddStep(StopTimer)
     p.AddStep(
-        Message("Break NOW if anything is wrong", "Check PROD and break if needed.")
+        Message(
+            "Break NOW if anything is wrong", "Check PROD and break if needed."
+        )
     )
 
     p.AddStep(
@@ -574,13 +603,15 @@ def JumpIfExists(var, if_true=1, if_false=1):
         jmp = None
         if var in ctx:
             click.secho(
-                "%s exists and equal to %s, jumping %+d" % (var, ctx[var], if_true),
+                "%s exists and equal to %s, jumping %+d"
+                % (var, ctx[var], if_true),
                 fg="yellow",
             )
             jmp = if_true
         else:
             click.secho(
-                "%s is not in context, jumping %+d" % (var, if_false), fg="yellow"
+                "%s is not in context, jumping %+d" % (var, if_false),
+                fg="yellow",
             )
             jmp = if_false
         if jmp == 1:
@@ -588,14 +619,20 @@ def JumpIfExists(var, if_true=1, if_false=1):
         else:
             raise Jump(jmp)
 
-    f.__doc__ = "Jump %+d if %s exists else jump %+d" % (if_true, var, if_false)
+    f.__doc__ = "Jump %+d if %s exists else jump %+d" % (
+        if_true,
+        var,
+        if_false,
+    )
     return f
 
 
 def MaybeCreateNewBugfixVersion(ctx):
     """Creates a new bugfix version if needed."""
     if "new-version" in ctx:
-        click.secho("New version %s already known." % ctx["new-version"], fg="yellow")
+        click.secho(
+            "New version %s already known." % ctx["new-version"], fg="yellow"
+        )
         return True
     if RunCmdStep("git describe --exact-match HEAD")(ctx):
         click.secho("No changes since last version.", fg="yellow")
@@ -627,10 +664,15 @@ def GetCurrentVersion():
     m = version_re.match(cnt)
     if not m:
         click.secho(
-            "version.txt contents is [%s], doesn't parse as version" % cnt, fg="red"
+            "version.txt contents is [%s], doesn't parse as version" % cnt,
+            fg="red",
         )
         return None
-    return (int(m.group(1)), int(m.group(2)), int(m.group(3)) if m.group(3) else 0)
+    return (
+        int(m.group(1)),
+        int(m.group(2)),
+        int(m.group(3)) if m.group(3) else 0,
+    )
 
 
 def GetNextVersion(ctx):
@@ -646,7 +688,8 @@ def GetNextVersion(ctx):
     ]
     while True:
         click.secho(
-            "Current version is %s. What will be the new one?" % BuildVersionStr(*v)
+            "Current version is %s. What will be the new one?"
+            % BuildVersionStr(*v)
         )
         for i, n in enumerate(variants):
             click.secho("%d. %s" % (i + 1, BuildVersionStr(*n)), fg="yellow")
@@ -744,7 +787,9 @@ def StagingDiff(filename):
             diff = list(difflib.context_diff(t1, t2))
             if not diff:
                 return True
-            click.secho("File %s does not match:" % filename, fg="red", bold=True)
+            click.secho(
+                "File %s does not match:" % filename, fg="red", bold=True
+            )
             for line in diff:
                 click.secho(line.rstrip(), fg="red")
         if click.confirm("Do you want to continue?"):

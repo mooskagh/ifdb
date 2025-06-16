@@ -8,16 +8,16 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('games', '0008_auto_20171223_1555'),
+        ("games", "0008_auto_20171223_1555"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='gamevote',
-            name='game_finished',
+            model_name="gamevote",
+            name="game_finished",
         ),
         migrations.RemoveField(
-            model_name='gamevote',
-            name='play_time_mins',
+            model_name="gamevote",
+            name="play_time_mins",
         ),
     ]

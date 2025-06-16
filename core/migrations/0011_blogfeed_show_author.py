@@ -8,13 +8,13 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0010_blogfeed'),
+        ("core", "0010_blogfeed"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='blogfeed',
-            name='show_author',
+            model_name="blogfeed",
+            name="show_author",
             field=models.BooleanField(default=True),
             preserve_default=False,
         ),

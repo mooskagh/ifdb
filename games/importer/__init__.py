@@ -1,14 +1,14 @@
-from .tools import Importer, REGISTERED_IMPORTERS
-from .plut import PlutImporter
-from .ifwiki import IfwikiImporter
-from .qspsu import QspsuImporter
 from .apero import AperoImporter
-from .rilarhiv import RilarhivImporter
-from .insteadgames import InsteadGamesImporter
-from .questbook import QuestBookImporter
 from .ifiction import IfictionImporter
+from .ifwiki import IfwikiImporter
+from .insteadgames import InsteadGamesImporter
+from .plut import PlutImporter
+from .qspsu import QspsuImporter
+from .questbook import QuestBookImporter
+from .rilarhiv import RilarhivImporter
+from .tools import REGISTERED_IMPORTERS, Importer
 
-#REGISTERED_IMPORTERS.append(PlutImporter)
+# REGISTERED_IMPORTERS.append(PlutImporter)
 REGISTERED_IMPORTERS.append(IfwikiImporter)
 # REGISTERED_IMPORTERS.append(QspsuImporter)
 REGISTERED_IMPORTERS.append(AperoImporter)

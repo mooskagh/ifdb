@@ -6,13 +6,13 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0017_auto_20180105_2029'),
+        ("core", "0017_auto_20180105_2029"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='taskqueueelement',
-            name='log',
+            model_name="taskqueueelement",
+            name="log",
             field=models.TextField(blank=True),
         ),
     ]

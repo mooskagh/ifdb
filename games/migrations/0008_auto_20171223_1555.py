@@ -8,13 +8,18 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('games', '0007_auto_20171216_1909'),
+        ("games", "0007_auto_20171216_1909"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='game',
-            name='release_date',
-            field=models.DateField(blank=True, db_index=True, null=True, verbose_name='Release date'),
+            model_name="game",
+            name="release_date",
+            field=models.DateField(
+                blank=True,
+                db_index=True,
+                null=True,
+                verbose_name="Release date",
+            ),
         ),
     ]

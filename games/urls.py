@@ -1,60 +1,72 @@
-from . import views
-from core.forms import RegistrationForm
 from django.conf import settings
-from django.conf.urls import url, include
+from django.conf.urls import include, url
 from django_registration.backends.activation.views import RegistrationView
 
+from core.forms import RegistrationForm
+
+from . import views
+
 urlpatterns = [
-    url(r'^index/$', views.index, name='index'),
-
+    url(r"^index/$", views.index, name="index"),
     # Games
-    url(r'^game/add/', views.add_game, name='add_game'),
-    url(r'^game/edit/(?P<game_id>\d+)/', views.edit_game, name='edit_game'),
-    url(r'^game/vote/', views.vote_game, name='vote_game'),
-    url(r'^game/store/', views.store_game, name='store_game'),
-    url(r'^game/comment/', views.comment_game, name='comment_game'),
-    url(r'^game/search/', views.search_game, name='search_game'),
-    url(r'^game/$', views.list_games, name='list_games'),
-    url(r'^game/(?P<game_id>\d+)/', views.show_game, name='show_game'),
-    url(r'^game/interpreter/(?P<gameurl_id>\d+)/store/',
-        views.store_interpreter_params,
-        name='store_interpreter_params'),
-    url(r'^game/interpreter/(?P<gameurl_id>\d+)/',
-        views.play_in_interpreter,
-        name='play_in_interpreter'),
-
-    # Authors
-    url(r'^author/$', views.list_authors, name='list_authors'),
-    url(r'^author/(?P<author_id>\d+)/', views.show_author, name='show_author'),
-
-    # API
-    url(r'^json/gameinfo/', views.json_gameinfo, name='json_gameinfo'),
-    url(r'^json/commentvote/', views.json_commentvote,
-        name='json_commentvote'),
-    url(r'^json/categorizeurl/',
-        views.json_categorizeurl,
-        name='json_categorizeurl'),
-    url(r'^json/upload/', views.upload, name='upload'),
-    url(r'^json/import/', views.doImport, name='import'),
-    url(r'^json/search/', views.json_search, name='json_search'),
-    url(r'^json/author-search/',
-        views.json_author_search,
-        name='json_author_search'),
+    url(r"^game/add/", views.add_game, name="add_game"),
+    url(r"^game/edit/(?P<game_id>\d+)/", views.edit_game, name="edit_game"),
+    url(r"^game/vote/", views.vote_game, name="vote_game"),
+    url(r"^game/store/", views.store_game, name="store_game"),
+    url(r"^game/comment/", views.comment_game, name="comment_game"),
+    url(r"^game/search/", views.search_game, name="search_game"),
+    url(r"^game/$", views.list_games, name="list_games"),
+    url(r"^game/(?P<game_id>\d+)/", views.show_game, name="show_game"),
     url(
-        r'^accounts/register/$',
-        RegistrationView.as_view(form_class=RegistrationForm),
-        name='registration_register',
+        r"^game/interpreter/(?P<gameurl_id>\d+)/store/",
+        views.store_interpreter_params,
+        name="store_interpreter_params",
     ),
     url(
-        r'^accounts/',
-        include('django_registration.backends.activation.urls' if settings.
-                REQUIRE_ACCOUNT_ACTIVATION else
-                'django_registration.backends.one_step.urls')),
-    url(r'^accounts/', include('django.contrib.auth.urls')),
+        r"^game/interpreter/(?P<gameurl_id>\d+)/",
+        views.play_in_interpreter,
+        name="play_in_interpreter",
+    ),
+    # Authors
+    url(r"^author/$", views.list_authors, name="list_authors"),
+    url(r"^author/(?P<author_id>\d+)/", views.show_author, name="show_author"),
+    # API
+    url(r"^json/gameinfo/", views.json_gameinfo, name="json_gameinfo"),
+    url(
+        r"^json/commentvote/", views.json_commentvote, name="json_commentvote"
+    ),
+    url(
+        r"^json/categorizeurl/",
+        views.json_categorizeurl,
+        name="json_categorizeurl",
+    ),
+    url(r"^json/upload/", views.upload, name="upload"),
+    url(r"^json/import/", views.doImport, name="import"),
+    url(r"^json/search/", views.json_search, name="json_search"),
+    url(
+        r"^json/author-search/",
+        views.json_author_search,
+        name="json_author_search",
+    ),
+    url(
+        r"^accounts/register/$",
+        RegistrationView.as_view(form_class=RegistrationForm),
+        name="registration_register",
+    ),
+    url(
+        r"^accounts/",
+        include(
+            "django_registration.backends.activation.urls"
+            if settings.REQUIRE_ACCOUNT_ACTIVATION
+            else "django_registration.backends.one_step.urls"
+        ),
+    ),
+    url(r"^accounts/", include("django.contrib.auth.urls")),
 ]
 
 if settings.DEBUG:
     import debug_toolbar
+
     urlpatterns = [
-        url(r'^__debug__/', include(debug_toolbar.urls)),
+        url(r"^__debug__/", include(debug_toolbar.urls)),
     ] + urlpatterns

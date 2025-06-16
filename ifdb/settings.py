@@ -10,10 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.10/ref/settings/
 """
 
-import os
-import socket
-import os.path
 import logging.config
+import os
+import os.path
+import socket
+
 from django.core.files.storage import FileSystemStorage
 
 IS_PROD = socket.gethostname() in ["crem.xyz", "flatty"]
@@ -69,7 +70,9 @@ if IS_PROD:
     EXTRACTOR_PATH = '/bin/unar "%s" -o "%s"'
     WORKER_PID_FILE = os.path.join(TMP_DIR, "ifdbworker.pid")
     RECAPTCHA_PUBLIC_KEY = "6Lc1j68UAAAAAOT-Fk3aF-94XXMutiuPGrxtS2N9"
-    RECAPTCHA_PRIVATE_KEY = open("/home/ifdb/configs/recaptcha.txt").read().strip()
+    RECAPTCHA_PRIVATE_KEY = (
+        open("/home/ifdb/configs/recaptcha.txt").read().strip()
+    )
 
 else:
     SILENCED_SYSTEM_CHECKS = ["captcha.recaptcha_test_key_error"]
@@ -238,7 +241,9 @@ class PrefixList(list):
         return False
 
 
-INTERNAL_IPS = PrefixList(["127.", "10.162.", "212.51.151.122", "2a02:168:520c:"])
+INTERNAL_IPS = PrefixList(
+    ["127.", "10.162.", "212.51.151.122", "2a02:168:520c:"]
+)
 
 # Application definition
 
@@ -303,13 +308,19 @@ WSGI_APPLICATION = "ifdb.wsgi.application"
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+        ),
     },
     {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation.MinimumLengthValidator"
+        ),
     },
     {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation.CommonPasswordValidator"
+        ),
     },
     # {
     #     'NAME':

@@ -6,13 +6,13 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('games', '0018_auto_20180113_1613'),
+        ("games", "0018_auto_20180113_1613"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='url',
-            name='ok_to_clone',
+            model_name="url",
+            name="ok_to_clone",
             field=models.BooleanField(default=False),
         ),
     ]

@@ -8,22 +8,36 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0009_auto_20171225_1011'),
+        ("core", "0009_auto_20171225_1011"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='BlogFeed',
+            name="BlogFeed",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('feed_id', models.CharField(max_length=32)),
-                ('title', models.CharField(max_length=256)),
-                ('url', models.CharField(blank=True, max_length=256, null=True)),
-                ('rss', models.CharField(max_length=256)),
-                ('rss_comments', models.CharField(blank=True, max_length=256, null=True)),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("feed_id", models.CharField(max_length=32)),
+                ("title", models.CharField(max_length=256)),
+                (
+                    "url",
+                    models.CharField(blank=True, max_length=256, null=True),
+                ),
+                ("rss", models.CharField(max_length=256)),
+                (
+                    "rss_comments",
+                    models.CharField(blank=True, max_length=256, null=True),
+                ),
             ],
             options={
-                'default_permissions': (),
+                "default_permissions": (),
             },
         ),
     ]
