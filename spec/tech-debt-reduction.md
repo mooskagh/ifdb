@@ -4,7 +4,8 @@
 
 ### Phase 1: Critical Security & Infrastructure ⚠️
 - [ ] 1.1: Django upgrade from 3.0.5 to 5.2 (latest stable)
-- [ ] 1.2: Replace mediawiki-parser with Python 3.13+ compatible alternative
+- [x] 1.2: Replace mediawiki-parser with Python 3.13+ compatible alternative (✅ Completed: migrated to mwparserfromhell)
+- [ ] 1.2.1: Upgrade Python runtime to 3.13 (depends on 1.2 completion)
 - [ ] 1.3: Security dependency audit and updates  
 - [ ] 1.4: Add comprehensive logging system
 - [ ] 1.5: Add type annotations to critical modules
@@ -106,6 +107,102 @@
 - Search for imports: `from mediawiki_parser import` or `import mediawiki_parser`
 - Likely in games/importer/ modules for wiki content parsing
 - Update requirements.txt: `mediawiki-parser==0.4.1` → `mwparserfromhell>=0.6.6`
+
+### 1.2.1 Python 3.13 Runtime Upgrade
+
+**Current Status**: Python 3.11.3 → Python 3.13.x
+
+**Prerequisites**: 
+- ✅ Task 1.2 completed (mediawiki-parser compatibility resolved)
+- ✅ Development toolchain updated (ruff replaces flake8 for compatibility)
+
+**Implementation Steps**:
+
+1. **Create Clean Virtual Environment**:
+   ```bash
+   # User creates clean Python 3.13 venv
+   python3.13 -m venv venv313
+   source venv313/bin/activate
+   
+   # Verify Python version
+   python --version  # Should show Python 3.13.x
+   ```
+
+2. **Install Dependencies from requirements.txt**:
+   ```bash
+   # Install all current dependencies
+   pip install -r requirements.txt
+   
+   # Check for any compatibility issues
+   pip check
+   ```
+
+3. **Run Comprehensive Tests**:
+   ```bash
+   # Django system checks
+   python manage.py check --deploy
+   
+   # Run all tests
+   python manage.py test
+   
+   # Run migration comparison tests
+   python games/test_migration_comparison.py
+   
+   # Run quality checks
+   just fix_and_check
+   ```
+
+4. **Dependency Compatibility Verification**:
+   - Test critical dependencies that might have Python 3.13 issues:
+     - Django 3.0.5 (may need upgrade for full 3.13 support)
+     - psycopg2-binary 2.9.9 (should work)
+     - lxml 5.2.1 (should work)
+     - cryptography 2.9.2 (very old, may need update)
+
+5. **Runtime Feature Testing**:
+   ```bash
+   # Test key functionality:
+   # - Game import from ifwiki.ru
+   # - User registration/login
+   # - Game viewing and editing
+   # - Competition voting
+   # - Admin interface
+   ```
+
+**Potential Issues to Watch For**:
+
+1. **Django 3.0.5 Compatibility**: 
+   - Django 3.0.5 was released before Python 3.13
+   - May encounter deprecation warnings or minor compatibility issues
+   - Consider upgrading Django if major issues arise
+
+2. **Cryptography Package**:
+   - cryptography==2.9.2 is very old (May 2020)
+   - Python 3.13 may require newer version for compilation
+   - Update to cryptography>=41.0.0 if needed
+
+3. **Native Extension Rebuilds**:
+   - Some packages with C extensions may need reinstallation
+   - lxml, psycopg2, cryptography most likely affected
+
+**Testing Strategy**:
+1. **Unit Tests**: All existing tests must pass
+2. **Integration Tests**: Test real ifwiki.ru imports with new parser
+3. **Regression Tests**: Verify no functionality lost during upgrade
+4. **Performance Tests**: Ensure no significant performance degradation
+
+**Rollback Plan**:
+- Keep Python 3.11.3 venv as backup
+- Document any code changes needed for 3.13 compatibility
+- Have database backup before testing
+
+**Success Criteria**:
+- ✅ All existing tests pass
+- ✅ All quality checks pass (ruff, black, isort)  
+- ✅ Django system checks pass
+- ✅ MediaWiki importer works correctly with real data
+- ✅ Web application functions normally
+- ✅ No critical deprecation warnings
 
 ### 1.3 Django Upgrade Details
 

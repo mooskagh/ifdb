@@ -19,7 +19,7 @@ db.crem.xyz is a Django-based web platform serving as a comprehensive database f
   - Are there any useful tests that are easy to add and.
   - Run `just fix_and_check`, fix any issues.
   - Commit the changes to git with a meaningful message.
-  - Check that there are no uncommitted changes.
+  - Check that there are no uncommitted changes, then `git push`.
 - Use Python type annotations, but not overdo it (fine to omit when takes too much boilerplate)
 - The python code should be idiomatic, elegant, short, beautiful and concise.
 
