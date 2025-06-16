@@ -143,7 +143,7 @@ def ImportAuthorFromIfwiki(url, res=None):
         fetch_url = f"{m.group(1)}/index.php?title={m.group(2)}&action=raw"
         name = unquote(m.group(2)).replace("_", " ")
         cont = FetchUrlToString(fetch_url) + "\n"
-    except Exception as e:
+    except Exception:
         logger.info(
             f"Error while importing [{url}] from Ifwiki", exc_info=True
         )
@@ -175,7 +175,7 @@ def ImportFromIfwiki(url):
     try:
         fetch_url = f"{m.group(1)}/index.php?title={m.group(2)}&action=raw"
         cont = FetchUrlToString(fetch_url) + "\n"
-    except Exception as e:
+    except Exception:
         logger.exception(f"Error while importing [{url}] from Ifwiki")
         return {"error": "Не открывается что-то этот URL."}
 
@@ -186,7 +186,7 @@ def ImportFromIfwiki(url):
     try:
         parsed_wikitext = mwparserfromhell.parse(cont)
         output = process_wikitext_for_game(parsed_wikitext, context)
-    except Exception as e:
+    except Exception:
         logger.exception(f"Error while parsing {url}")
         return {"error": "Какая-то ошибка при парсинге. Надо сказать админам."}
 
@@ -298,14 +298,12 @@ class WikiParsingContext:
 
         for r, t in IFWIKI_ROLES:
             if r == role:
-                self.authors.append(
-                    {
-                        "role_slug": t,
-                        "name": display_name or name,
-                        "url": f"http://ifwiki.ru/{WikiQuote(name)}",
-                        "urldesc": "Страница автора на ifwiki",
-                    }
-                )
+                self.authors.append({
+                    "role_slug": t,
+                    "name": display_name or name,
+                    "url": f"http://ifwiki.ru/{WikiQuote(name)}",
+                    "urldesc": "Страница автора на ifwiki",
+                })
                 break
         else:
             if role in ["Медиа", "Media", "Изображение", "Image"]:
@@ -331,12 +329,10 @@ class WikiParsingContext:
                 logger.warning(f"Unknown role {role}")
                 # self.authors.append({'role_slug': 'member', 'name': name})
             elif default_role:
-                self.authors.append(
-                    {
-                        "role_slug": default_role,
-                        "name": name,
-                    }
-                )
+                self.authors.append({
+                    "role_slug": default_role,
+                    "name": name,
+                })
             elif ALLOW_INTERNAL_LINKS:
                 self.AddUrl(
                     f"http://ifwiki.ru/{WikiQuote(name)}",

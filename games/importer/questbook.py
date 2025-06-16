@@ -156,14 +156,12 @@ def ImportFromQuestBook(url):
     if m:
         m2 = QUESTBOOK_AUTHOR_NAME.search(m.group(1))
         m3 = QUESTBOOK_AUTHOR_URL.search(m.group(1))
-        res["authors"].append(
-            {
-                "role_slug": "author",
-                "name": unescape(m2.group(1)),
-                "url": urljoin(url, m3.group(1)),
-                "urldesc": "Страница автора на quest-book.ru",
-            }
-        )
+        res["authors"].append({
+            "role_slug": "author",
+            "name": unescape(m2.group(1)),
+            "url": urljoin(url, m3.group(1)),
+            "urldesc": "Страница автора на quest-book.ru",
+        })
 
     m = QUESTBOOK_TAG_BOX.search(html)
     if m:

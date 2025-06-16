@@ -90,7 +90,7 @@ QSP_ADD_DATE = re.compile(r"Добавлено: (\d+)\.(\d+)\.(\d+)&nbsp;&nbsp;"
 def ImportFromQsp(url):
     try:
         html = FetchUrlToString(url)
-    except:
+    except Exception:
         return {"error": "Не открывается что-то этот URL."}
 
     res = {"priority": 40}

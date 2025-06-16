@@ -80,13 +80,11 @@ class CompetitionGameFetcher:
                 else:
                     ranked.append(y)
             if ranked or unranked:
-                lists.append(
-                    {
-                        "title": x.title,
-                        "unranked": unranked,
-                        "ranked": ranked,
-                    }
-                )
+                lists.append({
+                    "title": x.title,
+                    "unranked": unranked,
+                    "ranked": ranked,
+                })
         return lists
 
     def FetchSnippetData(self):
@@ -258,40 +256,35 @@ def list_competitions(request):
 
     schedule = defaultdict(list)
     for x in CompetitionSchedule.objects.filter(show=True).order_by("when"):
-        schedule[x.competition_id].append(
-            {
-                "lines": [
-                    {
-                        "text": FormatDate(x.when),
-                        "style": (
-                            ["float-right"]
-                            + (["dimmed"] if x.when < now else [])
-                        ),
-                    },
-                    {
-                        "text": x.title,
-                        "style": ["strong"],
-                    },
-                ]
-            }
-        )
+        schedule[x.competition_id].append({
+            "lines": [
+                {
+                    "text": FormatDate(x.when),
+                    "style": (
+                        ["float-right"] + (["dimmed"] if x.when < now else [])
+                    ),
+                },
+                {
+                    "text": x.title,
+                    "style": ["strong"],
+                },
+            ]
+        })
 
     links = defaultdict(list)
     for x in CompetitionURL.objects.filter(
         category__symbolic_id__in=SHOW_LINKS
     ).select_related():
-        links[x.competition_id].append(
-            {
-                "lines": [
-                    {
-                        "text": x.description,
-                        "link": x.GetRemoteUrl(),
-                        "newtab": True,
-                        "style": ["strong"],
-                    }
-                ]
-            }
-        )
+        links[x.competition_id].append({
+            "lines": [
+                {
+                    "text": x.description,
+                    "link": x.GetRemoteUrl(),
+                    "newtab": True,
+                    "style": ["strong"],
+                }
+            ]
+        })
 
     logos = {}
     for x in CompetitionURL.objects.filter(
@@ -326,32 +319,26 @@ def list_competitions(request):
 
         if x.end_date >= now.date():
             if schedule[x.id]:
-                items.append(
-                    {
-                        "style": "subheader",
-                        "text": "Расписание",
-                    }
-                )
+                items.append({
+                    "style": "subheader",
+                    "text": "Расписание",
+                })
                 items.extend(schedule[x.id])
             if links[x.id]:
-                items.append(
-                    {
-                        "style": "subheader",
-                        "text": "Ссылки",
-                    }
-                )
+                items.append({
+                    "style": "subheader",
+                    "text": "Ссылки",
+                })
                 items.extend(links[x.id])
 
         games = CompetitionGameFetcher(x).GetCompetitionGamesRaw()
         if games:
             for entry in games:
                 if entry["title"] or x.end_date >= now.date():
-                    items.append(
-                        {
-                            "style": "subheader",
-                            "text": entry["title"] or "Участники",
-                        }
-                    )
+                    items.append({
+                        "style": "subheader",
+                        "text": entry["title"] or "Участники",
+                    })
                 for z in entry["ranked"] + entry["unranked"]:
                     lines = []
                     item = {}
@@ -366,9 +353,10 @@ def list_competitions(request):
 
                     else:
                         if z.comment:
-                            lines.append(
-                                {"text": z.comment, "style": ["light"]}
-                            )
+                            lines.append({
+                                "text": z.comment,
+                                "style": ["light"],
+                            })
                         else:
                             lines.append({})
                     items.append(item)
@@ -383,13 +371,11 @@ def list_competitions(request):
     total_height = 30
     while d < end_date:
         days = (d + relativedelta.relativedelta(months=1) - d).days
-        ruler.append(
-            {
-                "label": "%s '%02d" % (MONTHS[d.month - 1], d.year % 100),
-                "days": days,
-                "long": d.month == 12,
-            }
-        )
+        ruler.append({
+            "label": "%s '%02d" % (MONTHS[d.month - 1], d.year % 100),
+            "days": days,
+            "long": d.month == 12,
+        })
         total_height += days
         d += relativedelta.relativedelta(months=1)
     ruler.append({"label": "текущие", "days": 1, "long": True})
@@ -492,8 +478,7 @@ def list_votes(request, id):
             details_form = VotesToShow(
                 {
                     "%s-fields" % prefix: [voting["fields"][0]["name"]],
-                    "%s-highlight"
-                    % prefix: (
+                    "%s-highlight" % prefix: (
                         (timezone.now() - datetime.timedelta(days=1)).strftime(
                             "%Y-%m-%d %H:%M"
                         )
@@ -535,16 +520,14 @@ def list_votes(request, id):
             for y in games:
                 game_votes = x["votes"].get(y.game.id, {})
                 print(game_votes)
-                vote_per_game.append(
-                    [
-                        x
-                        for key, x in sorted(
-                            game_votes.items(),
-                            key=lambda z: fields_order.get(z[0], -1),
-                        )
-                        if key in fields_to_show
-                    ]
-                )
+                vote_per_game.append([
+                    x
+                    for key, x in sorted(
+                        game_votes.items(),
+                        key=lambda z: fields_order.get(z[0], -1),
+                    )
+                    if key in fields_to_show
+                ])
             votes.append({"name": x["name"], "votes": vote_per_game})
 
         table = {

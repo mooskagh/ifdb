@@ -14,7 +14,7 @@
 ### Phase 2: Code Architecture & Quality 🏗️
 - [ ] 2.1: Extract business logic from fat views using Managers/QuerySets/Models
 - [ ] 2.2: Implement comprehensive test suite
-- [ ] 2.3: Add linting and code formatting (black, isort, flake8)
+- [x] 2.3: Add linting and code formatting (✅ Completed: migrated to ruff)
 - [ ] 2.4: Convert old URL patterns to modern path() syntax
 - [ ] 2.5: Add comprehensive type annotations to remaining modules
 
@@ -198,7 +198,7 @@
 
 **Success Criteria**:
 - ✅ All existing tests pass
-- ✅ All quality checks pass (ruff, black, isort)  
+- ✅ All quality checks pass (ruff)  
 - ✅ Django system checks pass
 - ✅ MediaWiki importer works correctly with real data
 - ✅ Web application functions normally
@@ -451,7 +451,6 @@ dev = [
     "django-debug-toolbar>=4.4.6",
     "django-extensions>=3.2.3",
     "black>=24.0.0",
-    "isort>=5.13.0",
     "flake8>=7.0.0",
     "mypy>=1.11.0",
     "django-stubs>=5.0.0",
@@ -467,10 +466,6 @@ extend-exclude = '''
 )/
 '''
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
-skip = ["migrations"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -488,15 +483,14 @@ django_settings_module = "ifdb.settings"
 # Install development dependencies
 pip install -e ".[dev]"
 
-# Code formatting
-black .
-isort .
+# Code formatting  
+ruff format .
 
 # Type checking
 mypy .
 
 # Linting
-flake8 .
+ruff check .
 
 # Run tests
 pytest

@@ -147,7 +147,7 @@ def ImportAuthorFromIfwiki(url, res=None):
         )
         name = unquote(m.group(2)).replace("_", " ")
         cont = FetchUrlToString(fetch_url) + "\n"
-    except Exception as e:
+    except Exception:
         logger.info(
             "Error while importing [%s] from Ifwiki" % url, exc_info=True
         )
@@ -167,7 +167,7 @@ def ImportAuthorFromIfwiki(url, res=None):
     try:
         pre_text = preproc.parse(cont)
         output = parser.parse(pre_text.leaves())
-    except Exception as e:
+    except Exception:
         logger.exception("Error while parsing %s" % url)
         return {"error": "Какая-то ошибка при парсинге. Надо сказать админам."}
 
@@ -187,7 +187,7 @@ def ImportFromIfwiki(url):
             m.group(2),
         )
         cont = FetchUrlToString(fetch_url) + "\n"
-    except Exception as e:
+    except Exception:
         logger.exception("Error while importing [%s] from Ifwiki" % url)
         return {"error": "Не открывается что-то этот URL."}
 
@@ -201,7 +201,7 @@ def ImportFromIfwiki(url):
     try:
         pre_text = preproc.parse(cont)
         output = parser.parse(pre_text.leaves())
-    except Exception as e:
+    except Exception:
         logger.exception("Error while parsing %s" % url)
         return {"error": "Какая-то ошибка при парсинге. Надо сказать админам."}
 
@@ -316,14 +316,12 @@ class WikiParsingContext:
 
         for r, t in IFWIKI_ROLES:
             if r == role:
-                self.authors.append(
-                    {
-                        "role_slug": t,
-                        "name": display_name or name,
-                        "url": "http://ifwiki.ru/%s" % WikiQuote(name),
-                        "urldesc": "Страница автора на ifwiki",
-                    }
-                )
+                self.authors.append({
+                    "role_slug": t,
+                    "name": display_name or name,
+                    "url": "http://ifwiki.ru/%s" % WikiQuote(name),
+                    "urldesc": "Страница автора на ifwiki",
+                })
                 break
         else:
             if role in ["Медиа", "Media", "Изображение", "Image"]:
@@ -349,12 +347,10 @@ class WikiParsingContext:
                 logger.warning("Unknown role %s" % role)
                 # self.authors.append({'role_slug': 'member', 'name': name})
             elif default_role:
-                self.authors.append(
-                    {
-                        "role_slug": default_role,
-                        "name": name,
-                    }
-                )
+                self.authors.append({
+                    "role_slug": default_role,
+                    "name": name,
+                })
             elif ALLOW_INTERNAL_LINKS:
                 self.AddUrl(
                     "http://ifwiki.ru/%s" % WikiQuote(name),
@@ -378,7 +374,7 @@ class WikiParsingContext:
                     self.release_date = datetime.datetime.strptime(
                         v, "%d.%m.%Y"
                     ).date()
-                except:
+                except ValueError:
                     # TODO(crem) Support incomplete dates
                     pass
             elif k == "платформа":
@@ -412,12 +408,10 @@ class WikiParsingContext:
             for k, v in params.items():
                 if k[0] in "0123456789":
                     p["_%s" % k] = v
-            self.tags.append(
-                {
-                    "cat_slug": "competition",
-                    "tag": IFWIKI_COMPETITIONS[name].format(**p),
-                }
-            )
+            self.tags.append({
+                "cat_slug": "competition",
+                "tag": IFWIKI_COMPETITIONS[name].format(**p),
+            })
             return ""
         if name == "Избранная игра":
             self.tags.append({"tag_slug": "ifwiki_featured"})

@@ -243,20 +243,18 @@ class GameDetailsBuilder:
             likes = GetCommentVotes(
                 v.gamecommentvote_set, self.request.user, v
             )
-            res.append(
-                {
-                    "id": v.id,
-                    "user_id": v.user.id if v.user else None,
-                    "username": v.GetUsername(),
-                    "parent_id": v.parent.id if v.parent else None,
-                    "created": FormatTime(v.creation_time),
-                    "created_raw": v.creation_time,
-                    "edited": FormatTime(v.edit_time),
-                    "text": RenderMarkdown(v.text),
-                    "is_deleted": v.is_deleted,
-                    "likes": likes,
-                }
-            )
+            res.append({
+                "id": v.id,
+                "user_id": v.user.id if v.user else None,
+                "username": v.GetUsername(),
+                "parent_id": v.parent.id if v.parent else None,
+                "created": FormatTime(v.creation_time),
+                "created_raw": v.creation_time,
+                "edited": FormatTime(v.edit_time),
+                "text": RenderMarkdown(v.text),
+                "is_deleted": v.is_deleted,
+                "likes": likes,
+            })
 
         parent_to_cluster = {}
         clusters = []

@@ -11,8 +11,8 @@ db.crem.xyz is a Django-based web platform serving as a comprehensive database f
 - Claude Code will run from appropriate venv, no need to activate it manually.
 - User will run the debug database and `./manage.py runserver` in different terminal, no need to run it from within Claude Code.
 - On fresh db, `./manage.py initifdb` would initialize default data.
-- All python files should be formatted with black with line length=79, and with `--preview` to split long literals.
-- black, mypy, flake8 and isort are installed system-wide, so run them without `python -m` prefix.
+- All python files should be formatted with ruff with line length=79 and preview mode enabled.
+- ruff and mypy are installed system-wide, so run them without `python -m` prefix.
 - Do not do `manage.py runserver`, developer has it running in a separate window
 - When creating the todo list for particular task, always add the following items in the end:
   - Check for opportunities to make code more idiomatic, elegant, concise, beautiful, nice and short.

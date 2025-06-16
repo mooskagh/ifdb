@@ -35,24 +35,18 @@ class AuthorAdminzAction(AuthorAction):
         for x in PersonalityAlias.objects.filter(
             personality=self.obj
         ).order_by("pk"):
-            lines.append(
-                (
-                    x.name,
-                    reverse(
-                        "admin:games_personalityalias_change", args=(x.id,)
-                    ),
-                )
-            )
+            lines.append((
+                x.name,
+                reverse("admin:games_personalityalias_change", args=(x.id,)),
+            ))
 
         for x in PersonalityUrl.objects.filter(personality=self.obj).order_by(
             "pk"
         ):
-            lines.append(
-                (
-                    ("%s: %s" % (x.description, x.url))[:80],
-                    reverse("admin:games_personalityurl_change", args=(x.id,)),
-                )
-            )
+            lines.append((
+                ("%s: %s" % (x.description, x.url))[:80],
+                reverse("admin:games_personalityurl_change", args=(x.id,)),
+            ))
 
         res = ""
         for x in lines:
@@ -107,19 +101,17 @@ class AliasEditAction(AuthorAction):
                 .order_by("pk")
                 .annotate(Count("gameauthor"))
             ):
-                self.data.append(
-                    {
-                        "id": x.id,
-                        "gamecount": x.gameauthor__count,
-                        "alias": x.name,
-                        "personality": obj.id,
-                        "moveto": x.id,
-                        "move_to": [],
-                        "alwaysmove": False,
-                        "delete": False,
-                        "alwaysdelete": False,
-                    }
-                )
+                self.data.append({
+                    "id": x.id,
+                    "gamecount": x.gameauthor__count,
+                    "alias": x.name,
+                    "personality": obj.id,
+                    "moveto": x.id,
+                    "move_to": [],
+                    "alwaysmove": False,
+                    "delete": False,
+                    "alwaysdelete": False,
+                })
 
             used_aliases = set()
             if var:
@@ -156,16 +148,14 @@ class AliasEditAction(AuthorAction):
 
             for x in self.data:
                 for y in self.data:
-                    x["move_to"].append(
-                        {
-                            "id": y["id"],
-                            "name": (
-                                "(не перемещать)"
-                                if x["id"] == y["id"]
-                                else y["alias"]
-                            ),
-                        }
-                    )
+                    x["move_to"].append({
+                        "id": y["id"],
+                        "name": (
+                            "(не перемещать)"
+                            if x["id"] == y["id"]
+                            else y["alias"]
+                        ),
+                    })
 
         def is_valid(self):
             self.cleaned_data = self.var
@@ -227,8 +217,7 @@ class AliasEditAction(AuthorAction):
                     else:
                         log.append(
                             "Для псведонима [%s] будет создана новая "
-                            "свежая страница автора."
-                            % x.name
+                            "свежая страница автора." % x.name
                         )
 
             if x.id != F("moveto", x.id):

@@ -139,7 +139,6 @@ class BaseXWriter:
 
 
 class SearchBit:
-
     def __init__(self, val=0, hidden=False):
         self.val = val
         self.hidden = hidden
@@ -205,15 +204,13 @@ class SB_Sorting(SearchBit):
         res["items"] = []
         for x in self.ALLOWED_SORTINGS:
             current = x == self.method
-            res["items"].append(
-                {
-                    "val": x,
-                    "name": self.STRINGS[x],
-                    "current": current,
-                    "desc": current and self.desc,
-                    "asc": current and not self.desc,
-                }
-            )
+            res["items"].append({
+                "val": x,
+                "name": self.STRINGS[x],
+                "current": current,
+                "desc": current and self.desc,
+                "asc": current and not self.desc,
+            })
         return res
 
     def LoadFromQuery(self, reader):
@@ -368,16 +365,14 @@ class SB_Tag(SearchBit):
             .annotate(Count("game"))
             .order_by("-game__count")
         ):
-            items.append(
-                {
-                    "id": x.id,
-                    "name": x.name,
-                    "on": x.id in self.items,
-                    "tag": x,
-                    "show_all": False,
-                    "hidden": False,
-                }
-            )
+            items.append({
+                "id": x.id,
+                "name": x.name,
+                "on": x.id in self.items,
+                "tag": x,
+                "show_all": False,
+                "hidden": False,
+            })
 
         if len(items) > 10 and items[0]["tag"].category.allow_new_tags:
             for x in items[6:]:
@@ -429,16 +424,14 @@ class SB_Authors(SearchBit):
             .annotate(Count("gameauthor__game"))
             .order_by("-gameauthor__game__count")
         ):
-            items.append(
-                {
-                    "id": x.id,
-                    "name": x.name,
-                    "on": x.id in self.items,
-                    "author": x,
-                    "show_all": False,
-                    "hidden": False,
-                }
-            )
+            items.append({
+                "id": x.id,
+                "name": x.name,
+                "on": x.id in self.items,
+                "author": x,
+                "show_all": False,
+                "hidden": False,
+            })
 
         if len(items) > 10:
             for x in items[6:]:
@@ -467,13 +460,11 @@ class SB_Authors(SearchBit):
         # TODO This should absolutely be in ModifyQuery!
         res = []
         for g in games:
-            authors = set(
-                [
-                    x.author.id
-                    for x in g.gameauthor_set.all()
-                    if x.role_id == self.role.id
-                ]
-            )
+            authors = set([
+                x.author.id
+                for x in g.gameauthor_set.all()
+                if x.role_id == self.role.id
+            ])
             if authors & self.items:
                 res.append(g)
         return res
@@ -623,7 +614,6 @@ def LimitListlike(q, start, limit):
 
 
 class Search:
-
     def __init__(self, cls, perm):
         self.cls = cls
         self.perm = perm
@@ -745,15 +735,13 @@ class SB_AuthorSorting(SearchBit):
         res["items"] = []
         for x in self.ALLOWED_SORTINGS:
             current = x == self.method
-            res["items"].append(
-                {
-                    "val": x,
-                    "name": self.STRINGS[x],
-                    "current": current,
-                    "desc": current and self.desc,
-                    "asc": current and not self.desc,
-                }
-            )
+            res["items"].append({
+                "val": x,
+                "name": self.STRINGS[x],
+                "current": current,
+                "desc": current and self.desc,
+                "asc": current and not self.desc,
+            })
         return res
 
     def LoadFromQuery(self, reader):
@@ -859,15 +847,13 @@ def GameListFromSearch(
             ).total_seconds()
             if -delta > max_secs and i >= min_count:
                 break
-            res.append(
-                {
-                    "lag": delta,
-                    "title": x.title,
-                    "authors": x.authors,
-                    "poster": x.poster,
-                    "id": x.id,
-                }
-            )
+            res.append({
+                "lag": delta,
+                "title": x.title,
+                "authors": x.authors,
+                "poster": x.poster,
+                "id": x.id,
+            })
     return res
 
 

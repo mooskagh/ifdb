@@ -63,7 +63,7 @@ def UpdateGameAuthors(request, game, authors, update):
             existing_authors[(x.role_id, x.author_id)] = x.id
 
     authors_to_add = []  # (role_id, author_id)
-    for (role, author, *rest) in authors:
+    for role, author, *rest in authors:
         if not isinstance(author, int):
             author = GetOrCreateAlias(author)
             if not author:
@@ -72,9 +72,11 @@ def UpdateGameAuthors(request, game, authors, update):
             role = GameAuthorRole.objects.get_or_create(title=role)[0].id
         alias_to_urls.setdefault(author, [])
         if rest:
-            alias_to_urls[author].append(
-                (PersonalityURLCategory.OtherSiteCatId(), rest[1], rest[0])
-            )
+            alias_to_urls[author].append((
+                PersonalityURLCategory.OtherSiteCatId(),
+                rest[1],
+                rest[0],
+            ))
         t = (role, author)
         if t in existing_authors:
             del existing_authors[t]
@@ -159,15 +161,13 @@ def UpdatePersonalityUrls(importer, request, alias_id, data, update):
                 for y in x["urls"]:
                     if not y["urlcat_slug"]:
                         continue
-                    filtered_data.append(
-                        (
-                            PersonalityURLCategory.objects.get(
-                                symbolic_id=y["urlcat_slug"]
-                            ).id,
-                            y["description"],
-                            y["url"],
-                        )
-                    )
+                    filtered_data.append((
+                        PersonalityURLCategory.objects.get(
+                            symbolic_id=y["urlcat_slug"]
+                        ).id,
+                        y["description"],
+                        y["url"],
+                    ))
             if "bio" in x:
                 bio = x["bio"]
             if "canonical" in x:

@@ -69,7 +69,7 @@ APERO_IMAGE = re.compile(r'<img src="([^"]+)" [^>]* itemprop="image" />')
 def ImportFromApero(url):
     try:
         html = FetchUrlToString(url)
-    except Exception as e:
+    except Exception:
         return {"error": "Не открывается что-то этот URL."}
 
     res = {"priority": 49}
@@ -96,18 +96,14 @@ def ImportFromApero(url):
     authors = []
     for m in APERO_AUTHOR.finditer(html):
         name = unescape(m.group(1))
-        authors.append(
-            {
-                "role_slug": "author",
-                "name": name,
-                "url": (
-                    "http://apero.ru/"
-                    + quote("Участники")
-                    + "/%s" % quote(name)
-                ),
-                "urldesc": "Страница автора на apero.ru",
-            }
-        )
+        authors.append({
+            "role_slug": "author",
+            "name": name,
+            "url": (
+                "http://apero.ru/" + quote("Участники") + "/%s" % quote(name)
+            ),
+            "urldesc": "Страница автора на apero.ru",
+        })
     res["authors"] = authors
     res["tags"] = [{"cat_slug": "platform", "tag": "Аперо"}]
 
@@ -129,7 +125,7 @@ def ImportAuthorFromApero(url):
         return {"error": "Не похож URL на автора."}
     try:
         html = FetchUrlToString(url)
-    except Exception as e:
+    except Exception:
         return {"error": "Не открывается что-то этот URL."}
 
     res = {}

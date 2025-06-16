@@ -40,7 +40,6 @@ DISTRIB_DIR = ROOT_DIR / PROD_SUBDIR
 
 
 class Jump(BaseException):
-
     def __init__(self, whereto):
         self.whereto = whereto
 
@@ -56,7 +55,6 @@ def GenerateStringFromTemplate(template, params, gen_header):
 
 
 def RunCmdStep(cmd_line, doc=None):
-
     def f(context):
         click.secho("$ %s" % cmd_line, fg="yellow")
         r = os.system(cmd_line)
@@ -76,7 +74,6 @@ def RunCmdStep(cmd_line, doc=None):
 
 
 def GetFromTemplate(template, dst, params, gen_header=True):
-
     def f(context):
         cnt = GenerateStringFromTemplate(template, params, gen_header)
         with open(CONFIGS_DIR / dst, "w") as fo:
@@ -88,7 +85,6 @@ def GetFromTemplate(template, dst, params, gen_header=True):
 
 
 def CheckFromTemplate(template, dst):
-
     def f(ctx):
         with open(CONFIGS_DIR / dst) as f:
             cnt = f.read()
@@ -129,7 +125,6 @@ def RetryPrompt():
 
 
 class Pipeline:
-
     def __init__(self):
         self.steps = []
         self.start = 1
@@ -204,7 +199,7 @@ class Pipeline:
                     bold=True,
                 )
                 continue
-            except:
+            except Exception:
                 click.secho(traceback.format_exc(), fg="red")
 
             click.secho("[ FAIL ]", fg="red", bold=True)
@@ -598,7 +593,6 @@ def deploy(ctx, hot, from_master):
 
 
 def JumpIfExists(var, if_true=1, if_false=1):
-
     def f(ctx):
         jmp = None
         if var in ctx:
@@ -699,12 +693,11 @@ def GetNextVersion(ctx):
             if 0 <= r < len(variants):
                 ctx["new-version"] = BuildVersionStr(*variants[r])
                 return True
-        except:
+        except Exception:
             pass
 
 
 def Message(msg, text="Press Enter to continue..."):
-
     def f(ctx):
         click.secho(msg, fg="yellow")
         click.prompt(text)
@@ -743,7 +736,6 @@ def BuildVersionStr(major, minor, bugfix):
 
 
 def LoopStep(func, text="Should I?"):
-
     def f(ctx):
         while True:
             click.secho("Want to run [%s]" % func.__doc__, fg="yellow")
@@ -773,7 +765,6 @@ def print_diff_files(dcmp):
 
 
 def StagingDiff(filename):
-
     def f(ctx):
         if filename[-1] == "/":
             d1 = ROOT_DIR / filename
@@ -802,7 +793,6 @@ def StagingDiff(filename):
 
 
 def ChDir(whereto):
-
     def f(ctx):
         os.chdir(whereto)
         ctx["chdir"] = whereto

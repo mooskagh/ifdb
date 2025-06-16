@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("games", "0021_auto_20190728_1928"),
         ("contest", "0014_auto_20190803_1200"),

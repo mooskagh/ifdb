@@ -47,18 +47,17 @@ def _EnqueueCreate(
 ):
     t = TaskQueueElement()
     t.name = name
-    t.command_json = json.dumps(
-        {
-            "module": func.__module__,
-            "name": func.__name__,
-            "argv": argv,
-            "kwarg": kwarg,
-        }
-    )
+    t.command_json = json.dumps({
+        "module": func.__module__,
+        "name": func.__name__,
+        "argv": argv,
+        "kwarg": kwarg,
+    })
     if onfail:
-        t.onfail_json = json.dumps(
-            {"module": onfail.__module__, "name": onfail.__name__}
-        )
+        t.onfail_json = json.dumps({
+            "module": onfail.__module__,
+            "name": onfail.__name__,
+        })
     t.retries_left = retries
     t.retry_minutes = retry_minutes
     t.enqueue_time = timezone.now()
@@ -75,7 +74,7 @@ def Enqueue(
     retries=3,
     retry_minutes=2000,
     dependency=None,
-    **kwarg
+    **kwarg,
 ):
     t = _EnqueueCreate(
         func,
@@ -175,7 +174,7 @@ def Worker():
                     t.success = True
                 t.finish_time = timezone.now()
                 t.save()
-            except Exception as e:
+            except Exception:
                 logger.warning(
                     "Failure when running task %s:" % t, exc_info=True
                 )

@@ -81,7 +81,7 @@ def IsTor(request):
             if str(x) == "127.0.0.2":
                 caches["tor-ips"].set(ip, True)
                 return True
-    except:
+    except Exception:
         pass
 
     if ip:

@@ -147,13 +147,11 @@ def BuildPackageResponse(user, package):
         done.add(x.name)
         version = x.packageversion_set.order_by("-version")[0]
         j = json.loads(version.metadata_json)
-        res["packages"].append(
-            {
-                "package": x.name,
-                "version": version.version,
-                "md5": version.md5hash,
-            }
-        )
+        res["packages"].append({
+            "package": x.name,
+            "version": version.version,
+            "md5": version.md5hash,
+        })
         runtime = j.get("runtime", {})
         for z in ["chdir", "execute"]:
             if z in runtime and runtime[z] and z not in res["runtime"]:

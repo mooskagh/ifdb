@@ -38,14 +38,14 @@ class Command(BaseCommand):
 
             try:
                 p = Package.objects.get(name=pkg)
-            except:
+            except Package.DoesNotExist:
                 p = Package()
 
             g = None
             if gam:
                 try:
                     g = Game.objects.get(title=gam)
-                except:
+                except Game.DoesNotExist:
                     logger.error("Game not found at %s (%s)" % (pkg, ff))
 
             p.name = pkg
@@ -54,7 +54,7 @@ class Command(BaseCommand):
 
             try:
                 v = PackageVersion.objects.get(package=p, version=ver)
-            except:
+            except PackageVersion.DoesNotExist:
                 v = PackageVersion()
                 v.creation_date = timezone.now()
 

@@ -108,9 +108,10 @@ class AddRawTag(ActionBase):
         self.tag = tag
 
     def Apply(self, game):
-        game.setdefault("tags", []).append(
-            {"cat_slug": self.category, "tag": self.tag}
-        )
+        game.setdefault("tags", []).append({
+            "cat_slug": self.category,
+            "tag": self.tag,
+        })
 
 
 class CloneUrl(ActionBase):
@@ -125,13 +126,11 @@ class CloneUrl(ActionBase):
             if x["urlcat_slug"] == self.fr:
                 urls[x["url"]] = self.desc.format(**x)
         for url, desc in urls.items():
-            game["urls"].append(
-                {
-                    "urlcat_slug": self.to,
-                    "description": desc,
-                    "url": url,
-                }
-            )
+            game["urls"].append({
+                "urlcat_slug": self.to,
+                "description": desc,
+                "url": url,
+            })
 
 
 class Enricher:

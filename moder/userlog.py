@@ -17,7 +17,7 @@ def LogAction(
     obj_id=None,
     obj2=None,
     before=None,
-    after=None
+    after=None,
 ):
     if request.perm("(o @crawler @nolog)"):
         return

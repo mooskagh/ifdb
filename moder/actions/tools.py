@@ -187,10 +187,8 @@ def HandleAction(request):
         logger.exception("Error while running moder action")
         return JsonResponse({"error": str(e)})
 
-    return JsonResponse(
-        {
-            "object": object,
-            "state": action.GetState(),
-            "content": content,
-        }
-    )
+    return JsonResponse({
+        "object": object,
+        "state": action.GetState(),
+        "content": content,
+    })

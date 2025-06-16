@@ -74,7 +74,7 @@ def TrimPrefix(s, prefix):
 def ImportFromInstead(url):
     try:
         html = FetchUrlToString(url)
-    except:
+    except Exception:
         return {"error": "Не открывается что-то этот URL."}
 
     res = {"priority": 80}

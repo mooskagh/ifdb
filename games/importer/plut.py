@@ -96,13 +96,11 @@ def ParseFields(html):
     res = []
     for m in PLUT_FIELD.finditer(html):
         for n in PLUT_FIELD_ITEM.finditer(m.group()):
-            res.append(
-                [
-                    unescape(m.group(1)),
-                    unescape(n.group(2)),
-                    n.group(1),
-                ]
-            )
+            res.append([
+                unescape(m.group(1)),
+                unescape(n.group(2)),
+                n.group(1),
+            ])
     return res
 
 
@@ -160,14 +158,12 @@ def ImportFromPlut(url):
         elif cat == "Жанр":
             tags.append({"cat_slug": "tag", "tag": tag.lower()})
         elif cat == "Авторы":
-            authors.append(
-                {
-                    "role_slug": "author",
-                    "name": tag,
-                    "url": urljoin(url, tagurl),
-                    "urldesc": "Страница автора на urq.plut.info",
-                }
-            )
+            authors.append({
+                "role_slug": "author",
+                "name": tag,
+                "url": urljoin(url, tagurl),
+                "urldesc": "Страница автора на urq.plut.info",
+            })
 
     res["tags"] = tags
     res["authors"] = authors

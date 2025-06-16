@@ -162,12 +162,14 @@ class TestMigrationComparison(unittest.TestCase):
                         continue
 
                     # Test both parsers with the same content
-                    with patch(
-                        "games.importer.ifwiki_old.FetchUrlToString"
-                    ) as mock_old, patch(
-                        "games.importer.ifwiki.FetchUrlToString"
-                    ) as mock_new:
-
+                    with (
+                        patch(
+                            "games.importer.ifwiki_old.FetchUrlToString"
+                        ) as mock_old,
+                        patch(
+                            "games.importer.ifwiki.FetchUrlToString"
+                        ) as mock_new,
+                    ):
                         mock_old.return_value = wikitext
                         mock_new.return_value = wikitext
 
@@ -289,12 +291,10 @@ class TestMigrationComparison(unittest.TestCase):
 
         print(f"Fetched {len(wikitext)} characters of wikitext")
 
-        with patch(
-            "games.importer.ifwiki_old.FetchUrlToString"
-        ) as mock_old, patch(
-            "games.importer.ifwiki.FetchUrlToString"
-        ) as mock_new:
-
+        with (
+            patch("games.importer.ifwiki_old.FetchUrlToString") as mock_old,
+            patch("games.importer.ifwiki.FetchUrlToString") as mock_new,
+        ):
             mock_old.return_value = wikitext
             mock_new.return_value = wikitext
 

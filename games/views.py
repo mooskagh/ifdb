@@ -406,9 +406,9 @@ def show_author(request, author_id):
                 continue
             existing.add(y)
             gs = games.setdefault(g.role, [])
-            rating = ComputeGameRating(
-                [x.star_rating for x in g.game.gamevote_set.all()]
-            )
+            rating = ComputeGameRating([
+                x.star_rating for x in g.game.gamevote_set.all()
+            ])
             g.game.ds = rating
             gs.append(g.game)
 
@@ -430,18 +430,16 @@ def show_author(request, author_id):
 
         res["games"] = []
         for role in sorted(games.keys(), key=lambda x: x.order):
-            res["games"].append(
-                {
-                    "role": role.title,
-                    "games": SnippetFromList(
-                        sorted(
-                            games[role],
-                            key=lambda x: x.creation_time,
-                            reverse=True,
-                        )
-                    ),
-                }
-            )
+            res["games"].append({
+                "role": role.title,
+                "games": SnippetFromList(
+                    sorted(
+                        games[role],
+                        key=lambda x: x.creation_time,
+                        reverse=True,
+                    )
+                ),
+            })
 
         LogAction(request, "pers-view", is_mutation=False, obj=a)
         return render(request, "games/author.html", res)
@@ -450,7 +448,6 @@ def show_author(request, author_id):
 
 
 def list_games(request):
-
     s = MakeSearch(request.perm)
     query = request.GET.get("q", "")
     s.UpdateFromQuery(query)
@@ -465,13 +462,11 @@ def list_authors(request):
 
 
 class ChoiceField(forms.ChoiceField):
-
     def bound_data(self, data, initial):
         return data
 
 
 class NullBooleanField(forms.NullBooleanField):
-
     def bound_data(self, data, initial):
         return data
 
@@ -535,9 +530,10 @@ def play_in_interpreter(request, gameurl_id):
         res["format"] = os.path.splitext(filename)[1].lower()
         res["conf"] = json.loads(data.configuration_json)
 
-        form = UrqwInterpreterForm(
-            {"does_work": data.is_playable, "variant": res["conf"]["variant"]}
-        )
+        form = UrqwInterpreterForm({
+            "does_work": data.is_playable,
+            "variant": res["conf"]["variant"],
+        })
 
         res["can_edit"] = request.perm(game.edit_perm)
         if not res["can_edit"]:
@@ -608,12 +604,10 @@ def tags(request):
         }
         # TODO(crem) Optimize this.
         for y in GameTag.objects.filter(category=x).order_by("name"):
-            val["tags"].append(
-                {
-                    "id": y.id,
-                    "name": y.name,
-                }
-            )
+            val["tags"].append({
+                "id": y.id,
+                "name": y.name,
+            })
         res["categories"].append(val)
     return res
 
@@ -621,9 +615,11 @@ def tags(request):
 def linktypes(request):
     res = {"categories": []}
     for x in GameURLCategory.objects.all():
-        res["categories"].append(
-            {"id": x.id, "title": x.title, "uploadable": x.allow_cloning}
-        )
+        res["categories"].append({
+            "id": x.id,
+            "title": x.title,
+            "uploadable": x.allow_cloning,
+        })
     return res
 
 
@@ -648,9 +644,11 @@ def BuildJsonGameInfo(request, game_id):
 
         g["links"] = []
         for x in game.gameurl_set.select_related("url").all():
-            g["links"].append(
-                (x.category_id, x.description or "", x.url.original_url)
-            )
+            g["links"].append((
+                x.category_id,
+                x.description or "",
+                x.url.original_url,
+            ))
     return g
 
 
@@ -685,9 +683,11 @@ def json_gameinfo(request):
 
         g["links"] = []
         for x in game.gameurl_set.select_related("url").all():
-            g["links"].append(
-                (x.category_id, x.description or "", x.url.original_url)
-            )
+            g["links"].append((
+                x.category_id,
+                x.description or "",
+                x.url.original_url,
+            ))
     return JsonResponse(res)
 
 
@@ -701,14 +701,12 @@ def json_categorizeurl(request):
         cat = None
 
     res = CategorizeUrl(url, desc, cat)
-    return JsonResponse(
-        {
-            "desc": res["description"],
-            "cat": (
-                GameURLCategory.objects.get(symbolic_id=res["urlcat_slug"]).id
-            ),
-        }
-    )
+    return JsonResponse({
+        "desc": res["description"],
+        "cat": (
+            GameURLCategory.objects.get(symbolic_id=res["urlcat_slug"]).id
+        ),
+    })
 
 
 def json_author_search(request):

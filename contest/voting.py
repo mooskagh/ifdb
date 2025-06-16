@@ -82,7 +82,7 @@ class VotingFormSet(forms.BaseFormSet):
         games,
         nomination_id,
         additional_label=None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.fields = fields

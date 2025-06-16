@@ -178,15 +178,13 @@ def GameListSnippet(
         lines.append({"style": "comment"})
         lines.append({"style": "strong", "text": x.title})
         lines.append({"text": ", ".join([y.author.name for y in x.authors])})
-        items.append(
-            {
-                "image": {
-                    "src": x.poster or "/static/noposter_7355.png",
-                },
-                "lines": lines,
-                "link": reverse("show_game", kwargs={"game_id": x.id}),
-            }
-        )
+        items.append({
+            "image": {
+                "src": x.poster or "/static/noposter_7355.png",
+            },
+            "lines": lines,
+            "link": reverse("show_game", kwargs={"game_id": x.id}),
+        })
     return ItemsSnippet(request, items, age)
 
 
@@ -225,31 +223,27 @@ def CommentsSnippet(request):
         return {}
     items = []
     for x, y in zip(comments, games):
-        items.append(
-            {
-                "image": {"src": y.poster or "/static/noposter_7355.png"},
-                "link": reverse("show_game", kwargs={"game_id": x.game.id}),
-                "lines": [
-                    {
-                        "style": "float-left",
-                        "text": x.GetUsername(),
-                    },
-                    {
-                        "style": (
-                            "recent-comment" if x.recent_lag else "comment"
-                        ),
-                        "text": FormatLag(x.lag),
-                    },
-                    {
-                        "style": "strong",
-                        "text": x.game.title,
-                    },
-                    {
-                        "text": x.text[:100],
-                    },
-                ],
-            }
-        )
+        items.append({
+            "image": {"src": y.poster or "/static/noposter_7355.png"},
+            "link": reverse("show_game", kwargs={"game_id": x.game.id}),
+            "lines": [
+                {
+                    "style": "float-left",
+                    "text": x.GetUsername(),
+                },
+                {
+                    "style": ("recent-comment" if x.recent_lag else "comment"),
+                    "text": FormatLag(x.lag),
+                },
+                {
+                    "style": "strong",
+                    "text": x.game.title,
+                },
+                {
+                    "text": x.text[:100],
+                },
+            ],
+        })
 
     return ItemsSnippet(request, items, -comments[0].lag)
 
@@ -266,16 +260,14 @@ def LastUrlCat(request, cat, max_secs, min_count, max_count):
         delta = (x.url.creation_date - timezone.now()).total_seconds()
         if -delta >= max_secs and len(res) >= min_count:
             break
-        res.append(
-            {
-                "lag": delta,
-                "url": x.url.original_url,
-                "local_url": x.GetLocalUrl(),
-                "game": x.game.title,
-                "id": x.game.id,
-                "desc": x.description,
-            }
-        )
+        res.append({
+            "lag": delta,
+            "url": x.url.original_url,
+            "local_url": x.GetLocalUrl(),
+            "game": x.game.title,
+            "id": x.game.id,
+            "desc": x.description,
+        })
     return res
 
 
@@ -376,46 +368,38 @@ def FeedSnippet(
         if feed_ids[x.feed_id].get("show_author", True) and x.authors:
             lines.append({"text": x.authors})
 
-        items[x.feed_id].append(
-            {
-                "link": x.url,
-                "newtab": True,
-                "lines": lines,
-            }
-        )
+        items[x.feed_id].append({
+            "link": x.url,
+            "newtab": True,
+            "lines": lines,
+        })
     res = []
     for k, v in itemses:
         if len(feed_ids) != 1:
-            res.append(
-                {
-                    "style": "subheader",
-                    "text": feed_ids[k].get("title"),
-                    "newtab": True,
-                    "link": feed_ids[k].get("link"),
-                }
-            )
+            res.append({
+                "style": "subheader",
+                "text": feed_ids[k].get("title"),
+                "newtab": True,
+                "link": feed_ids[k].get("link"),
+            })
         res.extend(v)
     if len(feed_ids) != 1 and rest_str:
         not_shown = set(feed_ids.keys()) - set(items.keys())
         if not_shown:
-            res.append(
-                {
-                    "style": "subheader",
-                    "text": rest_str,
-                }
-            )
+            res.append({
+                "style": "subheader",
+                "text": rest_str,
+            })
             for x in sorted(not_shown):
-                res.append(
-                    {
-                        "link": feed_ids[x].get("link"),
-                        "newtab": True,
-                        "lines": [
-                            {
-                                "text": feed_ids[x].get("title"),
-                            }
-                        ],
-                    }
-                )
+                res.append({
+                    "link": feed_ids[x].get("link"),
+                    "newtab": True,
+                    "lines": [
+                        {
+                            "text": feed_ids[x].get("title"),
+                        }
+                    ],
+                })
     return ItemsSnippet(request, res, age)
 
 
@@ -435,38 +419,32 @@ def ThisDayInHistorySnippet(request, default_age=24 * 60 * 60):
         return None
     SnippetFromList(games)
 
-    items.append(
-        {
-            "style": "subheader",
-            "text": "Игры, выпущенные %s" % FormatDateShort(now),
-        }
-    )
+    items.append({
+        "style": "subheader",
+        "text": "Игры, выпущенные %s" % FormatDateShort(now),
+    })
     for x in games:
         ago = now.year - x.release_date.year
         lines = []
-        lines.append(
-            {
-                "style": "comment",
-                "text": (
-                    "%d год (%s назад)"
-                    % (
-                        x.release_date.year,
-                        ConcoreNumeral(ago, "год,года,лет"),
-                    )
-                ),
-            }
-        )
+        lines.append({
+            "style": "comment",
+            "text": (
+                "%d год (%s назад)"
+                % (
+                    x.release_date.year,
+                    ConcoreNumeral(ago, "год,года,лет"),
+                )
+            ),
+        })
         lines.append({"style": "strong", "text": x.title})
         lines.append({"text": ", ".join([y.author.name for y in x.authors])})
-        items.append(
-            {
-                "image": {
-                    "src": x.poster or "/static/noposter_7355.png",
-                },
-                "lines": lines,
-                "link": reverse("show_game", kwargs={"game_id": x.id}),
-            }
-        )
+        items.append({
+            "image": {
+                "src": x.poster or "/static/noposter_7355.png",
+            },
+            "lines": lines,
+            "link": reverse("show_game", kwargs={"game_id": x.id}),
+        })
     return ItemsSnippet(request, items, default_age)
 
 
@@ -546,15 +524,13 @@ def PopularGamesSnippet(
         lines.append({"style": "comment"})
         lines.append({"style": "strong", "text": x.title})
         lines.append({"text": ", ".join([y.author.name for y in x.authors])})
-        items.append(
-            {
-                "image": {
-                    "src": x.poster or "/static/noposter_7355.png",
-                },
-                "lines": lines,
-                "link": reverse("show_game", kwargs={"game_id": x.id}),
-            }
-        )
+        items.append({
+            "image": {
+                "src": x.poster or "/static/noposter_7355.png",
+            },
+            "lines": lines,
+            "link": reverse("show_game", kwargs={"game_id": x.id}),
+        })
     return ItemsSnippet(request, items, default_age)
 
 
@@ -620,63 +596,53 @@ def ContestSnippet(
             competition=comp, show=True
         ).order_by("when")
         if items:
-            res.append(
-                {
-                    "style": "subheader",
-                    "text": "Расписание",
-                }
-            )
+            res.append({
+                "style": "subheader",
+                "text": "Расписание",
+            })
             now = timezone.now()
             for x in items:
-                res.append(
-                    {
-                        "lines": [
-                            {
-                                "text": FormatDate(x.when),
-                                "style": (
-                                    ["float-right"]
-                                    + (["dimmed"] if x.when < now else [])
-                                ),
-                            },
-                            {"text": x.title, "style": "strong"},
-                        ]
-                    }
-                )
+                res.append({
+                    "lines": [
+                        {
+                            "text": FormatDate(x.when),
+                            "style": (
+                                ["float-right"]
+                                + (["dimmed"] if x.when < now else [])
+                            ),
+                        },
+                        {"text": x.title, "style": "strong"},
+                    ]
+                })
     if show_links:
         links = CompetitionURL.objects.filter(
             category__symbolic_id__in=show_links, competition=comp
         )
         if links:
-            res.append(
-                {
-                    "style": "subheader",
-                    "text": "Ссылки",
-                }
-            )
+            res.append({
+                "style": "subheader",
+                "text": "Ссылки",
+            })
             for x in links:
-                res.append(
-                    {
-                        "lines": [
-                            {
-                                "style": "strong",
-                                "text": x.description,
-                                "link": x.GetRemoteUrl(),
-                                "newtab": True,
-                            }
-                        ]
-                    }
-                )
+                res.append({
+                    "lines": [
+                        {
+                            "style": "strong",
+                            "text": x.description,
+                            "link": x.GetRemoteUrl(),
+                            "newtab": True,
+                        }
+                    ]
+                })
     if show_games:
         games = CompetitionGameFetcher(comp).FetchSnippetData()
         if games:
             now = timezone.now()
             for entry in games:
-                res.append(
-                    {
-                        "style": "subheader",
-                        "text": entry["title"] or "Участники",
-                    }
-                )
+                res.append({
+                    "style": "subheader",
+                    "text": entry["title"] or "Участники",
+                })
                 for z in entry["ranked"] + entry["unranked"]:
                     lines = []
                     item = {}
@@ -710,9 +676,11 @@ def ContestSnippet(
                                 "recent-comment" if highlighted else "comment"
                             )
                             if text:
-                                lines.append(
-                                    {"style": styles, "text": text, "svg": svg}
-                                )
+                                lines.append({
+                                    "style": styles,
+                                    "text": text,
+                                    "svg": svg,
+                                })
                         if not z.comment:
                             lines.append({"style": "comment"})
                         lines.append({"style": "strong", "text": x.title})
@@ -827,20 +795,18 @@ def RenderSnippets(request):
         box_style = "grid-box-%s" % style["color"] if "color" in style else ""
 
         icons = {}
-        snippets.append(
-            {
-                "id": x.id,
-                "title": x.title,
-                "url": x.url,
-                "style": style,
-                "box_style": box_style,
-                "async_snippet_id": async_id,
-                "content": data.get("content"),
-                "age": data.get("age", 365 * 24 * 60 * 60),
-                "order": x.order,
-                "icons": icons,
-            }
-        )
+        snippets.append({
+            "id": x.id,
+            "title": x.title,
+            "url": x.url,
+            "style": style,
+            "box_style": box_style,
+            "async_snippet_id": async_id,
+            "content": data.get("content"),
+            "age": data.get("age", 365 * 24 * 60 * 60),
+            "order": x.order,
+            "icons": icons,
+        })
 
     if request.user.is_authenticated:
         hids = set()
@@ -874,38 +840,28 @@ def RenderSnippets(request):
             for x in hid:
                 lines = []
                 if x.get("age") is not None and x["style"].get("show_age"):
-                    lines.append(
-                        {
-                            "style": ["float-right"],
-                            "text": FormatLag(-x["age"]),
-                        }
-                    )
+                    lines.append({
+                        "style": ["float-right"],
+                        "text": FormatLag(-x["age"]),
+                    })
                     lines[-1]["style"].append(
                         "recent-comment"
                         if x["age"] <= 60 * 60 * 24
                         else "comment"
                     )
-                lines.append(
-                    {
-                        "text": x["title"],
-                    }
-                )
-                items.append(
-                    {
-                        "link": reverse(
-                            "forget_snippet", kwargs={"id": x["id"]}
-                        ),
-                        "lines": lines,
-                    }
-                )
-            snippets.append(
-                {
-                    "title": "Скрытые карточки",
-                    "box_style": {},
-                    "content": ItemsSnippet(request, items)["content"],
-                    "icons": {},
-                }
-            )
+                lines.append({
+                    "text": x["title"],
+                })
+                items.append({
+                    "link": reverse("forget_snippet", kwargs={"id": x["id"]}),
+                    "lines": lines,
+                })
+            snippets.append({
+                "title": "Скрытые карточки",
+                "box_style": {},
+                "content": ItemsSnippet(request, items)["content"],
+                "icons": {},
+            })
 
     else:
         snippets.sort(key=lambda y: (y["order"], y["age"]))

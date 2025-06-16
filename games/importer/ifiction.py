@@ -59,9 +59,9 @@ GAME_RE = re.compile(r'<a href="(\./viewtopic\.php\?id=\d+)">')
 
 
 def ParseGameList(html_text, base):
-    return set(
-        [urljoin(base, m.group(1)) for m in GAME_RE.finditer(html_text)]
-    )
+    return set([
+        urljoin(base, m.group(1)) for m in GAME_RE.finditer(html_text)
+    ])
 
 
 TITLE_RE = re.compile(
@@ -131,25 +131,21 @@ def ImportFromIfiction(url):
     m = POSTER_URL.search(html)
     if m:
         myurl = ResolveRedirect(m.group(1), url)
-        res["urls"].append(
-            {
-                "urlcat_slug": "poster",
-                "description": "Постер с ifiction.ru",
-                "url": myurl,
-            }
-        )
+        res["urls"].append({
+            "urlcat_slug": "poster",
+            "description": "Постер с ifiction.ru",
+            "url": myurl,
+        })
 
     m = SCREENSHOTS_BLOCK.search(html)
     if m:
         for m in IMG_URL.finditer(m.group(1)):
             myurl = ResolveRedirect(m.group(1), url)
-            res["urls"].append(
-                {
-                    "urlcat_slug": "screenshot",
-                    "description": "Скриншот с ifiction.ru",
-                    "url": myurl,
-                }
-            )
+            res["urls"].append({
+                "urlcat_slug": "screenshot",
+                "description": "Скриншот с ifiction.ru",
+                "url": myurl,
+            })
 
     return res
 
@@ -169,21 +165,17 @@ def ParseAuthorBlock(html, res, base_url):
         url = urljoin(base_url, m.group(1))
         desc = unescape(m.group(2))
         if category in ["Автор", "Авторы"]:
-            res["authors"].append(
-                {
-                    "role_slug": "author",
-                    "name": desc,
-                    "url": url,
-                    "urldesc": "Страница автора на forum.ifiction.ru",
-                }
-            )
+            res["authors"].append({
+                "role_slug": "author",
+                "name": desc,
+                "url": url,
+                "urldesc": "Страница автора на forum.ifiction.ru",
+            })
         elif category == "Платформа":
-            res["tags"].append(
-                {
-                    "cat_slug": "platform",
-                    "tag": desc,
-                }
-            )
+            res["tags"].append({
+                "cat_slug": "platform",
+                "tag": desc,
+            })
 
 
 REDIRECTOR_URL = re.compile(r"https?://forum\.ifiction\.ru/file\.php?.*")

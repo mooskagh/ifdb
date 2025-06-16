@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("games", "0016_personalityalias_keep_if_empty"),
     ]

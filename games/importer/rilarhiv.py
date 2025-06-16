@@ -77,31 +77,25 @@ class RilarhivImporter:
                     name = unescape(a).strip()
                     if not name:
                         continue
-                    res["authors"].append(
-                        {
-                            "role_slug": "author",
-                            "name": name,
-                        }
-                    )
+                    res["authors"].append({
+                        "role_slug": "author",
+                        "name": name,
+                    })
 
                 if platform:
-                    res["tags"].append(
-                        {
-                            "cat_slug": "platform",
-                            "tag": platform,
-                        }
-                    )
+                    res["tags"].append({
+                        "cat_slug": "platform",
+                        "tag": platform,
+                    })
 
                 for p in plats:
                     plat = unescape(p).strip()
                     if not plat:
                         continue
-                    res["tags"].append(
-                        {
-                            "cat_slug": "platform",
-                            "tag": plat,
-                        }
-                    )
+                    res["tags"].append({
+                        "cat_slug": "platform",
+                        "tag": plat,
+                    })
 
                 self.games[fullurl["url"]] = res
                 candidates.append(fullurl["url"])

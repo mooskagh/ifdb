@@ -24,22 +24,19 @@ check-tests:
     @echo "Running Django tests..."
     python manage.py test
 
-# Run isort import sorting
-fix-isort:
-    @echo "Running isort..."
-    isort .
-
-# Run black code formatting
-fix-black:
-    @echo "Running black..."
-    black --preview --line-length=79 --enable-unstable-feature string_processing .
+# Run ruff code formatting and import sorting
+fix-ruff:
+    @echo "Running ruff format..."
+    ruff format .
+    @echo "Running ruff check --fix..."
+    ruff check --fix .
 
 # Run all read-only checks
 check: check-django check-ruff check-tests
     @echo "All checks passed!"
 
 # Run all formatting fixes
-fix: fix-isort fix-black
+fix: fix-ruff
     @echo "Formatting complete!"
 
 # Run both fix and check

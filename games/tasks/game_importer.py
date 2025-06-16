@@ -156,7 +156,7 @@ class ImportedGame:
         if not self.game:
             return
         logger.info("Updating URLs only: %s" % self)
-        id = UpdateGameUrls(
+        UpdateGameUrls(
             request,
             self.game,
             game.get("links", []),
@@ -260,9 +260,9 @@ class GameSet:
 
 def ImportGames(append_urls=False):
     importer = Importer()
-    existing_urls = set(
-        [HashizeUrl(x.original_url) for x in URL.objects.all()]
-    )
+    existing_urls = set([
+        HashizeUrl(x.original_url) for x in URL.objects.all()
+    ])
     logger.info("Fetched %d existing urls" % len(existing_urls))
 
     gameset = GameSet()

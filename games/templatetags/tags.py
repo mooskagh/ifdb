@@ -40,7 +40,7 @@ def rupl(value, arg):
         else:
             res = bits[2]
         return "%s %s" % (value, res)
-    except:
+    except (IndexError, ValueError):
         raise TemplateSyntaxError
     return ""
 
