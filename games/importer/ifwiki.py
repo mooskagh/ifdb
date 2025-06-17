@@ -209,7 +209,7 @@ IFWIKI_LINK_INTERNALS_PARSE = re.compile(
 
 IFWIKI_ROLES = {
     "автор": "author",
-    "переводчик": "translator", 
+    "переводчик": "translator",
     "персонаж": "character",
     "тестировщик": "tester",
     "участник": "member",
@@ -562,7 +562,9 @@ def convert_wikitext_to_markdown(text, context):
     # Fix bold/italic markup issues
     text = re.sub(r"\*{4,}", "****", text)  # Normalize excessive asterisks
     # Fix spacing issues with bold markup
-    text = re.sub(r"\*\*\*\*\s+\*\*\*\*", "****", text)  # Remove spaces between bold markers
+    text = re.sub(
+        r"\*\*\*\*\s+\*\*\*\*", "****", text
+    )  # Remove spaces between bold markers
     text = re.sub(r"\*\*\s+\*\*", "****", text)  # Fix broken bold patterns
     text = text.strip()
 

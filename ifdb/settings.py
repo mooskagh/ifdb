@@ -330,14 +330,46 @@ AUTH_PASSWORD_VALIDATORS = [
     # },
 ]
 
+# Cache configuration - can be overridden with environment variables
+# Available environment variables:
+# - CACHE_BACKEND: e.g., "django.core.cache.backends.redis.RedisCache"
+# - CACHE_LOCATION: cache location/connection string
+# - CACHE_TIMEOUT: default cache timeout in seconds
+# - CACHE_MAX_ENTRIES: max entries for file-based cache
+# - CACHE_LOCATION_TOR: separate location for tor-ips cache
+# - CACHE_MAX_ENTRIES_TOR: max entries for tor-ips cache
+CACHE_BACKEND = os.environ.get(
+    "CACHE_BACKEND", 
+    "django.core.cache.backends.filebased.FileBasedCache"
+)
+CACHE_LOCATION = os.environ.get(
+    "CACHE_LOCATION",
+    "/home/ifdb/tmp/django_cache" if IS_PROD 
+    else os.path.join(BASE_DIR, "tmp/django_cache")
+)
+
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "BACKEND": CACHE_BACKEND,
+        "LOCATION": CACHE_LOCATION,
+        "OPTIONS": {
+            "MAX_ENTRIES": int(os.environ.get("CACHE_MAX_ENTRIES", "10000")),
+        } if "filebased" in CACHE_BACKEND else {},
+        "TIMEOUT": int(os.environ.get("CACHE_TIMEOUT", "300")),
     },
     "tor-ips": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "tor-ips",
-        "TIMEOUT": 60 * 60 * 24,
+        "BACKEND": CACHE_BACKEND,
+        "LOCATION": os.environ.get(
+            "CACHE_LOCATION_TOR",
+            "/home/ifdb/tmp/django_cache_tor" if IS_PROD 
+            else os.path.join(BASE_DIR, "tmp/django_cache_tor")
+        ),
+        "TIMEOUT": 60 * 60 * 24,  # 24 hours for tor-ips
+        "OPTIONS": {
+            "MAX_ENTRIES": int(
+                os.environ.get("CACHE_MAX_ENTRIES_TOR", "1000")
+            ),
+        } if "filebased" in CACHE_BACKEND else {},
     },
 }
 
