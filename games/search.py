@@ -655,13 +655,13 @@ class Search:
         partial_query = start is not None or limit is not None
 
         q = self.cls.objects.all()
-        
+
         # Apply annotations first so ordering can reference annotated fields
         if isinstance(annotate, dict):
             q = q.annotate(**annotate)
         elif isinstance(annotate, list):
             q = q.annotate(*annotate)
-            
+
         for x in self.bits:
             if x.IsActive():
                 q = x.ModifyQuery(q)
