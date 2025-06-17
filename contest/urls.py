@@ -1,25 +1,19 @@
-from django.urls import re_path
+from django.urls import path
 
 from . import editor, views
 
 urlpatterns = [
-    re_path(r"^$", views.list_competitions, name="list_competitions"),
-    re_path(
-        r"^showvotes/(?P<id>\d+)/$", views.list_votes, name="view_compvotes"
-    ),
-    re_path(
-        r"^edit/(?P<id>\d+)/$",
+    path("", views.list_competitions, name="list_competitions"),
+    path("showvotes/<int:id>/", views.list_votes, name="view_compvotes"),
+    path(
+        "edit/<int:id>/",
         editor.edit_competition,
         name="edit_competition",
     ),
-    re_path(
-        r"^editlist/(?P<id>\d+)/$", editor.edit_complist, name="edit_complist"
-    ),
-    re_path(
-        r"^editdoc/(?P<id>\d+)/$", editor.edit_compdoc, name="edit_compdoc"
-    ),
-    re_path(
-        r"^(?P<slug>[-\w\d]+)/(?P<doc>.*)$",
+    path("editlist/<int:id>/", editor.edit_complist, name="edit_complist"),
+    path("editdoc/<int:id>/", editor.edit_compdoc, name="edit_compdoc"),
+    path(
+        "<slug:slug>/<path:doc>",
         views.show_competition,
         name="show_competition",
     ),

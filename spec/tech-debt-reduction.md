@@ -15,7 +15,7 @@
 - [ ] 2.1: Extract business logic from fat views using Managers/QuerySets/Models
 - [ ] 2.2: Implement comprehensive test suite
 - [x] 2.3: Add linting and code formatting (✅ Completed: migrated to ruff)
-- [ ] 2.4: Convert old URL patterns to modern path() syntax
+- [x] 2.4: Convert old URL patterns to modern path() syntax
 - [ ] 2.5: Add comprehensive type annotations to remaining modules
 
 ### Phase 3: Task Queue & Import System Overhaul 🔄
@@ -47,7 +47,7 @@
 - [ ] 6.5: Enhance monitoring and logging in deployment pipeline
 
 ### Phase 7: Feature Cleanup & Enhancement 🧹
-- [ ] 7.1: Remove "Справка" (Help) section
+- [x] 7.1: Remove "Справка" (Help) section
 - [ ] 7.2: Enhance Authors section with better UI/UX
 - [ ] 7.3: Add comprehensive REST API with DRF
 - [ ] 7.4: Add API documentation
