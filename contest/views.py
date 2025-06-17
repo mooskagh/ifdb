@@ -260,7 +260,7 @@ def _seconds_until_midnight():
 
 def _render_snippet_html(items):
     """Fast HTML generation alternative to template rendering.
-    
+
     UNUSED: Kept for potential future use after Django 5 upgrade.
     This function provides ~10x faster snippet rendering than Django templates
     but we're keeping template rendering for now to see if Django 5 optimizes.
@@ -268,12 +268,12 @@ def _render_snippet_html(items):
     # Much faster than Django template rendering for repetitive HTML
     # Generates same output as core/snippet.html template
     parts = []
-    
+
     for item in items:
-        if item.get('style') == 'subheader':
+        if item.get("style") == "subheader":
             text = str(item["text"])
-            if item.get('link'):
-                target = ' target="_blank"' if item.get('newtab') else ''
+            if item.get("link"):
+                target = ' target="_blank"' if item.get("newtab") else ""
                 parts.append(
                     f'<a class="grid-box-subheader" '
                     f'href="{item["link"]}"{target}>{text}</a>'
@@ -282,33 +282,32 @@ def _render_snippet_html(items):
                 parts.append(f'<div class="grid-box-subheader">{text}</div>')
         else:
             # Main item
-            if item.get('link'):
-                target = ' target="_blank"' if item.get('newtab') else ''
+            if item.get("link"):
+                target = ' target="_blank"' if item.get("newtab") else ""
                 parts.append(
-                    f'<a class="grid-box-item" '
-                    f'href="{item["link"]}"{target}>'
+                    f'<a class="grid-box-item" href="{item["link"]}"{target}>'
                 )
             else:
                 parts.append('<div class="grid-box-item">')
-            
+
             # Head
-            if item.get('head'):
+            if item.get("head"):
                 parts.append('<div class="grid-box-item-head-container">')
-                head = item['head']
-                if head.get('combined'):
-                    parts.append(str(head['combined']))
+                head = item["head"]
+                if head.get("combined"):
+                    parts.append(str(head["combined"]))
                 else:
                     primary = head.get("primary", "")
                     secondary = str(head.get("secondary", ""))
                     parts.append(f'<span class="rank">{primary}</span><br />')
                     parts.append(secondary)
-                parts.append('</div>')
-            
+                parts.append("</div>")
+
             # Tiny head
-            if item.get('tinyhead'):
+            if item.get("tinyhead"):
                 parts.append('<div class="grid-box-item-head-container-tiny">')
-                tinyhead = item['tinyhead']
-                if tinyhead.get('combined'):
+                tinyhead = item["tinyhead"]
+                if tinyhead.get("combined"):
                     combined = tinyhead["combined"]
                     parts.append(f'<span class="rank-tiny">{combined}</span>')
                 else:
@@ -316,39 +315,39 @@ def _render_snippet_html(items):
                     secondary = tinyhead.get("secondary", "")
                     parts.append(primary)
                     parts.append(f'<span class="rank-tiny">{secondary}</span>')
-                parts.append('</div>')
-            
+                parts.append("</div>")
+
             # Lines
             parts.append('<div class="grid-box-lines-container">')
-            for line in item.get('lines', []):
-                styles = line.get('style', [])
-                style_str = ' '.join(f'grid-box-line-{s}' for s in styles)
-                line_class = f'grid-box-line {style_str}'.strip()
-                
-                if line.get('link'):
-                    target = ' target="_blank"' if line.get('newtab') else ''
+            for line in item.get("lines", []):
+                styles = line.get("style", [])
+                style_str = " ".join(f"grid-box-line-{s}" for s in styles)
+                line_class = f"grid-box-line {style_str}".strip()
+
+                if line.get("link"):
+                    target = ' target="_blank"' if line.get("newtab") else ""
                     parts.append(
                         f'<a class="{line_class}" '
                         f'href="{line["link"]}"{target}>'
                     )
                 else:
                     parts.append(f'<div class="{line_class}">')
-                
-                parts.append(str(line.get('text', '')))
-                parts.append('</a>' if line.get('link') else '</div>')
-            parts.append('</div>')
-            
+
+                parts.append(str(line.get("text", "")))
+                parts.append("</a>" if line.get("link") else "</div>")
+            parts.append("</div>")
+
             # Close main
-            parts.append('</a>' if item.get('link') else '</div>')
-    
-    return ''.join(parts)
+            parts.append("</a>" if item.get("link") else "</div>")
+
+    return "".join(parts)
 
 
 def get_competitions_data():
     """Cache competition database queries until midnight.
-    
-    Uses file-based cache to ensure consistency across processes and 
-    persistence across server restarts. Competition data changes rarely 
+
+    Uses file-based cache to ensure consistency across processes and
+    persistence across server restarts. Competition data changes rarely
     but queries are expensive (86 competitions with complex joins).
     """
     import logging
@@ -395,11 +394,10 @@ def get_competitions_data():
             comp.id: CompetitionGameFetcher(comp).GetCompetitionGamesRaw()
             for comp in competitions
         }
-        
+
         # Pre-parse JSON options to avoid repeated parsing
         competition_options = {
-            comp.id: json.loads(comp.options)
-            for comp in competitions
+            comp.id: json.loads(comp.options) for comp in competitions
         }
 
         data = {
@@ -479,7 +477,7 @@ def list_competitions(request):
     # Main competition processing loop
     d = now.date()
     eighteen_months = relativedelta.relativedelta(months=18)  # Pre-compute
-    
+
     for x in cached_data["competitions"]:
         options = cached_data["competition_options"][x.id]
         if x.start_date and x.start_date < d:
@@ -546,7 +544,7 @@ def list_competitions(request):
                     items.append(item)
         x.snippet = render_to_string("core/snippet.html", {"items": items})
         # NOTE: Can use _render_snippet_html(items) for ~10x faster rendering
-        
+
         if x.start_date and x.start_date >= now.date():
             upcoming.append(x)
         else:

@@ -1,7 +1,7 @@
 asgiref==3.2.7
 asn1crypto==1.3.0
 certifi==2020.4.5.1
-cffi==1.16.0
+cffi==1.17.1
 chardet==3.0.4
 charset-normalizer==3.3.2
 click==7.1.1
@@ -27,7 +27,7 @@ markdown-del-ins==1.0.0
 mwparserfromhell==0.6.6
 oauthlib==3.1.0
 pipreqs==0.4.10
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.10
 pudb==2019.2
 py3compat==0.4
 pycparser==2.20
@@ -48,3 +48,5 @@ urllib3==1.25.9
 urwid==2.1.0
 vk==3.0
 yarg==0.1.9
+ruff==0.12.0
+mypy==1.16.1

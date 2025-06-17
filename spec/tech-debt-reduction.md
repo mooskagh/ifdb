@@ -5,7 +5,7 @@
 ### Phase 1: Critical Security & Infrastructure ⚠️
 - [ ] 1.1: Django upgrade from 3.0.5 to 5.2 (latest stable)
 - [x] 1.2: Replace mediawiki-parser with Python 3.13+ compatible alternative (✅ Completed: migrated to mwparserfromhell)
-- [ ] 1.2.1: Upgrade Python runtime to 3.13 (depends on 1.2 completion)
+- [x] 1.2.1: Upgrade Python runtime to 3.13 (depends on 1.2 completion)
 - [ ] 1.3: Security dependency audit and updates  
 - [ ] 1.4: Add comprehensive logging system
 - [ ] 1.5: Add type annotations to critical modules
