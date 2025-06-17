@@ -23,6 +23,8 @@ from django.urls import include, re_path
 urlpatterns = [
     re_path(r"^$", lambda r: HttpResponseRedirect("index/")),
     re_path(r"^adminz/", admin.site.urls, name="admin"),
+    # Redirect old docs URLs to home page
+    re_path(r"^docs/.*", lambda r: HttpResponseRedirect("/")),
     re_path(r"^", include("core.urls"), name="api"),
     re_path(r"^", include("games.urls"), name="games"),
     re_path(r"^", include("moder.urls"), name="moder"),

@@ -195,22 +195,6 @@ class PackageSession(models.Model):
     is_finished = models.BooleanField(default=False)
 
 
-class Document(models.Model):
-    class Meta:
-        default_permissions = ()
-
-    slug = models.SlugField(db_index=True)
-    parent = models.ForeignKey(
-        "Document", null=True, blank=True, on_delete=models.SET_NULL
-    )
-    title = models.CharField(max_length=256)
-    text = models.TextField()
-    last_update = models.DateTimeField()
-    view_perm = models.CharField(max_length=256, default="@admin")
-    list_perm = models.CharField(max_length=256, default="@admin")
-    order = models.IntegerField(default=0)
-
-
 class Snippet(models.Model):
     class Meta:
         default_permissions = ()

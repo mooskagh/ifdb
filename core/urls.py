@@ -1,6 +1,6 @@
 from django.urls import re_path
 
-from . import snippets, views
+from . import snippets
 
 urlpatterns = [
     re_path(r"^json/snippet/$", snippets.AsyncSnippet, name="async_snippet"),
@@ -19,5 +19,4 @@ urlpatterns = [
         snippets.ForgetSnippet,
         name="forget_snippet",
     ),
-    re_path(r"^docs/(?P<slug>[-\w]+)", views.showdoc, name="showdoc"),
 ]
