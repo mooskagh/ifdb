@@ -542,8 +542,8 @@ def list_competitions(request):
                         else:
                             lines.append({})
                     items.append(item)
-        x.snippet = render_to_string("core/snippet.html", {"items": items})
-        # NOTE: Can use _render_snippet_html(items) for ~10x faster rendering
+        x.snippet = _render_snippet_html(items)
+        # NOTE: Using _render_snippet_html(items) for ~10x faster rendering
 
         if x.start_date and x.start_date >= now.date():
             upcoming.append(x)
