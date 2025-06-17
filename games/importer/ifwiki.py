@@ -207,18 +207,17 @@ IFWIKI_LINK_INTERNALS_PARSE = re.compile(
     r"^(?:([^:\]|]*)::?)?([^:\]|]+)(?:\|([^\]|]+))?(?:\|([^\]]+))?$"
 )
 
-IFWIKI_ROLES = [
-    ("автор", "author"),
-    ("Автор", "author"),
-    ("Переводчик", "translator"),
-    ("Персонаж", "character"),
-    ("Тестировщик", "tester"),
-    ("Участник", "member"),
-    ("Иллюстратор", "artist"),
-    ("Программист", "programmer"),
-    ("Композитор", "composer"),
-]
-IFWIKI_IGNORE_ROLES = ["Категория"]
+IFWIKI_ROLES = {
+    "автор": "author",
+    "переводчик": "translator", 
+    "персонаж": "character",
+    "тестировщик": "tester",
+    "участник": "member",
+    "иллюстратор": "artist",
+    "программист": "programmer",
+    "композитор": "composer",
+}
+IFWIKI_IGNORE_ROLES = {"Категория"}
 
 IFWIKI_COMPETITIONS = {
     "Конкурс": "{_1}",
@@ -231,9 +230,9 @@ IFWIKI_COMPETITIONS = {
     "Ludum Dare": "Ludum Dare {_1}",
 }
 
-IFWIKI_IGNORE = ["ЗаглушкаТекста", "ЗаглушкаСсылок"]
+IFWIKI_IGNORE = {"ЗаглушкаТекста", "ЗаглушкаСсылок"}
 
-GAMEINFO_IGNORE = ["ширинаобложки", "высотаобложки"]
+GAMEINFO_IGNORE = {"ширинаобложки", "высотаобложки"}
 
 
 class WikiAuthorParsingContext:
@@ -296,21 +295,20 @@ class WikiParsingContext:
         if role in IFWIKI_IGNORE_ROLES:
             return ""
 
-        for r, t in IFWIKI_ROLES:
-            if r == role:
-                self.authors.append({
-                    "role_slug": t,
-                    "name": display_name or name,
-                    "url": f"http://ifwiki.ru/{WikiQuote(name)}",
-                    "urldesc": "Страница автора на ifwiki",
-                })
-                break
+        role_lower = role.lower() if role else None
+        if role_lower in IFWIKI_ROLES:
+            self.authors.append({
+                "role_slug": IFWIKI_ROLES[role_lower],
+                "name": display_name or name,
+                "url": f"http://ifwiki.ru/{WikiQuote(name)}",
+                "urldesc": "Страница автора на ifwiki",
+            })
         else:
-            if role in ["Медиа", "Media", "Изображение", "Image"]:
+            if role in {"Медиа", "Media", "Image"}:
                 self.AddUrl(
                     "/files/" + WikiQuote(name), display_name, base=self.url
                 )
-            elif role in ["Изображение"]:
+            elif role == "Изображение":
                 self.AddUrl(
                     "/files/" + WikiQuote(name),
                     display_name,
@@ -354,7 +352,7 @@ class WikiParsingContext:
             try:
                 return datetime.datetime.strptime(date_str, "%d.%m.%Y").date()
             except ValueError:
-                return None  # TODO: Support incomplete dates
+                return None
 
         handlers = {
             "автор": lambda v: [
@@ -377,7 +375,7 @@ class WikiParsingContext:
         for k, v in params.items():
             if k in handlers:
                 handlers[k](v)
-            elif k in ["1", "2"] and not v.strip():
+            elif k in {"1", "2"} and not v.strip():
                 continue
             elif k in GAMEINFO_IGNORE:
                 continue
@@ -408,28 +406,33 @@ class WikiParsingContext:
                 self.AddUrl(params["архив"])
             return f"[{params['на']} {params.get('1') or 'ссылка'}]"
 
-        # Simple template handlers
-        simple_handlers = {
-            "PAGENAME": lambda: self.title,
-            "game info": lambda: (self.ProcessGameinfo(params), "")[1],
-            "Избранная игра": lambda: (add_tag("", "", "ifwiki_featured"), "")[
-                1
-            ],
-            "РИЛФайл": lambda: (
-                self.AddUrl(params["1"]),
-                f"[{params['1']} Ссылка на РилАрхив]",
-            )[1],
-            "Ссылка": handle_link,
-            "Тема": lambda: (add_tag("tag", params["1"]), "")[1],
-            "ns:6": lambda: "Media",
-            "URQStead": lambda: (
-                self.AddUrl(params["1"], "Игра на URQ-модуле INSTEAD"),
-                "",
-            )[1],
-        }
+        # Template handlers
+        if name == "PAGENAME":
+            return self.title
+        elif name == "game info":
+            self.ProcessGameinfo(params)
+            return ""
+        elif name == "Избранная игра":
+            add_tag("", "", "ifwiki_featured")
+            return ""
+        elif name == "РИЛФайл":
+            if "1" in params:
+                self.AddUrl(params["1"])
+                return f"[{params['1']} Ссылка на РилАрхив]"
+            return ""
+        elif name == "Ссылка":
+            return handle_link()
+        elif name == "Тема":
+            if "1" in params:
+                add_tag("tag", params["1"])
+            return ""
+        elif name == "ns:6":
+            return "Media"
+        elif name == "URQStead":
+            if "1" in params:
+                self.AddUrl(params["1"], "Игра на URQ-модуле INSTEAD")
+            return ""
 
-        if name in simple_handlers:
-            return simple_handlers[name]()
         elif name in IFWIKI_COMPETITIONS:
             return handle_competition()
         elif name in IFWIKI_IGNORE:
@@ -522,7 +525,7 @@ def convert_wikitext_to_markdown(text, context):
     text = re.sub(r"^\*\s+", r"* ", text, flags=re.MULTILINE)
     text = re.sub(r"^#\s+", r"1. ", text, flags=re.MULTILINE)
 
-    # Convert internal links
+    # Convert internal links FIRST
     def replace_internal_link(match):
         link_content = match.group(1)
         # Process the link through context
@@ -531,7 +534,7 @@ def convert_wikitext_to_markdown(text, context):
 
     text = re.sub(r"\[\[(.*?)\]\]", replace_internal_link, text)
 
-    # Convert external links
+    # Convert external links AFTER internal links are processed
     def replace_external_link(match):
         url = match.group(1)
         if len(match.groups()) > 1 and match.group(2):
@@ -540,10 +543,13 @@ def convert_wikitext_to_markdown(text, context):
             return f"[{desc}]({url})"
         else:
             context.AddUrl(url)
-            return f"<{url}>"
+            return f"[{url}]({url})"
 
+    # Convert external links
+    # Pattern: [url description] -> [description](url)
     text = re.sub(r"\[([^\s\]]+)\s+([^\]]+)\]", replace_external_link, text)
-    text = re.sub(r"\[([^\s\]]+)\]", replace_external_link, text)
+    # Pattern: [url] -> [url](url) for consistency (but not markdown links)
+    text = re.sub(r"\[([^\s\]]+)\](?!\()", replace_external_link, text)
 
     # Remove category links
     text = re.sub(r"\[\[Категория:.*?\]\]", "", text)
@@ -553,6 +559,11 @@ def convert_wikitext_to_markdown(text, context):
 
     # Clean up extra whitespace but preserve paragraph breaks
     text = re.sub(r"\n\n+", "\n\n", text)
+    # Fix bold/italic markup issues
+    text = re.sub(r"\*{4,}", "****", text)  # Normalize excessive asterisks
+    # Fix spacing issues with bold markup
+    text = re.sub(r"\*\*\*\*\s+\*\*\*\*", "****", text)  # Remove spaces between bold markers
+    text = re.sub(r"\*\*\s+\*\*", "****", text)  # Fix broken bold patterns
     text = text.strip()
 
     return text
