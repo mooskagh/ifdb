@@ -1,49 +1,55 @@
-from games.models import Game, GameURL, GameAuthor, GameComment, GameVote
-from core.models import Package
-from django.urls import reverse
 from html import escape
-from django import forms
 
+from django import forms
+from django.urls import reverse
+
+from core.models import Package
+from games.models import Game, GameAuthor, GameComment, GameURL, GameVote
 from moder.actions.tools import ModerAction, RegisterAction
 
 
 def GenLinkButton(text, link, new_tab=False):
-    return '<a href="%s"%s>%s</a>' % (escape(link), (' target="_blank"'
-                                                     if new_tab else ''),
-                                      escape(text))
+    return '<a href="%s"%s>%s</a>' % (
+        escape(link),
+        (' target="_blank"' if new_tab else ""),
+        escape(text),
+    )
 
 
 class GameAction(ModerAction):
-    PERM = '@gardener'
+    PERM = "@gardener"
     MODEL = Game
 
 
 @RegisterAction
 class GameCombineAction(GameAction):
-    TITLE = 'Объединить'
+    TITLE = "Объединить"
 
     class Form(forms.Form):
         other_game = forms.IntegerField(
-            label='С какой игрой объединять? (id)',
+            label="С какой игрой объединять? (id)",
             min_value=1,
-            help_text='Все данные с указанной игры будут скопированы в эту, '
-            'а сама та игра будет удалена')
+            help_text=(
+                "Все данные с указанной игры будут скопированы в эту, "
+                "а сама та игра будет удалена"
+            ),
+        )
 
     def GetForm(self, var):
         return self.Form(var)
 
     def DoAction(self, action, form, execute):
-        fro = Game.objects.get(pk=form['other_game'])
+        fro = Game.objects.get(pk=form["other_game"])
         if execute:
             to = self.obj
             if not to.release_date:
                 to.release_date = fro.release_date
 
-            desc = ''
+            desc = ""
             for x in [to.description, fro.description]:
-                val = x or ''
+                val = x or ""
                 if desc and val:
-                    desc += '\n\n'
+                    desc += "\n\n"
                 desc += val
             to.description = desc
             to.save()
@@ -80,7 +86,7 @@ class GameCombineAction(GameAction):
 
 @RegisterAction
 class GameCloneAction(GameAction):
-    TITLE = 'Клонировать'
+    TITLE = "Клонировать"
 
     def DoAction(self, action, form, execute):
         if not execute:
@@ -89,9 +95,16 @@ class GameCloneAction(GameAction):
         fro = self.obj
         to = Game()
         for field in [
-                'title', 'description', 'release_date', 'creation_time',
-                'view_perm', 'edit_perm', 'comment_perm', 'delete_perm',
-                'vote_perm', 'added_by'
+            "title",
+            "description",
+            "release_date",
+            "creation_time",
+            "view_perm",
+            "edit_perm",
+            "comment_perm",
+            "delete_perm",
+            "vote_perm",
+            "added_by",
         ]:
             setattr(to, field, getattr(fro, field))
         to.save()
@@ -109,24 +122,25 @@ class GameCloneAction(GameAction):
             x.game = to
             x.save()
 
-        return GenLinkButton('Ссылка на клон',
-                             reverse('show_game', kwargs={
-                                 'game_id': to.id
-                             }), True)
+        return GenLinkButton(
+            "Ссылка на клон",
+            reverse("show_game", kwargs={"game_id": to.id}),
+            True,
+        )
 
 
 @RegisterAction
 class GameAdminzAction(GameAction):
-    PERM = '@admin'
-    TITLE = 'Админка'
+    PERM = "@admin"
+    TITLE = "Админка"
 
     def GetUrl(self):
-        return reverse("admin:games_game_change", args=(self.obj.id, ))
+        return reverse("admin:games_game_change", args=(self.obj.id,))
 
 
 @RegisterAction
 class GameDeleteAction(GameAction):
-    TITLE = 'Удалить'
+    TITLE = "Удалить"
 
     @classmethod
     def IsAllowed(cls, request, obj):
@@ -142,11 +156,11 @@ class GameDeleteAction(GameAction):
 
 @RegisterAction
 class GameEditAction(GameAction):
-    TITLE = 'Править'
+    TITLE = "Править"
 
     @classmethod
     def IsAllowed(cls, request, obj):
         return request.perm(obj.edit_perm)
 
     def GetUrl(self):
-        return reverse('edit_game', kwargs={'game_id': self.obj.id})
+        return reverse("edit_game", kwargs={"game_id": self.obj.id})

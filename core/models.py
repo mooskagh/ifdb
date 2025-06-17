@@ -1,11 +1,15 @@
-from django.contrib.auth.models import (AbstractBaseUser, PermissionsMixin,
-                                        UserManager)
+from django.conf import settings
+from django.contrib.auth.models import (
+    AbstractBaseUser,
+    PermissionsMixin,
+    UserManager,
+)
 from django.core.mail import send_mail
 from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import ugettext as _
-from django.conf import settings
+
 from games.models import Game
 
 
@@ -19,52 +23,63 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         default_permissions = ()
-        verbose_name = _('User')
-        verbose_name_plural = _('Users')
+        verbose_name = _("User")
+        verbose_name_plural = _("Users")
         abstract = False
 
     def __str__(self):
         return self.username or self.email
 
     email = models.EmailField(
-        _('email address'),
+        _("email address"),
         unique=True,
         error_messages={
-            'unique': _("A user with that email already exists."),
-        })
+            "unique": _("A user with that email already exists."),
+        },
+    )
     username = models.CharField(
-        _('username'),
+        _("username"),
         max_length=60,
         unique=True,
         blank=True,
         null=True,
-        help_text=_('максимум 30 символов, ну и всякие другие требования'),
+        help_text=_("максимум 30 символов, ну и всякие другие требования"),
         validators=[
             RegexValidator(
-                r'^[\w\d_\.,\-]+(?: [\w\d_\.,\-]+)*$',
-                _('Enter a valid username. This value may contain only '
-                  'letters, numbers and _ character.'), 'invalid'),
+                r"^[\w\d_\.,\-]+(?: [\w\d_\.,\-]+)*$",
+                _(
+                    "Enter a valid username. This value may contain only "
+                    "letters, numbers and _ character."
+                ),
+                "invalid",
+            ),
         ],
         error_messages={
-            'unique': _("The username is already taken."),
-        })
+            "unique": _("The username is already taken."),
+        },
+    )
     is_staff = models.BooleanField(
-        _('Staff Status'),
+        _("Staff Status"),
         default=False,
-        help_text=_('Designates whether the user can log into this admin '
-                    'site.'))
+        help_text=_(
+            "Designates whether the user can log into this admin site."
+        ),
+    )
     is_active = models.BooleanField(
-        'Active',
+        "Active",
         default=True,
-        help_text=_('Designates whether this user should be treated as '
-                    'active. Unselect this instead of deleting accounts.'))
-    date_joined = models.DateTimeField(_('Date Joined'), default=timezone.now)
+        help_text=_(
+            "Designates whether this user should be treated as "
+            "active. Unselect this instead of deleting accounts."
+        ),
+    )
+    date_joined = models.DateTimeField(_("Date Joined"), default=timezone.now)
 
     objects = UserManager()
 
-    USERNAME_FIELD = 'email'
-    EMAIL_FIELD = 'email'
-    REQUIRED_FIELDS = ['username']
+    USERNAME_FIELD = "email"
+    EMAIL_FIELD = "email"
+    REQUIRED_FIELDS = ["username"]
 
     def get_full_name(self):
         """
@@ -94,17 +109,18 @@ class TaskQueueElement(models.Model):
     def __str__(self):
         def StatusStr():
             if self.fail:
-                return 'fail'
+                return "fail"
             if self.pending:
-                return 'pending'
+                return "pending"
             if self.success:
-                return 'success'
-            return 'none'
+                return "success"
+            return "none"
 
         return "%s -- %s (%s)" % (StatusStr(), self.name, self.command_json)
 
     name = models.CharField(
-        db_index=True, max_length=255, null=True, blank=True)
+        db_index=True, max_length=255, null=True, blank=True
+    )
     command_json = models.CharField(max_length=512)
     priority = models.IntegerField(default=100)
     # json:
@@ -121,7 +137,8 @@ class TaskQueueElement(models.Model):
     start_time = models.DateTimeField(null=True, blank=True)
     finish_time = models.DateTimeField(null=True, blank=True)
     dependency = models.ForeignKey(
-        'self', null=True, blank=True, on_delete=models.SET_NULL)
+        "self", null=True, blank=True, on_delete=models.SET_NULL
+    )
     pending = models.BooleanField(default=True)
     success = models.BooleanField(default=False)
     fail = models.BooleanField(default=False)
@@ -139,7 +156,8 @@ class Package(models.Model):
     download_perm = models.CharField(max_length=256, default="@all")
     edit_perm = models.CharField(max_length=256, default="@pkgadm")
     game = models.ForeignKey(
-        Game, null=True, blank=True, on_delete=models.CASCADE)
+        Game, null=True, blank=True, on_delete=models.CASCADE
+    )
 
 
 class PackageVersion(models.Model):
@@ -162,12 +180,14 @@ class PackageSession(models.Model):
         db_index=True,
         null=True,
         blank=True,
-        on_delete=models.SET_NULL)
+        on_delete=models.SET_NULL,
+    )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
         blank=True,
-        on_delete=models.SET_NULL)
+        on_delete=models.SET_NULL,
+    )
     client = models.CharField(max_length=64)
     duration_secs = models.IntegerField(null=True, blank=True)
     start_time = models.DateTimeField()
@@ -181,7 +201,8 @@ class Document(models.Model):
 
     slug = models.SlugField(db_index=True)
     parent = models.ForeignKey(
-        'Document', null=True, blank=True, on_delete=models.SET_NULL)
+        "Document", null=True, blank=True, on_delete=models.SET_NULL
+    )
     title = models.CharField(max_length=256)
     text = models.TextField()
     last_update = models.DateTimeField()
@@ -211,11 +232,12 @@ class Snippet(models.Model):
 class SnippetPin(models.Model):
     class Meta:
         default_permissions = ()
-        unique_together = (("snippet", "user"), )
+        unique_together = (("snippet", "user"),)
 
     snippet = models.ForeignKey(Snippet, on_delete=models.CASCADE)
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE
+    )
     is_hidden = models.BooleanField(default=False)
     order = models.SmallIntegerField(null=True, blank=True)
 
@@ -223,10 +245,10 @@ class SnippetPin(models.Model):
 class FeedCache(models.Model):
     class Meta:
         default_permissions = ()
-        unique_together = (("feed_id", "item_id"), )
+        unique_together = (("feed_id", "item_id"),)
         indexes = [
-            models.Index(fields=['date_published']),
-            models.Index(fields=['feed_id', 'item_id']),
+            models.Index(fields=["date_published"]),
+            models.Index(fields=["feed_id", "item_id"]),
         ]
 
     feed_id = models.CharField(max_length=32)

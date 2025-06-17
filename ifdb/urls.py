@@ -13,22 +13,25 @@ Including another URLconf
     1. Import the include() function: from django.conf.urls import url, include
     2. Add a URL to urlpatterns:  url(r'^blog/', include('blog.urls'))
 """
+
+from django.conf import settings
 from django.conf.urls import include, url
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.http.response import HttpResponseRedirect
-from django.conf import settings
-from django.conf.urls.static import static
 
 urlpatterns = [
-    url(r'^$', lambda r: HttpResponseRedirect('index/')),
-    url(r'^adminz/', admin.site.urls, name='admin'),
-    url(r'^', include('core.urls'), name='api'),
-    url(r'^', include('games.urls'), name='games'),
-    url(r'^', include('moder.urls'), name='moder'),
-    url(r'^jam/', include('contest.urls'), name='contest'),
-    url(r'^rss/', include('rss.urls'), name='rss'),
+    url(r"^$", lambda r: HttpResponseRedirect("index/")),
+    url(r"^adminz/", admin.site.urls, name="admin"),
+    url(r"^", include("core.urls"), name="api"),
+    url(r"^", include("games.urls"), name="games"),
+    url(r"^", include("moder.urls"), name="moder"),
+    url(r"^jam/", include("contest.urls"), name="contest"),
+    url(r"^rss/", include("rss.urls"), name="rss"),
 ]
 
 if settings.DEBUG:
-    urlpatterns = static(settings.MEDIA_URL,
-                         document_root=settings.MEDIA_ROOT) + urlpatterns
+    urlpatterns = (
+        static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+        + urlpatterns
+    )

@@ -1,0 +1,22 @@
+[tool.ruff]
+line-length = 79
+target-version = "py311"
+# Enable preview features
+preview = true
+
+[tool.ruff.lint]
+# Enable pycodestyle (`E`), Pyflakes (`F`), and isort (`I`) codes by default.
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# Django settings files use star imports
+"*/settings.py" = ["F403", "F405"]
+# Test file needs Django setup before imports
+"games/test_migration_comparison.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+# Enable preview mode for enhanced formatting
+preview = true

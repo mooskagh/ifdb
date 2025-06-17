@@ -4,45 +4,72 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('games', '0011_auto_20180102_0905'),
+        ("games", "0011_auto_20180102_0905"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='game',
-            name='delete_perm',
-            field=models.CharField(default='(alias game_delete)', max_length=255, verbose_name='Comment permission'),
+            model_name="game",
+            name="delete_perm",
+            field=models.CharField(
+                default="(alias game_delete)",
+                max_length=255,
+                verbose_name="Comment permission",
+            ),
         ),
         migrations.AddField(
-            model_name='game',
-            name='vote_perm',
-            field=models.CharField(default='(alias game_vote)', max_length=255, verbose_name='Comment permission'),
+            model_name="game",
+            name="vote_perm",
+            field=models.CharField(
+                default="(alias game_vote)",
+                max_length=255,
+                verbose_name="Comment permission",
+            ),
         ),
         migrations.AlterField(
-            model_name='game',
-            name='comment_perm',
-            field=models.CharField(default='(alias game_comment)', max_length=255, verbose_name='Comment permission'),
+            model_name="game",
+            name="comment_perm",
+            field=models.CharField(
+                default="(alias game_comment)",
+                max_length=255,
+                verbose_name="Comment permission",
+            ),
         ),
         migrations.AlterField(
-            model_name='game',
-            name='edit_perm',
-            field=models.CharField(default='(alias game_edit)', max_length=255, verbose_name='Edit permission'),
+            model_name="game",
+            name="edit_perm",
+            field=models.CharField(
+                default="(alias game_edit)",
+                max_length=255,
+                verbose_name="Edit permission",
+            ),
         ),
         migrations.AlterField(
-            model_name='game',
-            name='view_perm',
-            field=models.CharField(default='(alias game_view)', max_length=255, verbose_name='Game view permission'),
+            model_name="game",
+            name="view_perm",
+            field=models.CharField(
+                default="(alias game_view)",
+                max_length=255,
+                verbose_name="Game view permission",
+            ),
         ),
         migrations.AlterField(
-            model_name='personality',
-            name='edit_perm',
-            field=models.CharField(default='(alias personality_edit)', max_length=255, verbose_name='Edit permission'),
+            model_name="personality",
+            name="edit_perm",
+            field=models.CharField(
+                default="(alias personality_edit)",
+                max_length=255,
+                verbose_name="Edit permission",
+            ),
         ),
         migrations.AlterField(
-            model_name='personality',
-            name='view_perm',
-            field=models.CharField(default='(alias personality_view)', max_length=255, verbose_name='Game view permission'),
+            model_name="personality",
+            name="view_perm",
+            field=models.CharField(
+                default="(alias personality_view)",
+                max_length=255,
+                verbose_name="Game view permission",
+            ),
         ),
     ]

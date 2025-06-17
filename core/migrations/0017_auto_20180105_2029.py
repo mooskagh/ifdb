@@ -4,18 +4,17 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0016_snippetpins'),
+        ("core", "0016_snippetpins"),
     ]
 
     operations = [
         migrations.RenameModel(
-            old_name='SnippetPins',
-            new_name='SnippetPin',
+            old_name="SnippetPins",
+            new_name="SnippetPin",
         ),
         migrations.AlterUniqueTogether(
-            name='snippetpin',
-            unique_together={('snippet', 'user')},
+            name="snippetpin",
+            unique_together={("snippet", "user")},
         ),
     ]

@@ -4,66 +4,206 @@ from __future__ import unicode_literals
 
 import django.contrib.auth.models
 import django.core.validators
-from django.db import migrations, models
 import django.db.models.deletion
 import django.utils.timezone
+from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-        ('auth', '0008_alter_user_username_max_length'),
+        ("auth", "0008_alter_user_username_max_length"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='User',
+            name="User",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('password', models.CharField(max_length=128, verbose_name='password')),
-                ('last_login', models.DateTimeField(blank=True, null=True, verbose_name='last login')),
-                ('is_superuser', models.BooleanField(default=False, help_text='Designates that this user has all permissions without explicitly assigning them.', verbose_name='superuser status')),
-                ('email', models.EmailField(error_messages={'unique': 'A user with that email already exists.'}, max_length=254, unique=True, verbose_name='адрес электронной почты')),
-                ('username', models.CharField(blank=True, error_messages={'unique': 'The username is already taken.'}, help_text='максимум 30 символов, ну и всякие другие требования', max_length=30, null=True, unique=True, validators=[django.core.validators.RegexValidator('^[\\w\\d_\\.,\\-]+(?: [\\w\\d_\\.,\\-]+)*$', 'Enter a valid username. This value may contain only letters, numbers and _ character.', 'invalid')], verbose_name='имя пользователя')),
-                ('is_staff', models.BooleanField(default=False, help_text='Отметьте, если пользователь может входить в административную часть сайта.', verbose_name='Staff Status')),
-                ('is_active', models.BooleanField(default=True, help_text='Отметьте, если пользователь должен считаться активным. Уберите эту отметку вместо удаления учётной записи.', verbose_name='Действие')),
-                ('date_joined', models.DateTimeField(default=django.utils.timezone.now, verbose_name='Date Joined')),
-                ('groups', models.ManyToManyField(blank=True, help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.', related_name='user_set', related_query_name='user', to='auth.Group', verbose_name='groups')),
-                ('user_permissions', models.ManyToManyField(blank=True, help_text='Specific permissions for this user.', related_name='user_set', related_query_name='user', to='auth.Permission', verbose_name='user permissions')),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "password",
+                    models.CharField(max_length=128, verbose_name="password"),
+                ),
+                (
+                    "last_login",
+                    models.DateTimeField(
+                        blank=True, null=True, verbose_name="last login"
+                    ),
+                ),
+                (
+                    "is_superuser",
+                    models.BooleanField(
+                        default=False,
+                        help_text=(
+                            "Designates that this user has all permissions"
+                            " without explicitly assigning them."
+                        ),
+                        verbose_name="superuser status",
+                    ),
+                ),
+                (
+                    "email",
+                    models.EmailField(
+                        error_messages={
+                            "unique": "A user with that email already exists."
+                        },
+                        max_length=254,
+                        unique=True,
+                        verbose_name="адрес электронной почты",
+                    ),
+                ),
+                (
+                    "username",
+                    models.CharField(
+                        blank=True,
+                        error_messages={
+                            "unique": "The username is already taken."
+                        },
+                        help_text=(
+                            "максимум 30 символов, ну и всякие другие"
+                            " требования"
+                        ),
+                        max_length=30,
+                        null=True,
+                        unique=True,
+                        validators=[
+                            django.core.validators.RegexValidator(
+                                "^[\\w\\d_\\.,\\-]+(?: [\\w\\d_\\.,\\-]+)*$",
+                                "Enter a valid username. This value may"
+                                " contain only letters, numbers and _"
+                                " character.",
+                                "invalid",
+                            )
+                        ],
+                        verbose_name="имя пользователя",
+                    ),
+                ),
+                (
+                    "is_staff",
+                    models.BooleanField(
+                        default=False,
+                        help_text=(
+                            "Отметьте, если пользователь может входить в"
+                            " административную часть сайта."
+                        ),
+                        verbose_name="Staff Status",
+                    ),
+                ),
+                (
+                    "is_active",
+                    models.BooleanField(
+                        default=True,
+                        help_text=(
+                            "Отметьте, если пользователь должен считаться"
+                            " активным. Уберите эту отметку вместо удаления"
+                            " учётной записи."
+                        ),
+                        verbose_name="Действие",
+                    ),
+                ),
+                (
+                    "date_joined",
+                    models.DateTimeField(
+                        default=django.utils.timezone.now,
+                        verbose_name="Date Joined",
+                    ),
+                ),
+                (
+                    "groups",
+                    models.ManyToManyField(
+                        blank=True,
+                        help_text=(
+                            "The groups this user belongs to. A user will get"
+                            " all permissions granted to each of their groups."
+                        ),
+                        related_name="user_set",
+                        related_query_name="user",
+                        to="auth.Group",
+                        verbose_name="groups",
+                    ),
+                ),
+                (
+                    "user_permissions",
+                    models.ManyToManyField(
+                        blank=True,
+                        help_text="Specific permissions for this user.",
+                        related_name="user_set",
+                        related_query_name="user",
+                        to="auth.Permission",
+                        verbose_name="user permissions",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Пользователь',
-                'verbose_name_plural': 'Users',
-                'abstract': False,
+                "verbose_name": "Пользователь",
+                "verbose_name_plural": "Users",
+                "abstract": False,
             },
             managers=[
-                ('objects', django.contrib.auth.models.UserManager()),
+                ("objects", django.contrib.auth.models.UserManager()),
             ],
         ),
         migrations.CreateModel(
-            name='TaskQueueElement',
+            name="TaskQueueElement",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(blank=True, db_index=True, max_length=255, null=True)),
-                ('command_json', models.CharField(max_length=512)),
-                ('priority', models.IntegerField(default=100)),
-                ('onfail_json', models.CharField(blank=True, max_length=512, null=True)),
-                ('retries_left', models.IntegerField(default=3)),
-                ('retry_minutes', models.IntegerField(default=2000)),
-                ('cron', models.CharField(blank=True, max_length=32, null=True)),
-                ('enqueue_time', models.DateTimeField(blank=True, null=True)),
-                ('scheduled_time', models.DateTimeField(blank=True, null=True)),
-                ('start_time', models.DateTimeField(blank=True, null=True)),
-                ('finish_time', models.DateTimeField(blank=True, null=True)),
-                ('pending', models.BooleanField(default=True)),
-                ('success', models.BooleanField(default=False)),
-                ('fail', models.BooleanField(default=False)),
-                ('dependency', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='core.TaskQueueElement')),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "name",
+                    models.CharField(
+                        blank=True, db_index=True, max_length=255, null=True
+                    ),
+                ),
+                ("command_json", models.CharField(max_length=512)),
+                ("priority", models.IntegerField(default=100)),
+                (
+                    "onfail_json",
+                    models.CharField(blank=True, max_length=512, null=True),
+                ),
+                ("retries_left", models.IntegerField(default=3)),
+                ("retry_minutes", models.IntegerField(default=2000)),
+                (
+                    "cron",
+                    models.CharField(blank=True, max_length=32, null=True),
+                ),
+                ("enqueue_time", models.DateTimeField(blank=True, null=True)),
+                (
+                    "scheduled_time",
+                    models.DateTimeField(blank=True, null=True),
+                ),
+                ("start_time", models.DateTimeField(blank=True, null=True)),
+                ("finish_time", models.DateTimeField(blank=True, null=True)),
+                ("pending", models.BooleanField(default=True)),
+                ("success", models.BooleanField(default=False)),
+                ("fail", models.BooleanField(default=False)),
+                (
+                    "dependency",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="core.TaskQueueElement",
+                    ),
+                ),
             ],
             options={
-                'default_permissions': (),
+                "default_permissions": (),
             },
         ),
     ]

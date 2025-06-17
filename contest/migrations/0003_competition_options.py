@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('contest', '0002_auto_20180203_1917'),
+        ("contest", "0002_auto_20180203_1917"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='competition',
-            name='options',
-            field=models.TextField(default='{}'),
+            model_name="competition",
+            name="options",
+            field=models.TextField(default="{}"),
         ),
     ]

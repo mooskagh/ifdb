@@ -1,23 +1,24 @@
 import json
-from django.http.response import JsonResponse
 from logging import getLogger
+
+from django.http.response import JsonResponse
 from django.template.loader import render_to_string
 
-logger = getLogger('web')
+logger = getLogger("web")
 
 BUTTON_LABELS = {
-    'ok': 'OK',
-    'cancel': 'Отменить',
+    "ok": "OK",
+    "cancel": "Отменить",
 }
 
 
 class ModerAction:
-    TITLE = '(no title)'
+    TITLE = "(no title)"
     ICON = None
-    PERM = '@admin'
+    PERM = "@admin"
     MODEL = None
-    BUTTONS = ['ok', 'cancel']
-    BUTTONS_NEED_FORM = {'ok'}
+    BUTTONS = ["ok", "cancel"]
+    BUTTONS_NEED_FORM = {"ok"}
 
     def __init__(self, request, obj):
         self.request = request
@@ -40,51 +41,53 @@ class ModerAction:
         if self.obj:
             return self.obj.id
         else:
-            return ''
+            return ""
 
     def OnAction(self, action, form):
-        execute = 'form' in self.state
+        execute = "form" in self.state
         buttons = []
         if execute:
-            form = self.state['form']
-            buttons = [{'id': 'cancel', 'label': 'ОК!'}]
+            form = self.state["form"]
+            buttons = [{"id": "cancel", "label": "ОК!"}]
         else:
-            self.state['form'] = form
-            buttons = [{
-                'id': 'ok',
-                'label': 'ОК'
-            }, {
-                'id': 'cancel',
-                'label': 'Cancel'
-            }]
+            self.state["form"] = form
+            buttons = [
+                {"id": "ok", "label": "ОК"},
+                {"id": "cancel", "label": "Cancel"},
+            ]
         return {
-            'raw': self.DoAction(action, form, execute),
-            'buttons': buttons
+            "raw": self.DoAction(action, form, execute),
+            "buttons": buttons,
         }
 
     def DoAction(self, action, form, execute):
         return "(no action defined: %s, Execute:%s)" % (action, execute)
 
     def Handle(self, form, action):
-        if (action == 'cancel'):
+        if action == "cancel":
             return None
 
         f = self.GetForm(form if action else None)
         buttons = []
         override = {}
-        rendered_form = ''
-        if 'form' not in self.state and f and not f.is_valid() and (
-                not action or action in self.BUTTONS_NEED_FORM):
+        rendered_form = ""
+        if (
+            "form" not in self.state
+            and f
+            and not f.is_valid()
+            and (not action or action in self.BUTTONS_NEED_FORM)
+        ):
             for x in self.BUTTONS:
-                buttons.append({'id': x, 'label': BUTTON_LABELS[x]})
+                buttons.append({"id": x, "label": BUTTON_LABELS[x]})
 
             if f:
-                if hasattr(f, 'as_form'):
+                if hasattr(f, "as_form"):
                     rendered_form = f.as_form()
                 else:
                     rendered_form = (
-                        '<table class="moder-form-table">%s</table>' %
-                        f.as_table())
+                        '<table class="moder-form-table">%s</table>'
+                        % f.as_table()
+                    )
         else:
             if f and f.is_valid():
                 form_data = f.cleaned_data
@@ -92,13 +95,15 @@ class ModerAction:
                 form_data = {}
             override = self.OnAction(action, form_data)
 
-        return render_to_string('moder/moder.html', {
-            'raw': None,
-            'form': rendered_form,
-            'buttons': buttons,
-            **
-            override,
-        })
+        return render_to_string(
+            "moder/moder.html",
+            {
+                "raw": None,
+                "form": rendered_form,
+                "buttons": buttons,
+                **override,
+            },
+        )
 
     def SetState(self, state):
         self.state = state
@@ -157,14 +162,16 @@ def GetModerActions(request, context, obj=None):
 
 
 def HandleAction(request):
-    j = json.loads(request.POST.get('request'))
-    object = j['object']
+    j = json.loads(request.POST.get("request"))
+    object = j["object"]
 
     action = None
     for x in ACTIONS:
-        if (x.GetContext() == object['ctx']
-                and x.GetClassName() == object['cls']):
-            obj = x.EnsureObj(object.get('obj'))
+        if (
+            x.GetContext() == object["ctx"]
+            and x.GetClassName() == object["cls"]
+        ):
+            obj = x.EnsureObj(object.get("obj"))
             if not x.IsAllowed(request, obj):
                 continue
             action = x
@@ -173,15 +180,15 @@ def HandleAction(request):
         return JsonResponse({})
 
     action = action(request, obj)
-    action.SetState(j.get('state', {}))
+    action.SetState(j.get("state", {}))
     try:
-        content = action.Handle(form=j.get('form', {}), action=j.get('action'))
+        content = action.Handle(form=j.get("form", {}), action=j.get("action"))
     except Exception as e:
         logger.exception("Error while running moder action")
-        return JsonResponse({'error': str(e)})
+        return JsonResponse({"error": str(e)})
 
     return JsonResponse({
-        'object': object,
-        'state': action.GetState(),
-        'content': content,
+        "object": object,
+        "state": action.GetState(),
+        "content": content,
     })

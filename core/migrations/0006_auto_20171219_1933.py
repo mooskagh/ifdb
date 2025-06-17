@@ -6,15 +6,14 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0005_snippet'),
+        ("core", "0005_snippet"),
     ]
 
     operations = [
         migrations.RenameField(
-            model_name='snippet',
-            old_name='edit_perm',
-            new_name='view_perm',
+            model_name="snippet",
+            old_name="edit_perm",
+            new_name="view_perm",
         ),
     ]

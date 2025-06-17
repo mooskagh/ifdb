@@ -1,5 +1,5 @@
-from django.db import models
 from django.conf import settings
+from django.db import models
 
 
 class UserLog(models.Model):
@@ -10,7 +10,8 @@ class UserLog(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
-        blank=True)
+        blank=True,
+    )
     action = models.CharField(max_length=32)
     ip_addr = models.CharField(max_length=50, null=True, blank=True)
     session = models.CharField(max_length=32, null=True, blank=True)

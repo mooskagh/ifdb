@@ -1,20 +1,22 @@
-from .tools import CategorizeUrl, CategorizeAuthorUrl
-from core.crawler import FetchUrlToString
-from logging import getLogger
-from mediawiki_parser import wikitextParser, preprocessorParser, apostrophes
-from pijnu.library.node import Nodes
-from urllib.parse import unquote, quote
 import datetime
 import json
 import re
 import time
+from logging import getLogger
+from urllib.parse import quote, unquote
 
-logger = getLogger('crawler')
+import mwparserfromhell
+
+from core.crawler import FetchUrlToString
+
+from .tools import CategorizeAuthorUrl, CategorizeUrl
+
+logger = getLogger("crawler")
 
 
 class IfwikiImporter:
     def MatchWithCat(self, url, cat):
-        return cat == 'game_page' and self.Match(url)
+        return cat == "game_page" and self.Match(url)
 
     def Match(self, url):
         return IFWIKI_URL.match(url)
@@ -29,86 +31,95 @@ class IfwikiImporter:
         return ImportAuthorFromIfwiki(url)
 
     def GetUrlCandidates(self):
-        return FetchCategoryUrls('Игры')
+        return FetchCategoryUrls("Игры")
 
     def GetDirtyUrls(self, age_minutes=60 * 14):
         return GetDirtyUrls(age_minutes)
 
 
 CATEGORY_STR = (
-    r'ifwiki.ru/%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D1%8F:')
+    r"ifwiki.ru/%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D1%8F:"
+)
 
 ALLOW_INTERNAL_LINKS = False
 
 
 def _batch(iterable, n=40):
-    l = len(iterable)
-    for ndx in range(0, l, n):
-        yield iterable[ndx:min(ndx + n, l)]
+    length = len(iterable)
+    for ndx in range(0, length, n):
+        yield iterable[ndx : min(ndx + n, length)]
 
 
 def GetDirtyUrls(age_minutes):
     ids = set()
     r = json.loads(
         FetchUrlToString(
-            r'http://ifwiki.ru/api.php?action=query&list=recentchanges&'
-            r'rclimit=500&format=json&rcend=%d' %
-            int(time.time() - 60 * age_minutes),
-            use_cache=False))['query']['recentchanges']
+            r"http://ifwiki.ru/api.php?action=query&list=recentchanges&"
+            r"rclimit=500&format=json&rcend=%d"
+            % int(time.time() - 60 * age_minutes),
+            use_cache=False,
+        )
+    )["query"]["recentchanges"]
 
     for x in r:
-        ids.add(x['pageid'])
+        ids.add(x["pageid"])
 
     res = []
     for batch in _batch(list(ids)):
-        pageidlist = '|'.join(["%d" % x for x in batch if x != 0])
+        pageidlist = "|".join([str(x) for x in batch if x != 0])
         if not pageidlist:
             continue
         r = json.loads(
             FetchUrlToString(
-                r'http://ifwiki.ru/api.php?action=query&prop=info&format=json&'
-                r'inprop=url&pageids=' + pageidlist,
-                use_cache=False))
-        for _, v in r['query']['pages'].items():
-            if 'fullurl' in v:
-                res.append(v['fullurl'])
+                r"http://ifwiki.ru/api.php?action=query&prop=info&format=json&"
+                r"inprop=url&pageids=" + pageidlist,
+                use_cache=False,
+            )
+        )
+        for _, v in r["query"]["pages"].items():
+            if "fullurl" in v:
+                res.append(v["fullurl"])
     return res
 
 
 def FetchCategoryUrls(category):
-    keystart = ''
+    keystart = ""
     ids = set()
 
     while True:
         r = json.loads(
             FetchUrlToString(
-                r'http://ifwiki.ru/api.php?action=query&list=categorymembers&'
-                r'cmtitle=%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0'
-                r'%B8%D1%8F:' + quote(category) + r'&rawcontinue=1&'
-                r'cmlimit=400&format=json&cmsort=sortkey&'
-                r'cmprop=ids|title|sortkey&cmstarthexsortkey=' + keystart,
-                use_cache=False))
-        res = r['query']['categorymembers']
+                r"http://ifwiki.ru/api.php?action=query&list=categorymembers&"
+                r"cmtitle=%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0"
+                r"%B8%D1%8F:" + quote(category) + r"&rawcontinue=1&"
+                r"cmlimit=400&format=json&cmsort=sortkey&"
+                r"cmprop=ids|title|sortkey&cmstarthexsortkey=" + keystart,
+                use_cache=False,
+            )
+        )
+        res = r["query"]["categorymembers"]
 
         for x in res:
-            ids.add(x['pageid'])
+            ids.add(x["pageid"])
 
         if len(res) <= 300:
             break
         else:
-            keystart = res[-1]['sortkey']
+            keystart = res[-1]["sortkey"]
 
     res = []
     for batch in _batch(list(ids)):
-        pageidlist = '|'.join(["%d" % x for x in batch])
+        pageidlist = "|".join([str(x) for x in batch])
         r = json.loads(
             FetchUrlToString(
-                r'http://ifwiki.ru/api.php?action=query&prop=info&format=json&'
-                r'inprop=url&pageids=' + pageidlist,
-                use_cache=False))
-        for _, v in r['query']['pages'].items():
-            if CATEGORY_STR not in v['fullurl']:
-                res.append(v['fullurl'])
+                r"http://ifwiki.ru/api.php?action=query&prop=info&format=json&"
+                r"inprop=url&pageids=" + pageidlist,
+                use_cache=False,
+            )
+        )
+        for _, v in r["query"]["pages"].items():
+            if CATEGORY_STR not in v["fullurl"]:
+                res.append(v["fullurl"])
     return res
 
 
@@ -117,10 +128,10 @@ def CapitalizeFirstLetter(x):
 
 
 def WikiQuote(name):
-    return quote(CapitalizeFirstLetter(name.replace(' ', '_')))
+    return quote(CapitalizeFirstLetter(name.replace(" ", "_")))
 
 
-REDIRECT_RE = re.compile('#(?:REDIRECT|ПЕРЕНАПРАВЛЕНИЕ)\s*\[\[(.*)\]\]')
+REDIRECT_RE = re.compile(r"#(?:REDIRECT|ПЕРЕНАПРАВЛЕНИЕ)\s*\[\[(.*)\]\]")
 
 
 def ImportAuthorFromIfwiki(url, res=None):
@@ -129,36 +140,31 @@ def ImportAuthorFromIfwiki(url, res=None):
     m = IFWIKI_URL.match(url)
 
     try:
-        fetch_url = '%s/index.php?title=%s&action=raw' % (m.group(1),
-                                                          m.group(2))
-        name = unquote(m.group(2)).replace('_', ' ')
-        cont = FetchUrlToString(fetch_url) + '\n'
-    except Exception as e:
+        fetch_url = f"{m.group(1)}/index.php?title={m.group(2)}&action=raw"
+        name = unquote(m.group(2)).replace("_", " ")
+        cont = FetchUrlToString(fetch_url) + "\n"
+    except Exception:
         logger.info(
-            "Error while importing [%s] from Ifwiki" % url, exc_info=True)
+            f"Error while importing [{url}] from Ifwiki", exc_info=True
+        )
         return {}
 
     m = REDIRECT_RE.match(cont)
     if m:
-        res['canonical'] = m.group(1)
-        url_to_fetch = ('http://ifwiki.ru/%s' % WikiQuote(res['canonical']))
-        res['canonical_url'] = url_to_fetch
+        res["canonical"] = m.group(1)
+        url_to_fetch = f"http://ifwiki.ru/{WikiQuote(res['canonical'])}"
+        res["canonical_url"] = url_to_fetch
         return ImportAuthorFromIfwiki(url_to_fetch, res)
 
     context = WikiAuthorParsingContext(name, url)
-    preproc = preprocessorParser.make_parser(toolset_preproc(context))
-    parser = wikitextParser.make_parser(toolset_wiki(context))
+    parsed_wikitext = mwparserfromhell.parse(cont)
 
-    try:
-        pre_text = preproc.parse(cont)
-        output = parser.parse(pre_text.leaves())
-    except Exception as e:
-        logger.exception('Error while parsing %s' % url)
-        return {'error': 'Какая-то ошибка при парсинге. Надо сказать админам.'}
+    # Convert to markdown-like text
+    output = process_wikitext_for_author(parsed_wikitext, context)
 
-    res['name'] = name
-    res['bio'] = output.leaves() + '\n\n_(описание взято с сайта ifwiki.ru)_'
-    res.setdefault('urls', []).extend(context.urls)
+    res["name"] = name
+    res["bio"] = output + "\n\n_(описание взято с сайта ifwiki.ru)_"
+    res.setdefault("urls", []).extend(context.urls)
 
     return res
 
@@ -167,70 +173,66 @@ def ImportFromIfwiki(url):
     m = IFWIKI_URL.match(url)
 
     try:
-        fetch_url = '%s/index.php?title=%s&action=raw' % (m.group(1),
-                                                          m.group(2))
-        cont = FetchUrlToString(fetch_url) + '\n'
-    except Exception as e:
-        logger.exception("Error while importing [%s] from Ifwiki" % url)
-        return {'error': 'Не открывается что-то этот URL.'}
+        fetch_url = f"{m.group(1)}/index.php?title={m.group(2)}&action=raw"
+        cont = FetchUrlToString(fetch_url) + "\n"
+    except Exception:
+        logger.exception(f"Error while importing [{url}] from Ifwiki")
+        return {"error": "Не открывается что-то этот URL."}
 
-    res = {'priority': 100}
+    res = {"priority": 100}
 
-    context = WikiParsingContext(unquote(m.group(2)).replace('_', ' '), url)
-
-    preproc = preprocessorParser.make_parser(toolset_preproc(context))
-    parser = wikitextParser.make_parser(toolset_wiki(context))
+    context = WikiParsingContext(unquote(m.group(2)).replace("_", " "), url)
 
     try:
-        pre_text = preproc.parse(cont)
-        output = parser.parse(pre_text.leaves())
-    except Exception as e:
-        logger.exception('Error while parsing %s' % url)
-        return {'error': 'Какая-то ошибка при парсинге. Надо сказать админам.'}
+        parsed_wikitext = mwparserfromhell.parse(cont)
+        output = process_wikitext_for_game(parsed_wikitext, context)
+    except Exception:
+        logger.exception(f"Error while parsing {url}")
+        return {"error": "Какая-то ошибка при парсинге. Надо сказать админам."}
 
-    res['title'] = context.title
-    res['desc'] = output.leaves() + '\n\n_(описание взято с сайта ifwiki.ru)_'
+    res["title"] = context.title
+    res["desc"] = output + "\n\n_(описание взято с сайта ifwiki.ru)_"
     if context.release_date:
-        res['release_date'] = context.release_date
-    res['authors'] = context.authors
-    res['tags'] = context.tags
-    res['urls'] = context.urls
+        res["release_date"] = context.release_date
+    res["authors"] = context.authors
+    res["tags"] = context.tags
+    res["urls"] = context.urls
 
     return res
 
 
-IFWIKI_URL = re.compile(r'(https?://ifwiki.ru)/([^?]+)')
-IFWIKI_LINK_PARSE = re.compile(r'\[\[(.*?)\]\]')
+IFWIKI_URL = re.compile(r"(https?://ifwiki.ru)/([^?]+)")
+IFWIKI_LINK_PARSE = re.compile(r"\[\[(.*?)\]\]")
 IFWIKI_LINK_INTERNALS_PARSE = re.compile(
-    r'^(?:([^:\]|]*)::?)?([^:\]|]+)(?:\|([^\]|]+))?(?:\|([^\]]+))?$')
+    r"^(?:([^:\]|]*)::?)?([^:\]|]+)(?:\|([^\]|]+))?(?:\|([^\]]+))?$"
+)
 
-IFWIKI_ROLES = [
-    ('автор', 'author'),
-    ('Автор', 'author'),
-    ('Переводчик', 'translator'),
-    ('Персонаж', 'character'),
-    ('Тестировщик', 'tester'),
-    ('Участник', 'member'),
-    ('Иллюстратор', 'artist'),
-    ('Программист', 'programmer'),
-    ('Композитор', 'composer'),
-]
-IFWIKI_IGNORE_ROLES = ['Категория']
+IFWIKI_ROLES = {
+    "автор": "author",
+    "переводчик": "translator", 
+    "персонаж": "character",
+    "тестировщик": "tester",
+    "участник": "member",
+    "иллюстратор": "artist",
+    "программист": "programmer",
+    "композитор": "composer",
+}
+IFWIKI_IGNORE_ROLES = {"Категория"}
 
 IFWIKI_COMPETITIONS = {
-    'Конкурс': '{_1}',
-    'ЛОК': 'ЛОК-{_1}',
-    'ЗОК': 'ЗОК-{_1}',
-    'КРИЛ': 'КРИЛ-{_1}',
-    'goldhamster': 'Золотой Хомяк {_1}',
-    'qspcompo': 'QSP-Compo {_1}',
-    'Проект 31': 'Проект 31',
-    'Ludum Dare': 'Ludum Dare {_1}',
+    "Конкурс": "{_1}",
+    "ЛОК": "ЛОК-{_1}",
+    "ЗОК": "ЗОК-{_1}",
+    "КРИЛ": "КРИЛ-{_1}",
+    "goldhamster": "Золотой Хомяк {_1}",
+    "qspcompo": "QSP-Compo {_1}",
+    "Проект 31": "Проект 31",
+    "Ludum Dare": "Ludum Dare {_1}",
 }
 
-IFWIKI_IGNORE = ['ЗаглушкаТекста', 'ЗаглушкаСсылок']
+IFWIKI_IGNORE = {"ЗаглушкаТекста", "ЗаглушкаСсылок"}
 
-GAMEINFO_IGNORE = ['ширинаобложки', 'высотаобложки']
+GAMEINFO_IGNORE = {"ширинаобложки", "высотаобложки"}
 
 
 class WikiAuthorParsingContext:
@@ -238,9 +240,9 @@ class WikiAuthorParsingContext:
         self.name = name
         self.url = url
         self.urls = [CategorizeAuthorUrl(url)]
-        self.title = '(no title)'
+        self.title = "(no title)"
 
-    def AddUrl(self, url, desc='', category=None, base=None):
+    def AddUrl(self, url, desc="", category=None, base=None):
         self.urls.append(CategorizeAuthorUrl(url, desc, category, base))
 
     def ProcessLink(self, text):
@@ -252,20 +254,21 @@ class WikiAuthorParsingContext:
         typ = m.group(3)
         display_name = m.group(4)
 
-        if role in ['Медиа', 'Media', 'Изображение', 'Image']:
-            self.AddUrl('/files/' + WikiQuote(name), display_name, 'avatar'
-                        if typ == 'thumb' else 'download_direct', self.url)
+        if role in ["Медиа", "Media", "Изображение", "Image"]:
+            self.AddUrl(
+                "/files/" + WikiQuote(name),
+                display_name,
+                "avatar" if typ == "thumb" else "download_direct",
+                self.url,
+            )
         elif role:
-            logger.warning('Unknown role %s' % role)
+            logger.warning(f"Unknown role {role}")
 
         if display_name:
             return display_name
         if role:
-            return "%s" % name
+            return name
         return name
-
-    def ParseTemplate(self, node):
-        return ''
 
 
 class WikiParsingContext:
@@ -277,7 +280,7 @@ class WikiParsingContext:
         self.urls = [CategorizeUrl(url)]
         self.url = url
 
-    def AddUrl(self, url, desc='', category=None, base=None):
+    def AddUrl(self, url, desc="", category=None, base=None):
         self.urls.append(CategorizeUrl(url, desc, category, base))
 
     def ProcessLink(self, text, default_role=None):
@@ -290,410 +293,277 @@ class WikiParsingContext:
         display_name = m.group(4)
 
         if role in IFWIKI_IGNORE_ROLES:
-            return ''
+            return ""
 
-        for r, t in IFWIKI_ROLES:
-            if r == role:
-                self.authors.append({
-                    'role_slug': (t),
-                    'name': (display_name or name),
-                    'url': ("http://ifwiki.ru/%s" % WikiQuote(name)),
-                    'urldesc': "Страница автора на ifwiki",
-                })
-                break
+        role_lower = role.lower() if role else None
+        if role_lower in IFWIKI_ROLES:
+            self.authors.append({
+                "role_slug": IFWIKI_ROLES[role_lower],
+                "name": display_name or name,
+                "url": f"http://ifwiki.ru/{WikiQuote(name)}",
+                "urldesc": "Страница автора на ifwiki",
+            })
         else:
-            if role in ['Медиа', 'Media', 'Изображение', 'Image']:
+            if role in {"Медиа", "Media", "Image"}:
                 self.AddUrl(
-                    '/files/' + WikiQuote(name), display_name, base=self.url)
-            elif role in ['Изображение']:
-                self.AddUrl('/files/' + WikiQuote(name), display_name,
-                            'screenshot', self.url)
-            elif role == 'Тема':
-                self.tags.append({'cat_slug': 'tag', 'tag': name})
-            elif role == 'ifwiki-en':
-                self.AddUrl('http://ifwiki.org/index.php/' + WikiQuote(name),
-                            display_name, 'game_page')
+                    "/files/" + WikiQuote(name), display_name, base=self.url
+                )
+            elif role == "Изображение":
+                self.AddUrl(
+                    "/files/" + WikiQuote(name),
+                    display_name,
+                    "screenshot",
+                    self.url,
+                )
+            elif role == "Тема":
+                self.tags.append({"cat_slug": "tag", "tag": name})
+            elif role == "ifwiki-en":
+                self.AddUrl(
+                    "http://ifwiki.org/index.php/" + WikiQuote(name),
+                    display_name,
+                    "game_page",
+                )
             elif role:
-                logger.warning('Unknown role %s' % role)
+                logger.warning(f"Unknown role {role}")
                 # self.authors.append({'role_slug': 'member', 'name': name})
             elif default_role:
                 self.authors.append({
-                    'role_slug': default_role,
-                    'name': name,
+                    "role_slug": default_role,
+                    "name": name,
                 })
             elif ALLOW_INTERNAL_LINKS:
-                self.AddUrl("http://ifwiki.ru/%s" % WikiQuote(name),
-                            display_name or name)
+                self.AddUrl(
+                    f"http://ifwiki.ru/{WikiQuote(name)}",
+                    display_name or name,
+                )
         if display_name:
             return display_name
         if role:
-            return "%s:%s" % (role, name)
+            return f"{role}:{name}"
         return name
 
     def ProcessGameinfo(self, params):
+        """Process game info template parameters elegantly."""
+
+        def add_tag(cat_slug, tag):
+            self.tags.append({"cat_slug": cat_slug, "tag": tag})
+
+        def parse_date(date_str):
+            try:
+                return datetime.datetime.strptime(date_str, "%d.%m.%Y").date()
+            except ValueError:
+                return None
+
+        handlers = {
+            "автор": lambda v: [
+                self.ProcessLink(m.group(1))
+                for m in IFWIKI_LINK_PARSE.finditer(v)
+            ],
+            "название": lambda v: setattr(self, "title", v),
+            "вышла": lambda v: setattr(self, "release_date", parse_date(v)),
+            "платформа": lambda v: add_tag("platform", v),
+            "язык": lambda v: add_tag("language", v),
+            "темы": lambda v: [
+                add_tag("tag", t.strip()) for t in v.split(",") if t.strip()
+            ],
+            "обложка": lambda v: self.AddUrl(
+                f"/files/{WikiQuote(v)}", "Обложка", "poster", self.url
+            ),
+            "IFID": lambda v: add_tag("ifid", v),
+        }
+
         for k, v in params.items():
-            if k == 'автор':
-                for m in IFWIKI_LINK_PARSE.finditer(v):
-                    self.ProcessLink(m.group(1))
-            elif k == 'название':
-                self.title = v
-            elif k == 'вышла':
-                try:
-                    self.release_date = datetime.datetime.strptime(
-                        v, "%d.%m.%Y").date()
-                except:
-                    # TODO(crem) Support incomplete dates
-                    pass
-            elif k == 'платформа':
-                self.tags.append({'cat_slug': 'platform', 'tag': v})
-            elif k == 'язык':
-                self.tags.append({'cat_slug': 'language', 'tag': v})
-            elif k == 'темы':
-                for t in [x.strip() for x in v.split(',')]:
-                    self.tags.append({'cat_slug': 'tag', 'tag': t})
-            elif k == 'обложка':
-                self.AddUrl('/files/' + WikiQuote(v), 'Обложка', 'poster',
-                            self.url)
-            elif k == 'IFID':
-                self.tags.append({'cat_slug': 'ifid', 'tag': v})
-            elif k in ['1', '2'] and not v.strip():
-                pass
+            if k in handlers:
+                handlers[k](v)
+            elif k in {"1", "2"} and not v.strip():
+                continue
             elif k in GAMEINFO_IGNORE:
-                pass
+                continue
             else:
-                logger.warning('Unknown gameinfo tag: %s %s' % (k, v))
+                logger.warning(f"Unknown gameinfo tag: {k} {v}")
 
     def DispatchTemplate(self, name, params):
-        if name == 'PAGENAME':
+        """Dispatch template processing with elegant handlers."""
+
+        def add_tag(cat_slug, tag, tag_slug=None):
+            tag_dict = {"cat_slug": cat_slug, "tag": tag}
+            if tag_slug:
+                tag_dict["tag_slug"] = tag_slug
+            self.tags.append(tag_dict)
+
+        def handle_competition():
+            # Add numbered parameters with underscore prefix
+            p = {
+                **params,
+                **{f"_{k}": v for k, v in params.items() if k[0].isdigit()},
+            }
+            add_tag("competition", IFWIKI_COMPETITIONS[name].format(**p))
+            return ""
+
+        def handle_link():
+            self.AddUrl(params["на"], desc=params.get("1"))
+            if "архив" in params:
+                self.AddUrl(params["архив"])
+            return f"[{params['на']} {params.get('1') or 'ссылка'}]"
+
+        # Template handlers
+        if name == "PAGENAME":
             return self.title
-        if name == 'game info':
+        elif name == "game info":
             self.ProcessGameinfo(params)
-            return ''
-        if name in IFWIKI_COMPETITIONS:
-            p = {**params}
-            for k, v in params.items():
-                if k[0] in '0123456789':
-                    p["_%s" % k] = v
-            self.tags.append({
-                'cat_slug': 'competition',
-                'tag': (IFWIKI_COMPETITIONS[name].format(**p))
-            })
-            return ''
-        if name == 'Избранная игра':
-            self.tags.append({'tag_slug': 'ifwiki_featured'})
-            return ''
-        if name == 'РИЛФайл':
-            self.AddUrl(params['1'])
-            return '[%s Ссылка на РилАрхив]' % params['1']
-        if name == 'Ссылка':
-            self.AddUrl(params['на'], desc=params.get('1'))
-            if 'архив' in params:
-                self.AddUrl(params['архив'])
-            return '[%s %s]' % (params['на'], params.get('1') or 'ссылка')
-        if name == 'Тема':
-            self.tags.append({'cat_slug': 'tag', 'tag': params['1']})
-            return ''
-        if name == 'ns:6':
-            return 'Media'
-        if name in IFWIKI_IGNORE:
-            return ''
-        if name == 'URQStead':
-            self.AddUrl(params['1'], 'Игра на URQ-модуле INSTEAD')
-            return ''
-        logger.warning('Unknown template: %s %s' % (name, params))
-        return ''
+            return ""
+        elif name == "Избранная игра":
+            add_tag("", "", "ifwiki_featured")
+            return ""
+        elif name == "РИЛФайл":
+            if "1" in params:
+                self.AddUrl(params["1"])
+                return f"[{params['1']} Ссылка на РилАрхив]"
+            return ""
+        elif name == "Ссылка":
+            return handle_link()
+        elif name == "Тема":
+            if "1" in params:
+                add_tag("tag", params["1"])
+            return ""
+        elif name == "ns:6":
+            return "Media"
+        elif name == "URQStead":
+            if "1" in params:
+                self.AddUrl(params["1"], "Игра на URQ-модуле INSTEAD")
+            return ""
 
-    def ParseTemplate(self, node):
-        # TODO(crem) assert node.tag == 'template'
-        page_name = node.value[0].leaf()
+        elif name in IFWIKI_COMPETITIONS:
+            return handle_competition()
+        elif name in IFWIKI_IGNORE:
+            return ""
+        else:
+            logger.warning(f"Unknown template: {name} {params}")
+            return ""
 
+
+def process_wikitext_for_game(wikicode, context):
+    """Process mwparserfromhell wikicode and convert to markdown-like text."""
+
+    def extract_template_params(template):
+        """Extract parameters from a template with nested processing."""
         params = {}
-        count = 0
-        if len(node.value) > 1:
-            for param in node.value[1].value:
-                if isinstance(param.value, str) or len(param.value) == 1:
-                    count += 1
-                    params['%s' % count] = param.leaf()
-                else:
-                    # TODO assert that
-                    # parameter.value[0].tag == 'parameter_name' and \
-                    # parameter.value[1].tag == 'parameter_value':
-                    params[param.value[0].leaf()] = param.value[1].leaf()
-        return self.DispatchTemplate(page_name, params)
 
+        for param in template.params:
+            key = str(param.name).strip()
+            value = str(param.value).strip()
 
-def toolset_preproc(context):
-    def substitute_named_entity(node):
-        node.value = '&%s;' % node.leaf()
+            # Process nested templates (like {{PAGENAME}})
+            if value == "{{PAGENAME}}":
+                value = unquote(context.url.split("/")[-1]).replace("_", " ")
 
-    def substitute_numbered_entity(node):
-        logger.warning('O url: %s, title:%s\n%s' % (context.url, context.title,
-                                                    node))
+            if key:
+                params[key] = value
+            elif value:
+                params[str(len(params) + 1)] = value
 
-    def substitute_template_parameter(node):
-        logger.warning('N url: %s, title:%s\n%s' % (context.url, context.title,
-                                                    node))
+        return params
 
-    def substitute_template(node):
-        node.value = context.ParseTemplate(node)
+    # Process templates via string replacement for reliability
+    text = str(wikicode)
+    template_replacements = {}
 
-    return locals()
+    for template in wikicode.filter_templates():
+        template_name = str(template.name).strip()
+        template_str = str(template)
+        params = extract_template_params(template)
 
-
-def BuildLeaves(node):
-    res = []
-    for x in node.value:
-        if isinstance(x.value, str):
-            res.append(x.value)
+        if template_name == "game info":
+            context.ProcessGameinfo(params)
+            template_replacements[template_str] = ""
         else:
-            res.extend(BuildLeaves(x))
-    return res
+            template_result = context.DispatchTemplate(template_name, params)
+            template_replacements[template_str] = template_result or ""
+
+    # Apply template replacements and convert to markdown
+    for template_str, replacement in template_replacements.items():
+        text = text.replace(template_str, replacement)
+
+    return convert_wikitext_to_markdown(text, context)
 
 
-def toolset_wiki(context):
-    style_tags = {
-        'bold': '**',
-        'bold_close': '**',
-        'italic': '_',
-        'italic_close': '_',
-        'strike': '~~',
-        'strike_close': '~~',
-        'blockquote': '\n> ',
-        'span': '',
-    }
+def process_wikitext_for_author(wikicode, context):
+    """Process mwparserfromhell wikicode and convert to markdown."""
+    # Convert the wikitext to markdown
+    text = str(wikicode)
+    text = convert_wikitext_to_markdown(text, context)
 
-    style_tags_close = {
-        'blockquote': '\n\n',
-    }
+    return text
 
-    autoclose_tags = {
-        'br': '\n',
-    }
 
-    def collapse_list(list):
-        i = 0
-        while i + 1 < len(list):
-            if (list[i].tag == 'bullet_list_leaf'
-                    and list[i + 1].tag == '@bullet_sub_list@'
-                    or list[i].tag == 'number_list_leaf'
-                    and list[i + 1].tag == '@number_sub_list@'
-                    or list[i].tag == 'colon_list_leaf'
-                    and list[i + 1].tag == '@colon_sub_list@'
-                    or list[i].tag == 'semi_colon_list_leaf'
-                    and list[i + 1].tag == '@semi_colon_sub_list@'):
-                list[i].value.append(list[i + 1].value[0])
-                list.pop(i + 1)
-            else:
-                i += 1
-        for i in range(len(list)):
-            if isinstance(list[i].value, Nodes):
-                collapse_list(list[i].value)
+def convert_wikitext_to_markdown(text, context):
+    """Convert MediaWiki markup to markdown-like format."""
+    if not text or not text.strip():
+        return ""
 
-    def content(node):
-        return apostrophes.parse('%s' % node.leaf(), style_tags)
+    # Convert bold markup
+    text = re.sub(r"'''(.*?)'''", r"**\1**", text)
 
-    def render_ul(list, level):
-        indent = '  ' * level
-        result = '\n'
-        for i in range(len(list)):
-            result += indent + '* ' + content(list[i]) + '\n'
-        return result
+    # Convert italic markup
+    text = re.sub(r"''(.*?)''", r"_\1_", text)
 
-    def render_ol(list, level):
-        indent = '  ' * level
-        result = '\n'
-        for i in range(len(list)):
-            result += indent + '%i. %s\n' % (i + 1, content(list[i]))
-        return result
+    # Convert headings (note the order - longest first to avoid conflicts)
+    text = re.sub(
+        r"^======\s*(.*?)\s*======", r"###### \1", text, flags=re.MULTILINE
+    )
+    text = re.sub(
+        r"^=====\s*(.*?)\s*=====", r"##### \1", text, flags=re.MULTILINE
+    )
+    text = re.sub(
+        r"^====\s*(.*?)\s*====", r"#### \1", text, flags=re.MULTILINE
+    )
+    text = re.sub(r"^===\s*(.*?)\s*===", r"### \1", text, flags=re.MULTILINE)
+    text = re.sub(r"^==\s*(.*?)\s*==", r"## \1", text, flags=re.MULTILINE)
+    text = re.sub(r"^=\s*(.*?)\s*=", r"# \1", text, flags=re.MULTILINE)
 
-    def select_items(nodes, i, value, level):
-        list_tags = [
-            'bullet_list_leaf', 'number_list_leaf', 'colon_list_leaf',
-            'semi_colon_list_leaf'
-        ]
-        list_tags.remove(value)
-        if isinstance(nodes[i].value, Nodes):
-            render_lists(nodes[i].value, level + 1)
-        items = [nodes[i]]
-        while i + 1 < len(nodes) and nodes[i + 1].tag not in list_tags:
-            if isinstance(nodes[i + 1].value, Nodes):
-                render_lists(nodes[i + 1].value, level + 1)
-            items.append(nodes.pop(i + 1))
-        return items
+    # Convert lists (note: # in MediaWiki means numbered list, not heading)
+    text = re.sub(r"^\*\s+", r"* ", text, flags=re.MULTILINE)
+    text = re.sub(r"^#\s+", r"1. ", text, flags=re.MULTILINE)
 
-    def render_lists(list, level):
-        i = 0
-        while i < len(list):
-            if (list[i].tag == 'bullet_list_leaf'
-                    or list[i].tag == '@bullet_sub_list@'):
-                list[i].value = render_ul(
-                    select_items(list, i, 'bullet_list_leaf', level), level)
-            elif (list[i].tag == 'number_list_leaf'
-                  or list[i].tag == '@number_sub_list@'):
-                list[i].value = render_ol(
-                    select_items(list, i, 'number_list_leaf', level), level)
-            elif (list[i].tag == 'colon_list_leaf'
-                  or list[i].tag == '@colon_sub_list@'):
-                list[i].value = render_ul(
-                    select_items(list, i, 'colon_list_leaf', level), level)
-            elif (list[i].tag == 'semi_colon_list_leaf'
-                  or list[i].tag == '@semi_colon_sub_list@'):
-                list[i].value = render_ul(
-                    select_items(list, i, 'semi_colon_list_leaf', level),
-                    level)
-            i += 1
+    # Convert internal links FIRST
+    def replace_internal_link(match):
+        link_content = match.group(1)
+        # Process the link through context
+        processed = context.ProcessLink(link_content)
+        return f"**{processed}**"
 
-    def render_title1(node):
-        node.value = '# %s\n' % node.leaf()
+    text = re.sub(r"\[\[(.*?)\]\]", replace_internal_link, text)
 
-    def render_title2(node):
-        node.value = '## %s\n' % node.leaf()
-
-    def render_title3(node):
-        node.value = '### %s\n' % node.leaf()
-
-    def render_title4(node):
-        node.value = '#### %s\n' % node.leaf()
-
-    def render_title5(node):
-        node.value = '##### %s\n' % node.leaf()
-
-    def render_title6(node):
-        node.value = '######%s\n' % node.leaf()
-
-    def render_raw_text(node):
-        pass
-
-    def render_paragraph(node):
-        node.value = '%s\n\n' % node.leaf()
-
-    def render_wikitext(node):
-        pass
-
-    def render_body(node):
-        node.value = apostrophes.parse('%s' % node.leaves(), style_tags)
-
-    def render_entity(node):
-        node.value = '&%s;' % node.leaf()
-        # value = '%s' % node.leaf()
-        # if value in html_entities:
-        #     node.value = '%s' % chr(html_entities[value])
-        # else:
-        #     node.value = '&%s;' % value
-
-    def render_lt(node):
-        node.value = '<'
-
-    def render_gt(node):
-        node.value = '>'
-
-    def render_tag_open(node):
-        if node.value[0].value in style_tags:
-            node.value = style_tags[node.value[0].value]
-        elif node.value[0].value in autoclose_tags:
-            node.value = autoclose_tags[node.value[0].value]
+    # Convert external links AFTER internal links are processed
+    def replace_external_link(match):
+        url = match.group(1)
+        if len(match.groups()) > 1 and match.group(2):
+            desc = match.group(2).strip()
+            context.AddUrl(url, desc)
+            return f"[{desc}]({url})"
         else:
-            logger.warning('A url: %s, title:%s\n%s' % (context.url,
-                                                        context.title, node))
-            node.value = ''
+            context.AddUrl(url)
+            return f"[{url}]({url})"
 
-    def render_tag_close(node):
-        if node.value[0].value in style_tags_close:
-            node.value = style_tags_close[node.value[0].value]
-        else:
-            render_tag_open(node)
+    # Convert external links
+    # Pattern: [url description] -> [description](url)
+    text = re.sub(r"\[([^\s\]]+)\s+([^\]]+)\]", replace_external_link, text)
+    # Pattern: [url] -> [url](url) for consistency (but not markdown links)
+    text = re.sub(r"\[([^\s\]]+)\](?!\()", replace_external_link, text)
 
-    def render_tag_autoclose(node):
-        if node.value[0].value in autoclose_tags:
-            node.value = autoclose_tags[node.value[0].value]
-        node.value = ''
+    # Remove category links
+    text = re.sub(r"\[\[Категория:.*?\]\]", "", text)
 
-    def render_attribute(node):
-        logger.warning('B url: %s, title:%s\n%s' % (context.url, context.title,
-                                                    node))
-        node.value = ''
+    # Convert horizontal rules
+    text = re.sub(r"^----+", r"===", text, flags=re.MULTILINE)
 
-    def render_table(node):
-        logger.warning('C url: %s, title:%s\n%s' % (context.url, context.title,
-                                                    node))
-        node.value = ''
+    # Clean up extra whitespace but preserve paragraph breaks
+    text = re.sub(r"\n\n+", "\n\n", text)
+    # Fix bold/italic markup issues
+    text = re.sub(r"\*{4,}", "****", text)  # Normalize excessive asterisks
+    # Fix spacing issues with bold markup
+    text = re.sub(r"\*\*\*\*\s+\*\*\*\*", "****", text)  # Remove spaces between bold markers
+    text = re.sub(r"\*\*\s+\*\*", "****", text)  # Fix broken bold patterns
+    text = text.strip()
 
-    def render_table_line_break(node):
-        logger.warning('D url: %s, title:%s\n%s' % (context.url, context.title,
-                                                    node))
-        node.value = ''
-
-    def render_table_header_cell(node):
-        logger.warning('E url: %s, title:%s\n%s' % (context.url, context.title,
-                                                    node))
-        node.value = ''
-
-    def render_table_normal_cell(node):
-        logger.warning('F url: %s, title:%s\n%s' % (context.url, context.title,
-                                                    node))
-        node.value = ''
-
-    def render_table_empty_cell(node):
-        logger.warning('G url: %s, title:%s\n%s' % (context.url, context.title,
-                                                    node))
-        node.value = ''
-
-    def render_table_caption(node):
-        logger.warning('H url: %s, title:%s\n%s' % (context.url, context.title,
-                                                    node))
-        node.value = ''
-
-    def render_preformatted(node):
-        logger.warning('I url: %s, title:%s\n%s' % (context.url, context.title,
-                                                    node))
-        node.value = ''
-
-    def render_source(node):
-        logger.warning('J url: %s, title:%s\n%s' % (context.url, context.title,
-                                                    node))
-        node.value = ''
-
-    def render_source_open(node):
-        node.value = ''
-
-    def render_source_text(node):
-        logger.warning('K url: %s, title:%s\n%s' % (context.url, context.title,
-                                                    node))
-        node.value = ''
-
-    def render_hr(node):
-        node.value = '\n===\n'
-
-    def render_li(node):
-        logger.warning('L url: %s, title:%s\n%s' % (context.url, context.title,
-                                                    node))
-        node.value = ''
-
-    def render_list(node):
-        collapse_list(node.value)
-        render_lists(node.value, 0)
-
-    def render_url(node):
-        context.AddUrl(node.leaf())
-        node.value = '<%s>' % node.leaf()
-
-    def render_external_link(node):
-        url = node.value[0].leaf()
-        desc = node.value[1].leaf() if len(node.value) > 1 else ''
-        context.AddUrl(url, desc)
-        if desc:
-            node.value = '[%s](%s)' % (desc, url)
-        else:
-            node.value = '<%s>' % (url)
-
-    def render_internal_link(node):
-        BuildLeaves(node)
-        node.value = '**%s**' % (
-            context.ProcessLink('|'.join(BuildLeaves(node))))
-
-    def render_invalid(node):
-        logger.warning('Invalid line, url: %s, title:%s' % (context.url,
-                                                            context.title))
-        node.value = ''
-
-    return locals()
+    return text

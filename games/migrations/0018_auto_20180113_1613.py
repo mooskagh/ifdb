@@ -4,18 +4,17 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('games', '0017_auto_20180113_1303'),
+        ("games", "0017_auto_20180113_1303"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='personalityalias',
-            name='hidden_for',
+            model_name="personalityalias",
+            name="hidden_for",
         ),
         migrations.RemoveField(
-            model_name='personalityalias',
-            name='is_blacklisted',
+            model_name="personalityalias",
+            name="is_blacklisted",
         ),
     ]

@@ -4,14 +4,13 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('contest', '0005_competitionschedule_competition'),
+        ("contest", "0005_competitionschedule_competition"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='competitiondocument',
-            options={'default_permissions': ()},
+            name="competitiondocument",
+            options={"default_permissions": ()},
         ),
     ]

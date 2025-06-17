@@ -4,20 +4,27 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('games', '0012_auto_20180102_1420'),
+        ("games", "0012_auto_20180102_1420"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='game',
-            name='delete_perm',
-            field=models.CharField(default='(alias game_delete)', max_length=255, verbose_name='Delete permission'),
+            model_name="game",
+            name="delete_perm",
+            field=models.CharField(
+                default="(alias game_delete)",
+                max_length=255,
+                verbose_name="Delete permission",
+            ),
         ),
         migrations.AlterField(
-            model_name='game',
-            name='vote_perm',
-            field=models.CharField(default='(alias game_vote)', max_length=255, verbose_name='Vote permission'),
+            model_name="game",
+            name="vote_perm",
+            field=models.CharField(
+                default="(alias game_vote)",
+                max_length=255,
+                verbose_name="Vote permission",
+            ),
         ),
     ]

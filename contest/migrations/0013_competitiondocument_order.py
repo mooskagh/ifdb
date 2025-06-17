@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('contest', '0012_competitionvote'),
+        ("contest", "0012_competitionvote"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='competitiondocument',
-            name='order',
+            model_name="competitiondocument",
+            name="order",
             field=models.SmallIntegerField(default=0),
         ),
     ]

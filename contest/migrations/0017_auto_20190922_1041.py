@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('contest', '0016_auto_20190922_1040'),
+        ("contest", "0016_auto_20190922_1040"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='competitionquestion',
-            name='question_id',
+            model_name="competitionquestion",
+            name="question_id",
             field=models.SlugField(max_length=32),
         ),
     ]

@@ -1,6 +1,7 @@
-from django.db import models
-from games.models import Game, URL
 from django.conf import settings
+from django.db import models
+
+from games.models import URL, Game
 
 
 # Create your models here.
@@ -15,11 +16,13 @@ class Competition(models.Model):
     slug = models.SlugField(max_length=32, unique=True)
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField()
-    options = models.TextField(default='{}')
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL,
-                              on_delete=models.SET_NULL,
-                              null=True,
-                              blank=True)
+    options = models.TextField(default="{}")
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
     published = models.BooleanField()
     # Support for private contests (view_perm?)
 
@@ -31,11 +34,9 @@ class CompetitionURLCategory(models.Model):
     def __str__(self):
         return "%s (%s)" % (self.title, self.symbolic_id)
 
-    symbolic_id = models.SlugField(max_length=32,
-                                   null=True,
-                                   blank=True,
-                                   db_index=True,
-                                   unique=True)
+    symbolic_id = models.SlugField(
+        max_length=32, null=True, blank=True, db_index=True, unique=True
+    )
     title = models.CharField(max_length=255, db_index=True)
     allow_cloning = models.BooleanField(default=True)
     order = models.SmallIntegerField(default=0)
@@ -59,8 +60,9 @@ class CompetitionURL(models.Model):
 
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE)
     url = models.ForeignKey(URL, on_delete=models.CASCADE)
-    category = models.ForeignKey(CompetitionURLCategory,
-                                 on_delete=models.CASCADE)
+    category = models.ForeignKey(
+        CompetitionURLCategory, on_delete=models.CASCADE
+    )
     description = models.CharField(null=True, blank=True, max_length=255)
 
 
@@ -99,10 +101,9 @@ class GameList(models.Model):
     def __str__(self):
         return "%s -- %s" % (self.competition, self.title)
 
-    competition = models.ForeignKey(Competition,
-                                    null=True,
-                                    blank=True,
-                                    on_delete=models.CASCADE)
+    competition = models.ForeignKey(
+        Competition, null=True, blank=True, on_delete=models.CASCADE
+    )
     title = models.CharField(null=True, blank=True, max_length=255)
     order = models.SmallIntegerField(default=0)
     # edit_perm = models.CharField(max_length=255, default="@admin")
@@ -118,10 +119,9 @@ class GameListEntry(models.Model):
     gamelist = models.ForeignKey(GameList, on_delete=models.CASCADE)
     rank = models.IntegerField(null=True, blank=True)
     result = models.CharField(max_length=255, null=True, blank=True)
-    game = models.ForeignKey(Game,
-                             null=True,
-                             blank=True,
-                             on_delete=models.SET_NULL)
+    game = models.ForeignKey(
+        Game, null=True, blank=True, on_delete=models.SET_NULL
+    )
     date = models.DateField(null=True, blank=True)
     comment = models.CharField(max_length=255, null=True, blank=True)
     # TODO (Add "authors" field for upcoming games in trainli support)
@@ -132,14 +132,18 @@ class CompetitionVote(models.Model):
         default_permissions = ()
 
     FIELD_TYPE_TO_FIELD = {
-        'IntegerField': 'int_val',
-        'BooleanField': 'bool_val',
-        'CharField': 'text_val',
+        "IntegerField": "int_val",
+        "BooleanField": "bool_val",
+        "CharField": "text_val",
     }
 
     def __str__(self):
-        return "%s -- %s -- %s -- %s" % (self.competition, self.user,
-                                         self.game, self.field)
+        return "%s -- %s -- %s -- %s" % (
+            self.competition,
+            self.user,
+            self.game,
+            self.field,
+        )
 
     def GetVal(self, typ):
         return getattr(self, self.FIELD_TYPE_TO_FIELD[typ])
@@ -148,12 +152,13 @@ class CompetitionVote(models.Model):
         setattr(self, self.FIELD_TYPE_TO_FIELD[typ], val)
 
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL,
-                             on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE
+    )
     when = models.DateTimeField()
-    nomination = models.ForeignKey(GameList,
-                                   null=True,
-                                   on_delete=models.SET_NULL)
+    nomination = models.ForeignKey(
+        GameList, null=True, on_delete=models.SET_NULL
+    )
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     field = models.CharField(max_length=255)
     bool_val = models.NullBooleanField(null=True, blank=True)

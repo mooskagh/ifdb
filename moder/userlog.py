@@ -1,20 +1,25 @@
-from .models import UserLog
-from django.utils import timezone
-from games.tools import GetIpAddr
 import json
 
+from django.utils import timezone
 
-def LogAction(request,
-              action,
-              *,
-              is_mutation,
-              obj=None,
-              obj_type=None,
-              obj_id=None,
-              obj2=None,
-              before=None,
-              after=None):
-    if request.perm('(o @crawler @nolog)'):
+from games.tools import GetIpAddr
+
+from .models import UserLog
+
+
+def LogAction(
+    request,
+    action,
+    *,
+    is_mutation,
+    obj=None,
+    obj_type=None,
+    obj_id=None,
+    obj2=None,
+    before=None,
+    after=None,
+):
+    if request.perm("(o @crawler @nolog)"):
         return
     x = UserLog()
     if request.user.is_authenticated:
@@ -24,7 +29,7 @@ def LogAction(request,
     x.timestamp = timezone.now()
     x.perm = str(request.perm)
     x.action = action
-    x.useragent = request.META.get('HTTP_USER_AGENT')
+    x.useragent = request.META.get("HTTP_USER_AGENT")
     x.is_mutation = is_mutation
     if obj:
         obj_type = obj.__class__.__name__

@@ -6,75 +6,103 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0006_auto_20171219_1933'),
+        ("core", "0006_auto_20171219_1933"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='FeedCache',
+            name="FeedCache",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('feed_id', models.CharField(max_length=32)),
-                ('item_id', models.CharField(max_length=512)),
-                ('date_published', models.DateTimeField()),
-                ('date_discovered', models.DateTimeField()),
-                ('title', models.CharField(max_length=256)),
-                ('authors', models.CharField(max_length=256)),
-                ('url', models.CharField(max_length=2048)),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("feed_id", models.CharField(max_length=32)),
+                ("item_id", models.CharField(max_length=512)),
+                ("date_published", models.DateTimeField()),
+                ("date_discovered", models.DateTimeField()),
+                ("title", models.CharField(max_length=256)),
+                ("authors", models.CharField(max_length=256)),
+                ("url", models.CharField(max_length=2048)),
             ],
             options={
-                'default_permissions': (),
+                "default_permissions": (),
             },
         ),
         migrations.CreateModel(
-            name='RssFeedsToCache',
+            name="RssFeedsToCache",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('feed_id', models.CharField(max_length=32)),
-                ('title', models.CharField(max_length=512)),
-                ('rss_url', models.CharField(max_length=2048)),
-                ('link_url', models.CharField(blank=True, max_length=2048, null=True)),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("feed_id", models.CharField(max_length=32)),
+                ("title", models.CharField(max_length=512)),
+                ("rss_url", models.CharField(max_length=2048)),
+                (
+                    "link_url",
+                    models.CharField(blank=True, max_length=2048, null=True),
+                ),
             ],
             options={
-                'default_permissions': (),
+                "default_permissions": (),
             },
         ),
         migrations.AlterModelOptions(
-            name='document',
-            options={'default_permissions': ()},
+            name="document",
+            options={"default_permissions": ()},
         ),
         migrations.AlterModelOptions(
-            name='package',
-            options={'default_permissions': ()},
+            name="package",
+            options={"default_permissions": ()},
         ),
         migrations.AlterModelOptions(
-            name='packagesession',
-            options={'default_permissions': ()},
+            name="packagesession",
+            options={"default_permissions": ()},
         ),
         migrations.AlterModelOptions(
-            name='packageversion',
-            options={'default_permissions': ()},
+            name="packageversion",
+            options={"default_permissions": ()},
         ),
         migrations.AlterModelOptions(
-            name='snippet',
-            options={'default_permissions': ()},
+            name="snippet",
+            options={"default_permissions": ()},
         ),
         migrations.AlterModelOptions(
-            name='user',
-            options={'default_permissions': (), 'verbose_name': 'Пользователь', 'verbose_name_plural': 'Users'},
+            name="user",
+            options={
+                "default_permissions": (),
+                "verbose_name": "Пользователь",
+                "verbose_name_plural": "Users",
+            },
         ),
         migrations.AddIndex(
-            model_name='feedcache',
-            index=models.Index(fields=['date_published'], name='core_feedca_date_pu_016ab4_idx'),
+            model_name="feedcache",
+            index=models.Index(
+                fields=["date_published"],
+                name="core_feedca_date_pu_016ab4_idx",
+            ),
         ),
         migrations.AddIndex(
-            model_name='feedcache',
-            index=models.Index(fields=['feed_id', 'item_id'], name='core_feedca_feed_id_ca4349_idx'),
+            model_name="feedcache",
+            index=models.Index(
+                fields=["feed_id", "item_id"],
+                name="core_feedca_feed_id_ca4349_idx",
+            ),
         ),
         migrations.AlterUniqueTogether(
-            name='feedcache',
-            unique_together=set([('feed_id', 'item_id')]),
+            name="feedcache",
+            unique_together=set([("feed_id", "item_id")]),
         ),
     ]

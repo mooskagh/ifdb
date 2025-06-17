@@ -4,14 +4,13 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('contest', '0003_remove_nomimation_description'),
+        ("contest", "0003_remove_nomimation_description"),
     ]
 
     operations = [
         migrations.RenameModel(
-            old_name='Nomimation',
-            new_name='CompetitionNomination',
+            old_name="Nomimation",
+            new_name="CompetitionNomination",
         ),
     ]

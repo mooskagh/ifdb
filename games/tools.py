@@ -1,24 +1,32 @@
+import re
+import statistics
+from urllib.parse import parse_qs, urlparse
+
 import markdown
-from urllib.parse import urlparse, parse_qs
 from django import template
 from django.db.models import F
-import statistics
-from .models import GameVote, GameURL, URL
-from markdown.extensions import Extension
-from markdown.blockprocessors import BlockProcessor
-from markdown.util import AtomicString, etree
 from django.utils import timezone
+from markdown.blockprocessors import BlockProcessor
+from markdown.extensions import Extension
+from markdown.util import AtomicString, etree
+
 from core.taskqueue import Enqueue
 from games.tasks.uploads import CloneFile, MarkBroken
-import re
+
+from .models import URL, GameURL, GameVote
 
 
 def SnippetFromList(games, populate_authors=True):
-    posters = (GameURL.objects.filter(category__symbolic_id='poster').filter(
-        game__in=games).select_related('url', 'category'))
-    screenshots = (GameURL.objects.filter(
-        category__symbolic_id='screenshot').filter(
-            game__in=games).select_related('url'))
+    posters = (
+        GameURL.objects.filter(category__symbolic_id="poster")
+        .filter(game__in=games)
+        .select_related("url", "category")
+    )
+    screenshots = (
+        GameURL.objects.filter(category__symbolic_id="screenshot")
+        .filter(game__in=games)
+        .select_related("url")
+    )
 
     g2p = {}
     for x in posters:
@@ -31,8 +39,9 @@ def SnippetFromList(games, populate_authors=True):
         x.poster = g2p.get(x.id)
         if populate_authors:
             x.authors = [
-                x for x in x.gameauthor_set.all()
-                if x.role.symbolic_id == 'author'
+                x
+                for x in x.gameauthor_set.all()
+                if x.role.symbolic_id == "author"
             ]
     return games
 
@@ -40,45 +49,77 @@ def SnippetFromList(games, populate_authors=True):
 def FormatDate(x):
     if not x:
         return None
-    return '%d %s %d' % (x.day, [
-        'января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля',
-        'августа', 'сентября', 'октября', 'ноября', 'декабря'
-    ][x.month - 1], x.year)
+    return "%d %s %d" % (
+        x.day,
+        [
+            "января",
+            "февраля",
+            "марта",
+            "апреля",
+            "мая",
+            "июня",
+            "июля",
+            "августа",
+            "сентября",
+            "октября",
+            "ноября",
+            "декабря",
+        ][x.month - 1],
+        x.year,
+    )
 
 
 def FormatDateShort(x):
     if not x:
         return None
-    return '%d %s' % (x.day, [
-        'января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля',
-        'августа', 'сентября', 'октября', 'ноября', 'декабря'
-    ][x.month - 1])
+    return "%d %s" % (
+        x.day,
+        [
+            "января",
+            "февраля",
+            "марта",
+            "апреля",
+            "мая",
+            "июня",
+            "июля",
+            "августа",
+            "сентября",
+            "октября",
+            "ноября",
+            "декабря",
+        ][x.month - 1],
+    )
 
 
 def FormatTime(x):
     if not x:
         return None
-    return "%04d-%02d-%02d %02d:%02d" % (x.year, x.month, x.day, x.hour,
-                                         x.minute)
+    return "%04d-%02d-%02d %02d:%02d" % (
+        x.year,
+        x.month,
+        x.day,
+        x.hour,
+        x.minute,
+    )
 
 
 def ConcoreNumeral(value, arg):
-    bits = arg.split(u',')
+    bits = arg.split(",")
     try:
         one = str(value)[-1:]
         dec = str(value)[-2:-1]
-        if dec == '1':
+        if dec == "1":
             res = bits[2]
-        elif one == '1':
+        elif one == "1":
             res = bits[0]
-        elif one in '234':
+        elif one in "234":
             res = bits[1]
         else:
             res = bits[2]
         return "%s %s" % (value, res)
-    except:
+    except (IndexError, ValueError):
         raise template.TemplateSyntaxError
-    return ''
+    return ""
 
 
 def FormatLag(x):
@@ -91,32 +132,32 @@ def FormatLag(x):
 
     def GetDurationStr(x):
         if x < 60:
-            return ConcoreNumeral(x, 'секунду,секунды,секунд')
+            return ConcoreNumeral(x, "секунду,секунды,секунд")
         x //= 60
         if x < 60:
-            return ConcoreNumeral(x, 'минуту,минуты,минут')
+            return ConcoreNumeral(x, "минуту,минуты,минут")
         x //= 60
         if x < 24:
-            return ConcoreNumeral(x, 'час,часа,часов')
+            return ConcoreNumeral(x, "час,часа,часов")
         x //= 24
         if x < 31:
-            return ConcoreNumeral(x, 'день,дня,дней')
+            return ConcoreNumeral(x, "день,дня,дней")
         x //= 30
         if x < 12:
-            return ConcoreNumeral(x, 'месяц,месяца,месяцев')
+            return ConcoreNumeral(x, "месяц,месяца,месяцев")
         x //= 12
-        return ConcoreNumeral(x, 'год,года,лет')
+        return ConcoreNumeral(x, "год,года,лет")
 
     return fmtstr % GetDurationStr(x)
 
 
 def ExtractYoutubeId(url):
     purl = urlparse(url)
-    if purl.hostname in ['youtube.com', 'www.youtube.com']:
-        q = parse_qs(purl.query).get('v')
+    if purl.hostname in ["youtube.com", "www.youtube.com"]:
+        q = parse_qs(purl.query).get("v")
         if q:
             return q[0]
-    elif purl.hostname == 'youtu.be':
+    elif purl.hostname == "youtu.be":
         return purl.path[1:]
 
 
@@ -131,7 +172,7 @@ def StarsFromRating(rating):
 
 def DiscountRating(x, count, P1=2.7, P2=0.3, P3=1.3):
     #  return (x - P1) * (P2 + count) / (P2 + count + 1) + P1
-    v = (x - P1) * (P2**(1 / count)) * P3 + P1
+    v = (x - P1) * (P2 ** (1 / count)) * P3 + P1
     if v > 5:
         v = 5
     if v < 1:
@@ -141,30 +182,33 @@ def DiscountRating(x, count, P1=2.7, P2=0.3, P3=1.3):
 
 def ComputeGameRating(votes):
     ds = {}
-    ds['scores'] = len(votes)
+    ds["scores"] = len(votes)
     if votes:
-        ds['avg'] = statistics.mean(votes)
-        ds['vote'] = DiscountRating(ds['avg'], len(votes))
+        ds["avg"] = statistics.mean(votes)
+        ds["vote"] = DiscountRating(ds["avg"], len(votes))
     else:
-        ds['avg'] = 0.0
+        ds["avg"] = 0.0
 
-    ds['stars'] = StarsFromRating(ds['avg'])
-    ds['avg_txt'] = ("%3.1f" % ds['avg']).replace('.', ',')
+    ds["stars"] = StarsFromRating(ds["avg"])
+    ds["avg_txt"] = ("%3.1f" % ds["avg"]).replace(".", ",")
     return ds
 
 
 def ComputeHonors(author=None):
     xs = dict()
     votes = GameVote.objects.filter(
-        game__gameauthor__role__symbolic_id='author').annotate(
-            gameid=F('game__id'),
-            author=F('game__gameauthor__author__personality__id'))
+        game__gameauthor__role__symbolic_id="author"
+    ).annotate(
+        gameid=F("game__id"),
+        author=F("game__gameauthor__author__personality__id"),
+    )
     if author:
         votes = votes.filter(author=author)
 
     for x in votes:
-        xs.setdefault(x.author, {}).setdefault(x.gameid,
-                                               []).append(x.star_rating)
+        xs.setdefault(x.author, {}).setdefault(x.gameid, []).append(
+            x.star_rating
+        )
 
     res = dict()
     for a, games in xs.items():
@@ -196,17 +240,17 @@ def GroupByCategory(queryset, catfield, follow):
     cats.sort(key=lambda x: x.order)
     res = []
     for r in cats:
-        res.append({'category': r, 'items': items[r]})
+        res.append({"category": r, "items": items[r]})
     return res
 
 
-def PartitionItems(queryset, partitions, catfield='category', follow=None):
+def PartitionItems(queryset, partitions, catfield="category", follow=None):
     links = GroupByCategory(queryset, catfield, follow=follow)
     rest = []
     cats = {x: None for y in partitions for x in y}
     for x in links:
-        if x['category'].symbolic_id in cats:
-            cats[x['category'].symbolic_id] = x
+        if x["category"].symbolic_id in cats:
+            cats[x["category"].symbolic_id] = x
         else:
             rest.append(x)
 
@@ -214,14 +258,14 @@ def PartitionItems(queryset, partitions, catfield='category', follow=None):
     for x in partitions:
         r = []
         for y in x:
-            if cats[y] and cats[y]['items']:
-                for z in cats[y]['items']:
+            if cats[y] and cats[y]["items"]:
+                for z in cats[y]["items"]:
                     r.append(z)
         res.append(r)
     return res + [rest]
 
 
-SNIPPET_PATTERN = re.compile(r'{{\s*([\w\d\s]+)\s*}}')
+SNIPPET_PATTERN = re.compile(r"{{\s*([\w\d\s]+)\s*}}")
 
 
 class MarkdownSnippetProcessor(BlockProcessor):
@@ -235,11 +279,12 @@ class MarkdownSnippetProcessor(BlockProcessor):
         snippet_call = "render_%s" % params[0]
         if hasattr(self.provider, snippet_call):
             val = self.md.htmlStash.store(
-                getattr(self.provider, snippet_call)(*params[1:]))
+                getattr(self.provider, snippet_call)(*params[1:])
+            )
         else:
-            val = self.md.htmlStash.store(m.group(1) + '??')
+            val = self.md.htmlStash.store(m.group(1) + "??")
 
-        h = etree.SubElement(parent, 'div')
+        h = etree.SubElement(parent, "div")
         h.text = AtomicString(val)
 
 
@@ -252,18 +297,20 @@ class MarkdownSnippet(Extension):
         processor = MarkdownSnippetProcessor(md.parser)
         processor.provider = self.provider
         processor.md = md
-        md.parser.blockprocessors.add('snippets', processor, '_begin')
+        md.parser.blockprocessors.add("snippets", processor, "_begin")
 
 
 def RenderMarkdown(content, snippet_provider=None):
     extensions = [
-        'markdown.extensions.extra', 'markdown.extensions.meta',
-        'markdown.extensions.smarty', 'markdown.extensions.wikilinks',
-        'markdown_del_ins'
+        "markdown.extensions.extra",
+        "markdown.extensions.meta",
+        "markdown.extensions.smarty",
+        "markdown.extensions.wikilinks",
+        "markdown_del_ins",
     ]
     if snippet_provider:
         extensions.append(MarkdownSnippet(snippet_provider))
-    return markdown.markdown(content, extensions=extensions) if content else ''
+    return markdown.markdown(content, extensions=extensions) if content else ""
 
 
 def CreateUrl(url, *, ok_to_clone, creator=None):
@@ -277,13 +324,13 @@ def CreateUrl(url, *, ok_to_clone, creator=None):
     if ok_to_clone and not u.ok_to_clone:
         u.ok_to_clone = ok_to_clone
         u.save()
-        Enqueue(CloneFile, u.id, name='CloneUrl(%d)' % u.id, onfail=MarkBroken)
+        Enqueue(CloneFile, u.id, name="CloneUrl(%d)" % u.id, onfail=MarkBroken)
     return u
 
 
 def GetIpAddr(request):
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
     if x_forwarded_for:
-        return x_forwarded_for.split(',')[0]
+        return x_forwarded_for.split(",")[0]
     else:
-        return request.META.get('REMOTE_ADDR')
+        return request.META.get("REMOTE_ADDR")

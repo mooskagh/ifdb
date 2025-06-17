@@ -10,10 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.10/ref/settings/
 """
 
-import os
-import socket
-import os.path
 import logging.config
+import os
+import os.path
+import socket
+
 from django.core.files.storage import FileSystemStorage
 
 IS_PROD = socket.gethostname() in ["crem.xyz", "flatty"]
@@ -69,7 +70,9 @@ if IS_PROD:
     EXTRACTOR_PATH = '/bin/unar "%s" -o "%s"'
     WORKER_PID_FILE = os.path.join(TMP_DIR, "ifdbworker.pid")
     RECAPTCHA_PUBLIC_KEY = "6Lc1j68UAAAAAOT-Fk3aF-94XXMutiuPGrxtS2N9"
-    RECAPTCHA_PRIVATE_KEY = open("/home/ifdb/configs/recaptcha.txt").read().strip()
+    RECAPTCHA_PRIVATE_KEY = (
+        open("/home/ifdb/configs/recaptcha.txt").read().strip()
+    )
 
 else:
     SILENCED_SYSTEM_CHECKS = ["captcha.recaptcha_test_key_error"]
@@ -122,115 +125,112 @@ else:
 LOGGING_CONFIG = None
 LOGIN_REDIRECT_URL = "/"
 
-logging.config.dictConfig(
-    {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "google": {
-                "format": (
-                    "%(levelname).1s%(asctime)s.%(msecs)03d %(name)s "
-                    "%(filename)s:%(lineno)d] %(message)s"
-                ),
-                "datefmt": "%m%d %H:%M:%S",
-            }
+logging.config.dictConfig({
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "google": {
+            "format": (
+                "%(levelname).1s%(asctime)s.%(msecs)03d %(name)s "
+                "%(filename)s:%(lineno)d] %(message)s"
+            ),
+            "datefmt": "%m%d %H:%M:%S",
+        }
+    },
+    "filters": {
+        "require_debug_false": {
+            "()": "django.utils.log.RequireDebugFalse",
         },
-        "filters": {
-            "require_debug_false": {
-                "()": "django.utils.log.RequireDebugFalse",
-            },
-            "require_debug_true": {
-                "()": "django.utils.log.RequireDebugTrue",
-            },
+        "require_debug_true": {
+            "()": "django.utils.log.RequireDebugTrue",
         },
-        "handlers": {
-            "debug": {
-                "class": "logging.handlers.WatchedFileHandler",
-                "delay": True,
-                "encoding": "utf-8",
-                "filename": os.path.join(LOG_DIR, "all.DEBUG"),
-                "filters": ["require_debug_true"],
-                "formatter": "google",
-                "level": 0,
-            },
-            "warnings": {
-                "class": "logging.handlers.WatchedFileHandler",
-                "encoding": "utf-8",
-                "filename": os.path.join(LOG_DIR, "all.WARN"),
-                "formatter": "google",
-                "level": "WARN",
-            },
-            "mail_admins": {
-                "class": "django.utils.log.AdminEmailHandler",
-                "filters": ["require_debug_false"],
-                "level": "ERROR",
-            },
-            "crawler": {
-                "class": "logging.handlers.WatchedFileHandler",
-                "encoding": "utf-8",
-                "filename": os.path.join(LOG_DIR, "crawler.INFO"),
-                "formatter": "google",
-                "level": "INFO",
-            },
-            "web": {
-                "class": "logging.handlers.WatchedFileHandler",
-                "encoding": "utf-8",
-                "filename": os.path.join(LOG_DIR, "web.INFO"),
-                "formatter": "google",
-                "level": "INFO",
-            },
-            "worker": {
-                "class": "logging.handlers.WatchedFileHandler",
-                "encoding": "utf-8",
-                "filename": os.path.join(LOG_DIR, "worker.INFO"),
-                "formatter": "google",
-                "level": "INFO",
-            },
-            "console": {
-                "class": "logging.StreamHandler",
-                "formatter": "google",
-                "level": "ERROR",
-            },
+    },
+    "handlers": {
+        "debug": {
+            "class": "logging.handlers.WatchedFileHandler",
+            "delay": True,
+            "encoding": "utf-8",
+            "filename": os.path.join(LOG_DIR, "all.DEBUG"),
+            "filters": ["require_debug_true"],
+            "formatter": "google",
+            "level": 0,
         },
-        "loggers": {
-            "": {
-                "level": 0,
-                "handlers": ["debug", "warnings", "mail_admins", "console"],
-                #'handlers': ['debug', 'warnings', 'console'],
-            },
-            "django": {
-                "handlers": ["web"],
-                "level": 0,
-                "propagate": True,
-            },
-            "web": {
-                "handlers": ["web"],
-                "level": 0,
-                "propagate": True,
-            },
-            "crawler": {
-                "handlers": ["crawler"],
-                "level": 0,
-                "propagate": True,
-            },
-            "MARKDOWN": {
-                "level": "INFO",
-                "propagate": True,
-            },
-            "worker": {
-                "handlers": ["worker"],
-                "level": 0,
-                "propagate": True,
-            },
+        "warnings": {
+            "class": "logging.handlers.WatchedFileHandler",
+            "encoding": "utf-8",
+            "filename": os.path.join(LOG_DIR, "all.WARN"),
+            "formatter": "google",
+            "level": "WARN",
         },
-    }
-)
+        "mail_admins": {
+            "class": "django.utils.log.AdminEmailHandler",
+            "filters": ["require_debug_false"],
+            "level": "ERROR",
+        },
+        "crawler": {
+            "class": "logging.handlers.WatchedFileHandler",
+            "encoding": "utf-8",
+            "filename": os.path.join(LOG_DIR, "crawler.INFO"),
+            "formatter": "google",
+            "level": "INFO",
+        },
+        "web": {
+            "class": "logging.handlers.WatchedFileHandler",
+            "encoding": "utf-8",
+            "filename": os.path.join(LOG_DIR, "web.INFO"),
+            "formatter": "google",
+            "level": "INFO",
+        },
+        "worker": {
+            "class": "logging.handlers.WatchedFileHandler",
+            "encoding": "utf-8",
+            "filename": os.path.join(LOG_DIR, "worker.INFO"),
+            "formatter": "google",
+            "level": "INFO",
+        },
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "google",
+            "level": "ERROR",
+        },
+    },
+    "loggers": {
+        "": {
+            "level": 0,
+            "handlers": ["debug", "warnings", "mail_admins", "console"],
+            # 'handlers': ['debug', 'warnings', 'console'],
+        },
+        "django": {
+            "handlers": ["web"],
+            "level": 0,
+            "propagate": True,
+        },
+        "web": {
+            "handlers": ["web"],
+            "level": 0,
+            "propagate": True,
+        },
+        "crawler": {
+            "handlers": ["crawler"],
+            "level": 0,
+            "propagate": True,
+        },
+        "MARKDOWN": {
+            "level": "INFO",
+            "propagate": True,
+        },
+        "worker": {
+            "handlers": ["worker"],
+            "level": 0,
+            "propagate": True,
+        },
+    },
+})
 
 ADMINS = [("Alexander Lyashuk", "crem@crem.xyz")]
 
 
 class PrefixList(list):
-
     def __contains__(self, key):
         for x in self:
             if key.startswith(x):
@@ -238,7 +238,12 @@ class PrefixList(list):
         return False
 
 
-INTERNAL_IPS = PrefixList(["127.", "10.162.", "212.51.151.122", "2a02:168:520c:"])
+INTERNAL_IPS = PrefixList([
+    "127.",
+    "10.162.",
+    "212.51.151.122",
+    "2a02:168:520c:",
+])
 
 # Application definition
 
@@ -303,17 +308,25 @@ WSGI_APPLICATION = "ifdb.wsgi.application"
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "UserAttributeSimilarityValidator"
+        ),
     },
     {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation.MinimumLengthValidator"
+        ),
     },
     {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation.CommonPasswordValidator"
+        ),
     },
     # {
     #     'NAME':
-    #         'django.contrib.auth.password_validation.NumericPasswordValidator',
+    #         'django.contrib.auth.password_validation.'
+    #         'NumericPasswordValidator',
     # },
 ]
 

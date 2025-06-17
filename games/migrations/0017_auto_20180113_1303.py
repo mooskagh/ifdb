@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('games', '0016_personalityalias_keep_if_empty'),
+        ("games", "0016_personalityalias_keep_if_empty"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='personalityaliasredirect',
-            name='name',
+            model_name="personalityaliasredirect",
+            name="name",
             field=models.CharField(db_index=True, max_length=255, unique=True),
         ),
     ]

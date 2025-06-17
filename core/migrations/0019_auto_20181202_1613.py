@@ -5,20 +5,37 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0018_taskqueueelement_log'),
+        ("core", "0018_taskqueueelement_log"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='feedcache',
-            name='title',
+            model_name="feedcache",
+            name="title",
             field=models.CharField(max_length=512),
         ),
         migrations.AlterField(
-            model_name='user',
-            name='username',
-            field=models.CharField(blank=True, error_messages={'unique': 'The username is already taken.'}, help_text='максимум 30 символов, ну и всякие другие требования', max_length=60, null=True, unique=True, validators=[django.core.validators.RegexValidator('^[\\w\\d_\\.,\\-]+(?: [\\w\\d_\\.,\\-]+)*$', 'Enter a valid username. This value may contain only letters, numbers and _ character.', 'invalid')], verbose_name='имя пользователя'),
+            model_name="user",
+            name="username",
+            field=models.CharField(
+                blank=True,
+                error_messages={"unique": "The username is already taken."},
+                help_text=(
+                    "максимум 30 символов, ну и всякие другие требования"
+                ),
+                max_length=60,
+                null=True,
+                unique=True,
+                validators=[
+                    django.core.validators.RegexValidator(
+                        "^[\\w\\d_\\.,\\-]+(?: [\\w\\d_\\.,\\-]+)*$",
+                        "Enter a valid username. This value may contain only"
+                        " letters, numbers and _ character.",
+                        "invalid",
+                    )
+                ],
+                verbose_name="имя пользователя",
+            ),
         ),
     ]

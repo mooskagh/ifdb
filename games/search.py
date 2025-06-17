@@ -1,10 +1,23 @@
 import re
-from .models import (Game, GameTag, GameTagCategory, URL, PersonalityAlias,
-                     GameAuthorRole, Personality)
+
+from django.db.models import Count, Q, prefetch_related_objects
 from django.utils import timezone
-from .tools import (FormatDate, ComputeGameRating, ComputeHonors,
-                    SnippetFromList)
-from django.db.models import Q, Count, prefetch_related_objects
+
+from .models import (
+    URL,
+    Game,
+    GameAuthorRole,
+    GameTag,
+    GameTagCategory,
+    Personality,
+    PersonalityAlias,
+)
+from .tools import (
+    ComputeGameRating,
+    ComputeHonors,
+    FormatDate,
+    SnippetFromList,
+)
 
 RE_WORD = re.compile(r"\w(?:[\w']*\w)?")
 
@@ -17,8 +30,10 @@ def TokenizeText(text):
 
 
 class BaseXReader:
-    ALPHABET = (b"0123456789abcdefghijklmnopqrstuvwxyz"
-                b"ABCDEFGHIJKLMNOPQRSTUVWXYZ~-_.!*'(),$")
+    ALPHABET = (
+        b"0123456789abcdefghijklmnopqrstuvwxyz"
+        b"ABCDEFGHIJKLMNOPQRSTUVWXYZ~-_.!*'(),$"
+    )
     XLAT = None
     HEAD_SPACE = len(ALPHABET) // 2
     TRUNK_SPACE = len(ALPHABET) - HEAD_SPACE
@@ -53,8 +68,11 @@ class BaseXReader:
 
     def ReadString(self):
         size = self.ReadInt()
-        return ''.join([chr(self.ReadInt()) for x in range(size)
-                        ]).encode('utf-16', 'surrogatepass').decode('utf-16')
+        return (
+            "".join([chr(self.ReadInt()) for x in range(size)])
+            .encode("utf-16", "surrogatepass")
+            .decode("utf-16")
+        )
 
     def ReadBool(self):
         return self.ReadInt() != 0
@@ -84,7 +102,7 @@ class BaseXWriter:
     TRUNK_SPACE = len(ALPHABET) - HEAD_SPACE
 
     def __init__(self):
-        self.res = b''
+        self.res = b""
 
     def addCodePoint(self, x):
         self.res += bytes([self.ALPHABET[x]])
@@ -117,11 +135,10 @@ class BaseXWriter:
             self.addInt(ord(x))
 
     def GetStr(self):
-        return self.res.decode('utf-8')
+        return self.res.decode("utf-8")
 
 
 class SearchBit:
-
     def __init__(self, val=0, hidden=False):
         self.val = val
         self.hidden = hidden
@@ -134,10 +151,10 @@ class SearchBit:
 
     def ProduceDict(self, typ):
         return {
-            'id': self.Id(),
-            'val': self.val,
-            'hidden': self.hidden,
-            'type': typ
+            "id": self.Id(),
+            "val": self.val,
+            "hidden": self.hidden,
+            "type": typ,
         }
 
     def ModifyQuery(self, query):
@@ -169,10 +186,10 @@ class SB_Sorting(SearchBit):
     TITLE = 3
 
     STRINGS = {
-        CREATION_DATE: 'дате добавления',
-        RELEASE_DATE: 'дате релиза',
-        RATING: 'рейтингу',
-        TITLE: 'названию',
+        CREATION_DATE: "дате добавления",
+        RELEASE_DATE: "дате релиза",
+        RATING: "рейтингу",
+        TITLE: "названию",
     }
 
     ALLOWED_SORTINGS = [CREATION_DATE, RELEASE_DATE, RATING, TITLE]
@@ -183,44 +200,46 @@ class SB_Sorting(SearchBit):
         self.desc = True
 
     def ProduceDict(self):
-        res = super().ProduceDict('sorting')
-        res['items'] = []
+        res = super().ProduceDict("sorting")
+        res["items"] = []
         for x in self.ALLOWED_SORTINGS:
             current = x == self.method
-            res['items'].append({
-                'val': x,
-                'name': self.STRINGS[x],
-                'current': current,
-                'desc': current and self.desc,
-                'asc': current and not self.desc,
+            res["items"].append({
+                "val": x,
+                "name": self.STRINGS[x],
+                "current": current,
+                "desc": current and self.desc,
+                "asc": current and not self.desc,
             })
         return res
 
     def LoadFromQuery(self, reader):
         v = reader.ReadInt()
-        self.desc = (v % 2 == 0)
+        self.desc = v % 2 == 0
         self.method = v // 2
         if self.method not in self.ALLOWED_SORTINGS:
             self.method = self.ALLOWED_SORTINGS[0]
 
     def ModifyQuery(self, query):
         # TODO(crem) take care of deleted comments
-        query = query.prefetch_related('gamevote_set').annotate(
-            coms_count=Count('gamecomment'))
+        query = query.prefetch_related("gamevote_set").annotate(
+            coms_count=Count("gamecomment")
+        )
 
         if self.method == self.RELEASE_DATE:
             return query.extra(
-                select={'date_is_null': 'release_date IS NULL'},
+                select={"date_is_null": "release_date IS NULL"},
                 order_by=[
-                    'date_is_null', ('-' if self.desc else '') + 'release_date'
+                    "date_is_null",
+                    ("-" if self.desc else "") + "release_date",
                 ],
             )
 
         if self.method == self.CREATION_DATE:
-            return query.order_by(('-' if self.desc else '') + 'creation_time')
+            return query.order_by(("-" if self.desc else "") + "creation_time")
 
         if self.method == self.TITLE:
-            return query.order_by(('' if self.desc else '-') + 'title')
+            return query.order_by(("" if self.desc else "-") + "title")
 
         return query
 
@@ -238,21 +257,21 @@ class SB_Sorting(SearchBit):
 
         if self.method == self.CREATION_DATE:
             for g in games:
-                g.ds['creation_date'] = FormatDate(g.creation_time)
+                g.ds["creation_date"] = FormatDate(g.creation_time)
             return games
 
         if self.method == self.RELEASE_DATE:
             for g in games:
                 if g.release_date is not None:
-                    g.ds['release_date'] = FormatDate(g.release_date)
+                    g.ds["release_date"] = FormatDate(g.release_date)
             return games
 
         if self.method == self.RATING:
             ratings = []
             nones = []
             for g in games:
-                if g.rating.get('vote'):
-                    ratings.append((g.rating['vote'], g))
+                if g.rating.get("vote"):
+                    ratings.append((g.rating["vote"], g))
                 else:
                     nones.append(g)
 
@@ -281,13 +300,13 @@ class SB_Text(SearchBit):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.text = ''
+        self.text = ""
         self.titles_only = True
 
     def ProduceDict(self):
-        res = super().ProduceDict('text')
-        res['text'] = self.text
-        res['titles_only'] = self.titles_only
+        res = super().ProduceDict("text")
+        res["text"] = self.text
+        res["titles_only"] = self.titles_only
         return res
 
     def LoadFromQuery(self, reader):
@@ -302,7 +321,7 @@ class SB_Text(SearchBit):
 
     def ModifyResult(self, games):
         # TODO(crem) Do something at query time.
-        query = TokenizeText(self.text or '')
+        query = TokenizeText(self.text or "")
         if not self.text:
             return games
         if not query:
@@ -310,9 +329,9 @@ class SB_Text(SearchBit):
         res = []
 
         for g in games:
-            tokens = TokenizeText(g.title or '')
+            tokens = TokenizeText(g.title or "")
             if not self.titles_only:
-                tokens |= TokenizeText(g.description or '')
+                tokens |= TokenizeText(g.description or "")
             if MatchesPrefix(query, tokens):
                 res.append(g)
                 continue
@@ -337,28 +356,31 @@ class SB_Tag(SearchBit):
         self.items = set()
 
     def ProduceDict(self):
-        res = super().ProduceDict('tags')
-        res['cat'] = self.cat
+        res = super().ProduceDict("tags")
+        res["cat"] = self.cat
         items = []
-        for x in (GameTag.objects.select_related('category').filter(
-                category=self.cat).annotate(
-                    Count('game')).order_by('-game__count')):
+        for x in (
+            GameTag.objects.select_related("category")
+            .filter(category=self.cat)
+            .annotate(Count("game"))
+            .order_by("-game__count")
+        ):
             items.append({
-                'id': x.id,
-                'name': x.name,
-                'on': x.id in self.items,
-                'tag': x,
-                'show_all': False,
-                'hidden': False,
+                "id": x.id,
+                "name": x.name,
+                "on": x.id in self.items,
+                "tag": x,
+                "show_all": False,
+                "hidden": False,
             })
 
-        if len(items) > 10 and items[0]['tag'].category.allow_new_tags:
+        if len(items) > 10 and items[0]["tag"].category.allow_new_tags:
             for x in items[6:]:
-                x['hidden'] = True
-            items.append({'show_all': True})
+                x["hidden"] = True
+            items.append({"show_all": True})
 
-        items.append({'id': 0, 'name': 'Не указано', 'on': 0 in self.items})
-        res['items'] = items
+        items.append({"id": 0, "name": "Не указано", "on": 0 in self.items})
+        res["items"] = items
         return res
 
     def LoadFromQuery(self, reader):
@@ -394,36 +416,39 @@ class SB_Authors(SearchBit):
         self.items = set()
 
     def ProduceDict(self):
-        res = super().ProduceDict('authors')
-        res['role'] = self.role
+        res = super().ProduceDict("authors")
+        res["role"] = self.role
         items = []
-        for x in (PersonalityAlias.objects.filter(
-                gameauthor__role=self.role).annotate(Count(
-                    'gameauthor__game')).order_by('-gameauthor__game__count')):
+        for x in (
+            PersonalityAlias.objects.filter(gameauthor__role=self.role)
+            .annotate(Count("gameauthor__game"))
+            .order_by("-gameauthor__game__count")
+        ):
             items.append({
-                'id': x.id,
-                'name': x.name,
-                'on': x.id in self.items,
-                'author': x,
-                'show_all': False,
-                'hidden': False,
+                "id": x.id,
+                "name": x.name,
+                "on": x.id in self.items,
+                "author": x,
+                "show_all": False,
+                "hidden": False,
             })
 
         if len(items) > 10:
             for x in items[6:]:
-                x['hidden'] = True
-            items.append({'show_all': True})
+                x["hidden"] = True
+            items.append({"show_all": True})
 
-        items.append({'id': 0, 'name': 'Не указано', 'on': 0 in self.items})
-        res['items'] = items
+        items.append({"id": 0, "name": "Не указано", "on": 0 in self.items})
+        res["items"] = items
         return res
 
     def LoadFromQuery(self, reader):
         self.items = reader.ReadSet()
 
     def ModifyQuery(self, query):
-        return query.prefetch_related('gameauthor_set__author',
-                                      'gameauthor_set__role')
+        return query.prefetch_related(
+            "gameauthor_set__author", "gameauthor_set__role"
+        )
 
     def NeedsFullSet(self):
         return True
@@ -436,7 +461,8 @@ class SB_Authors(SearchBit):
         res = []
         for g in games:
             authors = set([
-                x.author.id for x in g.gameauthor_set.all()
+                x.author.id
+                for x in g.gameauthor_set.all()
                 if x.role_id == self.role.id
             ])
             if authors & self.items:
@@ -453,12 +479,12 @@ class SB_Flags(SearchBit):
         self.items = [False] * len(self.FIELDS)
 
     def ProduceDict(self):
-        res = super().ProduceDict('flags')
-        res['header'] = self.HEADER
+        res = super().ProduceDict("flags")
+        res["header"] = self.HEADER
         items = []
         for i, x in enumerate(self.FIELDS):
-            items.append({'id': i, 'name': x, 'on': self.items[i]})
-        res['items'] = items
+            items.append({"id": i, "name": x, "on": self.items[i]})
+        res["items"] = items
         return res
 
     def LoadFromQuery(self, reader):
@@ -482,89 +508,82 @@ class SB_Flags(SearchBit):
 
 
 class SB_UserFlags(SB_Flags):
-    HEADER = 'Наличие ресурсов'
+    HEADER = "Наличие ресурсов"
     VAL_ID = 0
 
     FIELDS = [
-        'С видео',
-        'С обзорами',
-        'С комментариями',
-        'С обсуждениями на форуме',
-        'Можно скачать',
-        'Можно поиграть онлайн',
-        'Можно запустить лунчатором',
+        "С видео",
+        "С обзорами",
+        "С комментариями",
+        "С обсуждениями на форуме",
+        "Можно скачать",
+        "Можно поиграть онлайн",
+        "Можно запустить лунчатором",
     ]
 
     ANNOTATIONS = {}
 
     QUERIES = {
-        0:
-            Q(gameurl__category__symbolic_id='video'),
-        1:
-            Q(gameurl__category__symbolic_id='review'),
-        2:
-            Q(gamecomment__isnull=False),
-        3:
-            Q(gameurl__category__symbolic_id='forum'),
-        4:
-            Q(gameurl__category__symbolic_id__in=[
-                'download_direct', 'download_landing'
-            ]),
-        5: (Q(gameurl__category__symbolic_id='play_online')
-            | Q(gameurl__interpretedgameurl__is_playable=True)),
-        6:
-            Q(package__isnull=False),
+        0: Q(gameurl__category__symbolic_id="video"),
+        1: Q(gameurl__category__symbolic_id="review"),
+        2: Q(gamecomment__isnull=False),
+        3: Q(gameurl__category__symbolic_id="forum"),
+        4: Q(
+            gameurl__category__symbolic_id__in=[
+                "download_direct",
+                "download_landing",
+            ]
+        ),
+        5: (
+            Q(gameurl__category__symbolic_id="play_online")
+            | Q(gameurl__interpretedgameurl__is_playable=True)
+        ),
+        6: Q(package__isnull=False),
     }
 
 
 class SB_AuxFlags(SB_Flags):
-    HEADER = 'Для садовников'
+    HEADER = "Для садовников"
     VAL_ID = 1
 
     FIELDS = [
-        'С файлами без категорий',
-        'Без авторов',
-        'Без даты выпуска',
-        'UrqW -- проверенные',
-        'UrqW -- непроверенные',
-        'UrqW -- неработающие',
-        'С участниками без роли',
-        'Редактированные людьми',
-        'Со ссылками, общими с другими играми',
-        'С битыми ссылками',
-        'С более чем одним автором',
+        "С файлами без категорий",
+        "Без авторов",
+        "Без даты выпуска",
+        "UrqW -- проверенные",
+        "UrqW -- непроверенные",
+        "UrqW -- неработающие",
+        "С участниками без роли",
+        "Редактированные людьми",
+        "Со ссылками, общими с другими играми",
+        "С битыми ссылками",
+        "С более чем одним автором",
     ]
 
     ANNOTATIONS = {
-        1: (Count('gameauthor')),
-        10: (Count('gameauthor')),
+        1: Count("gameauthor"),
+        10: Count("gameauthor"),
     }
 
     QUERIES = {
-        0:
-            Q(gameurl__category__symbolic_id='unknown'),
-        1:
-            Q(gameauthor__count=0),
-        2:
-            Q(release_date__isnull=True),
-        3:
-            Q(gameurl__interpretedgameurl__is_playable=True),
-        4: (Q(gameurl__interpretedgameurl__isnull=False)
-            & Q(gameurl__interpretedgameurl__is_playable__isnull=True)),
-        5:
-            Q(gameurl__interpretedgameurl__is_playable=False),
-        6:
-            Q(gameauthor__role__symbolic_id='member'),
-        7:
-            Q(edit_time__isnull=False),
-        8:
-            Q(gameurl__url__in=URL.objects.annotate(
-                Count('gameurl__game', distinct=True)).filter(
-                    gameurl__game__count__gt=1)),
-        9:
-            Q(gameurl__url__is_broken=True),
-        10:
-            Q(gameauthor__count__gt=1),
+        0: Q(gameurl__category__symbolic_id="unknown"),
+        1: Q(gameauthor__count=0),
+        2: Q(release_date__isnull=True),
+        3: Q(gameurl__interpretedgameurl__is_playable=True),
+        4: (
+            Q(gameurl__interpretedgameurl__isnull=False)
+            & Q(gameurl__interpretedgameurl__is_playable__isnull=True)
+        ),
+        5: Q(gameurl__interpretedgameurl__is_playable=False),
+        6: Q(gameauthor__role__symbolic_id="member"),
+        7: Q(edit_time__isnull=False),
+        8: Q(
+            gameurl__url__in=URL.objects.annotate(
+                Count("gameurl__game", distinct=True)
+            ).filter(gameurl__game__count__gt=1)
+        ),
+        9: Q(gameurl__url__is_broken=True),
+        10: Q(gameauthor__count__gt=1),
     }
 
 
@@ -591,11 +610,10 @@ def LimitListlike(q, start, limit):
         if limit is None:
             return q[start:]
         else:
-            return q[start:start + limit]
+            return q[start : start + limit]
 
 
 class Search:
-
     def __init__(self, cls, perm):
         self.cls = cls
         self.perm = perm
@@ -619,7 +637,7 @@ class Search:
         res = []
         for x in self.bits:
             res.append(x.ProduceDict())
-        return {'unhide_button': not unhide_all, 'search': res}
+        return {"unhide_button": not unhide_all, "search": res}
 
     def UpdateFromQuery(self, query):
         try:
@@ -630,12 +648,9 @@ class Search:
         except TypeError:
             pass
 
-    def Search(self,
-               *,
-               prefetch_related=None,
-               start=None,
-               limit=None,
-               annotate=None):
+    def Search(
+        self, *, prefetch_related=None, start=None, limit=None, annotate=None
+    ):
         need_full_query = False
         partial_query = start is not None or limit is not None
 
@@ -677,11 +692,11 @@ def MakeSearch(perm):
     s = Search(Game, perm)
     s.Add(SB_Sorting())
     s.Add(SB_Text())
-    for x in GameTagCategory.objects.order_by('order').all():
+    for x in GameTagCategory.objects.order_by("order").all():
         if not perm(x.show_in_search_perm):
             continue
         s.Add(SB_Tag(x))
-    if perm('@admin'):
+    if perm("@admin"):
         for x in GameAuthorRole.objects.all():
             s.Add(SB_Authors(x))
     s.Add(SB_UserFlags())
@@ -702,9 +717,9 @@ class SB_AuthorSorting(SearchBit):
     HONOUR = 2
 
     STRINGS = {
-        GAME_COUNT: 'количеству игр',
-        NAME: 'имени',
-        HONOUR: 'почётности',
+        GAME_COUNT: "количеству игр",
+        NAME: "имени",
+        HONOUR: "почётности",
     }
 
     ALLOWED_SORTINGS = [GAME_COUNT, NAME, HONOUR]
@@ -716,32 +731,32 @@ class SB_AuthorSorting(SearchBit):
         self.honors = None
 
     def ProduceDict(self):
-        res = super().ProduceDict('sorting')
-        res['items'] = []
+        res = super().ProduceDict("sorting")
+        res["items"] = []
         for x in self.ALLOWED_SORTINGS:
             current = x == self.method
-            res['items'].append({
-                'val': x,
-                'name': self.STRINGS[x],
-                'current': current,
-                'desc': current and self.desc,
-                'asc': current and not self.desc,
+            res["items"].append({
+                "val": x,
+                "name": self.STRINGS[x],
+                "current": current,
+                "desc": current and self.desc,
+                "asc": current and not self.desc,
             })
         return res
 
     def LoadFromQuery(self, reader):
         v = reader.ReadInt()
-        self.desc = (v % 2 == 0)
+        self.desc = v % 2 == 0
         self.method = v // 2
         if self.method not in self.ALLOWED_SORTINGS:
             self.method = self.ALLOWED_SORTINGS[0]
 
     def ModifyQuery(self, query):
         if self.method == self.NAME:
-            return query.order_by(('-' if not self.desc else '') + 'name')
+            return query.order_by(("-" if not self.desc else "") + "name")
 
         if self.method == self.GAME_COUNT:
-            return query.order_by(('-' if self.desc else '') + 'game_count')
+            return query.order_by(("-" if self.desc else "") + "game_count")
 
         return query
 
@@ -753,9 +768,10 @@ class SB_AuthorSorting(SearchBit):
         for x in authors:
             x.honor = honors.get(x.id, 0.0)
         if self.method == self.HONOUR:
-            authors.sort(key=lambda x: (self.desc !=
-                                        (x.honor == 0.0), x.honor),
-                         reverse=self.desc)
+            authors.sort(
+                key=lambda x: (self.desc != (x.honor == 0.0), x.honor),
+                reverse=self.desc,
+            )
 
         return authors
 
@@ -768,11 +784,11 @@ class SB_AuthorName(SearchBit):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.text = ''
+        self.text = ""
 
     def ProduceDict(self):
-        res = super().ProduceDict('text')
-        res['text'] = self.text
+        res = super().ProduceDict("text")
+        res["text"] = self.text
         return res
 
     def LoadFromQuery(self, reader):
@@ -786,10 +802,10 @@ class SB_AuthorName(SearchBit):
         return True
 
     def ModifyResult(self, authors):
-        query = TokenizeText(self.text or '')
+        query = TokenizeText(self.text or "")
         res = []
         for p in authors:
-            tokens = TokenizeText(p.name or '')
+            tokens = TokenizeText(p.name or "")
             if MatchesPrefix(query, tokens):
                 res.append(p)
                 continue
@@ -809,31 +825,34 @@ def MakeAuthorSearch(perm):
     return s
 
 
-def GameListFromSearch(request, query, reltime_field, max_secs, min_count,
-                       max_count):
+def GameListFromSearch(
+    request, query, reltime_field, max_secs, min_count, max_count
+):
     s = MakeSearch(request.perm)
     s.UpdateFromQuery(query)
     # TODO(crem) Game permissions!
     games = s.Search(
-        prefetch_related=['gameauthor_set__author', 'gameauthor_set__role'],
+        prefetch_related=["gameauthor_set__author", "gameauthor_set__role"],
         start=0,
-        limit=max_count)
+        limit=max_count,
+    )
 
     SnippetFromList(games)
 
     res = []
     if reltime_field:
-        for (i, x) in enumerate(games):
-            delta = (getattr(x, reltime_field) -
-                     timezone.now()).total_seconds()
+        for i, x in enumerate(games):
+            delta = (
+                getattr(x, reltime_field) - timezone.now()
+            ).total_seconds()
             if -delta > max_secs and i >= min_count:
                 break
             res.append({
-                'lag': delta,
-                'title': x.title,
-                'authors': x.authors,
-                'poster': x.poster,
-                'id': x.id
+                "lag": delta,
+                "title": x.title,
+                "authors": x.authors,
+                "poster": x.poster,
+                "id": x.id,
             })
     return res
 
