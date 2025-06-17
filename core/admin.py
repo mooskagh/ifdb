@@ -3,7 +3,6 @@ from django.contrib.sessions.models import Session
 
 from .models import (
     BlogFeed,
-    Document,
     FeedCache,
     Package,
     PackageSession,
@@ -82,13 +81,6 @@ class PackageSessionAdmin(admin.ModelAdmin):
         "last_update",
         "is_finished",
     ]
-
-
-@admin.register(Document)
-class DocumentAdmin(admin.ModelAdmin):
-    list_display = ["title", "last_update", "view_perm", "list_perm", "order"]
-    list_filter = ["last_update", "view_perm", "list_perm"]
-    search_fields = ["pk", "title", "text"]
 
 
 @admin.register(Snippet)
