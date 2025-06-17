@@ -64,6 +64,13 @@ class URLRoutingTests(TestCase):
         self.assertEqual(
             resolver.kwargs, {"slug": "test-comp", "doc": "rules.html"}
         )
+        
+        # Test competition detail with empty doc
+        resolver = resolve("/jam/test-comp/")
+        self.assertEqual(resolver.url_name, "show_competition")
+        self.assertEqual(
+            resolver.kwargs, {"slug": "test-comp", "doc": ""}
+        )
 
     def test_api_urls(self):
         """Test API endpoint URLs."""

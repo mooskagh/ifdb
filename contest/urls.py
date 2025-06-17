@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, re_path
 
 from . import editor, views
 
@@ -12,8 +12,8 @@ urlpatterns = [
     ),
     path("editlist/<int:id>/", editor.edit_complist, name="edit_complist"),
     path("editdoc/<int:id>/", editor.edit_compdoc, name="edit_compdoc"),
-    path(
-        "<slug:slug>/<path:doc>",
+    re_path(
+        r"^(?P<slug>[-\w\d]+)/(?P<doc>.*)$",
         views.show_competition,
         name="show_competition",
     ),

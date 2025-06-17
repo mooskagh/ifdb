@@ -10,8 +10,8 @@ urlpatterns = [
     path("adminz/", admin.site.urls, name="admin"),
     re_path(r"^", include("games.urls"), name="games"),
     re_path(r"^", include("moder.urls"), name="moder"),
-    path(
-        "<path:doc>",
+    re_path(
+        r"^(?P<doc>.*)$",
         show_competition,
         {"slug": "zok-2025"},
         name="show_competition",
