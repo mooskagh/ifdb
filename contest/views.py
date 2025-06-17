@@ -5,6 +5,7 @@ from collections import defaultdict
 from dateutil import relativedelta
 from django import forms
 from django.conf import settings
+from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 from django.db.models import Count, Max
 from django.forms import widgets
@@ -248,55 +249,108 @@ COLOR_RULES = [
 ]
 
 
+def _seconds_until_midnight():
+    """Calculate seconds until next midnight for cache expiration."""
+    now = timezone.now()
+    tomorrow = now.replace(hour=0, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
+    return int((tomorrow - now).total_seconds())
+
+
+def get_competitions_data():
+    """Cache competition database queries until midnight."""
+    cache_key = 'contest:competitions_list_data'
+    data = cache.get(cache_key)
+    if data is None:
+        # Cache expensive database queries
+        competitions = list(Competition.objects.filter(published=True)
+                          .order_by('-end_date'))
+        
+        schedule = defaultdict(list)
+        for x in CompetitionSchedule.objects.filter(show=True).order_by('when'):
+            schedule[x.competition_id].append({
+                'when': x.when,
+                'title': x.title
+            })
+        
+        links = defaultdict(list)
+        for x in CompetitionURL.objects.filter(
+            category__symbolic_id__in=SHOW_LINKS
+        ).select_related():
+            links[x.competition_id].append({
+                'description': x.description,
+                'url': x.GetRemoteUrl()
+            })
+        
+        logos = {}
+        for x in CompetitionURL.objects.filter(
+            category__symbolic_id='logo'
+        ).select_related():
+            logos[x.competition_id] = x.GetLocalUrl()
+        
+        data = {
+            'competitions': competitions,
+            'schedule': schedule,
+            'links': links,
+            'logos': logos
+        }
+        
+        # Cache until midnight since age calculations change daily
+        cache.set(cache_key, data, _seconds_until_midnight())
+    
+    return data
+
+
 def list_competitions(request):
     end_date = datetime.date.today().replace(
         day=1
     ) + relativedelta.relativedelta(months=1)
     now = timezone.now()
-
+    
+    # Get cached database data
+    cached_data = get_competitions_data()
+    
+    # Process cached schedule data with fresh date formatting
     schedule = defaultdict(list)
-    for x in CompetitionSchedule.objects.filter(show=True).order_by("when"):
-        schedule[x.competition_id].append({
-            "lines": [
-                {
-                    "text": FormatDate(x.when),
-                    "style": (
-                        ["float-right"] + (["dimmed"] if x.when < now else [])
-                    ),
-                },
-                {
-                    "text": x.title,
-                    "style": ["strong"],
-                },
-            ]
-        })
+    for comp_id, entries in cached_data['schedule'].items():
+        for entry in entries:
+            schedule[comp_id].append({
+                "lines": [
+                    {
+                        "text": FormatDate(entry['when']),
+                        "style": (
+                            ["float-right"] + (["dimmed"] if entry['when'] < now else [])
+                        ),
+                    },
+                    {
+                        "text": entry['title'],
+                        "style": ["strong"],
+                    },
+                ]
+            })
 
+    # Process cached links data
     links = defaultdict(list)
-    for x in CompetitionURL.objects.filter(
-        category__symbolic_id__in=SHOW_LINKS
-    ).select_related():
-        links[x.competition_id].append({
-            "lines": [
-                {
-                    "text": x.description,
-                    "link": x.GetRemoteUrl(),
-                    "newtab": True,
-                    "style": ["strong"],
-                }
-            ]
-        })
+    for comp_id, entries in cached_data['links'].items():
+        for entry in entries:
+            links[comp_id].append({
+                "lines": [
+                    {
+                        "text": entry['description'],
+                        "link": entry['url'],
+                        "newtab": True,
+                        "style": ["strong"],
+                    }
+                ]
+            })
 
-    logos = {}
-    for x in CompetitionURL.objects.filter(
-        category__symbolic_id="logo"
-    ).select_related():
-        logos[x.competition_id] = x.GetLocalUrl()
+    # Use cached logos
+    logos = cached_data['logos']
 
     upcoming = []
     contests = []
 
     d = now.date()
-    for x in Competition.objects.filter(published=True).order_by("-end_date"):
+    for x in cached_data['competitions']:
         options = json.loads(x.options)
         if x.start_date and x.start_date < d:
             d = x.start_date

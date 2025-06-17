@@ -28,7 +28,7 @@
 ### Phase 4: Performance & Search Optimization 🚀  
 - [ ] 4.1: Implement Elasticsearch for game search
 - [ ] 4.2: Add database query optimization (select_related, prefetch_related)
-- [ ] 4.3: Add caching layer for events/jams section
+- [x] 4.3: Add caching layer for events/jams section
 - [ ] 4.4: Optimize slow database queries with indexes
 - [ ] 4.5: Implement pagination for large datasets
 
@@ -787,27 +787,17 @@ class ImportOrchestrator:
            model = Game
    ```
 
-### 4.3 Caching for Events/Jams
+### 4.3 Caching for Competitions List
 
-**Current Issue**: Events section extremely slow.
+**Current Issue**: Competitions list page (`list_competitions` in `contest/views.py`) loads slowly due to complex database queries.
 
-**Implementation**:
-```python
-from django.core.cache import cache
-from django.views.decorators.cache import cache_page
+**Analysis**: 
+- Very low traffic (single digit visitors per day), so short-term cache won't help
+- Competition data changes rarely (few manual edits per year)  
+- Age calculations ("5 days", "7 days ago") change daily at midnight
+- Best approach: cache database queries separately from date calculations
 
-@cache_page(60 * 15)  # 15 minutes
-def events_list(request):
-    return render(request, 'events.html', get_events_data())
-
-def get_events_data():
-    cache_key = 'events_data'
-    data = cache.get(cache_key)
-    if data is None:
-        data = expensive_events_query()
-        cache.set(cache_key, data, 60 * 15)
-    return data
-```
+**Implementation**: ✅ Completed - optimized `list_competitions()` in `contest/views.py` with database query caching that expires at midnight.
 
 ---
 
