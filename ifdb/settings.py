@@ -83,7 +83,7 @@ if not DEBUG:
 else:
     SILENCED_SYSTEM_CHECKS = ["django_recaptcha.recaptcha_test_key_error"]
     SECRET_KEY = "l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr"
-    VK_SERVICE_KEY = open("/home/crem/my/vk.key").read().strip()
+    VK_SERVICE_KEY = "dummy-vk-key-for-debug"
     DISCORD_WEBHOOK = None
     ALLOWED_HOSTS = []
     # DATABASES = {
@@ -99,7 +99,7 @@ else:
             "USER": "ifdbdev",
             "PASSWORD": "ifdb",
             "HOST": "localhost",
-            "PORT": "",
+            "PORT": "6432",
         }
     }
 
