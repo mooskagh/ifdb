@@ -62,7 +62,12 @@
                     {% endif %}
                 </div>
                 {% for x in competitions %}
-                    <a href="{% url 'show_competition' slug=x.slug doc='' %}" class="game-banner">
+                    {% safe_url 'show_competition' slug=x.slug doc='' as competition_url %}
+                    {% if competition_url %}
+                        <a href="{{ competition_url }}" class="game-banner">
+                    {% else %}
+                        <div class="game-banner game-banner-disabled">
+                    {% endif %}
                         <div class="game-banner-rank"><div>
                             {% if x.head %}
                                 {% if x.head.combined %}
@@ -83,7 +88,11 @@
                                 </div>
                             {% endif %}
                         </div>
-                    </a>
+                    {% if competition_url %}
+                        </a>
+                    {% else %}
+                        </div>
+                    {% endif %}
                 {% endfor %}
             </div>
             {% if media %}

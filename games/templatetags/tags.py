@@ -48,3 +48,15 @@ def rupl(value, arg):
 @register.simple_tag(takes_context=False)
 def version():
     return settings.VERSION
+
+
+@register.simple_tag
+def safe_url(viewname, **kwargs):
+    """
+    Like {% url %} but returns empty string if the reverse lookup fails.
+    Usage: {% safe_url 'show_competition' slug=x.slug doc='' as url %}
+    """
+    try:
+        return reverse(viewname, kwargs=kwargs)
+    except NoReverseMatch:
+        return ""
