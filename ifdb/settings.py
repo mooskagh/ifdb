@@ -349,7 +349,7 @@ CACHE_BACKEND = os.environ.get(
 CACHE_LOCATION = os.environ.get(
     "CACHE_LOCATION",
     "/home/ifdb/tmp/django_cache"
-    if IS_PROD
+    if not DEBUG
     else os.path.join(BASE_DIR, "tmp/django_cache"),
 )
 
@@ -369,7 +369,7 @@ CACHES = {
         "LOCATION": os.environ.get(
             "CACHE_LOCATION_TOR",
             "/home/ifdb/tmp/django_cache_tor"
-            if IS_PROD
+            if not DEBUG
             else os.path.join(BASE_DIR, "tmp/django_cache_tor"),
         ),
         "TIMEOUT": 60 * 60 * 24,  # 24 hours for tor-ips
