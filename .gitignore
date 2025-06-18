@@ -7,3 +7,4 @@
 /virtualenv
 __pycache__
 .env
+.python-version

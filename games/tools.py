@@ -294,11 +294,11 @@ class MarkdownSnippet(Extension):
         super().__init__()
         self.provider = provider
 
-    def extendMarkdown(self, md, md_globals):
+    def extendMarkdown(self, md):
         processor = MarkdownSnippetProcessor(md.parser)
         processor.provider = self.provider
         processor.md = md
-        md.parser.blockprocessors.add("snippets", processor, "_begin")
+        md.parser.blockprocessors.register(processor, "snippets", 200)
 
 
 def RenderMarkdown(content, snippet_provider=None):

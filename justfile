@@ -46,7 +46,7 @@ fix_and_check: fix check
 start-db:
     @echo "Starting PostgreSQL development server..."
     @echo "Database: ifdbdev"
-    @echo "Host: localhost:5432"
+    @echo "Host: localhost:6432"
     @echo "User: ifdbdev"
     @echo "Password: ifdb"
     @echo ""

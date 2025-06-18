@@ -1,13 +1,13 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, re_path
+from django.urls import include, path, re_path
 
 from contest.views import show_competition
 
 urlpatterns = [
-    re_path(r"^rss/", include("rss.urls"), name="rss"),
-    re_path(r"^adminz/", admin.site.urls, name="admin"),
+    path("rss/", include("rss.urls"), name="rss"),
+    path("adminz/", admin.site.urls, name="admin"),
     re_path(r"^", include("games.urls"), name="games"),
     re_path(r"^", include("moder.urls"), name="moder"),
     re_path(

@@ -18,18 +18,18 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.http.response import HttpResponseRedirect
-from django.urls import include, re_path
+from django.urls import include, path, re_path
 
 urlpatterns = [
-    re_path(r"^$", lambda r: HttpResponseRedirect("index/")),
-    re_path(r"^adminz/", admin.site.urls, name="admin"),
+    path("", lambda r: HttpResponseRedirect("index/")),
+    path("adminz/", admin.site.urls, name="admin"),
     # Redirect old docs URLs to home page
     re_path(r"^docs/.*", lambda r: HttpResponseRedirect("/")),
     re_path(r"^", include("core.urls"), name="api"),
     re_path(r"^", include("games.urls"), name="games"),
     re_path(r"^", include("moder.urls"), name="moder"),
-    re_path(r"^jam/", include("contest.urls"), name="contest"),
-    re_path(r"^rss/", include("rss.urls"), name="rss"),
+    path("jam/", include("contest.urls"), name="contest"),
+    path("rss/", include("rss.urls"), name="rss"),
 ]
 
 if settings.DEBUG:

@@ -1,21 +1,21 @@
-from django.urls import re_path
+from django.urls import path
 
 from . import snippets
 
 urlpatterns = [
-    re_path(r"^json/snippet/$", snippets.AsyncSnippet, name="async_snippet"),
-    re_path(
-        r"^json/snippet/pin/(?P<id>[0-9]+)",
+    path("json/snippet/", snippets.AsyncSnippet, name="async_snippet"),
+    path(
+        "json/snippet/pin/<int:id>/",
         snippets.PinSnippet,
         name="pin_snippet",
     ),
-    re_path(
-        r"^json/snippet/hide/(?P<id>[0-9]+)",
+    path(
+        "json/snippet/hide/<int:id>/",
         snippets.HideSnippet,
         name="hide_snippet",
     ),
-    re_path(
-        r"^json/snippet/forget/(?P<id>[0-9]+)",
+    path(
+        "json/snippet/forget/<int:id>/",
         snippets.ForgetSnippet,
         name="forget_snippet",
     ),
