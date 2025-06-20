@@ -221,7 +221,7 @@ class DeployTool(cli.Application):
     PROGNAME = os.path.basename(__file__)
     pipeline = Pipeline()
 
-    # --- Global options --- CORRECTED HERE ---
+    # --- Global options ---
     start = cli.SwitchAttr(["s", "start"], int, default=1, help="Step to start from")
     list_only = cli.Flag(["l", "list"], help="List all steps and exit")
     step_by_step = cli.Flag(["steps"], help="Run in step-by-step confirmation mode")
@@ -247,7 +247,6 @@ class DeployTool(cli.Application):
     class RedCommand(cli.Application):
         """Put the site into maintenance mode (show a wall page)."""
 
-        # --- CORRECTED HERE ---
         message = cli.SwitchAttr(
             ["m", "message"],
             str,
@@ -325,7 +324,6 @@ class DeployTool(cli.Application):
     class StageCommand(cli.Application):
         """Prepare and run a staging version of the site."""
 
-        # --- CORRECTED HERE ---
         tag = cli.SwitchAttr(
             ["t", "tag"],
             str,
@@ -615,7 +613,7 @@ class DeployTool(cli.Application):
             p.Run("deploy")
 
 
-# --- Pipeline Step Helper Functions (unchanged from previous correct version) ---
+# --- Pipeline Step Helper Functions ---
 
 
 def JumpIfExists(var, if_true=1, if_false=1):
