@@ -263,16 +263,16 @@ Potential improvements identified in the codebase:
 
 ---
 
-# Migration Plan: Custom Task Queue → Celery+RabbitMQ
+# Migration Plan: Custom Task Queue → Celery+Redis
 
-This document outlines a simplified migration strategy from the current custom database-backed task queue system to a standard Celery+RabbitMQ implementation.
+This document outlines a simplified migration strategy from the current custom database-backed task queue system to a standard Celery+Redis implementation.
 
 ## Migration Overview
 
 Since the task queue will be empty at migration time, this is a straightforward replacement:
 
 1. **Coding Phase**: Implement Celery tasks and configuration
-2. **Deployment Phase**: Install RabbitMQ, deploy code, switch services
+2. **Deployment Phase**: Install Redis, deploy code, switch services
 
 The migration involves only 4 tasks total:
 - **Periodic**: `ImportGames`, `FetchFeeds` (cron-based)
@@ -290,7 +290,7 @@ Note: `ForceReimport` and `ImportForceUpdateUrls` are CLI-only and don't use the
 celery==5.3.4
 django-celery-beat==2.5.0  # For cron/scheduled tasks
 django-celery-results==2.5.0  # For result storage
-kombu==5.3.4  # Celery transport layer
+redis==5.0.1  # Redis client for Python
 ```
 
 
@@ -320,8 +320,8 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 import os
 
 # Celery Configuration
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'pyamqp://guest@localhost//')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'django-db')
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/1')
 
 # Task configuration
 CELERY_ACCEPT_CONTENT = ['json']
@@ -572,58 +572,60 @@ class Command(BaseCommand):
 
 ## Part 2: Deployment Phase
 
-### 2.1 RabbitMQ Installation and Configuration
+### 2.1 Redis Installation and Configuration
 
-**Install RabbitMQ on Debian production server:**
+**Install Redis on Debian production server:**
 ```bash
 # Update package lists
 sudo apt-get update
 
-# Install RabbitMQ server
-sudo apt-get install -y rabbitmq-server
+# Install Redis server
+sudo apt-get install -y redis-server
 
-# Enable and start RabbitMQ service
-sudo systemctl enable rabbitmq-server
-sudo systemctl start rabbitmq-server
+# Enable and start Redis service
+sudo systemctl enable redis-server
+sudo systemctl start redis-server
 
-# Enable RabbitMQ management plugin
-sudo rabbitmq-plugins enable rabbitmq_management
-
-# Create IFDB user and virtual host
-sudo rabbitmqctl add_user ifdb <secure_password>
-sudo rabbitmqctl add_vhost ifdb_vhost
-sudo rabbitmqctl set_permissions -p ifdb_vhost ifdb ".*" ".*" ".*"
-
-# Set up admin user for management interface
-sudo rabbitmqctl add_user admin <admin_password>
-sudo rabbitmqctl set_user_tags admin administrator
-sudo rabbitmqctl set_permissions -p / admin ".*" ".*" ".*"
+# Test Redis installation
+redis-cli ping  # Should return PONG
 ```
 
-**Configure RabbitMQ:**
+**Configure Redis:**
 ```bash
-# Create RabbitMQ configuration file
-sudo tee /etc/rabbitmq/rabbitmq.conf << EOF
+# Create Redis configuration file
+sudo tee /etc/redis/redis.conf << EOF
 # Network settings
-listeners.tcp.default = 5672
-management.tcp.port = 15672
+bind 127.0.0.1
+port 6379
 
-# Virtual host and user settings
-default_vhost = ifdb_vhost
-default_user = ifdb
-default_pass = <secure_password>
+# Security settings
+requirepass <secure_password>
 
-# Memory and disk settings
-vm_memory_high_watermark.relative = 0.6
-disk_free_limit.relative = 2.0
+# Memory and persistence settings
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+save 900 1
+save 300 10
+save 60 10000
+
+# Database settings
+databases 16
 
 # Logging
-log.file.level = info
-log.console = true
+loglevel notice
+logfile /var/log/redis/redis-server.log
+
+# Performance settings
+tcp-keepalive 300
+timeout 0
 EOF
 
-# Restart RabbitMQ to apply configuration
-sudo systemctl restart rabbitmq-server
+# Set proper permissions
+sudo chown redis:redis /etc/redis/redis.conf
+sudo chmod 640 /etc/redis/redis.conf
+
+# Restart Redis to apply configuration
+sudo systemctl restart redis-server
 ```
 
 ### 2.2 Environment Configuration
@@ -631,8 +633,8 @@ sudo systemctl restart rabbitmq-server
 **Update production environment variables:**
 ```bash
 # Add to /home/ifdb/configs/environment or .env
-CELERY_BROKER_URL=pyamqp://ifdb:<secure_password>@localhost:5672/ifdb_vhost
-CELERY_RESULT_BACKEND=django-db
+CELERY_BROKER_URL=redis://:secure_password@localhost:6379/0
+CELERY_RESULT_BACKEND=redis://:secure_password@localhost:6379/1
 ```
 
 ### 2.3 Systemd Service Configuration
@@ -641,8 +643,8 @@ CELERY_RESULT_BACKEND=django-db
 ```ini
 [Unit]
 Description=IFDB Celery Worker
-After=network.target rabbitmq-server.service postgresql.service
-Requires=rabbitmq-server.service postgresql.service
+After=network.target redis-server.service postgresql.service
+Requires=redis-server.service postgresql.service
 
 [Service]
 Type=exec
@@ -673,8 +675,8 @@ WantedBy=multi-user.target
 ```ini
 [Unit]
 Description=IFDB Celery Beat Scheduler
-After=network.target rabbitmq-server.service postgresql.service
-Requires=rabbitmq-server.service postgresql.service
+After=network.target redis-server.service postgresql.service
+Requires=redis-server.service postgresql.service
 
 [Service]
 Type=exec
@@ -703,8 +705,8 @@ WantedBy=multi-user.target
 ```ini
 [Unit]
 Description=IFDB Celery Flower Monitoring
-After=network.target rabbitmq-server.service
-Requires=rabbitmq-server.service
+After=network.target redis-server.service
+Requires=redis-server.service
 
 [Service]
 Type=exec
@@ -829,10 +831,10 @@ if [ "$WORKERS" != "active" ]; then
     exit 2
 fi
 
-# Check if RabbitMQ is running
-RABBITMQ=$(systemctl is-active rabbitmq-server)
-if [ "$RABBITMQ" != "active" ]; then
-    echo "CRITICAL: RabbitMQ not running"
+# Check if Redis is running
+REDIS=$(systemctl is-active redis-server)
+if [ "$REDIS" != "active" ]; then
+    echo "CRITICAL: Redis not running"
     exit 2
 fi
 
@@ -845,6 +847,13 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "OK: Celery system healthy"
+
+# Check Redis connection
+REDIS_PING=$(redis-cli -a "$REDIS_PASSWORD" ping 2>/dev/null)
+if [ "$REDIS_PING" != "PONG" ]; then
+    echo "WARNING: Redis ping failed"
+    exit 1
+fi
 exit 0
 ```
 
@@ -859,21 +868,32 @@ exit 0
 
 ### 2.7 Performance Tuning
 
-**RabbitMQ tuning for production:**
+**Redis tuning for production:**
 ```bash
-# Add to /etc/rabbitmq/rabbitmq.conf
-tcp_listen_options.backlog = 128
-tcp_listen_options.nodelay = true
-tcp_listen_options.keepalive = true
+# Add to /etc/redis/redis.conf
+# Memory optimization
+maxmemory 512mb
+maxmemory-policy allkeys-lru
 
-# Memory and performance settings
-vm_memory_high_watermark.relative = 0.6
-channel_max = 0
-frame_max = 131072
-heartbeat = 600
+# Network settings
+tcp-backlog 511
+tcp-keepalive 300
+timeout 0
 
-# Queue settings
-queue_master_locator = min-masters
+# Performance settings
+hash-max-ziplist-entries 512
+hash-max-ziplist-value 64
+list-max-ziplist-size -2
+list-compress-depth 0
+set-max-intset-entries 512
+zset-max-ziplist-entries 128
+zset-max-ziplist-value 64
+
+# Persistence settings (adjust based on needs)
+save 900 1
+save 300 10
+save 60 10000
+stop-writes-on-bgsave-error yes
 ```
 
 **Celery worker optimization:**
@@ -896,12 +916,12 @@ ExecStart=/home/ifdb/ifdb/venv/bin/celery -A ifdb worker \
 - Test in development environment
 
 **Day 3: Deployment Preparation**
-- Set up RabbitMQ on staging environment
+- Set up Redis on staging environment
 - Test full migration process on staging
 - Prepare monitoring and rollback procedures
 
 **Day 4: Production Migration**
-- Install and configure RabbitMQ
+- Install and configure Redis
 - Deploy code changes
 - Switch from ifdbworker to Celery services
 - Set up periodic tasks
@@ -913,11 +933,13 @@ ExecStart=/home/ifdb/ifdb/venv/bin/celery -A ifdb worker \
 ## Benefits of Migration
 
 1. **Scalability**: Support for multiple workers and distributed processing
-2. **Reliability**: Robust message broker with persistence and clustering
-3. **Monitoring**: Rich ecosystem of monitoring tools (Flower, Prometheus integration)
+2. **Reliability**: Redis persistence with high performance and low latency
+3. **Monitoring**: Rich ecosystem of monitoring tools (Flower, Redis monitoring)
 4. **Community Support**: Large community and extensive documentation
 5. **Feature Rich**: Advanced routing, retries, rate limiting, and scheduling
-6. **Standard Solution**: Industry-standard approach reduces maintenance burden
+6. **Standard Solution**: Industry-standard approach with simpler setup than RabbitMQ
+7. **Performance**: Redis provides excellent performance for task queuing with lower resource usage
+8. **Simplicity**: Fewer moving parts and easier configuration than RabbitMQ
 
 ## Post-Migration Cleanup
 
