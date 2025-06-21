@@ -263,17 +263,17 @@ Potential improvements identified in the codebase:
 
 ---
 
-# Migration Plan: Custom Task Queue → Celery+Redis
+# Migration Plan: Custom Task Queue → Raw Redis
 
-This document outlines a simplified migration strategy from the current custom database-backed task queue system to a standard Celery+Redis implementation.
+This document outlines a simplified migration strategy from the current custom database-backed task queue system to a raw Redis implementation using Python's redis library.
 
 ## Migration Overview
 
 Since the task queue will be empty at migration time, this is a straightforward replacement with 3 phases:
 
 1. **Prepare Production System**: Install Redis and configure environment without affecting running service
-2. **Implement Changes**: Code implementation and configuration
-3. **Deploy Changes**: Switch services and validate
+2. **Implement Changes**: Create new Redis-based task queue implementation
+3. **Deploy Changes**: Switch from database-backed to Redis-backed task queue
 
 The migration involves only 4 tasks total:
 - **Periodic**: `ImportGames`, `FetchFeeds` (cron-based)
@@ -344,8 +344,7 @@ sudo systemctl restart redis-server
 **Update production environment variables:**
 ```bash
 # Add to /home/ifdb/configs/environment or .env
-CELERY_BROKER_URL=redis://:secure_password@localhost:6379/0
-CELERY_RESULT_BACKEND=redis://:secure_password@localhost:6379/1
+REDIS_URL=redis://:secure_password@localhost:6379/0
 ```
 
 ### 1.3 Create User Account (if needed)
@@ -362,29 +361,244 @@ CELERY_RESULT_BACKEND=redis://:secure_password@localhost:6379/1
 **Update `requirements.txt`:**
 ```python
 # Add these dependencies
-celery==5.3.4
-django-celery-beat==2.5.0  # For cron/scheduled tasks
-django-celery-results==2.5.0  # For result storage
 redis==5.0.1  # Redis client for Python
+croniter==1.4.1  # For cron expression parsing
 ```
 
 
-### 2.2 Celery Configuration
+### 2.2 Redis Task Queue Implementation
 
-**Create `ifdb/celery.py`:**
+**Create `core/redis_taskqueue.py`:**
 ```python
-import os
-from celery import Celery
+import json
+import time
+import logging
+import signal
+import sys
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any, Callable
+import redis
 from django.conf import settings
+from django.utils import timezone
+from croniter import croniter
 
-# Set default Django settings module
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ifdb.settings')
+logger = logging.getLogger(__name__)
 
-app = Celery('ifdb')
+class RedisTaskQueue:
+    def __init__(self):
+        self.redis_client = redis.from_url(
+            getattr(settings, 'REDIS_URL', 'redis://localhost:6379/0')
+        )
+        self.task_queue_key = 'ifdb:task_queue'
+        self.task_data_key = 'ifdb:task_data'
+        self.running = False
+        
+    def enqueue(self, func: Callable, *args, priority: int = 100, 
+                retries: int = 3, onfail: Optional[Callable] = None,
+                dependency: Optional[str] = None, scheduled_time: Optional[datetime] = None,
+                name: Optional[str] = None, cron: Optional[str] = None, **kwargs):
+        """Enqueue a task for execution"""
+        
+        task_id = f"{func.__module__}.{func.__name__}:{int(time.time()*1000000)}"
+        if name:
+            task_id = f"{name}:{task_id}"
+            
+        task_data = {
+            'id': task_id,
+            'name': name or f"{func.__module__}.{func.__name__}",
+            'module': func.__module__,
+            'function': func.__name__,
+            'args': args,
+            'kwargs': kwargs,
+            'priority': priority,
+            'retries_left': retries,
+            'retry_minutes': 2000,
+            'cron': cron,
+            'enqueue_time': timezone.now().isoformat(),
+            'scheduled_time': scheduled_time.isoformat() if scheduled_time else None,
+            'dependency': dependency,
+            'onfail_module': onfail.__module__ if onfail else None,
+            'onfail_function': onfail.__name__ if onfail else None,
+            'pending': True,
+            'success': False,
+            'fail': False,
+            'log': ''
+        }
+        
+        # Store task data
+        self.redis_client.hset(self.task_data_key, task_id, json.dumps(task_data))
+        
+        # Add to priority queue (score is priority, then timestamp for FIFO within priority)
+        score = priority * 1000000 + int(time.time())
+        self.redis_client.zadd(self.task_queue_key, {task_id: score})
+        
+        return task_id
+        
+    def enqueue_or_get(self, func: Callable, *args, name: Optional[str] = None, **kwargs):
+        """Enqueue task only if not already pending with same name"""
+        if name:
+            # Check for existing task with same name
+            existing_tasks = self.redis_client.hgetall(self.task_data_key)
+            for task_id, task_json in existing_tasks.items():
+                task_data = json.loads(task_json)
+                if task_data.get('name') == name and task_data.get('pending'):
+                    return task_id.decode()
+                    
+        return self.enqueue(func, *args, name=name, **kwargs)
+        
+    def get_next_task(self) -> Optional[Dict[str, Any]]:
+        """Get the next task ready for execution"""
+        
+        # Get all pending tasks ordered by priority
+        task_ids = self.redis_client.zrange(self.task_queue_key, 0, -1)
+        
+        for task_id in task_ids:
+            task_json = self.redis_client.hget(self.task_data_key, task_id)
+            if not task_json:
+                # Clean up orphaned queue entry
+                self.redis_client.zrem(self.task_queue_key, task_id)
+                continue
+                
+            task_data = json.loads(task_json)
+            
+            # Skip non-pending tasks
+            if not task_data.get('pending'):
+                self.redis_client.zrem(self.task_queue_key, task_id)
+                continue
+                
+            # Check if scheduled time has passed
+            if task_data.get('scheduled_time'):
+                scheduled = datetime.fromisoformat(task_data['scheduled_time'])
+                if timezone.now() < scheduled:
+                    continue
+                    
+            # Check dependencies
+            if task_data.get('dependency'):
+                dep_json = self.redis_client.hget(self.task_data_key, task_data['dependency'])
+                if dep_json:
+                    dep_data = json.loads(dep_json)
+                    if not dep_data.get('success'):
+                        continue  # Dependency not completed
+                        
+            return task_data
+            
+        return None
+        
+    def execute_task(self, task_data: Dict[str, Any]) -> bool:
+        """Execute a single task"""
+        task_id = task_data['id']
+        
+        try:
+            # Import and execute function
+            module = __import__(task_data['module'], fromlist=[task_data['function']])
+            func = getattr(module, task_data['function'])
+            
+            # Update task as started
+            task_data['start_time'] = timezone.now().isoformat()
+            task_data['log'] += f"Started at {task_data['start_time']}\n"
+            self.redis_client.hset(self.task_data_key, task_id, json.dumps(task_data))
+            
+            # Execute function
+            result = func(*task_data['args'], **task_data['kwargs'])
+            
+            # Mark as successful
+            task_data['success'] = True
+            task_data['pending'] = False
+            task_data['finish_time'] = timezone.now().isoformat()
+            task_data['log'] += f"Completed successfully at {task_data['finish_time']}\n"
+            
+            # Handle cron tasks
+            if task_data.get('cron'):
+                cron = croniter(task_data['cron'], timezone.now())
+                next_run = cron.get_next(datetime)
+                self.enqueue(
+                    func, *task_data['args'],
+                    name=task_data['name'],
+                    cron=task_data['cron'],
+                    scheduled_time=next_run,
+                    **task_data['kwargs']
+                )
+                
+            return True
+            
+        except Exception as e:
+            logger.exception(f"Task {task_id} failed: {e}")
+            
+            task_data['retries_left'] -= 1
+            task_data['log'] += f"Failed: {str(e)}\n"
+            
+            if task_data['retries_left'] > 0:
+                # Schedule retry
+                retry_time = timezone.now() + timedelta(minutes=task_data['retry_minutes'])
+                task_data['scheduled_time'] = retry_time.isoformat()
+                task_data['log'] += f"Retrying at {task_data['scheduled_time']}\n"
+            else:
+                # Mark as failed
+                task_data['fail'] = True
+                task_data['pending'] = False
+                task_data['finish_time'] = timezone.now().isoformat()
+                
+                # Execute failure handler
+                if task_data.get('onfail_module') and task_data.get('onfail_function'):
+                    try:
+                        onfail_module = __import__(task_data['onfail_module'], 
+                                                 fromlist=[task_data['onfail_function']])
+                        onfail_func = getattr(onfail_module, task_data['onfail_function'])
+                        onfail_func(None, {'error': str(e), **task_data})
+                    except Exception as onfail_e:
+                        logger.exception(f"Failure handler failed: {onfail_e}")
+                        
+            return False
+            
+        finally:
+            # Update task data
+            self.redis_client.hset(self.task_data_key, task_id, json.dumps(task_data))
+            
+            # Remove from queue if no longer pending
+            if not task_data.get('pending'):
+                self.redis_client.zrem(self.task_queue_key, task_id)
+                
+    def worker(self):
+        """Main worker loop"""
+        self.running = True
+        
+        def signal_handler(signum, frame):
+            logger.info("Received shutdown signal")
+            self.running = False
+            
+        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
+        
+        logger.info("Redis task worker started")
+        
+        while self.running:
+            try:
+                task_data = self.get_next_task()
+                if task_data:
+                    logger.info(f"Executing task: {task_data['name']}")
+                    self.execute_task(task_data)
+                else:
+                    # No tasks available, sleep briefly
+                    time.sleep(1)
+                    
+            except Exception as e:
+                logger.exception(f"Worker error: {e}")
+                time.sleep(5)
+                
+        logger.info("Redis task worker stopped")
 
-# Configure Celery using Django settings
-app.config_from_object('django.conf:settings', namespace='CELERY')
+# Global instance
+task_queue = RedisTaskQueue()
 
+# Convenience functions matching original API
+def Enqueue(func, *args, **kwargs):
+    return task_queue.enqueue(func, *args, **kwargs)
+    
+def EnqueueOrGet(func, *args, **kwargs):
+    return task_queue.enqueue_or_get(func, *args, **kwargs)
+    
+def Worker():
+    return task_queue.worker()
 ```
 
 
@@ -394,216 +608,54 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 ```python
 import os
 
-# Celery Configuration
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/1')
-
-# Task configuration
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = TIME_ZONE
-
-# Task routing and execution
-CELERY_TASK_ROUTES = {
-    'games.tasks.*': {'queue': 'games'},
-    'core.tasks.*': {'queue': 'core'},
-}
-
-# Worker configuration
-CELERY_WORKER_PREFETCH_MULTIPLIER = 1
-CELERY_TASK_ACKS_LATE = True
-CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000
-
-# Retry configuration
-CELERY_TASK_REJECT_ON_WORKER_LOST = True
-CELERY_TASK_DEFAULT_RETRY_DELAY = 60
-CELERY_TASK_MAX_RETRIES = 3
-
-# Beat scheduler for cron tasks
-CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
-
-# Result backend configuration
-CELERY_RESULT_EXPIRES = 3600  # 1 hour
-CELERY_RESULT_EXTENDED = True
-
-# Error handling
-CELERY_TASK_SEND_SENT_EVENT = True
-CELERY_TASK_TRACK_STARTED = True
-
-# Add to INSTALLED_APPS
-INSTALLED_APPS += [
-    'django_celery_beat',
-    'django_celery_results',
-]
+# Redis Configuration
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 ```
 
-### 2.4 Task Conversion
+### 2.4 Update Existing Task Queue
 
-**Convert existing task functions to Celery tasks:**
-
-**Update `games/tasks/uploads.py`:**
+**Update `core/taskqueue.py` to use Redis backend:**
 ```python
-from celery import shared_task
-from celery.utils.log import get_task_logger
+# Replace the entire file with:
+from .redis_taskqueue import Enqueue, EnqueueOrGet, Worker
 
-logger = get_task_logger(__name__)
-
-@shared_task(bind=True, max_retries=3, default_retry_delay=60)
-def clone_file(self, url_id):
-    """Celery version of CloneFile task"""
-    try:
-        return CloneFile(url_id)
-    except Exception as exc:
-        logger.error(f'CloneFile failed for URL {url_id}: {exc}')
-        # Mark as broken on final failure
-        if self.request.retries == self.max_retries:
-            try:
-                MarkBroken(None, {'url_id': url_id, 'error': str(exc)})
-            except Exception as mark_exc:
-                logger.error(f'MarkBroken failed: {mark_exc}')
-        raise self.retry(exc=exc)
-
-@shared_task(bind=True, max_retries=3)
-def recode_game(self, game_url_id):
-    """Celery version of RecodeGame task"""
-    try:
-        return RecodeGame(game_url_id)
-    except Exception as exc:
-        logger.error(f'RecodeGame failed for GameURL {game_url_id}: {exc}')
-        raise self.retry(exc=exc)
-
-# Keep original functions unchanged
-def CloneFile(url_id):
-    """Original CloneFile implementation"""
-    # ... existing implementation ...
-
-def RecodeGame(game_url_id):
-    """Original RecodeGame implementation"""
-    # ... existing implementation ...
+# Re-export for backward compatibility
+__all__ = ['Enqueue', 'EnqueueOrGet', 'Worker']
 ```
 
-**Update `games/tasks/game_importer.py`:**
-```python
-from celery import shared_task
-from celery.utils.log import get_task_logger
+**No changes needed to existing task functions** - they will continue to work as-is since we're maintaining the same API.
 
-logger = get_task_logger(__name__)
+### 2.5 No Code Changes Required
 
-@shared_task(bind=True)
-def import_games(self, append_urls=False):
-    """Celery version of ImportGames - used for periodic execution"""
-    try:
-        return ImportGames(append_urls=append_urls)
-    except Exception as exc:
-        logger.error(f'ImportGames failed: {exc}')
-        raise self.retry(exc=exc)
-
-# Keep original function unchanged
-def ImportGames(append_urls=False):
-    """Original ImportGames implementation"""
-    # ... existing implementation ...
-
-# ForceReimport and ImportForceUpdateUrls remain CLI-only, no Celery tasks needed
-```
-
-**Update `core/feedfetcher.py`:**
-```python
-from celery import shared_task
-from celery.utils.log import get_task_logger
-
-logger = get_task_logger(__name__)
-
-@shared_task(bind=True)
-def fetch_feeds(self):
-    """Celery version of FetchFeeds - used for periodic execution"""
-    try:
-        return FetchFeeds()
-    except Exception as exc:
-        logger.error(f'FetchFeeds failed: {exc}')
-        raise self.retry(exc=exc)
-
-# Keep original function unchanged
-def FetchFeeds():
-    """Original FetchFeeds implementation"""
-    # ... existing implementation ...
-```
-
-### 2.5 Update Code That Calls Tasks
-
-**Update files that call `Enqueue()` to use Celery tasks directly:**
-
-**Update `games/tools.py`:**
-```python
-# Find the CloneFile calls and replace:
-# Old:
-from core.taskqueue import Enqueue
-from games.tasks.uploads import CloneFile, MarkBroken
-Enqueue(CloneFile, u.id, name="CloneUrl(%d)" % u.id, onfail=MarkBroken)
-
-# New:
-from games.tasks.uploads import clone_file
-clone_file.delay(u.id)
-```
-
-**Update `games/updater.py`:**
-```python
-# Find the RecodeGame calls and replace:
-# Old:
-from core.taskqueue import Enqueue
-from games.tasks.uploads import RecodeGame
-Enqueue(RecodeGame, game_url.id, name="RecodeGame(%d)" % game_url.id)
-
-# New:
-from games.tasks.uploads import recode_game
-recode_game.delay(game_url.id)
-```
+**No changes needed to existing code** - all existing `Enqueue()` calls will continue to work exactly as before since we're maintaining the same API in `core/taskqueue.py`.
 
 ### 2.6 Set Up Periodic Tasks
 
 **Create `core/management/commands/setup_periodic_tasks.py`:**
 ```python
 from django.core.management.base import BaseCommand
-from django_celery_beat.models import PeriodicTask, CrontabSchedule
+from core.redis_taskqueue import task_queue
+from games.tasks.game_importer import ImportGames
+from core.feedfetcher import FetchFeeds
 
 class Command(BaseCommand):
-    help = 'Set up periodic tasks in Celery Beat'
+    help = 'Set up periodic tasks in Redis task queue'
     
     def handle(self, *args, **options):
-        # Set up ImportGames periodic task (adjust cron as needed)
-        import_schedule, created = CrontabSchedule.objects.get_or_create(
-            minute='0',
-            hour='*/6',  # Every 6 hours
-            day_of_month='*',
-            month_of_year='*',
-            day_of_week='*',
+        # Set up ImportGames periodic task (every 6 hours)
+        task_queue.enqueue(
+            ImportGames,
+            name='ImportGames',
+            cron='0 */6 * * *',
+            priority=50
         )
         
-        PeriodicTask.objects.get_or_create(
-            name='Import Games',
-            defaults={
-                'task': 'games.tasks.game_importer.import_games',
-                'crontab': import_schedule,
-                'enabled': True,
-            }
-        )
-        
-        # Set up FetchFeeds periodic task (adjust cron as needed)
-        feeds_schedule, created = CrontabSchedule.objects.get_or_create(
-            minute='*/30',  # Every 30 minutes
-            hour='*',
-            day_of_month='*',
-            month_of_year='*',
-            day_of_week='*',
-        )
-        
-        PeriodicTask.objects.get_or_create(
-            name='Fetch Feeds',
-            defaults={
-                'task': 'core.feedfetcher.fetch_feeds',
-                'crontab': feeds_schedule,
-                'enabled': True,
-            }
+        # Set up FetchFeeds periodic task (every 30 minutes)
+        task_queue.enqueue(
+            FetchFeeds,
+            name='FetchFeeds', 
+            cron='*/30 * * * *',
+            priority=75
         )
         
         self.stdout.write("Periodic tasks set up successfully")
@@ -611,37 +663,47 @@ class Command(BaseCommand):
 
 ### 2.7 Monitoring and Management
 
-**Create `core/management/commands/celery_status.py`:**
+**Create `core/management/commands/redis_queue_status.py`:**
 ```python
 from django.core.management.base import BaseCommand
-from celery import current_app
-from django.conf import settings
+from core.redis_taskqueue import task_queue
+import json
 
 class Command(BaseCommand):
-    help = 'Check Celery worker status and queue information'
+    help = 'Check Redis task queue status and information'
     
     def handle(self, *args, **options):
         try:
-            # Check broker connection
-            with current_app.connection() as conn:
-                conn.ensure_connection(max_retries=3)
-            self.stdout.write("✓ Broker connection: OK")
+            # Check Redis connection
+            task_queue.redis_client.ping()
+            self.stdout.write("✓ Redis connection: OK")
             
-            # Get active tasks
-            inspect = current_app.control.inspect()
-            active_tasks = inspect.active()
-            if active_tasks:
-                total_active = sum(len(tasks) for tasks in active_tasks.values())
-                self.stdout.write(f"✓ Active tasks: {total_active}")
-            else:
-                self.stdout.write("✓ No active tasks")
-                
-            # Show broker configuration
-            if hasattr(settings, 'CELERY_BROKER_URL'):
-                self.stdout.write(f"✓ Broker URL: {settings.CELERY_BROKER_URL}")
-                
+            # Get queue information
+            queue_size = task_queue.redis_client.zcard(task_queue.task_queue_key)
+            self.stdout.write(f"✓ Tasks in queue: {queue_size}")
+            
+            # Get task data count
+            data_size = task_queue.redis_client.hlen(task_queue.task_data_key)
+            self.stdout.write(f"✓ Task data entries: {data_size}")
+            
+            # Show recent tasks
+            if queue_size > 0:
+                recent_tasks = task_queue.redis_client.zrange(
+                    task_queue.task_queue_key, 0, 4, withscores=True
+                )
+                self.stdout.write("\nNext 5 tasks in queue:")
+                for task_id, score in recent_tasks:
+                    task_json = task_queue.redis_client.hget(
+                        task_queue.task_data_key, task_id
+                    )
+                    if task_json:
+                        task_data = json.loads(task_json)
+                        self.stdout.write(
+                            f"  - {task_data['name']} (priority: {task_data['priority']})"
+                        )
+                        
         except Exception as e:
-            self.stdout.write(f"✗ Celery status check failed: {e}")
+            self.stdout.write(f"✗ Redis queue status check failed: {e}")
 ```
 
 
@@ -649,10 +711,10 @@ class Command(BaseCommand):
 
 ### 3.1 Systemd Service Configuration
 
-**Create Celery worker service `/etc/systemd/system/ifdb-celery-worker.service`:**
+**Update existing worker service `/etc/systemd/system/ifdb-worker.service`:**
 ```ini
 [Unit]
-Description=IFDB Celery Worker
+Description=IFDB Redis Task Queue Worker
 After=network.target redis-server.service postgresql.service
 Requires=redis-server.service postgresql.service
 
@@ -662,7 +724,7 @@ User=ifdb
 Group=ifdb
 EnvironmentFile=/home/ifdb/configs/environment
 WorkingDirectory=/home/ifdb/ifdb
-ExecStart=/home/ifdb/ifdb/venv/bin/celery -A ifdb worker --loglevel=info --concurrency=2 --queues=high,normal,low,games,core
+ExecStart=/home/ifdb/ifdb/venv/bin/python manage.py ifdbworker
 ExecReload=/bin/kill -s HUP $MAINPID
 KillSignal=SIGTERM
 Restart=always
@@ -671,67 +733,11 @@ RestartSec=10
 # Logging
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=ifdb-celery-worker
+SyslogIdentifier=ifdb-worker
 
 # Security
 NoNewPrivileges=true
 PrivateTmp=true
-
-[Install]
-WantedBy=multi-user.target
-```
-
-**Create Celery beat service `/etc/systemd/system/ifdb-celery-beat.service`:**
-```ini
-[Unit]
-Description=IFDB Celery Beat Scheduler
-After=network.target redis-server.service postgresql.service
-Requires=redis-server.service postgresql.service
-
-[Service]
-Type=exec
-User=ifdb
-Group=ifdb
-EnvironmentFile=/home/ifdb/configs/environment
-WorkingDirectory=/home/ifdb/ifdb
-ExecStart=/home/ifdb/ifdb/venv/bin/celery -A ifdb beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
-Restart=always
-RestartSec=10
-
-# Logging
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=ifdb-celery-beat
-
-# Security
-NoNewPrivileges=true
-PrivateTmp=true
-
-[Install]
-WantedBy=multi-user.target
-```
-
-**Create Celery monitoring service `/etc/systemd/system/ifdb-celery-flower.service`:**
-```ini
-[Unit]
-Description=IFDB Celery Flower Monitoring
-After=network.target redis-server.service
-Requires=redis-server.service
-
-[Service]
-Type=exec
-User=ifdb
-Group=ifdb
-EnvironmentFile=/home/ifdb/configs/environment
-WorkingDirectory=/home/ifdb/ifdb
-ExecStart=/home/ifdb/ifdb/venv/bin/celery -A ifdb flower --port=5555 --url_prefix=flower
-Restart=always
-RestartSec=10
-
-# Logging
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=ifdb-celery-flower
 
 [Install]
 WantedBy=multi-user.target
@@ -748,96 +754,58 @@ git pull origin master
 # Install new dependencies
 ./venv/bin/pip install -r requirements.txt
 
-# Run database migrations for Celery tables
-./manage.py migrate django_celery_beat
-./manage.py migrate django_celery_results
-
-# Set up Celery beat tasks
-./manage.py setup_celery_beat
-```
-
-**Step 2: Test Celery connection**
-```bash
-# Test Celery broker connection
-./manage.py celery_status
-
-# Test task execution
-./manage.py shell -c "from games.tasks.uploads import clone_file; print(clone_file.delay(1))"
-```
-
-**Step 3: Set up periodic tasks**
-```bash
-# Create periodic tasks for ImportGames and FetchFeeds
+# Set up periodic tasks
 ./manage.py setup_periodic_tasks
 ```
 
-**Step 4: Start Celery services**
+**Step 2: Test Redis connection**
 ```bash
-# Enable and start Celery services
-sudo systemctl enable ifdb-celery-worker
-sudo systemctl enable ifdb-celery-beat
-sudo systemctl enable ifdb-celery-flower
+# Test Redis connection and queue status
+./manage.py redis_queue_status
+```
 
-sudo systemctl start ifdb-celery-worker
-sudo systemctl start ifdb-celery-beat
-sudo systemctl start ifdb-celery-flower
+**Step 3: Restart worker service**
+```bash
+# Restart the existing worker service (it will now use Redis)
+sudo systemctl restart ifdb-worker
 
 # Check service status
-sudo systemctl status ifdb-celery-worker
-sudo systemctl status ifdb-celery-beat
+sudo systemctl status ifdb-worker
 ```
 
-**Step 5: Monitor and validate**
+**Step 4: Monitor and validate**
 ```bash
-# Monitor Celery logs
-sudo journalctl -u ifdb-celery-worker -f
+# Monitor worker logs
+sudo journalctl -u ifdb-worker -f
 
-# Check task processing
-./manage.py celery_status
-
-# Access Flower monitoring (if enabled)
-# http://your-server:5555/flower
-```
-
-**Step 6: Stop legacy worker**
-```bash
-# Stop the old ifdbworker process
-# (Kill the process or stop systemd service if running as one)
-pkill -f "manage.py ifdbworker"
-
-# Verify Celery is handling tasks
-./manage.py celery_status
+# Check queue status
+./manage.py redis_queue_status
 ```
 
 ### 3.3 Rollback Plan
 
 **If issues arise, rollback steps:**
 ```bash
-# Stop Celery services
-sudo systemctl stop ifdb-celery-worker
-sudo systemctl stop ifdb-celery-beat
-sudo systemctl stop ifdb-celery-flower
-
 # Revert code changes
 git checkout <previous_commit>
 
-# Restart legacy worker
-./manage.py ifdbworker &
+# Restart worker service (will use database backend again)
+sudo systemctl restart ifdb-worker
 ```
 
 ### 3.4 Monitoring and Maintenance
 
 **Set up monitoring scripts:**
 
-**Create `/home/ifdb/scripts/check_celery.sh`:**
+**Create `/home/ifdb/scripts/check_redis_queue.sh`:**
 ```bash
 #!/bin/bash
-# Check Celery worker health
+# Check Redis task queue health
 
-# Check if workers are running
-WORKERS=$(systemctl is-active ifdb-celery-worker)
-if [ "$WORKERS" != "active" ]; then
-    echo "CRITICAL: Celery worker not running"
+# Check if worker is running
+WORKER=$(systemctl is-active ifdb-worker)
+if [ "$WORKER" != "active" ]; then
+    echo "CRITICAL: Task queue worker not running"
     exit 2
 fi
 
@@ -848,15 +816,15 @@ if [ "$REDIS" != "active" ]; then
     exit 2
 fi
 
-# Check queue sizes
+# Check queue status
 cd /home/ifdb/ifdb
-QUEUE_CHECK=$(./manage.py celery_status 2>&1)
+QUEUE_CHECK=$(./manage.py redis_queue_status 2>&1)
 if [ $? -ne 0 ]; then
-    echo "WARNING: Celery status check failed: $QUEUE_CHECK"
+    echo "WARNING: Redis queue status check failed: $QUEUE_CHECK"
     exit 1
 fi
 
-echo "OK: Celery system healthy"
+echo "OK: Redis task queue system healthy"
 
 # Check Redis connection
 REDIS_PING=$(redis-cli -a "$REDIS_PASSWORD" ping 2>/dev/null)
@@ -869,11 +837,11 @@ exit 0
 
 **Add to crontab for monitoring:**
 ```bash
-# Monitor Celery health every 5 minutes
-*/5 * * * * /home/ifdb/scripts/check_celery.sh
+# Monitor task queue health every 5 minutes
+*/5 * * * * /home/ifdb/scripts/check_redis_queue.sh
 
-# Clean up old Celery results weekly
-0 2 * * 0 cd /home/ifdb/ifdb && ./manage.py celery_cleanup_results --days=7
+# Clean up old task data weekly
+0 2 * * 0 cd /home/ifdb/ifdb && ./manage.py cleanup_task_data --days=7
 ```
 
 ### 3.5 Performance Tuning
@@ -882,7 +850,7 @@ exit 0
 ```bash
 # Add to /etc/redis/redis.conf
 # Memory optimization
-maxmemory 512mb
+maxmemory 256mb
 maxmemory-policy allkeys-lru
 
 # Network settings
@@ -906,17 +874,7 @@ save 60 10000
 stop-writes-on-bgsave-error yes
 ```
 
-**Celery worker optimization:**
-```bash
-# Update worker service for better performance
-ExecStart=/home/ifdb/ifdb/venv/bin/celery -A ifdb worker \
-  --loglevel=info \
-  --concurrency=4 \
-  --prefetch-multiplier=1 \
-  --max-tasks-per-child=1000 \
-  --queues=high,normal,low,games,core \
-  --pool=prefork
-```
+**No worker optimization needed** - the existing single-worker model is maintained.
 
 ## Migration Timeline
 
@@ -942,80 +900,74 @@ ExecStart=/home/ifdb/ifdb/venv/bin/celery -A ifdb worker \
 
 ## Benefits of Migration
 
-1. **Scalability**: Support for multiple workers and distributed processing
-2. **Reliability**: Redis persistence with high performance and low latency
-3. **Monitoring**: Rich ecosystem of monitoring tools (Flower, Redis monitoring)
-4. **Community Support**: Large community and extensive documentation
-5. **Feature Rich**: Advanced routing, retries, rate limiting, and scheduling
-6. **Standard Solution**: Industry-standard approach with simpler setup than RabbitMQ
-7. **Performance**: Redis provides excellent performance for task queuing with lower resource usage
-8. **Simplicity**: Fewer moving parts and easier configuration than RabbitMQ
+1. **Performance**: Redis provides excellent performance with lower latency than database queries
+2. **Reliability**: Redis persistence ensures tasks survive restarts while being faster than database storage
+3. **Simplicity**: Direct Redis API usage - no complex framework overhead
+4. **Memory Efficiency**: Tasks stored efficiently in Redis memory with optional persistence
+5. **Monitoring**: Simple Redis monitoring tools and direct inspection of queues
+6. **Compatibility**: Maintains exact same API - no code changes required
+7. **Resource Usage**: Lower memory and CPU overhead compared to database polling
+8. **Scalability**: Easier to scale Redis than database for task storage
 
 ## Post-Migration Cleanup
 
-**Create `core/management/commands/remove_legacy_queue.py`:**
+**Create `core/management/commands/cleanup_task_data.py`:**
 ```python
 from django.core.management.base import BaseCommand
-from django.db import connection
-import os
+from core.redis_taskqueue import task_queue
+import json
+from datetime import datetime, timedelta
+from django.utils import timezone
 
 class Command(BaseCommand):
-    help = 'Remove legacy task queue system after successful Celery migration'
+    help = 'Clean up old completed task data from Redis'
     
     def add_arguments(self, parser):
-        parser.add_argument('--confirm', action='store_true',
-                          help='Actually perform the cleanup (required)')
+        parser.add_argument('--days', type=int, default=7,
+                          help='Remove task data older than N days (default: 7)')
+        parser.add_argument('--dry-run', action='store_true',
+                          help='Show what would be cleaned up without actually doing it')
     
     def handle(self, *args, **options):
-        if not options['confirm']:
-            self.stdout.write("Add --confirm flag to actually perform cleanup")
-            return
-            
-        # Drop TaskQueueElement table
-        with connection.cursor() as cursor:
-            cursor.execute("DROP TABLE IF EXISTS core_taskqueueelement CASCADE")
-        self.stdout.write("Dropped TaskQueueElement table")
+        cutoff_date = timezone.now() - timedelta(days=options['days'])
         
-        # List files to remove manually
-        files_to_remove = [
-            'core/taskqueue.py',
-            'core/management/commands/ifdbworker.py',
-            'core/management/commands/remove_legacy_queue.py',  # This file itself
-        ]
+        # Get all task data
+        all_tasks = task_queue.redis_client.hgetall(task_queue.task_data_key)
         
-        self.stdout.write("\nManually remove these files:")
-        for file_path in files_to_remove:
-            self.stdout.write(f"  rm {file_path}")
-            
-        # Remove model from core/models.py
-        self.stdout.write("\nRemove TaskQueueElement from core/models.py:")
-        self.stdout.write("  - Delete the TaskQueueElement class definition")
-        self.stdout.write("  - Remove it from __all__ if present")
-        self.stdout.write("  - Remove from core/admin.py if registered")
-        
-        # Create a migration to remove the model
-        self.stdout.write("\nCreate Django migration:")
-        self.stdout.write("  python manage.py makemigrations core --empty")
-        self.stdout.write("  # Edit migration to remove TaskQueueElement model")
-        self.stdout.write("  python manage.py migrate")
-        
-        self.stdout.write("\n✓ Legacy task queue cleanup complete")
+        cleanup_count = 0
+        for task_id, task_json in all_tasks.items():
+            try:
+                task_data = json.loads(task_json)
+                
+                # Skip pending tasks
+                if task_data.get('pending'):
+                    continue
+                    
+                # Check if task is old enough to clean up
+                finish_time_str = task_data.get('finish_time')
+                if finish_time_str:
+                    finish_time = datetime.fromisoformat(finish_time_str)
+                    if finish_time < cutoff_date:
+                        if not options['dry_run']:
+                            task_queue.redis_client.hdel(task_queue.task_data_key, task_id)
+                        cleanup_count += 1
+                        
+            except Exception as e:
+                self.stdout.write(f"Error processing task {task_id}: {e}")
+                
+        if options['dry_run']:
+            self.stdout.write(f"Would clean up {cleanup_count} old task records")
+        else:
+            self.stdout.write(f"Cleaned up {cleanup_count} old task records")
 ```
 
-After successful migration and validation, run:
+After successful migration and validation, you can optionally clean up the legacy database model:
 
 ```bash
-# Verify Celery is working for at least 24-48 hours
-./manage.py celery_status
+# Verify Redis queue is working for at least 24-48 hours
+./manage.py redis_queue_status
 
-# Then clean up legacy system
-./manage.py remove_legacy_queue --confirm
-
-# Remove the files listed by the command
-rm core/taskqueue.py
-rm core/management/commands/ifdbworker.py  
-rm core/management/commands/remove_legacy_queue.py
-
+# Optional: Remove TaskQueueElement model from database
 # Edit core/models.py to remove TaskQueueElement class
 # Edit core/admin.py to remove TaskQueueElement admin registration
 
@@ -1025,25 +977,25 @@ python manage.py makemigrations core --empty
 python manage.py migrate
 ```
 
-## Additional Cleanup Steps
+## Additional Notes
 
-1. **Remove from core/models.py:**
-```python
-# Delete this entire class:
-class TaskQueueElement(models.Model):
-    # ... entire class definition ...
-```
+1. **Database Model Retention:**
+   The `TaskQueueElement` model can be kept in the database for reference/backup purposes, or removed if desired after successful migration.
 
-2. **Remove from core/admin.py:**
-```python
-# Delete TaskQueueElement admin registration if present
-```
+2. **Redis Persistence:**
+   Redis persistence settings ensure tasks survive server restarts while providing much better performance than database storage.
 
-3. **Update documentation:**
-   - Update deployment procedures
-   - Update developer documentation
-   - Remove task queue references from README/docs
+3. **Cron Dependencies:**
+   The implementation requires the `croniter` package for cron expression parsing:
+   ```bash
+   pip install croniter==1.4.1
+   ```
 
-4. **Optimize Celery configuration** based on production usage patterns
+4. **Migration Benefits:**
+   - Zero API changes required
+   - Significant performance improvement
+   - Reduced database load
+   - Better scalability options
+   - Simpler monitoring and debugging
 
-This simplified migration plan provides a direct path from the custom task queue system to a production-ready Celery+RabbitMQ implementation with minimal complexity and risk.
+This simplified migration plan provides a direct path from the custom database-backed task queue system to a production-ready Redis implementation with minimal complexity and risk.
