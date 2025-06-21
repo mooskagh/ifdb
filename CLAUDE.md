@@ -14,12 +14,15 @@ db.crem.xyz is a Django-based web platform serving as a comprehensive database f
 - All python files should be formatted with ruff with line length=79 and preview mode enabled.
 - ruff and mypy are installed system-wide, so run them without `python -m` prefix.
 - Do not do `manage.py runserver`, developer has it running in a separate window
-- When creating the todo list for particular task, always add the following items in the end, unless explicitly told "no todo epilogue":
+- When creating the todo list for particular task, add the "Perform todo epilogue" task, unless asked not to.
+- Then, when you reach the "Perform todo epilogue" task, replace it with the following tasks:
   - Check for opportunities to make code more idiomatic, elegant, concise, beautiful, nice and short.
-  - Are there any useful tests that are easy to add and.
+  - Are there any useful tests to add?
   - Run `just fix_and_check`, fix any issues.
   - Commit the changes to git with a meaningful message.
-  - Check that there are no uncommitted changes, then `git push`.
+  - If the original task was an item in a checklist or spec, mark the task done in the checklist, make sure that there are no outdated information in the spec.
+  - Check again there are no uncommitted changes, and commit them if so.
+  - Run `git push`.
 - Use Python type annotations, but not overdo it (fine to omit when takes too much boilerplate)
 - The python code should be idiomatic, elegant, short, beautiful and concise.
 
