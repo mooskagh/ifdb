@@ -17,7 +17,7 @@ from pathlib import Path
 import django
 from django.conf import settings
 from django.template import Context, Template
-from plumbum import cli, colors, local
+from plumbum import cli, colors, local, FG
 
 TEMPLATES = [
     {
@@ -58,7 +58,8 @@ def RunCmdStep(cmd_line, doc=None):
     def f(context):
         print(colors.yellow | f"$ {cmd_line}")
         try:
-            local["bash"]["-c", cmd_line]()
+            local["bash"]["-c", cmd_line] & FG
+            # FG execution returns None on success, raises exception on failure
             return True
         except Exception as e:
             print(f"Error executing command: {e}")
