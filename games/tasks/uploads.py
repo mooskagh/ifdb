@@ -77,7 +77,8 @@ def GetConfiguration(game_url):
 
 def RecodeGame(game_url_id):
     game_url = (
-        GameURL.objects.select_related("url", "category", "game")
+        GameURL.objects
+        .select_related("url", "category", "game")
         .prefetch_related("game__tags")
         .get(id=game_url_id)
     )

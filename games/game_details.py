@@ -78,7 +78,8 @@ def GetCommentVotes(vote_set, user, comment):
 class GameDetailsBuilder:
     def __init__(self, game_id, request):
         self.game = (
-            Game.objects.prefetch_related(
+            Game.objects
+            .prefetch_related(
                 "gameauthor_set__role",
                 "gameauthor_set__author",
                 "gameurl_set__category",

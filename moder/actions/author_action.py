@@ -97,7 +97,8 @@ class AliasEditAction(AuthorAction):
             self.errors = []
             self.var = var
             for x in (
-                PersonalityAlias.objects.filter(personality=obj)
+                PersonalityAlias.objects
+                .filter(personality=obj)
                 .order_by("pk")
                 .annotate(Count("gameauthor"))
             ):

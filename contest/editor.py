@@ -39,7 +39,8 @@ class CompetitionForm(forms.Form):
     def clean(self):
         cleaned_data = super().clean()
         if (
-            Competition.objects.filter(slug=cleaned_data["slug"])
+            Competition.objects
+            .filter(slug=cleaned_data["slug"])
             .exclude(
                 id=cleaned_data["id"],
             )

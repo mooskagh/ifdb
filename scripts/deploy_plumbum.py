@@ -540,9 +540,6 @@ class StageCommand(cli.Application):
         p.list_only = self.parent.list_only
         p.step_by_step = self.parent.step_by_step
 
-        virtualenv_dir = STAGING_DIR / "venv"
-        python_dir = virtualenv_dir / "bin/python"
-
         p.AddStep(KillStaging)
         p.AddStep(CreateStaging)
         p.AddStep(
@@ -552,32 +549,19 @@ class StageCommand(cli.Application):
         )
         p.AddStep(ChDir(DISTRIB_DIR))
         p.AddStep(RunCmdStep(f"git checkout -b staging {self.tag or ''}"))
-        p.AddStep(RunCmdStep(f"python3 -m venv {virtualenv_dir}"))
+        p.AddStep(RunCmdStep("uv venv"))
         p.AddStep(StagingDiff(PROD_SUBDIR / "requirements.txt"))
-        p.AddStep(
-            RunCmdStep(
-                f"{virtualenv_dir}/bin/pip install -r "
-                f"{DISTRIB_DIR}/requirements.txt --no-cache-dir"
-            )
-        )
+        p.AddStep(RunCmdStep("uv pip install -r requirements.txt"))
         p.AddStep(StagingDiff(PROD_SUBDIR / "games/migrations/"))
         p.AddStep(StagingDiff(PROD_SUBDIR / "core/migrations/"))
         p.AddStep(
             StagingDiff(PROD_SUBDIR / "games/management/commands/initifdb.py")
         )
         p.AddStep(StagingDiff(PROD_SUBDIR / "scripts/nginx.tpl"))
-        p.AddStep(
-            RunCmdStep(
-                f"{python_dir} {DISTRIB_DIR}/manage.py collectstatic --clear"
-            )
-        )
+        p.AddStep(RunCmdStep("uv run manage.py collectstatic --clear"))
         p.AddStep(StagingDiff("static/"))
         p.AddStep(RunCmdStep(f"chmod -R a+rX {STAGING_DIR}/static"))
-        p.AddStep(
-            RunCmdStep(
-                f"{virtualenv_dir}/bin/uwsgi {CONFIGS_DIR}/uwsgi-staging.ini"
-            )
-        )
+        p.AddStep(RunCmdStep(f"uv run uwsgi {CONFIGS_DIR}/uwsgi-staging.ini"))
         p.AddStep(CheckFromTemplate("nginx.tpl", "nginx.conf"))
         p.AddStep(
             GetFromTemplate(
@@ -616,10 +600,7 @@ class StageCommand(cli.Application):
         )
         p.AddStep(RunCmdStep("sudo /bin/systemctl reload nginx"))
         p.AddStep(
-            RunCmdStep(
-                f"{virtualenv_dir}/bin/uwsgi --stop "
-                "/tmp/uwsgi-ifdb-staging.pid"
-            )
+            RunCmdStep("uv run uwsgi --stop /tmp/uwsgi-ifdb-staging.pid")
         )
         p.Run("stage")
 
@@ -646,9 +627,6 @@ class DeployCommand(cli.Application):
         p.start = self.parent.start
         p.list_only = self.parent.list_only
         p.step_by_step = self.parent.step_by_step
-
-        virtualenv_dir = ROOT_DIR / "venv"
-        python_dir = virtualenv_dir / "bin/python"
 
         p.AddStep(
             RunCmdStep(
@@ -719,36 +697,18 @@ class DeployCommand(cli.Application):
             p.AddStep(GetNextVersion)
 
         if not self.hot:
-            p.AddStep(
-                RunCmdStep(
-                    f"{virtualenv_dir}/bin/pip install -r "
-                    f"{DISTRIB_DIR}/requirements.txt --no-cache-dir"
-                )
-            )
-            p.AddStep(
-                RunCmdStep(f"{python_dir} {DISTRIB_DIR}/manage.py migrate")
-            )
+            p.AddStep(RunCmdStep("uv pip install -r requirements.txt"))
+            p.AddStep(RunCmdStep("uv run manage.py migrate"))
             timestamp = time.strftime("%Y%m%d_%H%M-postmigr")
             backup_path = BACKUPS_DIR / "database" / timestamp
             p.AddStep(RunCmdStep(f"pg_dump ifdb > {backup_path}"))
 
         if self.hot:
-            p.AddStep(
-                RunCmdStep(
-                    f"{python_dir} {DISTRIB_DIR}/manage.py collectstatic"
-                )
-            )
+            p.AddStep(RunCmdStep("uv run manage.py collectstatic"))
         else:
-            p.AddStep(
-                RunCmdStep(
-                    f"{python_dir} {DISTRIB_DIR}/manage.py "
-                    "collectstatic --clear"
-                )
-            )
+            p.AddStep(RunCmdStep("uv run manage.py collectstatic --clear"))
         if not self.hot:
-            p.AddStep(
-                RunCmdStep(f"{python_dir} {DISTRIB_DIR}/manage.py initifdb")
-            )
+            p.AddStep(RunCmdStep("uv run manage.py initifdb"))
 
         if self.hot:
             p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-uwsgi"))

@@ -199,9 +199,8 @@ def RenderVotingImpl(request, comp, voting, group, preview):
 
         nomination_id = section["nomination"]
         gamelist = (
-            GameListEntry.objects.filter(
-                gamelist__competition=comp, gamelist__id=nomination_id
-            )
+            GameListEntry.objects
+            .filter(gamelist__competition=comp, gamelist__id=nomination_id)
             .order_by("game__id")
             .select_related()
         )
@@ -359,9 +358,8 @@ def RenderVotingImplV2(request, comp, voting, section_name, preview):
     fieldlist = section["fields"]
     nomination_id = section["nomination"]
     gamelist = (
-        GameListEntry.objects.filter(
-            gamelist__competition=comp, gamelist__id=nomination_id
-        )
+        GameListEntry.objects
+        .filter(gamelist__competition=comp, gamelist__id=nomination_id)
         .order_by("game__id")
         .select_related()
     )
