@@ -65,7 +65,8 @@ class CompetitionGameFetcher:
             ranked = []
             unranked = []
             for y in (
-                x.gamelistentry_set.annotate(
+                x.gamelistentry_set
+                .annotate(
                     coms_count=Count("game__gamecomment"),
                     coms_recent=Max("game__gamecomment__creation_time"),
                 )
@@ -98,12 +99,14 @@ class CompetitionGameFetcher:
                         games.add(z.game_id)
 
         posters = (
-            GameURL.objects.filter(category__symbolic_id="poster")
+            GameURL.objects
+            .filter(category__symbolic_id="poster")
             .filter(game__in=games)
             .select_related("url")
         )
         screenshots = (
-            GameURL.objects.filter(category__symbolic_id="screenshot")
+            GameURL.objects
+            .filter(category__symbolic_id="screenshot")
             .filter(game__in=games)
             .select_related("url")
         )
@@ -642,7 +645,8 @@ def list_votes(request, id):
         nomination_form = NominationSelectionForm(
             {
                 "category": (
-                    GameList.objects.filter(competition=comp)
+                    GameList.objects
+                    .filter(competition=comp)
                     .order_by("order")[0]
                     .id
                 ),

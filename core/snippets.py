@@ -250,7 +250,8 @@ def CommentsSnippet(request):
 
 def LastUrlCat(request, cat, max_secs, min_count, max_count):
     urls = (
-        GameURL.objects.select_related()
+        GameURL.objects
+        .select_related()
         .filter(category__symbolic_id=cat)
         .order_by("-url__creation_date")[:max_count]
     )
@@ -407,7 +408,8 @@ def ThisDayInHistorySnippet(request, default_age=24 * 60 * 60):
     now = timezone.now()
     items = []
     games = (
-        Game.objects.filter(
+        Game.objects
+        .filter(
             release_date__month=now.month,
             release_date__day=now.day,
             release_date__year__lt=now.year,
@@ -470,7 +472,8 @@ def PopularGamesSnippet(
     except StopIteration:
         ids = []
     games = (
-        Game.objects.filter(id__in=ids)
+        Game.objects
+        .filter(id__in=ids)
         .annotate(
             coms_count=Count("gamecomment"),
             coms_recent=Max("gamecomment__creation_time"),

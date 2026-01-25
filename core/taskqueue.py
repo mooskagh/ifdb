@@ -128,7 +128,8 @@ def Worker():
         if do_exit:
             break
         t = (
-            TaskQueueElement.objects.filter(pending=True)
+            TaskQueueElement.objects
+            .filter(pending=True)
             .filter(Q(dependency=None) | Q(dependency__success=True))
             .filter(
                 Q(scheduled_time=None) | Q(scheduled_time__lte=timezone.now())
@@ -215,7 +216,8 @@ def Worker():
             continue
         else:
             t = (
-                TaskQueueElement.objects.filter(pending=True)
+                TaskQueueElement.objects
+                .filter(pending=True)
                 .filter(Q(dependency=None) | Q(dependency__success=True))
                 .filter(scheduled_time__isnull=False)
                 .order_by("scheduled_time")

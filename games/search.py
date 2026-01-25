@@ -69,7 +69,8 @@ class BaseXReader:
     def ReadString(self):
         size = self.ReadInt()
         return (
-            "".join([chr(self.ReadInt()) for x in range(size)])
+            ""
+            .join([chr(self.ReadInt()) for x in range(size)])
             .encode("utf-16", "surrogatepass")
             .decode("utf-16")
         )
@@ -360,7 +361,8 @@ class SB_Tag(SearchBit):
         res["cat"] = self.cat
         items = []
         for x in (
-            GameTag.objects.select_related("category")
+            GameTag.objects
+            .select_related("category")
             .filter(category=self.cat)
             .annotate(Count("game"))
             .order_by("-game__count")
@@ -420,7 +422,8 @@ class SB_Authors(SearchBit):
         res["role"] = self.role
         items = []
         for x in (
-            PersonalityAlias.objects.filter(gameauthor__role=self.role)
+            PersonalityAlias.objects
+            .filter(gameauthor__role=self.role)
             .annotate(Count("gameauthor__game"))
             .order_by("-gameauthor__game__count")
         ):

@@ -359,7 +359,8 @@ def show_author(request, author_id):
         a = Personality.objects.get(pk=author_id)
         res = {"name": a.name, "aliases": [], "links": []}
         for x in (
-            PersonalityAlias.objects.filter(personality=a)
+            PersonalityAlias.objects
+            .filter(personality=a)
             .annotate(games=Count("gameauthor"))
             .order_by("-games")
         ):
@@ -393,7 +394,8 @@ def show_author(request, author_id):
         games = dict()
         existing = set()
         for g in (
-            GameAuthor.objects.filter(author__personality=author_id)
+            GameAuthor.objects
+            .filter(author__personality=author_id)
             .select_related()
             .prefetch_related(
                 "game__gameauthor_set__role",
@@ -724,7 +726,8 @@ def json_author_search(request):
         annotate={
             "game_count": Coalesce(
                 Subquery(
-                    GameAuthor.objects.filter(
+                    GameAuthor.objects
+                    .filter(
                         role__symbolic_id="author",
                         author__personality=OuterRef("pk"),
                     )
