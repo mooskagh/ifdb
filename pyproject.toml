@@ -16,6 +16,7 @@ dependencies = [
     "markdown>=3.10.1",
     "markdown-del-ins>=1.0.0",
     "mwparserfromhell>=0.7.2",
+    "plumbum>=1.10.0",
     "psycopg[binary]>=3.3.2",
     "python-dateutil>=2.9.0.post0",
     "requests>=2.32.5",

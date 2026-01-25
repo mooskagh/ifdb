@@ -1,13 +1,11 @@
 #!/bin/env python3
 
 import difflib
-import filecmp
 import json
 import os
 import os.path
 import pickle
 import re
-import shutil
 import socket
 import sys
 import time
@@ -34,7 +32,6 @@ ROOT_DIR = Path("/home/ifdb")
 
 PROD_SUBDIR = Path("distrib/ifdb")
 CONFIGS_DIR = ROOT_DIR / "configs"
-STAGING_DIR = ROOT_DIR / "staging"
 BACKUPS_DIR = ROOT_DIR / "backups"
 DISTRIB_DIR = ROOT_DIR / PROD_SUBDIR
 
@@ -176,20 +173,6 @@ def ChDir(whereto):
     return f
 
 
-def CreateStaging(ctx):
-    """Create staging directory"""
-    os.mkdir(STAGING_DIR)
-    return True
-
-
-def KillStaging(ctx):
-    """Remove staging directory is exists"""
-    RunCmdStep("uwsgi --stop /tmp/uwsgi-ifdb-staging.pid")(ctx)
-    if STAGING_DIR.is_dir():
-        shutil.rmtree(STAGING_DIR)
-    return True
-
-
 def LoopStep(func, text="Should I?"):
     def f(ctx):
         while True:
@@ -200,51 +183,6 @@ def LoopStep(func, text="Should I?"):
                 return False
 
     f.__doc__ = f"Loop: {func.__doc__}"
-    return f
-
-
-def print_diff_files(dcmp):
-    diff = False
-    for name in dcmp.diff_files:
-        print(colors.red | f"* {name}")
-        diff = True
-    for name in dcmp.left_only:
-        print(colors.red | f"- {name}")
-        diff = True
-    for name in dcmp.right_only:
-        print(colors.red | f"+ {name}")
-        diff = True
-    for sub_dcmp in dcmp.subdirs.values():
-        diff = print_diff_files(sub_dcmp) or diff
-    return diff
-
-
-def StagingDiff(filename):
-    def f(ctx):
-        if filename[-1] == "/":
-            d1 = ROOT_DIR / filename
-            d2 = STAGING_DIR / filename
-            diff = print_diff_files(filecmp.dircmp(d1, d2, ["__pycache__"]))
-            if not diff:
-                return True
-        else:
-            t1 = open(ROOT_DIR / filename).read().split("\n")
-            t2 = open(STAGING_DIR / filename).read().split("\n")
-            diff = list(difflib.context_diff(t1, t2))
-            if not diff:
-                return True
-            print(
-                colors.red | colors.bold | f"File {filename} does not match:"
-            )
-            for line in diff:
-                print(colors.red | line.rstrip())
-        if input("Do you want to continue? (y/n): ").lower() == "y":
-            return True
-        else:
-            print("Aborted")
-            sys.exit(1)
-
-    f.__doc__ = f"Comparing {filename}"
     return f
 
 
@@ -350,7 +288,7 @@ class DeployApp(cli.Application):
         self.pipeline.start = self.start
         self.pipeline.list_only = self.list_only
         self.pipeline.step_by_step = self.step_by_step
-        print("Use subcommands: red, green, stage, deploy")
+        print("Use subcommands: red, green, deploy")
 
 
 class Pipeline:
@@ -528,127 +466,18 @@ class GreenCommand(cli.Application):
         p.Run("green")
 
 
-@DeployApp.subcommand("stage")
-class StageCommand(cli.Application):
-    """Create staging environment"""
-
-    tag = cli.SwitchAttr("--tag", str, help="Git tag to stage")
-
-    def main(self):
-        p = Pipeline()
-        p.start = self.parent.start
-        p.list_only = self.parent.list_only
-        p.step_by_step = self.parent.step_by_step
-
-        virtualenv_dir = STAGING_DIR / "venv"
-        python_dir = virtualenv_dir / "bin/python"
-
-        p.AddStep(KillStaging)
-        p.AddStep(CreateStaging)
-        p.AddStep(
-            RunCmdStep(
-                f"git clone git@bitbucket.org:mooskagh/ifdb.git {DISTRIB_DIR}"
-            )
-        )
-        p.AddStep(ChDir(DISTRIB_DIR))
-        p.AddStep(RunCmdStep(f"git checkout -b staging {self.tag or ''}"))
-        p.AddStep(RunCmdStep(f"python3 -m venv {virtualenv_dir}"))
-        p.AddStep(StagingDiff(PROD_SUBDIR / "requirements.txt"))
-        p.AddStep(
-            RunCmdStep(
-                f"{virtualenv_dir}/bin/pip install -r "
-                f"{DISTRIB_DIR}/requirements.txt --no-cache-dir"
-            )
-        )
-        p.AddStep(StagingDiff(PROD_SUBDIR / "games/migrations/"))
-        p.AddStep(StagingDiff(PROD_SUBDIR / "core/migrations/"))
-        p.AddStep(
-            StagingDiff(PROD_SUBDIR / "games/management/commands/initifdb.py")
-        )
-        p.AddStep(StagingDiff(PROD_SUBDIR / "scripts/nginx.tpl"))
-        p.AddStep(
-            RunCmdStep(
-                f"{python_dir} {DISTRIB_DIR}/manage.py collectstatic --clear"
-            )
-        )
-        p.AddStep(StagingDiff("static/"))
-        p.AddStep(RunCmdStep(f"chmod -R a+rX {STAGING_DIR}/static"))
-        p.AddStep(
-            RunCmdStep(
-                f"{virtualenv_dir}/bin/uwsgi {CONFIGS_DIR}/uwsgi-staging.ini"
-            )
-        )
-        p.AddStep(CheckFromTemplate("nginx.tpl", "nginx.conf"))
-        p.AddStep(
-            GetFromTemplate(
-                "nginx.tpl",
-                "nginx.conf",
-                {
-                    "configs": [
-                        {"host": "prod", "conf": "prod"},
-                        {"host": "kontigr", "conf": "kontigr"},
-                        {"host": "zok", "conf": "zok"},
-                        {"host": "staging", "conf": "staging"},
-                    ]
-                },
-            )
-        )
-        p.AddStep(RunCmdStep("sudo /bin/systemctl reload nginx"))
-        p.AddStep(
-            LoopStep(
-                RunCmdStep("kill -HUP `cat /tmp/uwsgi-ifdb-staging.pid`"),
-                "Check STAGING and reload if needed.",
-            )
-        )
-        p.AddStep(
-            GetFromTemplate(
-                "nginx.tpl",
-                "nginx.conf",
-                {
-                    "configs": [
-                        {"host": "prod", "conf": "prod"},
-                        {"host": "kontigr", "conf": "kontigr"},
-                        {"host": "zok", "conf": "zok"},
-                        {"host": "staging", "conf": "deny"},
-                    ]
-                },
-            )
-        )
-        p.AddStep(RunCmdStep("sudo /bin/systemctl reload nginx"))
-        p.AddStep(
-            RunCmdStep(
-                f"{virtualenv_dir}/bin/uwsgi --stop "
-                "/tmp/uwsgi-ifdb-staging.pid"
-            )
-        )
-        p.Run("stage")
-
-
 @DeployApp.subcommand("deploy")
 class DeployCommand(cli.Application):
     """Deploy application"""
 
     hot = cli.Flag("--hot", help="Hot deployment without downtime")
-    from_master = cli.SwitchAttr(
-        "--from-master", help="Deploy from master branch"
-    )
+    from_master = cli.Flag("--from-master", help="Deploy from master branch")
 
     def main(self):
-        if self.from_master is None:
-            print(
-                colors.red
-                | colors.bold
-                | "Please specify --from-master or --no-from-master!"
-            )
-            sys.exit(1)
-
         p = Pipeline()
         p.start = self.parent.start
         p.list_only = self.parent.list_only
         p.step_by_step = self.parent.step_by_step
-
-        virtualenv_dir = ROOT_DIR / "venv"
-        python_dir = virtualenv_dir / "bin/python"
 
         p.AddStep(
             RunCmdStep(
@@ -719,36 +548,18 @@ class DeployCommand(cli.Application):
             p.AddStep(GetNextVersion)
 
         if not self.hot:
-            p.AddStep(
-                RunCmdStep(
-                    f"{virtualenv_dir}/bin/pip install -r "
-                    f"{DISTRIB_DIR}/requirements.txt --no-cache-dir"
-                )
-            )
-            p.AddStep(
-                RunCmdStep(f"{python_dir} {DISTRIB_DIR}/manage.py migrate")
-            )
+            p.AddStep(RunCmdStep("uv sync"))
+            p.AddStep(RunCmdStep("uv run ./manage.py migrate"))
             timestamp = time.strftime("%Y%m%d_%H%M-postmigr")
             backup_path = BACKUPS_DIR / "database" / timestamp
             p.AddStep(RunCmdStep(f"pg_dump ifdb > {backup_path}"))
 
         if self.hot:
-            p.AddStep(
-                RunCmdStep(
-                    f"{python_dir} {DISTRIB_DIR}/manage.py collectstatic"
-                )
-            )
+            p.AddStep(RunCmdStep("uv run ./manage.py collectstatic"))
         else:
-            p.AddStep(
-                RunCmdStep(
-                    f"{python_dir} {DISTRIB_DIR}/manage.py "
-                    "collectstatic --clear"
-                )
-            )
+            p.AddStep(RunCmdStep("uv run ./manage.py collectstatic --clear"))
         if not self.hot:
-            p.AddStep(
-                RunCmdStep(f"{python_dir} {DISTRIB_DIR}/manage.py initifdb")
-            )
+            p.AddStep(RunCmdStep("uv run ./manage.py initifdb"))
 
         if self.hot:
             p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-uwsgi"))
