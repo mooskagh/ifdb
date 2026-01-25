@@ -20,6 +20,7 @@ dependencies = [
     "psycopg[binary]>=3.3.2",
     "python-dateutil>=2.9.0.post0",
     "requests>=2.32.5",
+    "uwsgi>=2.0.31",
 ]
 
 [tool.ruff]
