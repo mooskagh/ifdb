@@ -321,11 +321,11 @@ def _render_snippet_html(items):
                 parts.append("</div>")
 
             # Lines
-            parts.append('<div class="grid-box-lines-container">')
+            parts.append('<div class="card--lines-container">')
             for line in item.get("lines", []):
                 styles = line.get("style", [])
-                style_str = " ".join(f"grid-box-line-{s}" for s in styles)
-                line_class = f"grid-box-line {style_str}".strip()
+                style_str = " ".join(f"card--line-{s}" for s in styles)
+                line_class = f"card--line {style_str}".strip()
 
                 if line.get("link"):
                     target = ' target="_blank"' if line.get("newtab") else ""

@@ -15,7 +15,7 @@
   </div>
 
   {% for x in contests %}
-    <div class="card contest-box grid-box {% if x.box_color %}grid-box-{{ x.box_color }}{% endif %}"
+    <div class="card contest-box grid-box {% if x.box_color %}card--{{ x.box_color }}{% endif %}"
         top-days="{{ x.top }}">
       <div class="card--header">
         <a href="{% url 'show_competition' slug=x.slug doc='' %}">{{ x.title }}</a>

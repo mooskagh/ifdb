@@ -172,99 +172,99 @@ a.card--subheader:hover {
     text-decoration: underline;
 }
 
-.grid-box-green .card--header {
+.card--green .card--header {
     background-color: var(--card-green-bg);
 }
 
-.grid-box-green .card--subheader,
-.grid-box-green .card--item-head-container-tiny,
-.grid-box-green .card--item-head-container {
+.card--green .card--subheader,
+.card--green .card--item-head-container-tiny,
+.card--green .card--item-head-container {
     background-color: var(--card-green-bg-light);
 }
 
-.grid-box-blue .card--header {
+.card--blue .card--header {
     background-color: var(--card-blue-bg);
 }
 
-.grid-box-blue .card--subheader,
-.grid-box-blue .card--item-head-container-tiny,
-.grid-box-blue .card--item-head-container {
+.card--blue .card--subheader,
+.card--blue .card--item-head-container-tiny,
+.card--blue .card--item-head-container {
     background-color: var(--card-blue-bg-light);
 }
 
-.grid-box-yellow .card--header {
+.card--yellow .card--header {
     background-color: var(--card-yellow-bg);
     color: black;
 }
 
-.grid-box-yellow .card--subheader,
-.grid-box-yellow .card--item-head-container-tiny,
-.grid-box-yellow .card--item-head-container {
+.card--yellow .card--subheader,
+.card--yellow .card--item-head-container-tiny,
+.card--yellow .card--item-head-container {
     background-color: var(--card-yellow-bg-light);
     color: black;
 }
 
-.grid-box-red .card--header {
+.card--red .card--header {
     background-color: var(--card-red-bg);
 }
 
-.grid-box-red .card--subheader,
-.grid-box-red .card--item-head-container-tiny,
-.grid-box-red .card--item-head-container {
+.card--red .card--subheader,
+.card--red .card--item-head-container-tiny,
+.card--red .card--item-head-container {
     background-color: var(--card-red-bg-light);
 }
 
-.grid-box-salad .card--header {
+.card--salad .card--header {
     background-color: var(--card-salad-bg);
 }
 
-.grid-box-salad .card--subheader,
-.grid-box-salad .card--item-head-container-tiny,
-.grid-box-salad .card--item-head-container {
+.card--salad .card--subheader,
+.card--salad .card--item-head-container-tiny,
+.card--salad .card--item-head-container {
     background-color: var(--card-salad-bg-light);
     color: black;
 }
 
-.grid-box-brown .card--header {
+.card--brown .card--header {
     background-color: var(--card-brown-bg);
 }
 
-.grid-box-brown .card--subheader,
-.grid-box-brown .card--item-head-container-tiny,
-.grid-box-brown .card--item-head-container {
+.card--brown .card--subheader,
+.card--brown .card--item-head-container-tiny,
+.card--brown .card--item-head-container {
     background-color: var(--card-brown-bg-light);
 }
 
-.grid-box-orange .card--header {
+.card--orange .card--header {
     background-color: var(--card-orange-bg);
     color: black;
 }
 
-.grid-box-orange .card--subheader,
-.grid-box-orange .card--item-head-container-tiny,
-.grid-box-orange .card--item-head-container {
+.card--orange .card--subheader,
+.card--orange .card--item-head-container-tiny,
+.card--orange .card--item-head-container {
     background-color: var(--card-orange-bg-light);
     color: black;
 }
 
-.grid-box-black .card--header {
+.card--black .card--header {
     background-color: var(--card-black-bg);
     font-family: monospace;
 }
 
-.grid-box-black .card--subheader,
-.grid-box-black .card--item-head-container-tiny,
-.grid-box-black .card--item-head-container {
+.card--black .card--subheader,
+.card--black .card--item-head-container-tiny,
+.card--black .card--item-head-container {
     background-color: var(--card-black-bg-light);
 }
 
-.grid-box-purple .card--header {
+.card--purple .card--header {
     background-color: var(--card-purple-bg);
 }
 
-.grid-box-purple .card--subheader,
-.grid-box-purple .card--item-head-container-tiny,
-.grid-box-purple .card--item-head-container {
+.card--purple .card--subheader,
+.card--purple .card--item-head-container-tiny,
+.card--purple .card--item-head-container {
     background-color: var(--card-purple-bg-light);
 }
 
@@ -477,7 +477,7 @@ a.author-link:hover {
     margin-bottom: 30px;
 }
 
-.grid-box-async {
+.card--async {
     text-align: center;
 }
 
@@ -522,7 +522,7 @@ a.card--item:hover {
     font-size: 10px;
 }
 
-.grid-box-line {
+.card--line {
     height: 20px;
     overflow: hidden;
     display: block;
@@ -535,70 +535,70 @@ a.card--item:hover {
     font-size: 11px;
 }
 
-a.grid-box-line:hover {
+a.card--line:hover {
     text-decoration: underline;
 }
 
-.grid-box-line-comment {
+.card--line-comment {
     height: 15px;
     font-size: 11px;
     color: #989898;
     text-align: right;
 }
 
-.grid-box-line-weak {
+.card--line-weak {
     height: 15px;
 }
 
-.grid-box-lines-container {
+.card--lines-container {
     width: 100%;
     min-width: 0;
 }
 
-.grid-box-inline-icon {
+.card--inline-icon {
     height: 12px;
 }
 
-.grid-box-inline-icon path {
+.card--inline-icon path {
     fill: currentColor;
 }
 
-.grid-box-line-float-left {
+.card--line-float-left {
     height: 15px;
     float: left;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.grid-box-line-float-right {
+.card--line-float-right {
     height: 15px;
     float: right;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.grid-box-line-recent-comment {
+.card--line-recent-comment {
     height: 15px;
     font-size: 11px;
     color: #ff3200;
     text-align: right;
 }
 
-.grid-box-line-strong {
+.card--line-strong {
     font-size: 13px;
 }
 
-.grid-box-line-light {
+.card--line-light {
     color: #989898;
 }
 
-.grid-box-icon {
+.card--icon {
     max-width: 73px;
     max-height: 55px;
     vertical-align: middle;
 }
 
-.grid-box-icon-container {
+.card--icon-container {
     width: 73px;
     max-height: 55px;
     display: block;
@@ -609,7 +609,7 @@ a.grid-box-line:hover {
     white-space: nowrap;
 }
 
-.grid-box-icon-helper {
+.card--icon-helper {
     display: inline-block;
     height: 100%;
     vertical-align: middle;

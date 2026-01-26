@@ -1,10 +1,10 @@
 $(function() {
-  $('.grid-box-async').each(function(i, e) {
+  $('.card--async').each(function(i, e) {
     $.ajax({
         url: '/json/snippet/',
         type: 'GET',
         data: {
-            's': $(e).attr('grid-box-snippet-id'),
+            's': $(e).attr('card--snippet-id'),
         },
         cache: false,
         dataType: 'html',
