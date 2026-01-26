@@ -7,12 +7,12 @@
   {% endif %}
 {% else %}
   {% if x.link %}
-    <a class="grid-box-item" href="{{ x.link }}" {% if x.newtab %}target="_blank"{% endif %}>  
+    <a class="card--item" href="{{ x.link }}" {% if x.newtab %}target="_blank"{% endif %}>  
   {% else %}
-    <div class="grid-box-item">
+    <div class="card--item">
   {% endif %}
     {% if x.head %}
-      <div class="grid-box-item-head-container">
+      <div class="card--item-head-container">
         {% if x.head.combined %}
           {{ x.head.combined }}
         {% else %}
@@ -22,7 +22,7 @@
       </div>
     {% endif %}
     {% if x.tinyhead %}
-      <div class="grid-box-item-head-container-tiny">
+      <div class="card--item-head-container-tiny">
         {% if x.tinyhead.combined %}
           <span class="rank-tiny">{{ x.tinyhead.combined }}</span>
         {% else %}

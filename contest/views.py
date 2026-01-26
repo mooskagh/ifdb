@@ -288,14 +288,14 @@ def _render_snippet_html(items):
             if item.get("link"):
                 target = ' target="_blank"' if item.get("newtab") else ""
                 parts.append(
-                    f'<a class="grid-box-item" href="{item["link"]}"{target}>'
+                    f'<a class="card--item" href="{item["link"]}"{target}>'
                 )
             else:
-                parts.append('<div class="grid-box-item">')
+                parts.append('<div class="card--item">')
 
             # Head
             if item.get("head"):
-                parts.append('<div class="grid-box-item-head-container">')
+                parts.append('<div class="card--item-head-container">')
                 head = item["head"]
                 if head.get("combined"):
                     parts.append(str(head["combined"]))
@@ -308,7 +308,7 @@ def _render_snippet_html(items):
 
             # Tiny head
             if item.get("tinyhead"):
-                parts.append('<div class="grid-box-item-head-container-tiny">')
+                parts.append('<div class="card--item-head-container-tiny">')
                 tinyhead = item["tinyhead"]
                 if tinyhead.get("combined"):
                     combined = tinyhead["combined"]
