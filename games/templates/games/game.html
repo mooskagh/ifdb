@@ -17,6 +17,7 @@
         </div>
     </div>
     <div class="game--content-sidebar">
+        {% include 'moder/moder_block.html' with actions=moder_actions only %}
         {% for x in competitions %}
             <div class="card game--competition-banner">
                 <div class="game--competition-rank">

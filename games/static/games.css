@@ -850,19 +850,19 @@ a.card--line:hover {
     text-align: left;
 }
 
-.moder-line {
+.moder--area {
     text-align: right;
 }
 
-.moder-line a {
+.moder--area a {
     display: inline-block;
     min-width: 16px;
     height: 18px;
     line-height: 18px;
     border-radius: 2.5px;
-    background-color: #ff5431;
+    background-color: #ddd;
+    color: #555;
     border: none;
-    color: #fff;
     margin: 2px;
     text-align: center;
     vertical-align: middle;
@@ -870,7 +870,11 @@ a.card--line:hover {
     padding: 0 2px;
 }
 
-.moder-line a svg {
+.moder--area a:hover {
+    background-color: #ccc;
+}
+
+.moder--area a svg {
     width: 12px;
     height: 12px;
     fill: currentColor;
