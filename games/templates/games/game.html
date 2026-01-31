@@ -9,6 +9,47 @@
 
 <main>
 {% include "./game_title_card.html" %}  
+<div class="game--content-grid">
+    <div class="game--content-main">
+        <div class="card card--purple">
+            <div class="card--header">Описание</div>
+            <div class="card--body game--content-text">{{ markdown|safe }}</div>
+        </div>
+    </div>
+    <div class="game--content-sidebar">
+        {% for x in competitions %}
+            <div class="card game--competition-banner">
+                <div class="game--competition-rank">
+                    {% if x.head %}
+                        {% if x.head.combined %}
+                                {{ x.head.combined }}
+                        {% else %}
+                            <span class="game--competition-rank-primary">{{ x.head.primary }}</span>
+                            <br>
+                                {{ x.head.secondary }}
+                        {% endif %}
+                    {% else %}
+                        Участник
+                    {% endif %}
+                </div>
+                <div class="game--competition-info">
+                    <div class="game--competition-title">
+                        {% safe_url 'show_competition' slug=x.slug doc='' as competition_url %}
+                        {% if competition_url %}
+                            <a href="{{ competition_url }}">{{ x.title }}</a>
+                        {% else %}
+                            {{ x.title }}
+                        {% endif %}
+                    </div>
+                    {% if x.nomination %}
+                        <div class="game--competition-nomination">{{ x.nomination }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+
+    </div>
+</div>
 </main>
 
 {% comment "This is an optional note for comments" %}
