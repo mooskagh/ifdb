@@ -88,9 +88,28 @@
                             {% endfor %}
                         {% endfor %}
                     </div>
-            </div>
-    {% endif %}
+                </div>
+        {% endif %}
 
+        {% if metadata.secondary_properties %}
+            <div class="card card--blue">
+                <div class="card--header">Информация</div>
+                <div class="card--listbody">
+                {% for category, tags in metadata.secondary_properties %}
+                    <div class="game--info-row">
+                        <div class="game--info-row-label">
+                                {{ category.name }}:
+                        </div>
+                        <div class="game--info-row-value">
+                            {% for tag in tags %}
+                                <a href="{{ tag.search_query }}">{{ tag.name }}</a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+                </div>
+            </div>
+        {% endif %}
 
     </div>
 </div>
