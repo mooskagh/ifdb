@@ -795,7 +795,7 @@ def RenderSnippets(request):
             if not data:
                 continue
 
-        box_style = "grid-box-%s" % style["color"] if "color" in style else ""
+        box_style = "card--%s" % style["color"] if "color" in style else ""
 
         icons = {}
         snippets.append({

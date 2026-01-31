@@ -1,0 +1,20 @@
+{% load static %}
+{% if actions %}
+<script src="{% static 'actions.js'%}"></script>
+<div class="card">
+    <div class="card--header">Модераторство</div>
+    <div class="card--body moder--area">
+            {% for x in actions %}
+                <a {% if x.GetUrl %} href="{{ x.GetUrl }}" {% else %} href="javascript:;"
+                    action-context="{{ x.GetContext }}" action-class="{{ x.GetClassName }}"
+                    action-object="{{ x.GetObjId }}" {% endif %} title="{{ x.GetTitle }}">
+                    {% if x.GetIcon %}
+                    {% include x.GetIcon %}
+                    {% else %}
+                    {{ x.GetTitle }}
+                    {% endif %}
+                </a>
+            {% endfor %}
+    </div>
+</div>
+{% endif %}

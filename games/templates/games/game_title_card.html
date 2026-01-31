@@ -1,0 +1,91 @@
+{% load static %}
+
+<div class="card card--salad">
+    <div class="card--header">{{ game.title }}</div>
+    <div class="card--body">
+        <div class="game--layout">
+            {% if media %}
+                {% include './game_media_panel.html' %}
+            {% endif %}
+            <div class="game--info">
+                <h1 class="game--title">{{ game.title }}</h1>
+                {% if authors %}
+                    <div class="game--authors">
+                    {% for x in authors %}
+                        <a href="{% url 'show_author' author_id=x.personality.id %}">{{ x.name }}</a>{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                    </div>
+                {% endif %}
+                <div class="game--meta-panel">
+                    {%if release_date %}
+                        <div class="game--meta-item">
+                            <span class="game--meta-label">Дата выхода:</span>
+                            <span class="game--meta-value">{{ release_date }}</span>
+                        </div>
+                    {% endif %}
+                    {% for category, tags in metadata.primary_properties %}
+                        <div class="game--meta-item">
+                            <span class="game--meta-label">{{ category.name }}:</span>
+                            <span class="game--meta-value">
+                                {% for tag in tags %}
+                                    <a href="{{ tag.search_query }}">{{ tag.name }}</a>
+                                    {% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            </span>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="game--tag-line">
+                    {% for tag in metadata.genres %}
+                        <a href="{{ tag.search_query }}" class="game--tag game--tag-genre">{{ tag.name }}</a>
+                    {% endfor %}
+                    {% for tag in metadata.tags %}
+                        <a href="{{ tag.search_query }}" class="game--tag">{{ tag.name }}</a>
+                    {% endfor %}
+                </div>
+                <div class="game--buttons-panel">
+                    {% for x in online %}
+                        <a class="button button-salad"
+                            {% if x.url.is_broken %}
+                                title="Битая ссылка!"
+                            {% endif %}
+                            {% if x.category.symbolic_id == 'play_in_interpreter' %}
+                                href="{% url 'play_in_interpreter' gameurl_id=x.pk %}"
+                            {% else %}
+                                href="{{ x.GetRemoteUrl }}"
+                                target="_blank"
+                            {% endif %}
+                            class="button-like">
+                                <svg><use href="{% static 'iconset.svg' %}#play"></use></svg>
+                                {% if x.url.is_broken %}
+                                    <img src="{% static 'brokenlink.svg' %}"/>
+                                {% endif %}                                
+                                {{x.description}}
+                        </a>
+                    {% endfor %}
+                    {% for x in download %}
+                        <a class="button button-gray"
+                                {% if x.url.is_broken %}title="Битая ссылка!"{% endif %}
+                                href="{{ x.GetRemoteUrl }}"
+                                {% if x.category.symbolic_id == 'download_direct' %}download{% endif %}>
+                            <svg><use href="{% static 'iconset.svg' %}#download"></use></svg>
+                            {% if x.url.is_broken %}
+                                <img src="{% static 'brokenlink.svg' %}"/>
+                            {% endif %}
+                            {{x.description}}
+                        </a>
+                        {% comment %}
+                        {% if x.HasLocalCopy %}
+                            <a class="button button-orange"
+                                title="Скачать резервную копию" href="{{ x.GetLocalUrl }}" download>
+                                <img src="{% static 'localbackup.svg' %}"/>
+                            </a>
+                        {% endif %}
+                        {% endcomment %}
+                    {% endfor %}
+                </div>
+                {% include './game_voting.html' %}
+            </div>
+        </div>
+    </div>
+</div>

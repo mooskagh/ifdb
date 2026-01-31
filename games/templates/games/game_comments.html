@@ -1,0 +1,57 @@
+<div class="card card--yellow">
+    <div class="card--header">Комментарии ({{ comments|length }})</div>
+    <div class="card--body game--content-text">
+        {% if comment_perm %}
+            <form class="comment-input" id="reply-1" action="{% url 'comment_game' %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="game_id" value="{{game.id}}" />
+                {% if user.is_authenticated %}
+                    <label style="display: none;"><input name="anonymous" type="checkbox">Анонимный комментарий</label>
+                {% else %}
+                    <label style="display: none;"><input name="anonymous" type="checkbox" checked="1" disabled="1">Анонимный комментарий</label>
+                {% endif %}
+                <textarea placeholder="Оставить отзыв... (поддерживается markdown)" name="text" required></textarea>
+                <input type="submit" value="Отправить" style="display: none;"/>
+            </form>
+            <form class="comment-input" id="reply-2" action="{% url 'comment_game' %}" method="post" style="display: none;"/>
+                {% csrf_token %}
+                <input type="hidden" name="parent"/>
+                <input type="hidden" name="game_id" value="{{game.id}}" />
+                {% if user.is_authenticated %}
+                    <label><input name="anonymous" type="checkbox">Анонимный комментарий</label>
+                {% else %}
+                    <label><input name="anonymous" type="checkbox" checked="1" disabled="1">Анонимный комментарий</label>
+                {% endif %}
+                <textarea class="active" placeholder="Оставить отзыв... (поддерживается markdown)" name="text" required></textarea>
+                <input type="submit" value="Отправить"/>
+            </form>
+        {% endif %}
+
+
+        {% for c in comments %}
+            <div class="comment-box {% if c.parent_id %}level2{% endif %}" data-id="{{ c.id }}">
+                <div class="comment-header">
+                    <span class="comment-nick">
+                        {{ c.username }}
+                    </span>
+                </div>
+                {% if c.is_deleted %}
+                    <div class="comment-body"><i>(комментарий удалён)</i></div>
+                {% else %}
+                    <div class="comment-body">{{ c.text|safe }}</div>
+                {% endif %}
+                <div class="comment-footer">
+                        <span class="likes">
+                            {% include './game_comment_likes.html' with likes=c.likes only %}
+                        </span>
+                        &nbsp;|&nbsp;
+                    <span class="comment-time">{{ c.created }}</span>
+                    {% if comment_perm %}
+                        &nbsp;|&nbsp;<a class="reply-link" href="#">Ответить</a>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+
+    </div>
+</div>

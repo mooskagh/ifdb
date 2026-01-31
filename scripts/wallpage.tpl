@@ -64,7 +64,7 @@
     <title>Das Ersatzplut</title>
     </head>
     <body>
-        <div class="root">
+        <div>
             <div class="content">
                 <div id="messagebox">
                     <div id="errorheader">

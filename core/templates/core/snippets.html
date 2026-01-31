@@ -3,9 +3,9 @@
 
 <div class="grid-container">
   {% for s in snippets %}
-  <div class="grid-box {{ s.box_style }}">
-    <div class="grid-box-header">
-      <div class="grid-box-header-buttons">
+  <div class="card grid-box {{ s.box_style }}">
+    <div class="card--header">
+      <div class="card--header-buttons">
         {% if s.icons.star_off %}
           <a href="{% url 'pin_snippet' s.id %}" title="Закрепить наверху">{% include "svg/star_off.svg" %}</a>
         {% endif %}
@@ -23,7 +23,7 @@
     {% endif %}
     </div>
     {% if s.async_snippet_id %}
-      <div class="grid-box-item grid-box-async" grid-box-snippet-id="{{s.async_snippet_id}}">
+      <div class="card--item card--async" card--snippet-id="{{s.async_snippet_id}}">
         <img src="{% static 'ellipsis.gif' %}">
       </div>
     {% else %}

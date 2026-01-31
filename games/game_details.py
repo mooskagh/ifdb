@@ -1,6 +1,9 @@
 import json
+from collections import defaultdict
+from dataclasses import dataclass, field
 from logging import getLogger
 from statistics import mean
+from typing import Tuple
 
 from django.conf import settings
 from django.urls import reverse
@@ -10,7 +13,7 @@ from contest.views import FormatHead
 from core.views import BuildPackageUserFingerprint
 from moder.actions import GetModerActions
 
-from .models import Game, GameCommentVote
+from .models import Game, GameCommentVote, GameTagCategory
 from .search import BaseXWriter
 from .tools import (
     ExtractYoutubeId,
@@ -75,6 +78,18 @@ def GetCommentVotes(vote_set, user, comment):
     }
 
 
+@dataclass
+class GameTagDetails:
+    tags: list = field(default_factory=list)
+    genres: list = field(default_factory=list)
+    primary_properties: list[Tuple[GameTagCategory, list]] = field(
+        default_factory=list
+    )
+    secondary_properties: list[Tuple[GameTagCategory, list]] = field(
+        default_factory=list
+    )
+
+
 class GameDetailsBuilder:
     def __init__(self, game_id, request):
         self.game = (
@@ -112,7 +127,7 @@ class GameDetailsBuilder:
         )
         media = AnnotateMedia(media)
         md = RenderMarkdown(self.game.description)
-        tags = self.GetTagsForDetails()
+        metadata = self.GetTagsForDetails()
         votes = self.GetGameScore()
         comments = self.GetGameComments()
         competitions = self.GetCompetitions()
@@ -143,7 +158,7 @@ class GameDetailsBuilder:
             "last_edit_date": last_edit_date,
             "markdown": md,
             "release_date": release_date,
-            "tags": tags,
+            "metadata": metadata,
             "links": links,
             "media": media,
             "online": online,
@@ -171,30 +186,40 @@ class GameDetailsBuilder:
             res.append(item)
         return res
 
-    def GetTagsForDetails(self):
-        tags = {}
-        cats = []
-        for x in self.game.tags.all():
-            category = x.category
-            writer = BaseXWriter()
-            writer.addHeader(2, category.id)
-            writer.addSet([x.id])
-            x.search_query = "%s?q=%s" % (
-                reverse("list_games"),
-                writer.GetStr(),
-            )
-            if not self.request.perm(category.show_in_details_perm):
+    def GetTagsForDetails(self) -> GameTagDetails:
+        primary_sids = {"version", "language", "platform", "age"}
+        grouped = defaultdict(list)
+
+        queryset = self.game.tags.select_related("category").order_by(
+            "category__order", "name"
+        )
+
+        for tag in queryset:
+            cat = tag.category
+            if not self.request.perm(cat.show_in_details_perm):
                 continue
-            if category in tags:
-                tags[category].append(x)
+
+            # Augment tag
+            writer = BaseXWriter()
+            writer.addHeader(2, cat.id)
+            writer.addSet([tag.id])
+            tag.search_query = f"{reverse('list_games')}?q={writer.GetStr()}"
+
+            grouped[cat].append(tag)
+
+        details = GameTagDetails()
+
+        for cat, tags in grouped.items():
+            if cat.symbolic_id == "genre":
+                details.genres.extend(tags)
+            elif cat.symbolic_id == "tag":
+                details.tags.extend(tags)
+            elif cat.symbolic_id in primary_sids:
+                details.primary_properties.append((cat, tags))
             else:
-                cats.append(category)
-                tags[category] = [x]
-        cats.sort(key=lambda x: x.order)
-        res = []
-        for r in cats:
-            res.append({"category": r, "items": tags[r]})
-        return res
+                details.secondary_properties.append((cat, tags))
+
+        return details
 
     ################################################
     # Returns:

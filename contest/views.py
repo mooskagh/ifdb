@@ -278,24 +278,24 @@ def _render_snippet_html(items):
             if item.get("link"):
                 target = ' target="_blank"' if item.get("newtab") else ""
                 parts.append(
-                    f'<a class="grid-box-subheader" '
+                    f'<a class="card--subheader" '
                     f'href="{item["link"]}"{target}>{text}</a>'
                 )
             else:
-                parts.append(f'<div class="grid-box-subheader">{text}</div>')
+                parts.append(f'<div class="card--subheader">{text}</div>')
         else:
             # Main item
             if item.get("link"):
                 target = ' target="_blank"' if item.get("newtab") else ""
                 parts.append(
-                    f'<a class="grid-box-item" href="{item["link"]}"{target}>'
+                    f'<a class="card--item" href="{item["link"]}"{target}>'
                 )
             else:
-                parts.append('<div class="grid-box-item">')
+                parts.append('<div class="card--item">')
 
             # Head
             if item.get("head"):
-                parts.append('<div class="grid-box-item-head-container">')
+                parts.append('<div class="card--item-head-container">')
                 head = item["head"]
                 if head.get("combined"):
                     parts.append(str(head["combined"]))
@@ -308,7 +308,7 @@ def _render_snippet_html(items):
 
             # Tiny head
             if item.get("tinyhead"):
-                parts.append('<div class="grid-box-item-head-container-tiny">')
+                parts.append('<div class="card--item-head-container-tiny">')
                 tinyhead = item["tinyhead"]
                 if tinyhead.get("combined"):
                     combined = tinyhead["combined"]
@@ -321,11 +321,11 @@ def _render_snippet_html(items):
                 parts.append("</div>")
 
             # Lines
-            parts.append('<div class="grid-box-lines-container">')
+            parts.append('<div class="card--lines-container">')
             for line in item.get("lines", []):
                 styles = line.get("style", [])
-                style_str = " ".join(f"grid-box-line-{s}" for s in styles)
-                line_class = f"grid-box-line {style_str}".strip()
+                style_str = " ".join(f"card--line-{s}" for s in styles)
+                line_class = f"card--line {style_str}".strip()
 
                 if line.get("link"):
                     target = ' target="_blank"' if line.get("newtab") else ""

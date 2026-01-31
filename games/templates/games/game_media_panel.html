@@ -1,0 +1,26 @@
+{% load static %}
+
+<div class="game--media">
+    <div class="slider-container">
+        <div id="gallery-main">
+        </div>
+        <div id="gallery-caption"></div>
+        <div id="gallery-thumbs">
+            {% for x in media %}
+                {% if x.type == 'img' %}
+                <img src="{{ x.img }}"
+                        alt="{{ x.caption }}"/>
+                {% elif x.type == 'youtube' %}
+                <img src="https://img.youtube.com/vi/{{ x.id }}/default.jpg"
+                    iframe-url="https://www.youtube.com/embed/{{ x.id }}?origin={{ request.path|urlencode }}"
+                    is-video="true"
+                    alt="{{ x.caption }}"/>
+                {% else %}
+                <img src="{% static 'noposter.png' %}"
+                        alt="{{ x.caption }}"/>
+                {% endif %}
+            {% endfor %}
+        </div>
+        <script>initGallery();</script>
+    </div>
+</div>

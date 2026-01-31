@@ -1,18 +1,18 @@
 {% for x in items %}
 {% if x.style == 'subheader' %}
   {% if x.link %}
-    <a class="grid-box-subheader" href="{{x.link}}" {% if x.newtab %}target="_blank"{% endif %}>{{ x.text }}</a>
+    <a class="card--subheader" href="{{x.link}}" {% if x.newtab %}target="_blank"{% endif %}>{{ x.text }}</a>
   {% else %}
-    <div class="grid-box-subheader">{{ x.text }}</div>
+    <div class="card--subheader">{{ x.text }}</div>
   {% endif %}
 {% else %}
   {% if x.link %}
-    <a class="grid-box-item" href="{{ x.link }}" {% if x.newtab %}target="_blank"{% endif %}>  
+    <a class="card--item" href="{{ x.link }}" {% if x.newtab %}target="_blank"{% endif %}>  
   {% else %}
-    <div class="grid-box-item">
+    <div class="card--item">
   {% endif %}
     {% if x.head %}
-      <div class="grid-box-item-head-container">
+      <div class="card--item-head-container">
         {% if x.head.combined %}
           {{ x.head.combined }}
         {% else %}
@@ -22,7 +22,7 @@
       </div>
     {% endif %}
     {% if x.tinyhead %}
-      <div class="grid-box-item-head-container-tiny">
+      <div class="card--item-head-container-tiny">
         {% if x.tinyhead.combined %}
           <span class="rank-tiny">{{ x.tinyhead.combined }}</span>
         {% else %}
@@ -34,13 +34,13 @@
     {% if x.image %}
       {% spaceless %}
       {% if x.image.link %}
-        <a class="grid-box-icon-container" href="{{x.image.link}}" {% if x.image.newtab %}target="_blank"{% endif %}>
+        <a class="card--icon-container" href="{{x.image.link}}" {% if x.image.newtab %}target="_blank"{% endif %}>
       {% else %}
-        <div class="grid-box-icon-container">
+        <div class="card--icon-container">
       {% endif %}
           {% if x.image.src %}        
-            <span class="grid-box-icon-helper"></span>
-            <img class="grid-box-icon" src="{{ x.image.src }}">
+            <span class="card--icon-helper"></span>
+            <img class="card--icon" src="{{ x.image.src }}">
           {% endif %}
       {% if x.image.link %}
         </a>
@@ -49,16 +49,16 @@
       {% endif %}
       {% endspaceless %}
     {% endif %}
-    <div class="grid-box-lines-container">
+    <div class="card--lines-container">
     {% for y in x.lines %}
       {% if y.link %}
-        <a class="grid-box-line{% for z in y.style %} grid-box-line-{{z}}{% endfor %}" href="{{y.link}}" {% if y.newtab %}target="_blank"{% endif %}>
+        <a class="card--line{% for z in y.style %} card--line-{{z}}{% endfor %}" href="{{y.link}}" {% if y.newtab %}target="_blank"{% endif %}>
       {% else %}
-        <div class="grid-box-line{% for z in y.style %} grid-box-line-{{z}}{% endfor %}">
+        <div class="card--line{% for z in y.style %} card--line-{{z}}{% endfor %}">
       {% endif %}
           {{ y.text }}
           {% if y.svg %}
-            <svg class="grid-box-inline-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+            <svg class="card--inline-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
               <path d="{{ y.svg }}"/>
             </svg>
           {% endif %}

@@ -17,9 +17,9 @@ $(function() {
     return cookieValue;
   }
 
-  $('.moder-line a[action-class]').click(function(e) {
+  $('.moder--area a[action-class]').click(function(e) {
     e.preventDefault();
-    var moderLine = $(e.target).closest('.moder-line');
+    var moderLine = $(e.target).closest('.moder--area');
     var moderFrame = moderLine.find('.moder-frame');
     if (moderFrame.length !== 0) {
       moderFrame.empty();
