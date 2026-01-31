@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+	<symbol id="broken-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M9 17H7A5 5 0 0 1 7 7" />
+		<path d="M15 7h2a5 5 0 0 1 4 8" />
+		<line x1="8" x2="12" y1="12" y2="12" />
+		<line x1="2" x2="22" y1="2" y2="22" />
+	</symbol>
+	<symbol id="play" viewBox="0 0 24 24" fill="currentColor">
+		<polygon points="5 3 19 12 5 21 5 3">
+		</polygon>
+	</symbol>
+	<symbol id="link-unknown" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" />
+		<path d="M12 17h.01" />
+		<path d="M9.1 9a3 3 0 0 1 5.82 1c0 2-3 3-3 3" />
+	</symbol>
+	<symbol id="link-other" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+		<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+	</symbol>
+	<symbol id="link-review" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+		<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+	</symbol>
+	<symbol id="link-forum" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />
+	</symbol>
+	<symbol id="link-video" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+		<rect x="2" y="6" width="14" height="12" rx="2" />
+	</symbol>
+	<symbol id="download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M12 15V3" />
+		<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+		<path d="m7 10 5 5 5-5" />
+	</symbol>
+	<symbol id="link-game_page" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M15 3h6v6" />
+		<path d="M10 14 21 3" />
+		<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+	</symbol>
+</svg>

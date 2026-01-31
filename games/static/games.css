@@ -468,6 +468,22 @@ a.card--subheader:hover {
     margin-bottom: 2px;
 }
 
+.game--info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+}
+
+.game--info-row-label {
+    color: var(--text-muted-color);
+    align-self: flex-start;
+}
+
+.game--info-row-value {
+    display: flex;
+    flex-direction: column;
+}
+
 a {
     color: var(--link-color);
     text-decoration: none;
@@ -675,6 +691,28 @@ a:hover {
 
 .card--body {
     padding: 12px;
+}
+
+.card--listbody {
+    padding: 12px;  
+}
+
+a svg {
+    width: 14px;
+    height: 14px;
+}
+
+.card--listbody > * {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+}
+
+.card--listbody > *:last-child {
+    border-bottom: none;
 }
 
 .card--async {
