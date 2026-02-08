@@ -428,6 +428,7 @@ a.card--subheader:hover {
     gap: 15px;
 }
 
+
 .game--content-main {
     flex: 1;
     min-width: 0;
@@ -436,6 +437,26 @@ a.card--subheader:hover {
 .game--content-sidebar {
     width: 280px;
     flex-shrink: 0;
+}
+
+
+@media (max-width: 900px) {
+    .game--content-grid {
+        flex-direction: column;
+    }
+
+    .game--content-sidebar {
+        width: 100%;
+        order: -1;
+    }
+
+    .game--layout {
+        flex-direction: column;
+    }
+
+    .game--media {
+        width: 100%;
+    }
 }
 
 .game--competition-banner {
@@ -694,7 +715,7 @@ a:hover {
 }
 
 .card--listbody {
-    padding: 12px;  
+    padding: 12px;
 }
 
 a svg {
@@ -702,7 +723,7 @@ a svg {
     height: 14px;
 }
 
-.card--listbody > * {
+.card--listbody>* {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -711,7 +732,7 @@ a svg {
     font-size: 13px;
 }
 
-.card--listbody > *:last-child {
+.card--listbody>*:last-child {
     border-bottom: none;
 }
 
