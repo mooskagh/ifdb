@@ -23,7 +23,7 @@
     <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">    
     <link rel="stylesheet" type="text/css" media="screen" href="{% static 'games.css' %}" />
     {% block scripts %}{% endblock %}
-        <title>{% block titlesection %}{% endblock %}Зимняя Олимпиада Квестов</title>
+        <title>{% block titlesection %}{% endblock %}ЗОК</title>
     </head>
     <body>
         <div>
@@ -57,13 +57,14 @@
                     </svg>
                 </label>
                 <nav class="top-nav-drawer">
-                    <a href="/">ЗОК-2025</a>
+                    <a href="/">ЗОК</a>
                     {% if user.is_staff %}
                         <a href="/adminz/">Админка</a>
                     {% endif %}
                     <a href="/games">Игры</a>
-                    <a href="/players">Конкурс для игроков</a>
                     <a href="/voting">Голосование</a>
+                    <a href="/players">Конкурс для игроков</a>
+                    <a href="/links">Ссылки</a>          
                 </nav>
             </header>
 
