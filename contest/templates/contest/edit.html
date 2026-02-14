@@ -1,9 +1,8 @@
 {% extends "games/base.html" %}
 {% load tags %}
-{% load static %}
 {% block titlesection %} {{ comp.title }} - {% endblock %}
 {% block scripts %}
-    <script src="/static/formedit.js"></script>
+    <script src="{% static 'formedit.js' %}"></script>
 {% endblock %}
 {% block content %}
   <div class="content-box">

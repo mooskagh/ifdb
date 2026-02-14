@@ -1,7 +1,6 @@
 {% extends "games/base.html" %}
-{% load static %}
 {% block scripts %}
-    <script src="/static/contests.js"></script>
+    <script src="{% static 'contests.js' %}"></script>
 {% endblock %}
 {% block content_wide %}
 <div class="contests-container">

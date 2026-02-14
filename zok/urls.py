@@ -13,7 +13,7 @@ urlpatterns = [
     re_path(
         r"^(?P<doc>.*)$",
         show_competition,
-        {"slug": "zok-2025"},
+        {"slug": "zok-2026"},
         name="show_competition",
     ),
 ]

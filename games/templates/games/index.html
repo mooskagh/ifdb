@@ -1,7 +1,7 @@
 {% extends "./base.html" %}
 {% block scripts %}
     <script src="https://unpkg.com/masonry-layout@4/dist/masonry.pkgd.min.js"></script>
-    <script src="/static/snippets.js"></script>
+    <script src="{% static 'snippets.js' %}"></script>
 {% endblock %}
 {% block content_wide %}
     {{ snippets | safe }}

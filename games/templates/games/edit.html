@@ -1,6 +1,6 @@
 {% extends "./base.html" %}
 {% block scripts %}
-    <script src="/static/editor.js"></script>
+    <script src="{% static 'editor.js' %}"></script>
 {% endblock %}
 {% block content %}
     <div class="content-box gameedit" game-id="{{game_id}}">

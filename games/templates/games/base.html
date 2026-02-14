@@ -15,13 +15,13 @@
     </script>
     {% endif %}
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="shortcut icon" href="/static/favicon.ico" />
+    <link rel="shortcut icon" href="{% static 'favicon.ico' %}" />
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
     <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
     <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
     <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/jqueryui-touch-punch/0.2.3/jquery.ui.touch-punch.min.js"></script>
     <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">    
-    <link rel="stylesheet" type="text/css" media="screen" href="/static/games.css?b" />
+    <link rel="stylesheet" type="text/css" media="screen" href="{% static 'games.css' %}" />
     {% block scripts %}{% endblock %}
         <title>{% block titlesection %}{% endblock %}db.crem.xyz</title>
     </head>

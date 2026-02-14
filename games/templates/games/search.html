@@ -1,7 +1,6 @@
 {% extends "./base.html" %}
-{% load static %}
 {% block scripts %}
-    <script src="/static/search.js"></script>
+    <script src="{% static 'search.js' %}"></script>
 {% endblock %}
 {% block content_wide %}
     {% if user.is_authenticated %}
