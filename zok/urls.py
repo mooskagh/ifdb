@@ -16,6 +16,12 @@ urlpatterns = [
         {"slug": "zok-2026"},
         name="show_competition",
     ),
+    re_path(
+        r"^2025/(?P<doc>.*)$",
+        show_competition,
+        {"slug": "zok-2025"},
+        name="show_competition",
+    ),
 ]
 
 if settings.DEBUG:
