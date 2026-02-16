@@ -40,6 +40,12 @@
     </div>
     <div class="game--content-sidebar">
         {% include 'moder/moder_block.html' with actions=moder_actions only %}
+        {% if comments_html %}
+            <div class="card card--green">
+                <div class="card--header">Последние комментарии</div>
+                <div class="card--listbody">{{ comments_html|safe }}</div>
+            </div>
+        {% endif %}
         {% if links %}
             <div class="card card--red">
                 <div class="card--header">Ссылки</div>
