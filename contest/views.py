@@ -198,6 +198,9 @@ def show_competition(request, slug, doc=""):
     logos, ext_links = PartitionItems(
         comp.competitionurl_set.all(), [("logo",)]
     )
+    from core.snippets import CommentsSnippet
+
+    comments_data = CommentsSnippet(request, event=comp.slug)
     return render(
         request,
         "contest/competition.html",
@@ -210,6 +213,7 @@ def show_competition(request, slug, doc=""):
             "logo": logo,
             "docs": links,
             "links": ext_links,
+            "comments_html": comments_data.get("content", ""),
             "moder_actions": (
                 GetModerActions(request, "CompetitionDocument", docobj)
                 if settings.SITE_ID == 1
