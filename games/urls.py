@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.http import HttpResponseRedirect
 from django.urls import include, path, re_path
 from django_registration.backends.activation.views import RegistrationView
 
@@ -50,6 +51,12 @@ urlpatterns = [
         "accounts/register/",
         RegistrationView.as_view(form_class=RegistrationForm),
         name="registration_register",
+    ),
+    re_path(
+        r"^accounts/activate/(?P<key>.+?)/?$",
+        lambda r, key: HttpResponseRedirect(
+            f"/accounts/activate/?activation_key={key}"
+        ),
     ),
     re_path(
         r"^accounts/",
