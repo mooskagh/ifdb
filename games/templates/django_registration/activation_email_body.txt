@@ -3,6 +3,6 @@
 Это пишет автомат с сайта https://{{ site }}/. Кто-то попытался вас там зарегистрировать под ником {{ user.username }}.
 
 Если вы в курсе, кто это был, и хотите завершить регистрацию, перейдите по ссылке:
-http://{{ site }}/accounts/activate/{{ activation_key }}/
+{{ scheme }}://{{ site }}/accounts/activate/?activation_key={{ activation_key }}
 
 Всё, пока.

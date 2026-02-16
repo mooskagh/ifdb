@@ -414,7 +414,7 @@ RECODES_FS = FileSystemStorage(
     os.path.join(MEDIA_ROOT, "recodes"), os.path.join(MEDIA_URL, "recodes")
 )
 
-REQUIRE_ACCOUNT_ACTIVATION = False
+REQUIRE_ACCOUNT_ACTIVATION = True
 ACCOUNT_ACTIVATION_DAYS = 7
 INCLUDE_AUTH_URLS = True
 REGISTRATION_OPEN = True
