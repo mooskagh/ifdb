@@ -4,7 +4,7 @@
 {% block content %}
 
 <main>
-<div class="card card--salad">
+<div class="card card--yellow">
     <div class="card--header">{{ comp.title }}</div>
     <div class="card--body">
         <div class="game--layout">
@@ -33,7 +33,7 @@
 
 <div class="game--content-grid">
     <div class="game--content-main">
-        <div class="card card--purple">
+        <div class="card card--blue">
             <div class="card--header">{{ doc.title }}</div>
             <div class="card--body game--content-text">{{ markdown|safe }}</div>
         </div>
@@ -41,7 +41,7 @@
     <div class="game--content-sidebar">
         {% include 'moder/moder_block.html' with actions=moder_actions only %}
         {% if links %}
-            <div class="card card--green">
+            <div class="card card--red">
                 <div class="card--header">Ссылки</div>
                 <div class="card--listbody">
                     {% for link in links %}
