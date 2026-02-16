@@ -3,12 +3,16 @@
 {% block content %}
     <div class="content-box">
         <h2>Активация</h2>
-        <form class="user-registration" method="post">
-            {% csrf_token %}
-            <table>
-               {{ form.as_table }}
-            </table>
-            <input type="submit" value="Активировать"/>
-        </form>
+        {% if activation_error %}
+            <div class="error">{{ activation_error.message }}</div>
+        {% else %}
+            <form class="user-registration" method="post">
+                {% csrf_token %}
+                <table>
+                   {{ form.as_table }}
+                </table>
+                <input type="submit" value="Активировать"/>
+            </form>
+        {% endif %}
     </div>
 {% endblock %}
