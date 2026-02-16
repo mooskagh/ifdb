@@ -2,61 +2,65 @@
 {% load tags %}
 {% block titlesection %}{{ doc.title }} - {{ comp.title }} - {% endblock %}
 {% block content %}
-  <div class="content-box-outer">
-    {% include 'moder/moder_line.html' with actions=moder_actions only %}
-    <div class="content-box-inner">
-      <div class="leftpane">
-        <div class="contest-header">
-          <h1>{{ comp.title }}</h1>
-          {% if docs|length > 1 %}
-            {% for x in docs %}
-              {% if not forloop.first %} | {% endif %}
-              {% if x.current %}
-                <span class="doc-list-current">{{x.title}}</span>
-              {% else %}
-                <a href="{% url 'show_competition' slug=comp.slug doc=x.slug %}">{{x.title}}</a>
-              {% endif %}
-            {% endfor %}
-          {% endif %}
-        </div>
-      </div>
-      {% if logo %}
-        <div class="rightpane">
-          <img src="{{logo}}" />
-        </div>
-      {% endif %}
-      <div class="leftpane">
-        <div class="game-description">
-          {{ markdown|safe }}
-        </div>
-      </div>    
-      {% if links %}
-        <div class="rightpane">
-        <table>
-          {% for link in links %}
-            {% for x in link.items %}
-              <tr>
-                <td class="prop-category">
-                  {% if forloop.first %}
-                    {{ link.category.title }}:
-                  {% endif %}
-                </td>
-                <td class="prop-value">
-                  <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}">
-                    {% if x.url.is_broken %}
-                      <img src="{% static 'brokenlink.svg' %}"/>
-                    {% endif %}
-                    {{ x.description }}
-                  </a>
-                </td>
-              </tr>
-            {% endfor %}
-          {% endfor %}
-        </table>
-        </div>
-      {% endif %}
 
-      <div style="clear: both;"></div>
+<main>
+<div class="card card--salad">
+    <div class="card--header">{{ comp.title }}</div>
+    <div class="card--body">
+        <div class="game--layout">
+            {% if logo %}
+                <div class="game--media">
+                    <img src="{{ logo }}" style="max-width: 100%" />
+                </div>
+            {% endif %}
+            <div class="game--info">
+                <h1 class="game--title">{{ comp.title }}</h1>
+                {% if docs|length > 1 %}
+                    <div class="game--tag-line">
+                        {% for x in docs %}
+                            {% if x.current %}
+                                <span class="game--tag game--tag-genre">{{ x.title }}</span>
+                            {% else %}
+                                <a href="{% url 'show_competition' slug=comp.slug doc=x.slug %}" class="game--tag">{{ x.title }}</a>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
     </div>
-  </div>
+</div>
+
+<div class="game--content-grid">
+    <div class="game--content-main">
+        <div class="card card--purple">
+            <div class="card--header">{{ doc.title }}</div>
+            <div class="card--body game--content-text">{{ markdown|safe }}</div>
+        </div>
+    </div>
+    <div class="game--content-sidebar">
+        {% include 'moder/moder_block.html' with actions=moder_actions only %}
+        {% if links %}
+            <div class="card card--green">
+                <div class="card--header">Ссылки</div>
+                <div class="card--listbody">
+                    {% for link in links %}
+                        {% for x in link.items %}
+                            <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}">
+                                {% if x.url.is_broken %}
+                                    <svg><use href="{% static 'iconset.svg' %}#broken-link"></use></svg>
+                                {% else %}
+                                    <svg><use href="{% static 'iconset.svg' %}#link-{{ link.category.symbolic_id }}"></use></svg>
+                                {% endif %}
+                                {{ x.description }}
+                            </a>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+</main>
+
 {% endblock %}
