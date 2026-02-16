@@ -114,8 +114,24 @@ class CompetitionGameFetcher:
             game__in=games, role__symbolic_id="author"
         ).select_related("author")
 
+        from games.models import Game
+
+        CATEGORY_KEY = {
+            "genre": "genres",
+            "tag": "tags",
+            "platform": "platforms",
+            "age": "ages",
+        }
+        through = Game.tags.through.objects.filter(
+            game_id__in=games,
+            gametag__category__symbolic_id__in=CATEGORY_KEY,
+        ).select_related("gametag__category")
+
         g2p = {}
         authors = defaultdict(list)
+        tag_data: dict[int, dict] = defaultdict(
+            lambda: {k: [] for k in CATEGORY_KEY.values()}
+        )
         for x in posters:
             g2p[x.game_id] = x.GetLocalUrl()
         for x in screenshots:
@@ -123,6 +139,10 @@ class CompetitionGameFetcher:
                 g2p[x.game_id] = x.GetLocalUrl()
         for x in author_objs:
             authors[x.game_id].append(x.author.name)
+        for row in through:
+            tag_data[row.game_id][
+                CATEGORY_KEY[row.gametag.category.symbolic_id]
+            ].append(row.gametag)
 
         now = timezone.now()
         for x in raw:
@@ -143,6 +163,7 @@ class CompetitionGameFetcher:
                             ).total_seconds()
                         g.poster = g2p.get(z.game_id)
                         g.authors = ", ".join(authors[g.id])
+                        g.tag_data = tag_data.get(g.id)
 
                         votes = [x.star_rating for x in g.gamevote_set.all()]
                         g.rating = ComputeGameRating(votes)
