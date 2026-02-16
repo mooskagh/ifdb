@@ -2279,9 +2279,17 @@ progress::-webkit-progress-value {
     text-align: center;
 }
 
-#gallery-main * {
+#gallery-main > * {
     max-width: 100%;
     max-height: 100%;
+    min-height: 0;
+    height: 100%;
+}
+
+#gallery-main img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
 }
 
 #gallery-thumbs {
