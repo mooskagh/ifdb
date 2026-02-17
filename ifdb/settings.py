@@ -386,8 +386,6 @@ CACHES = {
     },
 }
 
-# Temporarily disable cache
-CACHES["default"]["BACKEND"] = "django.core.cache.backends.dummy.DummyCache"
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.10/topics/i18n/
