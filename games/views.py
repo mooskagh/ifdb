@@ -268,11 +268,12 @@ def comment_game(request):
     comment = GameComment()
     comment.game = game
     print(request.user)
-    comment.user = (
-        None
-        if request.user.is_anonymous or request.POST.get("anonymous", False)
-        else request.user
-    )
+    # comment.user = (
+    # None
+    # if request.user.is_anonymous or request.POST.get("anonymous", False)
+    # else request.user
+    # )
+    comment.user = request.user
     if comment.user:
         comment.username = comment.user.username
     else:
