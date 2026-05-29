@@ -4,6 +4,11 @@
 default:
     @just --list
 
+# Build TypeScript frontend bundle
+build-frontend:
+    @echo "Building frontend..."
+    esbuild frontend/main.ts --bundle --outfile=core/static/bundle.js
+
 # Django system checks
 check-django:
     @echo "Running Django system checks..."

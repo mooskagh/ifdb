@@ -554,6 +554,8 @@ class DeployCommand(cli.Application):
             backup_path = BACKUPS_DIR / "database" / timestamp
             p.AddStep(RunCmdStep(f"pg_dump ifdb > {backup_path}"))
 
+        p.AddStep(RunCmdStep("just build-frontend"))
+
         if self.hot:
             p.AddStep(RunCmdStep("uv run ./manage.py collectstatic"))
         else:

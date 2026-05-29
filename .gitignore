@@ -3,6 +3,7 @@
 /files
 /urlcache
 /tmp
+/core/static/bundle.js
 /loonchator/out
 /virtualenv
 __pycache__
