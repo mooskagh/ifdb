@@ -4,6 +4,7 @@
 /urlcache
 /tmp
 /core/static/bundle.js
+/core/static/editor.js
 /loonchator/out
 /virtualenv
 __pycache__

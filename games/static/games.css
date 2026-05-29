@@ -2129,7 +2129,7 @@ button#import_button {
     margin-right: 5px;
 }
 
-button#upload_button {
+button.upload_button {
     margin-left: 5px;
     margin-right: 5px;
     padding: 2px 4px;
@@ -2178,6 +2178,63 @@ button#submit,
 
 .gameedit input::placeholder {
     color: #C2C1BB;
+}
+
+/* Custom combobox dropdown (replaces jQuery UI autocomplete). */
+.combobox-popup {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background: #fff;
+    border: 1px solid #aaa;
+    max-height: 14em;
+    overflow-y: auto;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+}
+
+.combobox-item {
+    padding: 2px 6px;
+    cursor: pointer;
+}
+
+.combobox-item.selected {
+    background-color: #ff5431;
+    color: #fff;
+}
+
+/* Description-attribution chips. */
+#description_attributions {
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    padding: 3px;
+    background: #fff;
+}
+
+#description_attributions .chip {
+    display: inline-block;
+    background-color: #eee;
+    border-radius: 10px;
+    padding: 1px 6px;
+    margin: 2px;
+    font-size: 90%;
+    white-space: nowrap;
+}
+
+#description_attributions .chip-remove {
+    cursor: pointer;
+    margin-left: 5px;
+    color: #ff5431;
+}
+
+#description_attributions .chip-input {
+    border: none;
+    outline: none;
+    padding: 2px;
+    min-width: 12em;
 }
 
 .error {

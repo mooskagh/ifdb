@@ -8,6 +8,7 @@ default:
 build-frontend:
     @echo "Building frontend..."
     esbuild frontend/main.ts --bundle --outfile=core/static/bundle.js
+    esbuild frontend/editor.ts --bundle --outfile=core/static/editor.js
 
 # Django system checks
 check-django:
