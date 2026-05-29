@@ -678,6 +678,17 @@ function GetCookie(name) {
 var EDITOR = (function() {
   'use strict';
 
+  var descriptionAttributions = [];
+
+  function MergeDescriptionAttributions(items) {
+    if (!items) return;
+    items.forEach(function(item) {
+      if (descriptionAttributions.indexOf(item) === -1) {
+        descriptionAttributions.push(item);
+      }
+    });
+    }
+
   function BuildAuthors(element, data) {
     var cats = {};
     var vals = {};
@@ -788,6 +799,7 @@ var EDITOR = (function() {
     if (!isValid) return;
 
     res.desc = $('#description').val();
+    res.description_attributions = descriptionAttributions.slice();
     res.release_date = $('#release_date').val();
     res.authors = $('#authors').propSelector('values');
     res.tags = $('#tags').propSelector('values');
@@ -808,6 +820,9 @@ var EDITOR = (function() {
         data.desc += '\n\n---\n_предыдущая версия описания:_\n\n' + oldVal;
       }
       $('#description').val(data.desc);
+      }
+    if (data.hasOwnProperty('description_attributions')) {
+      MergeDescriptionAttributions(data.description_attributions);
       }
     if (data.hasOwnProperty('release_date')) {
       $('#release_date').val(data.release_date);

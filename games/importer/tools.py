@@ -7,6 +7,13 @@ RE_WORD = re.compile(r"\w+")
 MIN_SIMILARITY = 0.67
 REGISTERED_IMPORTERS = []
 
+
+def AddDescriptionAttribution(res, name):
+    attributions = res.setdefault("description_attributions", [])
+    if name not in attributions:
+        attributions.append(name)
+
+
 URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ("qsp.su", "^/?$", "^$", None, None),
     ("urq.plut.info", "^/?$", "^$", None, None),
@@ -397,6 +404,7 @@ class Importer:
 # Schema:
 # title: title
 # desc: description, markdown-formatted
+# description_attributions[]: source site names for game description
 # release_date: release-date
 # authors[]:
 #   role_slug:

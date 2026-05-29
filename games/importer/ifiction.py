@@ -6,7 +6,7 @@ from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeUrl
+from .tools import AddDescriptionAttribution, CategorizeUrl
 
 IFICTION_URL = re.compile(
     r"https?://forum\.ifiction\.ru/viewtopic\.php\?id=\d+"
@@ -116,10 +116,8 @@ def ImportFromIfiction(url):
     if m:
         tt = HTML2Text()
         tt.body_width = 0
-        res["desc"] = (
-            tt.handle(m.group(1))
-            + "\n\n_(описание взято с сайта ifiction.ru)_"
-        )
+        res["desc"] = tt.handle(m.group(1))
+        AddDescriptionAttribution(res, "ifiction.ru")
 
     m = LINKS_BLOCK.search(html)
     if m:

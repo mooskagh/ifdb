@@ -13,6 +13,7 @@ from .models import (
     Game,
     GameAuthor,
     GameAuthorRole,
+    GameDescriptionAttribution,
     GameTag,
     GameTagCategory,
     GameURL,
@@ -141,6 +142,21 @@ def UpdateGameTags(request, game, tags, update):
 
     if existing_tags:
         game.tags.remove(*list(game.tags.filter(id__in=existing_tags)))
+
+
+def UpdateGameDescriptionAttributions(game, attributions):
+    game.description_attributions.clear()
+
+    names = dict.fromkeys(
+        name
+        for name in (str(item).strip() for item in attributions or [] if item)
+        if name
+    )
+    for name in names:
+        attribution, _ = GameDescriptionAttribution.objects.get_or_create(
+            name=name
+        )
+        game.description_attributions.add(attribution)
 
 
 def UpdatePersonalityUrls(importer, request, alias_id, data, update):
@@ -351,6 +367,10 @@ def UpdateGame(request, j, update_edit_time=True, kill_existing_urls=True):
     )
 
     g.save()
+    if "description_attributions" in j:
+        UpdateGameDescriptionAttributions(
+            g, j.get("description_attributions", [])
+        )
     UpdateGameUrls(
         request,
         g,
@@ -369,6 +389,9 @@ def Importer2Json(r):
     for x in ["title", "desc", "release_date"]:
         if x in r:
             res[x] = str(r[x])
+
+    if "description_attributions" in r:
+        res["description_attributions"] = r["description_attributions"]
 
     if "authors" in r:
         res["authors"] = []

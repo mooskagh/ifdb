@@ -8,7 +8,7 @@ from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeUrl
+from .tools import AddDescriptionAttribution, CategorizeUrl
 
 logger = getLogger("crawler")
 
@@ -91,10 +91,8 @@ def ImportFromInstead(url):
     if m:
         tt = HTML2Text()
         tt.body_width = 0
-        res["desc"] = (
-            tt.handle(m.group(1))
-            + "\n\n_(описание взято с сайта instead-games.ru)_"
-        )
+        res["desc"] = tt.handle(m.group(1))
+        AddDescriptionAttribution(res, "instead-games.ru")
 
     m = INS_SCREENSHOTS.search(html)
     if m:

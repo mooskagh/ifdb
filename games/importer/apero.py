@@ -7,7 +7,12 @@ from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeAuthorUrl, CategorizeUrl, QuoteUtf8
+from .tools import (
+    AddDescriptionAttribution,
+    CategorizeAuthorUrl,
+    CategorizeUrl,
+    QuoteUtf8,
+)
 
 
 class AperoImporter:
@@ -82,9 +87,8 @@ def ImportFromApero(url):
     if m:
         tt = HTML2Text()
         tt.body_width = 0
-        res["desc"] = (
-            tt.handle(m.group(1)) + "\n\n_(описание взято с сайта apero.ru)_"
-        )
+        res["desc"] = tt.handle(m.group(1))
+        AddDescriptionAttribution(res, "apero.ru")
 
     m = APERO_RELEASE.search(html)
     if m:

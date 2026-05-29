@@ -143,9 +143,10 @@ class TestIfwikiImporter(unittest.TestCase):
         # Check priority
         self.assertEqual(result.get("priority"), 100)
 
-        # Verify that description contains ifwiki.ru attribution
+        # Verify that game description attribution is returned separately.
         desc = result.get("desc", "")
-        self.assertIn("ifwiki.ru", desc.lower())
+        self.assertNotIn("описание взято", desc.lower())
+        self.assertEqual(result.get("description_attributions"), ["ifwiki.ru"])
 
     def test_template_parsing(self):
         """Test parsing of various MediaWiki templates."""

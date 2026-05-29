@@ -9,7 +9,11 @@ import mwparserfromhell
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeAuthorUrl, CategorizeUrl
+from .tools import (
+    AddDescriptionAttribution,
+    CategorizeAuthorUrl,
+    CategorizeUrl,
+)
 
 logger = getLogger("crawler")
 
@@ -191,7 +195,8 @@ def ImportFromIfwiki(url):
         return {"error": "Какая-то ошибка при парсинге. Надо сказать админам."}
 
     res["title"] = context.title
-    res["desc"] = output + "\n\n_(описание взято с сайта ifwiki.ru)_"
+    res["desc"] = output
+    AddDescriptionAttribution(res, "ifwiki.ru")
     if context.release_date:
         res["release_date"] = context.release_date
     res["authors"] = context.authors

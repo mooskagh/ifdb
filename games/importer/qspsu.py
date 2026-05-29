@@ -7,7 +7,7 @@ from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeUrl
+from .tools import AddDescriptionAttribution, CategorizeUrl
 
 logger = getLogger("crawler")
 
@@ -124,9 +124,8 @@ def ImportFromQsp(url):
             elif key == "description":
                 tt = HTML2Text()
                 tt.body_width = 0
-                res["desc"] = (
-                    tt.handle(val) + "\n\n_(описание взято с сайта qsp.su)_"
-                )
+                res["desc"] = tt.handle(val)
+                AddDescriptionAttribution(res, "qsp.su")
             else:
                 logger.error("Unknown field in QSP: [%s] [%s]" % (key, val))
         for n in QSP_LINK.finditer(tr):

@@ -7,7 +7,7 @@ from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeUrl
+from .tools import AddDescriptionAttribution, CategorizeUrl
 
 
 class PlutImporter:
@@ -120,10 +120,8 @@ def ImportFromPlut(url):
     if m:
         tt = HTML2Text()
         tt.body_width = 0
-        res["desc"] = (
-            tt.handle(m.group(1))
-            + "\n\n_(описание взято с сайта urq.plut.info)_"
-        )
+        res["desc"] = tt.handle(m.group(1))
+        AddDescriptionAttribution(res, "urq.plut.info")
 
     m = PLUT_RELEASE.search(html)
     if m:

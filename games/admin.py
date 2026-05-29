@@ -7,6 +7,7 @@ from .models import (
     GameAuthorRole,
     GameComment,
     GameCommentVote,
+    GameDescriptionAttribution,
     GameTag,
     GameTagCategory,
     GameURL,
@@ -53,8 +54,15 @@ class GameAdmin(admin.ModelAdmin):
     list_display = ["pk", "title", "creation_time", "added_by"]
     list_filter = ["creation_time", "added_by"]
     search_fields = ["pk", "title"]
+    filter_horizontal = ["description_attributions"]
 
     inlines = [GameAuthorAdmin, InlineGameURLAdmin]
+
+
+@admin.register(GameDescriptionAttribution)
+class GameDescriptionAttributionAdmin(admin.ModelAdmin):
+    list_display = ["name"]
+    search_fields = ["pk", "name"]
 
 
 class InlinePersonalityAliasAdmin(admin.TabularInline):

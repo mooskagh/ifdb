@@ -8,7 +8,7 @@ from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeUrl
+from .tools import AddDescriptionAttribution, CategorizeUrl
 
 logger = getLogger("crawler")
 
@@ -150,7 +150,8 @@ def ImportFromQuestBook(url):
             ).date()
 
     if desc:
-        res["desc"] = desc + "\n\n_(описание взято с сайта quest-book.ru)_"
+        res["desc"] = desc
+        AddDescriptionAttribution(res, "quest-book.ru")
 
     m = QUESTBOOK_AUTHOR_BOX.search(html)
     if m:
