@@ -202,92 +202,109 @@ The new architecture requires several new models and modifications to existing o
 **Event Store Models**:
 ```python
 class ImportEvent(models.Model):
-   event_id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-   event_type = models.CharField(max_length=50)  # 'import_started', 'conflict_detected', etc.
-   game = models.ForeignKey(Game, on_delete=models.CASCADE, null=True)
-   source_url = models.URLField(null=True)
-   payload = models.JSONField()  # Event-specific data
-   timestamp = models.DateTimeField(auto_now_add=True)
-   correlation_id = models.UUIDField()  # Group related events
+    event_id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    event_type = models.CharField(
+        max_length=50
+    )  # 'import_started', 'conflict_detected', etc.
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, null=True)
+    source_url = models.URLField(null=True)
+    payload = models.JSONField()  # Event-specific data
+    timestamp = models.DateTimeField(auto_now_add=True)
+    correlation_id = models.UUIDField()  # Group related events
 ```
 
 **Import State Tracking**:
 ```python
 class GameImportState(models.Model):
-   game = models.OneToOneField(Game, on_delete=models.CASCADE)
-   source_states = models.JSONField(default=dict)  # Per-source metadata
-   last_full_import = models.DateTimeField(null=True)
-   human_edited_fields = models.JSONField(default=list)
-   human_edit_dates = models.JSONField(default=dict)  # Field -> timestamp mapping
-   conflict_count = models.IntegerField(default=0)
+    game = models.OneToOneField(Game, on_delete=models.CASCADE)
+    source_states = models.JSONField(default=dict)  # Per-source metadata
+    last_full_import = models.DateTimeField(null=True)
+    human_edited_fields = models.JSONField(default=list)
+    human_edit_dates = models.JSONField(
+        default=dict
+    )  # Field -> timestamp mapping
+    conflict_count = models.IntegerField(default=0)
+
 
 class SourceUrlState(models.Model):
-   url = models.URLField(unique=True)
-   content_hash = models.CharField(max_length=64)
-   last_checked = models.DateTimeField(auto_now=True)
-   last_imported = models.DateTimeField(null=True)
-   import_success = models.BooleanField(default=True)
-   failure_count = models.IntegerField(default=0)
-   importer_name = models.CharField(max_length=100)
+    url = models.URLField(unique=True)
+    content_hash = models.CharField(max_length=64)
+    last_checked = models.DateTimeField(auto_now=True)
+    last_imported = models.DateTimeField(null=True)
+    import_success = models.BooleanField(default=True)
+    failure_count = models.IntegerField(default=0)
+    importer_name = models.CharField(max_length=100)
 ```
 
 **Conflict Resolution Models**:
 ```python
 class DataConflict(models.Model):
-   game = models.ForeignKey(Game, on_delete=models.CASCADE)
-   field_name = models.CharField(max_length=100)
-   source_a = models.CharField(max_length=100)
-   source_b = models.CharField(max_length=100)
-   value_a = models.TextField()
-   value_b = models.TextField()
-   status = models.CharField(max_length=20)  # 'pending', 'resolved', 'escalated'
-   created_at = models.DateTimeField(auto_now_add=True)
+    game = models.ForeignKey(Game, on_delete=models.CASCADE)
+    field_name = models.CharField(max_length=100)
+    source_a = models.CharField(max_length=100)
+    source_b = models.CharField(max_length=100)
+    value_a = models.TextField()
+    value_b = models.TextField()
+    status = models.CharField(
+        max_length=20
+    )  # 'pending', 'resolved', 'escalated'
+    created_at = models.DateTimeField(auto_now_add=True)
+
 
 class ConflictResolution(models.Model):
-   conflict = models.OneToOneField(DataConflict, on_delete=models.CASCADE)
-   resolution_method = models.CharField(max_length=20)  # 'ai_auto', 'human', 'rule_based'
-   chosen_value = models.TextField()
-   confidence_score = models.FloatField(null=True)
-   resolved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-   resolved_at = models.DateTimeField(auto_now_add=True)
-   reasoning = models.TextField()  # Why this resolution was chosen
+    conflict = models.OneToOneField(DataConflict, on_delete=models.CASCADE)
+    resolution_method = models.CharField(
+        max_length=20
+    )  # 'ai_auto', 'human', 'rule_based'
+    chosen_value = models.TextField()
+    confidence_score = models.FloatField(null=True)
+    resolved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    resolved_at = models.DateTimeField(auto_now_add=True)
+    reasoning = models.TextField()  # Why this resolution was chosen
 ```
 
 **AI Decision Tracking**:
 ```python
 class AIDecision(models.Model):
-   decision_type = models.CharField(max_length=50)  # 'description_merge', 'conflict_resolve'
-   input_data = models.JSONField()
-   output_data = models.JSONField()
-   confidence_score = models.FloatField()
-   model_version = models.CharField(max_length=50)
-   timestamp = models.DateTimeField(auto_now_add=True)
-   validated_by_human = models.BooleanField(null=True)  # True/False/None
+    decision_type = models.CharField(
+        max_length=50
+    )  # 'description_merge', 'conflict_resolve'
+    input_data = models.JSONField()
+    output_data = models.JSONField()
+    confidence_score = models.FloatField()
+    model_version = models.CharField(max_length=50)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    validated_by_human = models.BooleanField(null=True)  # True/False/None
 ```
 
 **Worker Management Models**:
 ```python
 class ImportTask(models.Model):
-   task_id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-   task_type = models.CharField(max_length=50)  # 'url_import', 'conflict_resolve'
-   priority = models.IntegerField(default=0)
-   payload = models.JSONField()
-   status = models.CharField(max_length=20)  # 'queued', 'processing', 'completed', 'failed'
-   worker_id = models.CharField(max_length=100, null=True)
-   created_at = models.DateTimeField(auto_now_add=True)
-   started_at = models.DateTimeField(null=True)
-   completed_at = models.DateTimeField(null=True)
-   error_message = models.TextField(null=True)
-   retry_count = models.IntegerField(default=0)
+    task_id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    task_type = models.CharField(
+        max_length=50
+    )  # 'url_import', 'conflict_resolve'
+    priority = models.IntegerField(default=0)
+    payload = models.JSONField()
+    status = models.CharField(
+        max_length=20
+    )  # 'queued', 'processing', 'completed', 'failed'
+    worker_id = models.CharField(max_length=100, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True)
+    completed_at = models.DateTimeField(null=True)
+    error_message = models.TextField(null=True)
+    retry_count = models.IntegerField(default=0)
+
 
 class ImporterHealth(models.Model):
-   importer_name = models.CharField(max_length=100, unique=True)
-   is_enabled = models.BooleanField(default=True)
-   last_success = models.DateTimeField(null=True)
-   last_failure = models.DateTimeField(null=True)
-   consecutive_failures = models.IntegerField(default=0)
-   circuit_breaker_open = models.BooleanField(default=False)
-   next_retry_at = models.DateTimeField(null=True)
+    importer_name = models.CharField(max_length=100, unique=True)
+    is_enabled = models.BooleanField(default=True)
+    last_success = models.DateTimeField(null=True)
+    last_failure = models.DateTimeField(null=True)
+    consecutive_failures = models.IntegerField(default=0)
+    circuit_breaker_open = models.BooleanField(default=False)
+    next_retry_at = models.DateTimeField(null=True)
 ```
 
 #### Modifications to Existing Models
@@ -296,33 +313,35 @@ class ImporterHealth(models.Model):
 ```python
 # Add to existing Game model
 class Game(models.Model):
-   # ... existing fields ...
-   
-   # New fields for import tracking
-   import_metadata = models.JSONField(default=dict)  # Source attribution per field
-   quality_score = models.FloatField(null=True)  # AI-calculated data quality
-   last_ai_review = models.DateTimeField(null=True)
-   needs_human_review = models.BooleanField(default=False)
-   
-   class Meta:
-       # ... existing meta ...
-       indexes = [
-           models.Index(fields=['needs_human_review']),
-           models.Index(fields=['last_ai_review']),
-       ]
+    # ... existing fields ...
+
+    # New fields for import tracking
+    import_metadata = models.JSONField(
+        default=dict
+    )  # Source attribution per field
+    quality_score = models.FloatField(null=True)  # AI-calculated data quality
+    last_ai_review = models.DateTimeField(null=True)
+    needs_human_review = models.BooleanField(default=False)
+
+    class Meta:
+        # ... existing meta ...
+        indexes = [
+            models.Index(fields=["needs_human_review"]),
+            models.Index(fields=["last_ai_review"]),
+        ]
 ```
 
 **GameURL Model Extensions**:
 ```python
-# Add to existing GameURL model  
+# Add to existing GameURL model
 class GameURL(models.Model):
-   # ... existing fields ...
-   
-   # New fields for change tracking
-   content_hash = models.CharField(max_length=64, null=True)
-   import_source = models.CharField(max_length=100, null=True)
-   confidence_score = models.FloatField(null=True)
-   verified_by_human = models.BooleanField(default=False)
+    # ... existing fields ...
+
+    # New fields for change tracking
+    content_hash = models.CharField(max_length=64, null=True)
+    import_source = models.CharField(max_length=100, null=True)
+    confidence_score = models.FloatField(null=True)
+    verified_by_human = models.BooleanField(default=False)
 ```
 
 #### Migration Strategy
