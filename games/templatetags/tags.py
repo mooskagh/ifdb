@@ -45,6 +45,11 @@ def rupl(value, arg):
     return ""
 
 
+@register.simple_tag(takes_context=True)
+def has_perm(context, expr):
+    return context["request"].perm(expr)
+
+
 @register.simple_tag(takes_context=False)
 def version():
     return settings.VERSION

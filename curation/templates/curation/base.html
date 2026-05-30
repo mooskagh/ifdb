@@ -1,0 +1,22 @@
+{% extends "games/base.html" %}
+{% load tags %}
+
+{% block content %}
+<main class="game">
+    <div class="game--content-grid">
+        <div class="game--content-main">
+            {% block curation_main %}{% endblock %}
+        </div>
+        <div class="game--content-sidebar">
+            <div class="card card--purple">
+                <div class="card--header">ОГОРОД</div>
+                <div class="card--listbody">
+                    <a class="curation-menu-item {% current 'curation_ticket_list' %}"
+                       href="{% url 'curation_ticket_list' %}">Список игр</a>
+                </div>
+            </div>
+            {% block curation_sidebar %}{% endblock %}
+        </div>
+    </div>
+</main>
+{% endblock %}

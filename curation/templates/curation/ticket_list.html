@@ -1,0 +1,67 @@
+{% extends "curation/base.html" %}
+{% load tags %}
+
+{% block titlesection %}ОГОРОД - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--green">
+    <div class="card--header">Игры</div>
+    <div class="card--body">
+        <form class="curation-filter" method="get">
+            <label>Состояние
+                <select name="state">
+                    <option value="">— все —</option>
+                    {% for value, label in state_choices %}
+                    <option value="{{ value }}" {% if value == state %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Автообновление
+                <select name="auto">
+                    <option value="">— все —</option>
+                    {% for value, label in auto_choices %}
+                    <option value="{{ value }}" {% if value == auto %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Сортировка
+                <select name="sort">
+                    <option value="priority" {% if sort == "priority" %}selected{% endif %}>По приоритету</option>
+                    <option value="updated" {% if sort == "updated" %}selected{% endif %}>По обновлению</option>
+                </select>
+            </label>
+            <button type="submit">Показать</button>
+        </form>
+    </div>
+    <table class="curation-table">
+        <thead>
+            <tr>
+                <th>Игра</th>
+                <th>Состояние</th>
+                <th>Автообновление</th>
+                <th>Приоритет</th>
+                <th>Создана</th>
+                <th>Обновлена</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ticket in tickets %}
+            <tr onclick="location.href='{% url 'curation_ticket_detail' ticket.pk %}'">
+                <td>
+                    <a href="{% url 'curation_ticket_detail' ticket.pk %}">
+                        {{ ticket.game.title|default:"(не назначена)" }}
+                    </a>
+                </td>
+                <td>{{ ticket.get_state_display }}</td>
+                <td>{{ ticket.get_auto_updates_display }}</td>
+                <td>{{ ticket.priority }}</td>
+                <td>{{ ticket.creation_time|date:"d.m.Y" }}</td>
+                <td>{{ ticket.updated|date:"d.m.Y" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6">Игр нет.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

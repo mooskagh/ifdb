@@ -69,6 +69,10 @@
                     {% if user.is_staff %}
                         <a href="/adminz/">Админка</a>
                     {% endif %}
+                    {% has_perm "(alias curation_admin)" as can_curate %}
+                    {% if can_curate %}
+                        <a class="{% current 'curation_ticket_list' %}" href="{% url 'curation_ticket_list' %}">ОГОРОД</a>
+                    {% endif %}
                 </nav>
             </header>
 

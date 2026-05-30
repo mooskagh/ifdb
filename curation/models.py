@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 
 
@@ -81,6 +82,7 @@ class GameSource(models.Model):
         _("Last attempt"), null=True, blank=True
     )
     last_error = models.TextField(_("Last error"), null=True, blank=True)
+    created_at = models.DateTimeField(_("Created at"), null=True, blank=True)
 
 
 class GameSourceFetch(models.Model):
@@ -181,12 +183,27 @@ class GameTicketAuditLog(models.Model):
             "INITIAL_IMPORT",
             _("Initial import from old importer"),
         )
+        FIELD_CHANGE = "FIELD_CHANGE", _("Field changed")
 
     class AuditField(models.TextChoices):
-        pass
+        AUTO_UPDATES = "AUTO_UPDATES", _("Auto-update policy")
+        STATE = "STATE", _("State")
 
     def __str__(self):
         return f"Audit #{self.pk} on ticket #{self.ticket_id}"
+
+    @classmethod
+    def record_change(cls, ticket, actor, field, old, new):
+        """Record a FIELD_CHANGE entry for an editable ticket field."""
+        return cls.objects.create(
+            ticket=ticket,
+            actor=actor,
+            created_at=now(),
+            kind=cls.AuditKind.FIELD_CHANGE,
+            field=field,
+            old_text=old,
+            new_text=new,
+        )
 
     ticket = models.ForeignKey(GameTicket, on_delete=models.CASCADE)
     actor = models.ForeignKey(

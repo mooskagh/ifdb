@@ -1,0 +1,109 @@
+{% extends "curation/base.html" %}
+{% load tags %}
+
+{% block titlesection %}Игра: {{ ticket.game.title|default:"(не назначена)" }} - {% endblock %}
+
+{% block curation_main %}
+<form method="post" action="{% url 'curation_ticket_edit' ticket.pk %}">
+    {% csrf_token %}
+    <div class="card card--blue">
+        <div class="card--header">
+            {% if game %}
+            <a href="{% url 'show_game' game.pk %}">{{ game.title }}</a>
+            {% else %}
+            (не назначена)
+            {% endif %}
+        </div>
+        <div class="card--listbody">
+            <div class="game--info-row">
+                <div class="game--info-row-label">Автообновление</div>
+                <div class="game--info-row-value">
+                    <select name="auto_updates">
+                        {% for value, label in auto_choices %}
+                        <option value="{{ value }}" {% if value == ticket.auto_updates %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="game--info-row">
+                <div class="game--info-row-label">Состояние</div>
+                <div class="game--info-row-value">
+                    <select name="state">
+                        {% for value, label in state_choices %}
+                        <option value="{{ value }}" {% if value == ticket.state %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            {% if ticket.attention_reason %}
+            <div class="game--info-row">
+                <div class="game--info-row-label">Причина</div>
+                <div class="game--info-row-value">{{ ticket.attention_reason }}</div>
+            </div>
+            {% endif %}
+            <div class="game--info-row">
+                <div class="game--info-row-label">Создана</div>
+                <div class="game--info-row-value">{{ ticket.creation_time|date:"d.m.Y H:i" }}</div>
+            </div>
+            <div class="game--info-row">
+                <div class="game--info-row-label">Обновлена</div>
+                <div class="game--info-row-value">{{ ticket.edit_time|date:"d.m.Y H:i"|default:"—" }}</div>
+            </div>
+        </div>
+        <div class="curation-save">
+            <button type="submit">Сохранить</button>
+        </div>
+    </div>
+</form>
+
+<div class="card card--brown">
+    <div class="card--header">Источники</div>
+    <div class="card--listbody">
+        {% for source in sources %}
+        <div class="curation-source">
+            <div class="curation-source-type">{{ source.get_type_display }}</div>
+            <div class="curation-source-body">
+                {% if source.url %}<a href="{{ source.url }}">{{ source.url }}</a>{% endif %}
+                {% if source.failing_since %}<div class="curation-meta">Сбоит с: {{ source.failing_since|date:"d.m.Y H:i" }}</div>{% endif %}
+                {% if source.last_error %}<div class="curation-meta">Ошибка: {{ source.last_error }}</div>{% endif %}
+                {% if source.created_at %}<div class="curation-meta">Добавлен: {{ source.created_at|date:"d.m.Y H:i" }}</div>{% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="curation-source curation-meta">Источников нет.</div>
+        {% endfor %}
+    </div>
+</div>
+
+{% for entry in timeline %}
+<div class="card card--{{ entry.color }}">
+    <div class="card--header">
+        <span class="curation-ts">{{ entry.ts|date:"d.m.Y H:i" }}</span>
+        {% if entry.who %}<span class="curation-actor">{{ entry.who }}</span>{% endif %}
+    </div>
+    <div class="card--body">
+        {% if entry.kind == "source" %}
+            <div class="curation-event">Добавлен источник: {{ entry.obj.get_type_display }}</div>
+            {% if entry.obj.url %}<a href="{{ entry.obj.url }}">{{ entry.obj.url }}</a>{% endif %}
+        {% elif entry.kind == "fetch" %}
+            <div class="curation-event">{{ entry.label }}: {{ entry.obj.source.get_type_display }}</div>
+        {% elif entry.kind == "reconciliation" %}
+            <div class="curation-event">Сверка: {{ entry.obj.get_status_display }}</div>
+            <div class="curation-meta">Происхождение: {{ entry.obj.get_origin_display }}</div>
+        {% elif entry.kind == "comment" %}
+            <div class="curation-event">{{ entry.obj.get_type_display }}</div>
+            {{ entry.obj.text|linebreaksbr }}
+        {% elif entry.kind == "audit" %}
+            <div class="curation-event">{{ entry.obj.get_kind_display }}</div>
+            {% if entry.obj.get_field_display %}
+            <div class="curation-meta">{{ entry.obj.get_field_display }}: {{ entry.obj.old_text|default:"—" }} → {{ entry.obj.new_text|default:"—" }}</div>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% empty %}
+<div class="card card--blue">
+    <div class="card--body">В истории пока пусто.</div>
+</div>
+{% endfor %}
+{% endblock %}

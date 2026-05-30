@@ -30,6 +30,7 @@ urlpatterns = [
     re_path(r"^", include("moder.urls"), name="moder"),
     path("jam/", include("contest.urls"), name="contest"),
     path("rss/", include("rss.urls"), name="rss"),
+    path("curation/", include("curation.urls"), name="curation"),
 ]
 
 if settings.DEBUG:

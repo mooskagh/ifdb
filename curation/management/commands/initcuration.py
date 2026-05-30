@@ -72,7 +72,7 @@ class Command(BaseCommand):
                         "auto_updates": self.auto_update_policy(game),
                         "state": GameTicket.State.IN_PROGRESS,
                         "creation_time": game.creation_time,
-                        "edit_time": game.edit_time,
+                        "edit_time": game.edit_time or game.creation_time,
                     },
                 )
                 tickets_created += ticket_created
@@ -88,6 +88,11 @@ class Command(BaseCommand):
                         ticket=ticket,
                         url=gu.url.original_url,
                         type=source_type,
+                        defaults={
+                            "created_at": game.edit_time
+                            or game.creation_time
+                            or now()
+                        },
                     )
                     if source_created:
                         sources_created[source_type] += 1
