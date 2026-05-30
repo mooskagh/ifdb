@@ -266,6 +266,7 @@ INSTALLED_APPS = [
     "core",
     "moder",
     "contest",
+    "curation",
     "django.contrib.admin",
 ]
 
