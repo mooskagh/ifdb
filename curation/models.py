@@ -177,7 +177,10 @@ class GameTicketAuditLog(models.Model):
         default_permissions = ()
 
     class AuditKind(models.TextChoices):
-        pass
+        INITIAL_IMPORT = (
+            "INITIAL_IMPORT",
+            _("Initial import from old importer"),
+        )
 
     class AuditField(models.TextChoices):
         pass

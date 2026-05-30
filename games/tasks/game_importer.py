@@ -1,5 +1,6 @@
 from logging import getLogger
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.sessions.backends.db import SessionStore
 
@@ -22,7 +23,6 @@ URLCATS_TO_HASH = [
     "download_landing",
     "play_online",
 ]
-USER = "бездушный робот"
 SIMILAR_TITLES_LOWCONF = 0.67
 SIMILAR_TITLES_HIGHCONF = 0.9
 
@@ -67,7 +67,8 @@ class ImportedGame:
                 )
             ]
             self.is_updateable = (
-                game.added_by.username == USER and game.edit_time is None
+                game.added_by.username == settings.MAINTENANCE_USER
+                and game.edit_time is None
             )
 
     def Dirtify(self):
@@ -293,7 +294,7 @@ def ImportGames(append_urls=False):
     for x in importer.GetDirtyUrls():
         gameset.DirtifyUrl(x)
 
-    fake_request = FakeRequest(USER)
+    fake_request = FakeRequest(settings.MAINTENANCE_USER)
 
     for x in gameset.Games():
         if not x.IsModified():
@@ -329,7 +330,7 @@ def ForceReimport():
     ).all():
         gameset.AddGame(ImportedGame(importer, x))
 
-    fake_request = FakeRequest(USER)
+    fake_request = FakeRequest(settings.MAINTENANCE_USER)
 
     for x in gameset.Games():
         if x.IsUpdateable():
