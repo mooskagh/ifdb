@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils.timezone import now
 
-from curation.models import GameSource, GameTicket, GameTicketAuditLog
+from curation.models import GameHistory, GameHistoryAuditLog, GameSource
 from games.importer.apero import AperoImporter
 from games.importer.ifiction import IfictionImporter
 from games.importer.ifwiki import IfwikiImporter
@@ -33,7 +33,7 @@ IMPORTER_SOURCE_TYPES = {
 
 class Command(BaseCommand):
     help = (
-        "Seed the curation system (tickets, sources, audit log) from the "
+        "Seed the curation system (histories, sources, audit log) from the "
         "data produced by the old importer. Idempotent / re-runnable."
     )
 
@@ -58,7 +58,7 @@ class Command(BaseCommand):
                 robot.set_unusable_password()
                 robot.save()
 
-            tickets_created = 0
+            histories_created = 0
             sources_created = Counter()
             skipped = 0
 
@@ -66,16 +66,16 @@ class Command(BaseCommand):
                 "gameurl_set__category", "gameurl_set__url"
             )
             for game in games:
-                ticket, ticket_created = GameTicket.objects.get_or_create(
+                history, history_created = GameHistory.objects.get_or_create(
                     game=game,
                     defaults={
                         "auto_updates": self.auto_update_policy(game),
-                        "state": GameTicket.State.IN_PROGRESS,
+                        "state": GameHistory.State.IN_PROGRESS,
                         "creation_time": game.creation_time,
                         "edit_time": game.edit_time or game.creation_time,
                     },
                 )
-                tickets_created += ticket_created
+                histories_created += history_created
 
                 for gu in game.gameurl_set.all():
                     source_type = classify(
@@ -85,7 +85,7 @@ class Command(BaseCommand):
                         skipped += 1
                         continue
                     _, source_created = GameSource.objects.get_or_create(
-                        ticket=ticket,
+                        history=history,
                         url=gu.url.original_url,
                         type=source_type,
                         defaults={
@@ -97,13 +97,13 @@ class Command(BaseCommand):
                     if source_created:
                         sources_created[source_type] += 1
 
-                GameTicketAuditLog.objects.get_or_create(
-                    ticket=ticket,
-                    kind=GameTicketAuditLog.AuditKind.INITIAL_IMPORT,
+                GameHistoryAuditLog.objects.get_or_create(
+                    history=history,
+                    kind=GameHistoryAuditLog.AuditKind.INITIAL_IMPORT,
                     defaults={"actor": robot, "created_at": now()},
                 )
 
-        self.stdout.write(f"Tickets created: {tickets_created}")
+        self.stdout.write(f"Histories created: {histories_created}")
         for source_type, count in sorted(sources_created.items()):
             self.stdout.write(f"  sources [{source_type}]: {count}")
         self.stdout.write(f"Links skipped (unrecognized): {skipped}")
@@ -118,7 +118,7 @@ class Command(BaseCommand):
             and game.edit_time is None
         )
         return (
-            GameTicket.AutoUpdate.ACCEPT
+            GameHistory.AutoUpdate.ACCEPT
             if bot_untouched
-            else GameTicket.AutoUpdate.PROPOSE
+            else GameHistory.AutoUpdate.PROPOSE
         )

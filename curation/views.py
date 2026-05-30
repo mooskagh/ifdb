@@ -3,77 +3,77 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import now
 
 from .models import (
-    GameReconciliation,
+    GameEdit,
+    GameHistory,
+    GameHistoryAuditLog,
+    GameHistoryComment,
     GameSource,
     GameSourceFetch,
-    GameTicket,
-    GameTicketAuditLog,
-    GameTicketComment,
 )
 
 PERM = "(alias curation_admin)"
 
 # Card colour per comment type, so the timeline distinguishes them visually.
 COMMENT_TYPE_COLORS = {
-    GameTicketComment.CommentType.USER_FEEDBACK: "yellow",
-    GameTicketComment.CommentType.MODS_COMMENT: "blue",
-    GameTicketComment.CommentType.NOTE_FOR_AI: "purple",
-    GameTicketComment.CommentType.STATUS_MESSAGE: "salad",
-    GameTicketComment.CommentType.EMAIL_RESPONSE: "orange",
+    GameHistoryComment.CommentType.USER_FEEDBACK: "yellow",
+    GameHistoryComment.CommentType.MODS_COMMENT: "blue",
+    GameHistoryComment.CommentType.NOTE_FOR_AI: "purple",
+    GameHistoryComment.CommentType.STATUS_MESSAGE: "salad",
+    GameHistoryComment.CommentType.EMAIL_RESPONSE: "orange",
 }
 
 # Fields editable from the detail view, mapped to their model choices.
 EDITABLE_FIELDS = {
     "auto_updates": (
-        GameTicket.AutoUpdate,
-        GameTicketAuditLog.AuditField.AUTO_UPDATES,
+        GameHistory.AutoUpdate,
+        GameHistoryAuditLog.AuditField.AUTO_UPDATES,
     ),
-    "state": (GameTicket.State, GameTicketAuditLog.AuditField.STATE),
+    "state": (GameHistory.State, GameHistoryAuditLog.AuditField.STATE),
 }
 
 
-def ticket_list(request):
+def history_list(request):
     request.perm.Ensure(PERM)
 
     state = request.GET.get("state") or ""
     auto = request.GET.get("auto") or ""
     sort = request.GET.get("sort") or "priority"
 
-    tickets = GameTicket.objects.select_related("game").annotate(
+    histories = GameHistory.objects.select_related("game").annotate(
         updated=Coalesce("edit_time", "creation_time")
     )
     if state:
-        tickets = tickets.filter(state=state)
+        histories = histories.filter(state=state)
     if auto:
-        tickets = tickets.filter(auto_updates=auto)
+        histories = histories.filter(auto_updates=auto)
 
     if sort == "updated":
-        tickets = tickets.order_by("-updated")
+        histories = histories.order_by("-updated")
     else:
         sort = "priority"
-        tickets = tickets.order_by("priority", "-updated")
+        histories = histories.order_by("priority", "-updated")
 
     return render(
         request,
-        "curation/ticket_list.html",
+        "curation/history_list.html",
         {
-            "tickets": tickets,
+            "histories": histories,
             "state": state,
             "auto": auto,
             "sort": sort,
-            "state_choices": GameTicket.State.choices,
-            "auto_choices": GameTicket.AutoUpdate.choices,
+            "state_choices": GameHistory.State.choices,
+            "auto_choices": GameHistory.AutoUpdate.choices,
         },
     )
 
 
-def ticket_detail(request, ticket_id):
+def history_detail(request, history_id):
     request.perm.Ensure(PERM)
 
-    ticket = get_object_or_404(
-        GameTicket.objects.select_related("game"), pk=ticket_id
+    history = get_object_or_404(
+        GameHistory.objects.select_related("game"), pk=history_id
     )
-    sources = list(GameSource.objects.filter(ticket=ticket))
+    sources = list(GameSource.objects.filter(history=history))
 
     timeline = []
     for source in sources:
@@ -87,7 +87,7 @@ def ticket_detail(request, ticket_id):
             })
 
     fetches = GameSourceFetch.objects.filter(
-        source__ticket=ticket
+        source__history=history
     ).select_related("source")
     for fetch in fetches:
         timeline.append({
@@ -108,19 +108,19 @@ def ticket_detail(request, ticket_id):
                 "label": "Последняя загрузка",
             })
 
-    for rec in GameReconciliation.objects.filter(ticket=ticket).select_related(
+    for edit in GameEdit.objects.filter(history=history).select_related(
         "approver"
     ):
         timeline.append({
-            "ts": rec.proposed_at,
-            "kind": "reconciliation",
+            "ts": edit.proposed_at,
+            "kind": "edit",
             "color": "green",
-            "obj": rec,
-            "who": rec.approver,
+            "obj": edit,
+            "who": edit.approver,
         })
 
-    for comment in GameTicketComment.objects.filter(
-        ticket=ticket
+    for comment in GameHistoryComment.objects.filter(
+        history=history
     ).select_related("user"):
         timeline.append({
             "ts": comment.creation_time,
@@ -130,9 +130,9 @@ def ticket_detail(request, ticket_id):
             "who": comment.user,
         })
 
-    for log in GameTicketAuditLog.objects.filter(ticket=ticket).select_related(
-        "actor"
-    ):
+    for log in GameHistoryAuditLog.objects.filter(
+        history=history
+    ).select_related("actor"):
         timeline.append({
             "ts": log.created_at,
             "kind": "audit",
@@ -145,35 +145,35 @@ def ticket_detail(request, ticket_id):
 
     return render(
         request,
-        "curation/ticket_detail.html",
+        "curation/history_detail.html",
         {
-            "ticket": ticket,
-            "game": ticket.game,
+            "history": history,
+            "game": history.game,
             "sources": sources,
             "timeline": timeline,
-            "auto_choices": GameTicket.AutoUpdate.choices,
-            "state_choices": GameTicket.State.choices,
+            "auto_choices": GameHistory.AutoUpdate.choices,
+            "state_choices": GameHistory.State.choices,
         },
     )
 
 
-def ticket_edit(request, ticket_id):
+def history_edit(request, history_id):
     request.perm.Ensure(PERM)
 
-    ticket = get_object_or_404(GameTicket, pk=ticket_id)
+    history = get_object_or_404(GameHistory, pk=history_id)
     if request.method == "POST":
         changed = False
         for field, (choices, audit_field) in EDITABLE_FIELDS.items():
             value = request.POST.get(field)
-            old = getattr(ticket, field)
+            old = getattr(history, field)
             if value in choices.values and old != value:
-                GameTicketAuditLog.record_change(
-                    ticket, request.user, audit_field, old, value
+                GameHistoryAuditLog.record_change(
+                    history, request.user, audit_field, old, value
                 )
-                setattr(ticket, field, value)
+                setattr(history, field, value)
                 changed = True
         if changed:
-            ticket.edit_time = now()
-            ticket.save()
+            history.edit_time = now()
+            history.save()
 
-    return redirect("curation_ticket_detail", ticket_id=ticket.pk)
+    return redirect("curation_history_detail", history_id=history.pk)

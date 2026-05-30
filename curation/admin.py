@@ -1,17 +1,17 @@
 from django.contrib import admin
 
 from .models import (
-    GameReconciliation,
+    GameEdit,
+    GameHistory,
+    GameHistoryAuditLog,
+    GameHistoryComment,
     GameSource,
     GameSourceFetch,
-    GameTicket,
-    GameTicketAuditLog,
-    GameTicketComment,
 )
 
 
-@admin.register(GameTicket)
-class GameTicketAdmin(admin.ModelAdmin):
+@admin.register(GameHistory)
+class GameHistoryAdmin(admin.ModelAdmin):
     list_display = [
         "pk",
         "game",
@@ -29,7 +29,7 @@ class GameTicketAdmin(admin.ModelAdmin):
 class GameSourceAdmin(admin.ModelAdmin):
     list_display = [
         "pk",
-        "ticket",
+        "history",
         "type",
         "url",
         "failing_since",
@@ -37,7 +37,7 @@ class GameSourceAdmin(admin.ModelAdmin):
     ]
     list_filter = ["type"]
     search_fields = ["pk", "url"]
-    raw_id_fields = ["ticket"]
+    raw_id_fields = ["history"]
 
 
 @admin.register(GameSourceFetch)
@@ -53,11 +53,11 @@ class GameSourceFetchAdmin(admin.ModelAdmin):
     raw_id_fields = ["source"]
 
 
-@admin.register(GameReconciliation)
-class GameReconciliationAdmin(admin.ModelAdmin):
+@admin.register(GameEdit)
+class GameEditAdmin(admin.ModelAdmin):
     list_display = [
         "pk",
-        "ticket",
+        "history",
         "status",
         "origin",
         "proposed_at",
@@ -66,24 +66,24 @@ class GameReconciliationAdmin(admin.ModelAdmin):
     list_filter = ["status", "origin"]
     search_fields = ["pk"]
     raw_id_fields = [
-        "ticket",
-        "parent_reconciliation",
+        "history",
+        "parent_edit",
         "approver",
         "used_sources",
     ]
 
 
-@admin.register(GameTicketComment)
-class GameTicketCommentAdmin(admin.ModelAdmin):
-    list_display = ["pk", "ticket", "type", "user", "creation_time"]
+@admin.register(GameHistoryComment)
+class GameHistoryCommentAdmin(admin.ModelAdmin):
+    list_display = ["pk", "history", "type", "user", "creation_time"]
     list_filter = ["type"]
     search_fields = ["pk", "text"]
-    raw_id_fields = ["ticket", "reply_to", "user"]
+    raw_id_fields = ["history", "reply_to", "user"]
 
 
-@admin.register(GameTicketAuditLog)
-class GameTicketAuditLogAdmin(admin.ModelAdmin):
-    list_display = ["pk", "ticket", "kind", "field", "actor", "created_at"]
+@admin.register(GameHistoryAuditLog)
+class GameHistoryAuditLogAdmin(admin.ModelAdmin):
+    list_display = ["pk", "history", "kind", "field", "actor", "created_at"]
     list_filter = ["kind", "field"]
     search_fields = ["pk"]
-    raw_id_fields = ["ticket", "actor"]
+    raw_id_fields = ["history", "actor"]

@@ -4,7 +4,7 @@ from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 
 
-class GameTicket(models.Model):
+class GameHistory(models.Model):
     class Meta:
         default_permissions = ()
 
@@ -19,7 +19,7 @@ class GameTicket(models.Model):
         NEEDS_ATTENTION = "NEEDS_ATTENTION", _("Needs attention")
 
     def __str__(self):
-        return f"Ticket #{self.pk} ({self.get_state_display()})"
+        return f"History #{self.pk} ({self.get_state_display()})"
 
     game = models.OneToOneField(
         "games.Game",
@@ -65,8 +65,8 @@ class GameSource(models.Model):
     def __str__(self):
         return f"{self.get_type_display()}: {self.url or '(no url)'}"
 
-    ticket = models.ForeignKey(
-        GameTicket,
+    history = models.ForeignKey(
+        GameHistory,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -102,11 +102,11 @@ class GameSourceFetch(models.Model):
     last_fetch = models.DateTimeField(_("Last fetch"))
 
 
-class GameReconciliation(models.Model):
+class GameEdit(models.Model):
     class Meta:
         default_permissions = ()
 
-    class ReconciliationStatus(models.TextChoices):
+    class EditStatus(models.TextChoices):
         PROPOSED = "PROPOSED", _("Proposed")
         APPLIED = "APPLIED", _("Applied")
         REJECTED = "REJECTED", _("Rejected")
@@ -117,10 +117,10 @@ class GameReconciliation(models.Model):
         USER_SUGGESTION = "USER_SUGGESTION", _("User suggestion")
 
     def __str__(self):
-        return f"Reconciliation #{self.pk} ({self.get_status_display()})"
+        return f"Edit #{self.pk} ({self.get_status_display()})"
 
-    ticket = models.ForeignKey(GameTicket, on_delete=models.CASCADE)
-    parent_reconciliation = models.ForeignKey(
+    history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)
+    parent_edit = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
         null=True,
@@ -134,15 +134,13 @@ class GameReconciliation(models.Model):
         null=True,
         blank=True,
     )
-    status = models.CharField(
-        _("Status"), max_length=16, choices=ReconciliationStatus
-    )
+    status = models.CharField(_("Status"), max_length=16, choices=EditStatus)
     origin = models.CharField(_("Origin"), max_length=16, choices=Origin)
     used_sources = models.ManyToManyField(GameSourceFetch, blank=True)
     canonical_text = models.TextField(_("Canonical text"))
 
 
-class GameTicketComment(models.Model):
+class GameHistoryComment(models.Model):
     class Meta:
         default_permissions = ()
 
@@ -154,9 +152,9 @@ class GameTicketComment(models.Model):
         EMAIL_RESPONSE = "EMAIL_RESPONSE", _("Email response")
 
     def __str__(self):
-        return f"Comment #{self.pk} on ticket #{self.ticket_id}"
+        return f"Comment #{self.pk} on history #{self.history_id}"
 
-    ticket = models.ForeignKey(GameTicket, on_delete=models.CASCADE)
+    history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)
     reply_to = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -174,7 +172,7 @@ class GameTicketComment(models.Model):
     creation_time = models.DateTimeField(_("Created at"))
 
 
-class GameTicketAuditLog(models.Model):
+class GameHistoryAuditLog(models.Model):
     class Meta:
         default_permissions = ()
 
@@ -190,13 +188,13 @@ class GameTicketAuditLog(models.Model):
         STATE = "STATE", _("State")
 
     def __str__(self):
-        return f"Audit #{self.pk} on ticket #{self.ticket_id}"
+        return f"Audit #{self.pk} on history #{self.history_id}"
 
     @classmethod
-    def record_change(cls, ticket, actor, field, old, new):
-        """Record a FIELD_CHANGE entry for an editable ticket field."""
+    def record_change(cls, history, actor, field, old, new):
+        """Record a FIELD_CHANGE entry for an editable history field."""
         return cls.objects.create(
-            ticket=ticket,
+            history=history,
             actor=actor,
             created_at=now(),
             kind=cls.AuditKind.FIELD_CHANGE,
@@ -205,7 +203,7 @@ class GameTicketAuditLog(models.Model):
             new_text=new,
         )
 
-    ticket = models.ForeignKey(GameTicket, on_delete=models.CASCADE)
+    history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

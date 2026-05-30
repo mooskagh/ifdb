@@ -1,10 +1,10 @@
 {% extends "curation/base.html" %}
 {% load tags %}
 
-{% block titlesection %}Игра: {{ ticket.game.title|default:"(не назначена)" }} - {% endblock %}
+{% block titlesection %}Игра: {{ history.game.title|default:"(не назначена)" }} - {% endblock %}
 
 {% block curation_main %}
-<form method="post" action="{% url 'curation_ticket_edit' ticket.pk %}">
+<form method="post" action="{% url 'curation_history_edit' history.pk %}">
     {% csrf_token %}
     <div class="card card--blue">
         <div class="card--header">
@@ -20,7 +20,7 @@
                 <div class="game--info-row-value">
                     <select name="auto_updates">
                         {% for value, label in auto_choices %}
-                        <option value="{{ value }}" {% if value == ticket.auto_updates %}selected{% endif %}>{{ label }}</option>
+                        <option value="{{ value }}" {% if value == history.auto_updates %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -30,24 +30,24 @@
                 <div class="game--info-row-value">
                     <select name="state">
                         {% for value, label in state_choices %}
-                        <option value="{{ value }}" {% if value == ticket.state %}selected{% endif %}>{{ label }}</option>
+                        <option value="{{ value }}" {% if value == history.state %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
                 </div>
             </div>
-            {% if ticket.attention_reason %}
+            {% if history.attention_reason %}
             <div class="game--info-row">
                 <div class="game--info-row-label">Причина</div>
-                <div class="game--info-row-value">{{ ticket.attention_reason }}</div>
+                <div class="game--info-row-value">{{ history.attention_reason }}</div>
             </div>
             {% endif %}
             <div class="game--info-row">
                 <div class="game--info-row-label">Создана</div>
-                <div class="game--info-row-value">{{ ticket.creation_time|date:"d.m.Y H:i" }}</div>
+                <div class="game--info-row-value">{{ history.creation_time|date:"d.m.Y H:i" }}</div>
             </div>
             <div class="game--info-row">
                 <div class="game--info-row-label">Обновлена</div>
-                <div class="game--info-row-value">{{ ticket.edit_time|date:"d.m.Y H:i"|default:"—" }}</div>
+                <div class="game--info-row-value">{{ history.edit_time|date:"d.m.Y H:i"|default:"—" }}</div>
             </div>
         </div>
         <div class="curation-save">
@@ -87,8 +87,8 @@
             {% if entry.obj.url %}<a href="{{ entry.obj.url }}">{{ entry.obj.url }}</a>{% endif %}
         {% elif entry.kind == "fetch" %}
             <div class="curation-event">{{ entry.label }}: {{ entry.obj.source.get_type_display }}</div>
-        {% elif entry.kind == "reconciliation" %}
-            <div class="curation-event">Сверка: {{ entry.obj.get_status_display }}</div>
+        {% elif entry.kind == "edit" %}
+            <div class="curation-event">Правка: {{ entry.obj.get_status_display }}</div>
             <div class="curation-meta">Происхождение: {{ entry.obj.get_origin_display }}</div>
         {% elif entry.kind == "comment" %}
             <div class="curation-event">{{ entry.obj.get_type_display }}</div>

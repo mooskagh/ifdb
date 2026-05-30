@@ -45,18 +45,18 @@
             </tr>
         </thead>
         <tbody>
-            {% for ticket in tickets %}
-            <tr onclick="location.href='{% url 'curation_ticket_detail' ticket.pk %}'">
+            {% for history in histories %}
+            <tr onclick="location.href='{% url 'curation_history_detail' history.pk %}'">
                 <td>
-                    <a href="{% url 'curation_ticket_detail' ticket.pk %}">
-                        {{ ticket.game.title|default:"(не назначена)" }}
+                    <a href="{% url 'curation_history_detail' history.pk %}">
+                        {{ history.game.title|default:"(не назначена)" }}
                     </a>
                 </td>
-                <td>{{ ticket.get_state_display }}</td>
-                <td>{{ ticket.get_auto_updates_display }}</td>
-                <td>{{ ticket.priority }}</td>
-                <td>{{ ticket.creation_time|date:"d.m.Y" }}</td>
-                <td>{{ ticket.updated|date:"d.m.Y" }}</td>
+                <td>{{ history.get_state_display }}</td>
+                <td>{{ history.get_auto_updates_display }}</td>
+                <td>{{ history.priority }}</td>
+                <td>{{ history.creation_time|date:"d.m.Y" }}</td>
+                <td>{{ history.updated|date:"d.m.Y" }}</td>
             </tr>
             {% empty %}
             <tr><td colspan="6">Игр нет.</td></tr>
