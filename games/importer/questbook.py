@@ -106,12 +106,19 @@ MONTH = [
 ]
 
 
+def FetchQuestBook(url):
+    return FetchUrlToString(url, encoding="cp1251")
+
+
 def ImportFromQuestBook(url):
     try:
-        html = FetchUrlToString(url, encoding="cp1251")
+        html = FetchQuestBook(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParseQuestBook(html, url)
 
+
+def ParseQuestBook(html, url):
     res = {"priority": 51, "authors": []}
     tags = [{"cat_slug": "platform", "tag": "Questbook"}]
     urls = [

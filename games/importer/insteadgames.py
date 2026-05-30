@@ -71,12 +71,19 @@ def TrimPrefix(s, prefix):
     return s
 
 
+def FetchInstead(url):
+    return FetchUrlToString(url)
+
+
 def ImportFromInstead(url):
     try:
-        html = FetchUrlToString(url)
+        html = FetchInstead(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParseInstead(html, url)
 
+
+def ParseInstead(html, url):
     res = {"priority": 80}
     res["urls"] = [CategorizeUrl(url, "", base=url)]
     res["tags"] = [{"cat_slug": "platform", "tag": "INSTEAD"}]

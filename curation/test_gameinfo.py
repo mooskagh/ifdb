@@ -1,3 +1,4 @@
+import datetime
 from io import StringIO
 
 from django.core.management import call_command
@@ -130,6 +131,75 @@ class LooseParseTest(GameInfoTestBase):
         info = parse(loose)
         self.assertEqual(info.personalities["author"][0].alias_id, alias.id)
         self.assertIsNotNone(info.attributions[0].attr_id)
+
+
+class FromImporterDictTest(GameInfoTestBase):
+    def test_scalar_fields(self):
+        info = GameInfo.from_importer_dict({
+            "title": "Игра",
+            "desc": "A *markdown* body.",
+            "release_date": datetime.date(2020, 1, 2),
+        })
+        self.assertEqual(info.name, "Игра")
+        self.assertEqual(info.description, "A *markdown* body.")
+        self.assertEqual(info.date, "2020-01-02")
+
+    def test_authors_role_slug(self):
+        info = GameInfo.from_importer_dict({
+            "authors": [
+                {"role_slug": "author", "name": "Alice"},
+                {"role_slug": "author", "name": "Bob"},
+                {"role_slug": "artist", "name": "Carol"},
+            ]
+        })
+        self.assertEqual(
+            [p.name for p in info.personalities["author"]], ["Alice", "Bob"]
+        )
+        self.assertEqual(info.personalities["artist"][0].name, "Carol")
+        # Ids are left unresolved; names stay as text.
+        self.assertIsNone(info.personalities["author"][0].alias_id)
+
+    def test_authors_role_title_fallback(self):
+        # No role_slug: resolve the human title via GameAuthorRole.
+        info = GameInfo.from_importer_dict({
+            "authors": [{"role": "Художник", "name": "Dave"}]
+        })
+        self.assertEqual(info.personalities["artist"][0].name, "Dave")
+
+    def test_tags_slug_vs_category(self):
+        info = GameInfo.from_importer_dict({
+            "tags": [
+                {"tag_slug": "released"},
+                {"cat_slug": "platform", "tag": "INSTEAD"},
+                # tag_slug wins even when a category is also present.
+                {"cat_slug": "x", "tag": "y", "tag_slug": "ifwiki_featured"},
+            ]
+        })
+        self.assertEqual(info.tags[0], Tag("", "released", None, None))
+        self.assertEqual(info.tags[1], Tag("platform", None, None, "INSTEAD"))
+        self.assertEqual(info.tags[2], Tag("", "ifwiki_featured", None, None))
+
+    def test_urls_and_falsy_urlcat_skipped(self):
+        info = GameInfo.from_importer_dict({
+            "urls": [
+                {"urlcat_slug": "game_page", "description": "d", "url": "u1"},
+                {"urlcat_slug": "", "description": "x", "url": "u2"},
+                {"urlcat_slug": None, "url": "u3"},
+            ]
+        })
+        self.assertEqual(info.urls, [GameUrl("game_page", None, "d", "u1")])
+
+    def test_attributions(self):
+        info = GameInfo.from_importer_dict({
+            "description_attributions": ["apero.ru", "ifwiki.ru"]
+        })
+        self.assertEqual(
+            info.attributions,
+            [Attribution(None, "apero.ru"), Attribution(None, "ifwiki.ru")],
+        )
+
+    def test_empty_dict_is_empty_gameinfo(self):
+        self.assertEqual(GameInfo.from_importer_dict({}), GameInfo())
 
 
 class MergeTest(GameInfoTestBase):

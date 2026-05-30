@@ -139,27 +139,31 @@ REDIRECT_RE = re.compile(r"#(?:REDIRECT|ПЕРЕНАПРАВЛЕНИЕ)\s*\[\[(.
 
 
 def ImportAuthorFromIfwiki(url, res=None):
-    if not res:
-        res = {}
-    m = IFWIKI_URL.match(url)
-
     try:
-        fetch_url = f"{m.group(1)}/index.php?title={m.group(2)}&action=raw"
-        name = unquote(m.group(2)).replace("_", " ")
-        cont = FetchUrlToString(fetch_url) + "\n"
+        cont = FetchIfwikiRaw(url)
     except Exception:
         logger.info(
             f"Error while importing [{url}] from Ifwiki", exc_info=True
         )
         return {}
+    return ParseAuthorFromIfwiki(cont, url, res)
+
+
+def ParseAuthorFromIfwiki(cont, url, res=None):
+    if not res:
+        res = {}
 
     m = REDIRECT_RE.match(cont)
     if m:
         res["canonical"] = m.group(1)
         url_to_fetch = f"http://ifwiki.ru/{WikiQuote(res['canonical'])}"
         res["canonical_url"] = url_to_fetch
+        # Redirect chase re-fetches mid-parse (the documented canonicalize
+        # exception, like ifiction's ResolveRedirect).
         return ImportAuthorFromIfwiki(url_to_fetch, res)
 
+    m = IFWIKI_URL.match(url)
+    name = unquote(m.group(2)).replace("_", " ")
     context = WikiAuthorParsingContext(name, url)
     parsed_wikitext = mwparserfromhell.parse(cont)
 
@@ -173,16 +177,23 @@ def ImportAuthorFromIfwiki(url, res=None):
     return res
 
 
-def ImportFromIfwiki(url):
+def FetchIfwikiRaw(url):
     m = IFWIKI_URL.match(url)
+    fetch_url = f"{m.group(1)}/index.php?title={m.group(2)}&action=raw"
+    return FetchUrlToString(fetch_url) + "\n"
 
+
+def ImportFromIfwiki(url):
     try:
-        fetch_url = f"{m.group(1)}/index.php?title={m.group(2)}&action=raw"
-        cont = FetchUrlToString(fetch_url) + "\n"
+        cont = FetchIfwikiRaw(url)
     except Exception:
         logger.exception(f"Error while importing [{url}] from Ifwiki")
         return {"error": "Не открывается что-то этот URL."}
+    return ParseIfwiki(cont, url)
 
+
+def ParseIfwiki(cont, url):
+    m = IFWIKI_URL.match(url)
     res = {"priority": 100}
 
     context = WikiParsingContext(unquote(m.group(2)).replace("_", " "), url)

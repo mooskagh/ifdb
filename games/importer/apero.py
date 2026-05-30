@@ -71,12 +71,19 @@ APERO_DESC = re.compile(
 APERO_IMAGE = re.compile(r'<img src="([^"]+)" [^>]* itemprop="image" />')
 
 
+def FetchApero(url):
+    return FetchUrlToString(url)
+
+
 def ImportFromApero(url):
     try:
-        html = FetchUrlToString(url)
+        html = FetchApero(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParseApero(html, url)
 
+
+def ParseApero(html, url):
     res = {"priority": 49}
     m = APERO_TITLE.search(html)
     if not m:
@@ -124,13 +131,19 @@ APERO_AUTHOR_AVATAR = re.compile(r'<img src="([^"]+)" class="img-circle" />')
 
 
 def ImportAuthorFromApero(url):
-    m = APERO_AUTHOR_URL.match(url)
-    if not m:
+    if not APERO_AUTHOR_URL.match(url):
         return {"error": "Не похож URL на автора."}
     try:
         html = FetchUrlToString(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParseAuthorApero(html, url)
+
+
+def ParseAuthorApero(html, url):
+    m = APERO_AUTHOR_URL.match(url)
+    if not m:
+        return {"error": "Не похож URL на автора."}
 
     res = {}
     res["name"] = unquote(m.group(1))

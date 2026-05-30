@@ -87,12 +87,19 @@ QSP_DETAILS_FOOTER = re.compile(
 QSP_ADD_DATE = re.compile(r"Добавлено: (\d+)\.(\d+)\.(\d+)&nbsp;&nbsp;")
 
 
+def FetchQsp(url):
+    return FetchUrlToString(url)
+
+
 def ImportFromQsp(url):
     try:
-        html = FetchUrlToString(url)
+        html = FetchQsp(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParseQsp(html, url)
 
+
+def ParseQsp(html, url):
     res = {"priority": 40}
     m = QSP_DETAILS.search(html)
     if not m:

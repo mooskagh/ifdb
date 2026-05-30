@@ -104,12 +104,19 @@ def ParseFields(html):
     return res
 
 
+def FetchPlut(url):
+    return FetchUrlToString(url)
+
+
 def ImportFromPlut(url):
     try:
-        html = FetchUrlToString(url)
+        html = FetchPlut(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParsePlut(html, url)
 
+
+def ParsePlut(html, url):
     res = {"priority": 50}
     m = PLUT_TITLE.search(html)
     if not m:

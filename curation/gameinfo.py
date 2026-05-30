@@ -95,6 +95,47 @@ class GameInfo:
     # -- Construction -----------------------------------------------------
 
     @classmethod
+    def from_importer_dict(cls, d: dict) -> "GameInfo":
+        """Bridge a legacy importer dict (``games/importer/tools.py``) to here.
+
+        Pure text-level mapping: ids stay ``None`` and names stay as text --
+        resolution to DB rows happens later in ``parse``/``save``.  The one DB
+        touch is the rare ``role``-title fallback when an author dict carries a
+        human role name instead of a ``role_slug`` (no importer emits that
+        today, but the old ``Importer2Json`` honored it).
+        """
+        info = cls(
+            name=d.get("title"),
+            date=str(d["release_date"]) if d.get("release_date") else None,
+            description=d.get("desc"),
+        )
+        for a in d.get("authors", []):
+            role_slug = a.get("role_slug")
+            if not role_slug and a.get("role"):
+                role = GameAuthorRole.objects.filter(title=a["role"]).first()
+                role_slug = role.symbolic_id if role else a["role"]
+            if role_slug:
+                info.personalities.setdefault(role_slug, []).append(
+                    Person(None, a["name"])
+                )
+        for t in d.get("tags", []):
+            if t.get("tag_slug"):
+                info.tags.append(Tag("", t["tag_slug"], None, None))
+            else:
+                info.tags.append(Tag(t["cat_slug"], None, None, t["tag"]))
+        for u in d.get("urls", []):
+            if not u.get("urlcat_slug"):  # mirrors MergeImport's url filter
+                continue
+            info.urls.append(
+                GameUrl(u["urlcat_slug"], None, u.get("description"), u["url"])
+            )
+        info.attributions = [
+            Attribution(None, name)
+            for name in d.get("description_attributions", [])
+        ]
+        return info
+
+    @classmethod
     def from_game(cls, game: Game) -> "GameInfo":
         """Build from a DB row, mirroring the game-details prefetch pattern."""
         game = Game.objects.prefetch_related(

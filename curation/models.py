@@ -55,6 +55,7 @@ class GameSource(models.Model):
         APERO = "APERO", _("Apero")
         IFWIKI = "IFWIKI", _("IFWiki")
         QSP = "QSP", _("QSP")
+        PLUT = "PLUT", _("Plut")
         INSTEAD = "INSTEAD", _("INSTEAD")
         QUESTBOOK = "QUESTBOOK", _("QuestBook")
         IFICTION = "IFICTION", _("ifiction")

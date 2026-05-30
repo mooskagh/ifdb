@@ -84,12 +84,19 @@ SCREENSHOTS_BLOCK = re.compile(r'(?s)<div id="screenshots"[^>]*>(.*?)</div>')
 IMG_URL = re.compile(r'<img src="([^"]+)"')
 
 
+def FetchIfiction(url):
+    return FetchUrlToString(url, encoding="cp1251")
+
+
 def ImportFromIfiction(url):
     try:
-        html = FetchUrlToString(url, encoding="cp1251")
+        html = FetchIfiction(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParseIfiction(html, url)
 
+
+def ParseIfiction(html, url):
     res = {
         "priority": 45,
         "authors": [],
