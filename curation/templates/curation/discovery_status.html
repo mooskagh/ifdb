@@ -1,12 +1,12 @@
 {% extends "curation/base.html" %}
 {% load tags %}
 
-{% block titlesection %}Источники - ОГОРОД - {% endblock %}
+{% block titlesection %}Обнаружение игр - ОГОРОД - {% endblock %}
 
 {% block curation_main %}
 <div class="card card--green">
-    <div class="card--header">Текущее состояние источников</div>
-    {% include "curation/_discovery_rows.html" with rows=current empty_text="Источники ещё не запускались." %}
+    <div class="card--header">Последний запуск обнаружения</div>
+    {% include "curation/_discovery_rows.html" with rows=current empty_text="Обнаружение ещё не запускалось." %}
 </div>
 
 <div class="card card--purple">
