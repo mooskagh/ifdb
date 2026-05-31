@@ -148,9 +148,13 @@ develop against, so it ships alone.
   - Added `manage.py sources discover [--type TYPE]` and `curation.discovery`;
     command output reports discovered, existing, new, and missing URL counts.
   - URL fan-out and rilarhiv remain out of scope for this slice.
-- [ ] **C. Phase 2 fetch runner** — crawler/schedule → store `raw_content`;
+- [x] **C. Phase 2 fetch runner** — crawler/schedule → store `raw_content`;
   canonicalize → `GameInfo.to_canonical()` into `canonical_text`; hash for
   change-detection (unchanged hash ⇒ bump `last_fetch`, no new edit).
+  - Providers now expose the site-specific `fetch()` primitive; fetch storage
+    uses renamed `canonical_text*` fields instead of `filtered_content*`.
+  - `sources fetch` bypasses the legacy crawler file cache; `raw_content` in
+    `GameSourceFetch` is the durable cache for this pipeline.
 - [ ] **D. Phase 3 reconcile** *(the risk — build against the corpus from B/C)* —
   cluster orphan sources → `GameHistory`: match by URL-identity (url already
   linked to a history), title similarity (old `SimilarEnough` bag-of-words,

@@ -106,8 +106,8 @@ MONTH = [
 ]
 
 
-def FetchQuestBook(url):
-    return FetchUrlToString(url, encoding="cp1251")
+def FetchQuestBook(url, use_cache=True):
+    return FetchUrlToString(url, encoding="cp1251", use_cache=use_cache)
 
 
 def ImportFromQuestBook(url):

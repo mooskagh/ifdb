@@ -1,8 +1,8 @@
 """Source drivers: the per-site half of the next-gen import pipeline.
 
 A driver's defining job is **raw document -> canonical form**
-(:meth:`GameSourceProvider.canonicalize`).  Fetch, scheduling and retries are
-the orchestrator's concern (Phase 2), not the driver's.
+(:meth:`GameSourceProvider.canonicalize`).  It also exposes a site-specific
+``fetch`` primitive; scheduling, retries and deduplication stay in the runner.
 
 In Phase A each provider is a thin bridge over the legacy ``games/importer``
 parse logic: it reuses the old per-site ``ParseX`` (split out of
@@ -22,38 +22,45 @@ from dataclasses import dataclass, field
 
 from games.importer.apero import (
     APERO_URL,
+    FetchApero,
     FetchCandidateUrls,
     ParseApero,
     ParseAuthorApero,
 )
 from games.importer.ifiction import (
     IFICTION_URL,
+    FetchIfiction,
     ParseIfiction,
 )
 from games.importer.ifiction import GetGameList as GetIfictionGameList
 from games.importer.ifwiki import (
     IFWIKI_URL,
     FetchCategoryUrls,
+    FetchIfwikiRaw,
     ParseAuthorFromIfwiki,
     ParseIfwiki,
 )
 from games.importer.insteadgames import (
     INSTEAD_URL,
+    FetchInstead,
     ParseInstead,
 )
 from games.importer.insteadgames import GetGameList as GetInsteadGameList
 from games.importer.plut import (
     PLUT_URL,
+    FetchPlut,
     ParsePlut,
 )
 from games.importer.plut import GetCandidates as GetPlutCandidates
 from games.importer.qspsu import (
     QSP_RE,
+    FetchQsp,
     ParseQsp,
 )
 from games.importer.qspsu import GetCandidates as GetQspSuCandidates
 from games.importer.questbook import (
     QUESTBOOK_GAMEDETAIL_URL,
+    FetchQuestBook,
     ParseQuestBook,
 )
 from games.importer.questbook import GetCandidates as GetQuestBookCandidates
@@ -101,6 +108,10 @@ class GameSourceProvider(ABC):
         """Claim a URL (the old ``Match``)."""
 
     @abstractmethod
+    def fetch(self, url: str) -> str:
+        """Fetch and decode the raw source document."""
+
+    @abstractmethod
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         """Raw document -> canonical ``GameInfo`` (Phase 2.5)."""
 
@@ -124,6 +135,9 @@ class AperoProvider(GameSourceProvider):
     def owns(self, url: str) -> bool:
         return bool(APERO_URL.match(QuoteUtf8(url)))
 
+    def fetch(self, url: str) -> str:
+        return FetchApero(url, use_cache=False)
+
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParseApero(raw, url))
 
@@ -141,6 +155,9 @@ class IfwikiProvider(GameSourceProvider):
 
     def owns(self, url: str) -> bool:
         return bool(IFWIKI_URL.match(url))
+
+    def fetch(self, url: str) -> str:
+        return FetchIfwikiRaw(url, use_cache=False)
 
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParseIfwiki(raw, url))
@@ -162,6 +179,9 @@ class InsteadGamesProvider(GameSourceProvider):
     def owns(self, url: str) -> bool:
         return bool(INSTEAD_URL.match(url))
 
+    def fetch(self, url: str) -> str:
+        return FetchInstead(url, use_cache=False)
+
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParseInstead(raw, url))
 
@@ -174,6 +194,9 @@ class QuestBookProvider(GameSourceProvider):
 
     def owns(self, url: str) -> bool:
         return bool(QUESTBOOK_GAMEDETAIL_URL.match(url))
+
+    def fetch(self, url: str) -> str:
+        return FetchQuestBook(url, use_cache=False)
 
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParseQuestBook(raw, url))
@@ -188,6 +211,9 @@ class IfictionProvider(GameSourceProvider):
     def owns(self, url: str) -> bool:
         return bool(IFICTION_URL.match(url))
 
+    def fetch(self, url: str) -> str:
+        return FetchIfiction(url, use_cache=False)
+
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParseIfiction(raw, url))
 
@@ -201,6 +227,9 @@ class QspSuProvider(GameSourceProvider):
     def owns(self, url: str) -> bool:
         return bool(QSP_RE.match(url))
 
+    def fetch(self, url: str) -> str:
+        return FetchQsp(url, use_cache=False)
+
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParseQsp(raw, url))
 
@@ -213,6 +242,9 @@ class PlutProvider(GameSourceProvider):
 
     def owns(self, url: str) -> bool:
         return bool(PLUT_URL.match(url))
+
+    def fetch(self, url: str) -> str:
+        return FetchPlut(url, use_cache=False)
 
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParsePlut(raw, url))
@@ -233,3 +265,7 @@ REGISTERED_PROVIDERS: list[GameSourceProvider] = [
     QspSuProvider(),
     PlutProvider(),
 ]
+
+PROVIDER_BY_TYPE: dict[str, GameSourceProvider] = {
+    provider.source_type: provider for provider in REGISTERED_PROVIDERS
+}

@@ -71,8 +71,8 @@ APERO_DESC = re.compile(
 APERO_IMAGE = re.compile(r'<img src="([^"]+)" [^>]* itemprop="image" />')
 
 
-def FetchApero(url):
-    return FetchUrlToString(url)
+def FetchApero(url, use_cache=True):
+    return FetchUrlToString(url, use_cache=use_cache)
 
 
 def ImportFromApero(url):

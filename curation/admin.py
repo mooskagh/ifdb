@@ -45,11 +45,11 @@ class GameSourceFetchAdmin(admin.ModelAdmin):
     list_display = [
         "pk",
         "source",
-        "filtered_content_hash",
+        "canonical_text_hash",
         "first_fetch",
         "last_fetch",
     ]
-    search_fields = ["pk", "filtered_content_hash"]
+    search_fields = ["pk", "canonical_text_hash"]
     raw_id_fields = ["source"]
 
 

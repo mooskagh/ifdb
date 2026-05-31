@@ -71,8 +71,8 @@ def TrimPrefix(s, prefix):
     return s
 
 
-def FetchInstead(url):
-    return FetchUrlToString(url)
+def FetchInstead(url, use_cache=True):
+    return FetchUrlToString(url, use_cache=use_cache)
 
 
 def ImportFromInstead(url):

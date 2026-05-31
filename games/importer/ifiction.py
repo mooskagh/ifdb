@@ -84,8 +84,8 @@ SCREENSHOTS_BLOCK = re.compile(r'(?s)<div id="screenshots"[^>]*>(.*?)</div>')
 IMG_URL = re.compile(r'<img src="([^"]+)"')
 
 
-def FetchIfiction(url):
-    return FetchUrlToString(url, encoding="cp1251")
+def FetchIfiction(url, use_cache=True):
+    return FetchUrlToString(url, encoding="cp1251", use_cache=use_cache)
 
 
 def ImportFromIfiction(url):

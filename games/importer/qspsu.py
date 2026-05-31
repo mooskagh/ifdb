@@ -87,8 +87,8 @@ QSP_DETAILS_FOOTER = re.compile(
 QSP_ADD_DATE = re.compile(r"Добавлено: (\d+)\.(\d+)\.(\d+)&nbsp;&nbsp;")
 
 
-def FetchQsp(url):
-    return FetchUrlToString(url)
+def FetchQsp(url, use_cache=True):
+    return FetchUrlToString(url, use_cache=use_cache)
 
 
 def ImportFromQsp(url):

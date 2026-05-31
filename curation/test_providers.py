@@ -1,4 +1,5 @@
 from io import StringIO
+from unittest.mock import patch
 from urllib.parse import quote
 
 from django.core.management import call_command
@@ -255,3 +256,30 @@ class OwnsRoutingTest(ProviderTestBase):
                 for other, _ in cases:
                     if type(other) is not type(provider):
                         self.assertFalse(other.owns(url))
+
+    def test_provider_fetches_bypass_crawler_file_cache(self):
+        cases = [
+            (AperoProvider(), "FetchApero", AperoProviderTest.url),
+            (IfwikiProvider(), "FetchIfwikiRaw", IfwikiProviderTest.url),
+            (
+                InsteadGamesProvider(),
+                "FetchInstead",
+                InsteadGamesProviderTest.url,
+            ),
+            (
+                QuestBookProvider(),
+                "FetchQuestBook",
+                QuestBookProviderTest.url,
+            ),
+            (IfictionProvider(), "FetchIfiction", IfictionProviderTest.url),
+            (QspSuProvider(), "FetchQsp", QspSuProviderTest.url),
+            (PlutProvider(), "FetchPlut", PlutProviderTest.url),
+        ]
+
+        for provider, fetch_name, url in cases:
+            with self.subTest(provider=type(provider).__name__):
+                with patch(
+                    f"curation.providers.{fetch_name}", return_value="raw"
+                ) as fetch:
+                    self.assertEqual(provider.fetch(url), "raw")
+                    fetch.assert_called_once_with(url, use_cache=False)

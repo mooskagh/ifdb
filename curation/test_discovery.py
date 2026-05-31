@@ -20,6 +20,9 @@ class FakeProvider(GameSourceProvider):
     def owns(self, url: str) -> bool:
         return False
 
+    def fetch(self, url: str) -> str:
+        raise NotImplementedError
+
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         raise NotImplementedError
 

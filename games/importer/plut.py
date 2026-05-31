@@ -104,8 +104,8 @@ def ParseFields(html):
     return res
 
 
-def FetchPlut(url):
-    return FetchUrlToString(url)
+def FetchPlut(url, use_cache=True):
+    return FetchUrlToString(url, use_cache=use_cache)
 
 
 def ImportFromPlut(url):

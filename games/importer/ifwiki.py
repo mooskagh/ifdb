@@ -177,10 +177,10 @@ def ParseAuthorFromIfwiki(cont, url, res=None):
     return res
 
 
-def FetchIfwikiRaw(url):
+def FetchIfwikiRaw(url, use_cache=True):
     m = IFWIKI_URL.match(url)
     fetch_url = f"{m.group(1)}/index.php?title={m.group(2)}&action=raw"
-    return FetchUrlToString(fetch_url) + "\n"
+    return FetchUrlToString(fetch_url, use_cache=use_cache) + "\n"
 
 
 def ImportFromIfwiki(url):

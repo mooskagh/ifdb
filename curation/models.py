@@ -95,9 +95,9 @@ class GameSourceFetch(models.Model):
 
     source = models.ForeignKey(GameSource, on_delete=models.CASCADE)
     raw_content = models.TextField(_("Raw content"))
-    filtered_content = models.TextField(_("Filtered content"))
-    filtered_content_hash = models.CharField(
-        _("Filtered content hash"), max_length=64, db_index=True
+    canonical_text = models.TextField(_("Canonical text"))
+    canonical_text_hash = models.CharField(
+        _("Canonical text hash"), max_length=64, db_index=True
     )
     first_fetch = models.DateTimeField(_("First fetch"))
     last_fetch = models.DateTimeField(_("Last fetch"))

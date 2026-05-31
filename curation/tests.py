@@ -36,8 +36,8 @@ class CurationSmokeTest(TestCase):
         fetch = GameSourceFetch.objects.create(
             source=source,
             raw_content="raw",
-            filtered_content="filtered",
-            filtered_content_hash="abc123",
+            canonical_text="filtered",
+            canonical_text_hash="abc123",
             first_fetch=now,
             last_fetch=now,
         )
