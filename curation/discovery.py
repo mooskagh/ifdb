@@ -1,0 +1,102 @@
+from collections import Counter
+from collections.abc import Callable
+from dataclasses import dataclass
+from logging import getLogger
+
+from django.utils.timezone import now
+
+from .models import GameSource
+from .providers import REGISTERED_PROVIDERS
+
+logger = getLogger("worker")
+
+
+@dataclass(frozen=True)
+class DiscoveryStats:
+    source_type: str
+    candidates: int
+    discovered: int
+    existing: int
+    new: int
+    missing: int
+
+
+ProviderDone = Callable[[DiscoveryStats], None]
+
+
+def run_discover(
+    types: list[str] | None = None,
+    on_provider_done: ProviderDone | None = None,
+) -> Counter[str]:
+    wanted = set(types or [])
+    providers = [
+        provider
+        for provider in REGISTERED_PROVIDERS
+        if not wanted or provider.source_type in wanted
+    ]
+
+    logger.info("Starting source discovery for %d providers", len(providers))
+    created_by_type: Counter[str] = Counter()
+
+    for provider in providers:
+        source_type = provider.source_type
+        candidates = 0
+        discovered_urls = set()
+        existing = 0
+        created = 0
+        logger.info("Discovering %s", source_type)
+
+        try:
+            for discovered in provider.discover():
+                candidates += 1
+                if discovered.url in discovered_urls:
+                    continue
+                discovered_urls.add(discovered.url)
+                _, was_created = GameSource.objects.get_or_create(
+                    type=source_type,
+                    url=discovered.url,
+                    defaults={"created_at": now()},
+                )
+                if was_created:
+                    created += 1
+                    created_by_type[source_type] += 1
+                else:
+                    existing += 1
+        except Exception:
+            logger.exception("%s discovery failed", source_type)
+            continue
+
+        missing = (
+            GameSource.objects
+            .filter(type=source_type, url__isnull=False)
+            .exclude(url="")
+            .exclude(url__in=discovered_urls)
+            .count()
+        )
+        stats = DiscoveryStats(
+            source_type=source_type,
+            candidates=candidates,
+            discovered=len(discovered_urls),
+            existing=existing,
+            new=created,
+            missing=missing,
+        )
+        logger.info(
+            "%s: %d candidates, %d discovered, %d existing, %d new, "
+            "%d missing",
+            source_type,
+            candidates,
+            stats.discovered,
+            existing,
+            created,
+            missing,
+        )
+        if on_provider_done is not None:
+            on_provider_done(stats)
+
+    summary = ", ".join(
+        f"{source_type}={count}"
+        for source_type, count in sorted(created_by_type.items())
+    )
+    logger.info("Source discovery complete: %s", summary or "no new sources")
+    return created_by_type

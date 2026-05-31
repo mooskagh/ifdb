@@ -27,9 +27,10 @@ Phase 4  filter chain  → GameEdit                             [orchestrator]
 - **`canonicalize()` is a pure function over stored `raw_content`** — improving a
   parser means re-running Phase 2.5 over the DB with zero re-crawling. Drivers
   stop importing `core.crawler`.
-- **Discovery is two-sourced**: the listing crawl (`discover()`) *plus* fan-out
-  from a parsed source's `urls` (a game page links to its download/forum/etc.).
-  The driver doesn't loop; the Phase 1 runner does.
+- **Discovery is listing-sourced** in Phase B: providers crawl their own listing
+  pages via `discover()`. URL fan-out from parsed `GameInfo.urls` was dropped
+  from this slice; there is no stored parsed content to fan out from until later
+  phases.
 
 ## Driver interface (target)
 
@@ -53,16 +54,17 @@ class SourceDriver(Protocol):
     ) -> CanonicalAuthor | None: ...
 ```
 
-### As shipped in A (`curation/providers.py`)
+### As shipped in A/B (`curation/providers.py`)
 
-`GameSourceProvider` is the realized interface, minus `discover()` (deferred to
-B — see below). It's an **ABC** (not a `Protocol`): `owns`/`canonicalize` are
-`@abstractmethod`, `canonicalize_author` is concrete and returns `None` by
-default. ABC over Protocol because providers are a closed in-tree registry that
-already share a base — structural typing buys nothing, and `@abstractmethod`
-enforces the contract at instantiation. Concrete providers subclass it and live
-in `REGISTERED_PROVIDERS`. `CanonicalAuthor(name, bio, urls)` is the author
-analogue of `GameInfo`.
+`GameSourceProvider` is the realized interface. It's an **ABC** (not a
+`Protocol`): `owns`/`canonicalize` are `@abstractmethod`, `discover` is concrete
+and returns no candidates by default, and `canonicalize_author` is concrete and
+returns `None` by default. ABC over Protocol because providers are a closed
+in-tree registry that already share a base — structural typing buys nothing,
+and `@abstractmethod` enforces the contract at instantiation. Concrete providers
+subclass it and live in `REGISTERED_PROVIDERS`. `CanonicalAuthor(name, bio,
+urls)` is the author analogue of `GameInfo`; `DiscoveredSource(url)` is the
+Phase 1 candidate wrapper.
 
 Providers are thin bridges: each per-site `ImportFromX(url)` in
 `games/importer/` was split into `FetchX(url)→raw` + `ParseX(raw, url)→dict`
@@ -129,23 +131,23 @@ Phase 3 (reconcile) is the only real design-risk and wants a populated corpus to
 develop against, so it ships alone.
 
 - [x] **A. Driver interface + migrate importers** — done.
-  - `GameSourceProvider` Protocol + `CanonicalAuthor` in `curation/providers.py`
-    (see "As shipped in A" above). `discover()`/`DiscoveredSource` deferred to B.
+  - `GameSourceProvider` ABC + `CanonicalAuthor` in `curation/providers.py`
+    (see "As shipped in A/B" above). `discover()`/`DiscoveredSource` shipped
+    in B.
   - Migrated apero, ifwiki, insteadgames, questbook, ifiction, qspsu, plut via
     the bridge adapter `GameInfo.from_importer_dict` (old dict → `GameInfo`);
     each `ImportFromX` split into `FetchX` + `ParseX`, wrappers kept live.
     rilarhiv skipped (no per-game page). qspsu/plut were unregistered legacy
     importers; their split was free, so they migrated too (plut needed a new
     `PLUT` `SourceType`).
-- [ ] **B. Phase 1 discover runner** — `discover()` → dedup against existing
-  `GameSource` by (type, url) → create orphan rows. Plus url fan-out from parsed
-  `GameInfo.urls`.
-  - **Carried over from A**: add `discover()` to the provider interface (the old
-    `GetUrlCandidates`). Deferred because it needs the runner + `GameSource`
-    creation, and several importers' listing logic is paginated/mid-loop fetch
-    (ifwiki MediaWiki API, questbook page walk, instead XML). rilarhiv's data
-    only exists in its listing rows, so it gets bespoke discover-coupled handling
-    here.
+- [x] **B. Phase 1 discover runner** — `discover()` → dedup against existing
+  `GameSource` by (type, url) → create orphan rows.
+  - Added `DiscoveredSource` and default `GameSourceProvider.discover()`.
+  - Seven registered providers bridge to the legacy listing crawls (apero,
+    ifwiki, insteadgames, questbook, ifiction, qspsu, plut).
+  - Added `manage.py sources discover [--type TYPE]` and `curation.discovery`;
+    command output reports discovered, existing, new, and missing URL counts.
+  - URL fan-out and rilarhiv remain out of scope for this slice.
 - [ ] **C. Phase 2 fetch runner** — crawler/schedule → store `raw_content`;
   canonicalize → `GameInfo.to_canonical()` into `canonical_text`; hash for
   change-detection (unchanged hash ⇒ bump `last_fetch`, no new edit).

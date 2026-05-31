@@ -7,8 +7,8 @@ the orchestrator's concern (Phase 2), not the driver's.
 In Phase A each provider is a thin bridge over the legacy ``games/importer``
 parse logic: it reuses the old per-site ``ParseX`` (split out of
 ``ImportFromX`` so the live path is untouched) and runs the result through
-:meth:`GameInfo.from_importer_dict`.  Native ``GameInfo`` construction and
-``discover()`` are deferred to later phases.
+:meth:`GameInfo.from_importer_dict`.  Native ``GameInfo`` construction is
+deferred to later phases.
 
 ``canonicalize`` is meant to be pure over stored ``raw`` content, with one
 accepted exception: **ifiction and ifwiki may fetch during canonicalization to
@@ -17,27 +17,57 @@ resolve redirects** (ifiction's ``ResolveRedirect``, ifwiki's
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from games.importer.apero import (
     APERO_URL,
+    FetchCandidateUrls,
     ParseApero,
     ParseAuthorApero,
 )
-from games.importer.ifiction import IFICTION_URL, ParseIfiction
+from games.importer.ifiction import (
+    IFICTION_URL,
+    ParseIfiction,
+)
+from games.importer.ifiction import GetGameList as GetIfictionGameList
 from games.importer.ifwiki import (
     IFWIKI_URL,
+    FetchCategoryUrls,
     ParseAuthorFromIfwiki,
     ParseIfwiki,
 )
-from games.importer.insteadgames import INSTEAD_URL, ParseInstead
-from games.importer.plut import PLUT_URL, ParsePlut
-from games.importer.qspsu import QSP_RE, ParseQsp
-from games.importer.questbook import QUESTBOOK_GAMEDETAIL_URL, ParseQuestBook
+from games.importer.insteadgames import (
+    INSTEAD_URL,
+    ParseInstead,
+)
+from games.importer.insteadgames import GetGameList as GetInsteadGameList
+from games.importer.plut import (
+    PLUT_URL,
+    ParsePlut,
+)
+from games.importer.plut import GetCandidates as GetPlutCandidates
+from games.importer.qspsu import (
+    QSP_RE,
+    ParseQsp,
+)
+from games.importer.qspsu import GetCandidates as GetQspSuCandidates
+from games.importer.questbook import (
+    QUESTBOOK_GAMEDETAIL_URL,
+    ParseQuestBook,
+)
+from games.importer.questbook import GetCandidates as GetQuestBookCandidates
 from games.importer.tools import QuoteUtf8
 
 from .gameinfo import GameInfo, GameUrl
 from .models import GameSource
+
+
+@dataclass
+class DiscoveredSource:
+    """A URL found by a provider's listing crawl."""
+
+    url: str
 
 
 @dataclass
@@ -74,6 +104,10 @@ class GameSourceProvider(ABC):
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         """Raw document -> canonical ``GameInfo`` (Phase 2.5)."""
 
+    def discover(self) -> Iterable[DiscoveredSource]:
+        """Listing crawl -> candidate source URLs (Phase 1)."""
+        return ()
+
     def canonicalize_author(
         self, raw: str, url: str
     ) -> CanonicalAuthor | None:
@@ -93,6 +127,9 @@ class AperoProvider(GameSourceProvider):
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParseApero(raw, url))
 
+    def discover(self) -> Iterable[DiscoveredSource]:
+        return (DiscoveredSource(url) for url in FetchCandidateUrls())
+
     def canonicalize_author(
         self, raw: str, url: str
     ) -> CanonicalAuthor | None:
@@ -107,6 +144,9 @@ class IfwikiProvider(GameSourceProvider):
 
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParseIfwiki(raw, url))
+
+    def discover(self) -> Iterable[DiscoveredSource]:
+        return (DiscoveredSource(url) for url in FetchCategoryUrls("Игры"))
 
     def canonicalize_author(
         self, raw: str, url: str
@@ -125,6 +165,9 @@ class InsteadGamesProvider(GameSourceProvider):
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParseInstead(raw, url))
 
+    def discover(self) -> Iterable[DiscoveredSource]:
+        return (DiscoveredSource(url) for url in GetInsteadGameList())
+
 
 class QuestBookProvider(GameSourceProvider):
     source_type = GameSource.SourceType.QUESTBOOK
@@ -134,6 +177,9 @@ class QuestBookProvider(GameSourceProvider):
 
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParseQuestBook(raw, url))
+
+    def discover(self) -> Iterable[DiscoveredSource]:
+        return (DiscoveredSource(url) for url in GetQuestBookCandidates())
 
 
 class IfictionProvider(GameSourceProvider):
@@ -145,6 +191,9 @@ class IfictionProvider(GameSourceProvider):
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParseIfiction(raw, url))
 
+    def discover(self) -> Iterable[DiscoveredSource]:
+        return (DiscoveredSource(url) for url in GetIfictionGameList())
+
 
 class QspSuProvider(GameSourceProvider):
     source_type = GameSource.SourceType.QSP
@@ -155,6 +204,9 @@ class QspSuProvider(GameSourceProvider):
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParseQsp(raw, url))
 
+    def discover(self) -> Iterable[DiscoveredSource]:
+        return (DiscoveredSource(url) for url in GetQspSuCandidates())
+
 
 class PlutProvider(GameSourceProvider):
     source_type = GameSource.SourceType.PLUT
@@ -164,6 +216,9 @@ class PlutProvider(GameSourceProvider):
 
     def canonicalize(self, raw: str, url: str) -> GameInfo:
         return GameInfo.from_importer_dict(ParsePlut(raw, url))
+
+    def discover(self) -> Iterable[DiscoveredSource]:
+        return (DiscoveredSource(url) for url in GetPlutCandidates())
 
 
 # Mirrors the legacy ``REGISTERED_IMPORTERS``.  rilarhiv is intentionally
