@@ -242,3 +242,25 @@ class InitCurationCommandTest(TestCase):
             ).count(),
             1,
         )
+
+    def test_deduplicates_sources_by_provider_identity_per_game(self):
+        game = self._game("Bot game")
+        self._link(
+            game,
+            "https://forum.ifiction.ru/viewtopic.php?id=42&lid=1",
+            self.game_page,
+        )
+        self._link(
+            game,
+            "https://forum.ifiction.ru/viewtopic.php?id=42&lid=2",
+            self.game_page,
+        )
+
+        self._run()
+
+        history = GameHistory.objects.get(game=game)
+        self.assertEqual(GameSource.objects.filter(history=history).count(), 1)
+        self.assertEqual(
+            GameSource.objects.get(history=history).url,
+            "https://forum.ifiction.ru/viewtopic.php?id=42&lid=1",
+        )

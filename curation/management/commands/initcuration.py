@@ -7,28 +7,8 @@ from django.db import transaction
 from django.utils.timezone import now
 
 from curation.models import GameHistory, GameHistoryAuditLog, GameSource
-from games.importer.apero import AperoImporter
-from games.importer.ifiction import IfictionImporter
-from games.importer.ifwiki import IfwikiImporter
-from games.importer.insteadgames import InsteadGamesImporter
-from games.importer.qspsu import QspsuImporter
-from games.importer.questbook import QuestBookImporter
+from curation.providers import PROVIDER_BY_TYPE, REGISTERED_PROVIDERS
 from games.models import Game
-
-SourceType = GameSource.SourceType
-
-# Maps each old-importer matcher to the curation source type it produces.
-# QspsuImporter is included on purpose (it is not in REGISTERED_IMPORTERS);
-# PlutImporter is excluded (no matching SourceType). Rilarhiv is deferred — its
-# Match() needs a live crawl, so it is intentionally not handled here.
-IMPORTER_SOURCE_TYPES = {
-    IfwikiImporter: SourceType.IFWIKI,
-    AperoImporter: SourceType.APERO,
-    QspsuImporter: SourceType.QSP,
-    InsteadGamesImporter: SourceType.INSTEAD,
-    QuestBookImporter: SourceType.QUESTBOOK,
-    IfictionImporter: SourceType.IFICTION,
-}
 
 
 class Command(BaseCommand):
@@ -38,15 +18,10 @@ class Command(BaseCommand):
     )
 
     def handle(self, *args, **options):
-        classifiers = [
-            (importer(), source_type)
-            for importer, source_type in IMPORTER_SOURCE_TYPES.items()
-        ]
-
-        def classify(url, cat):
-            for importer, source_type in classifiers:
-                if importer.MatchWithCat(url, cat):
-                    return source_type
+        def classify(url):
+            for provider in REGISTERED_PROVIDERS:
+                if provider.owns(url):
+                    return provider
             return None
 
         with transaction.atomic():
@@ -76,14 +51,26 @@ class Command(BaseCommand):
                     },
                 )
                 histories_created += history_created
+                seen_sources = set()
+                for source in history.gamesource_set.all():
+                    provider = PROVIDER_BY_TYPE.get(source.type)
+                    if source.url and provider:
+                        seen_sources.add((
+                            source.type,
+                            provider.source_key(source.url),
+                        ))
 
                 for gu in game.gameurl_set.all():
-                    source_type = classify(
-                        gu.url.original_url, gu.category.symbolic_id
-                    )
-                    if source_type is None:
+                    provider = classify(gu.url.original_url)
+                    if provider is None:
                         skipped += 1
                         continue
+                    source_type = provider.source_type
+                    source_key = provider.source_key(gu.url.original_url)
+                    source_identity = (source_type, source_key)
+                    if source_identity in seen_sources:
+                        continue
+                    seen_sources.add(source_identity)
                     _, source_created = GameSource.objects.get_or_create(
                         history=history,
                         url=gu.url.original_url,
