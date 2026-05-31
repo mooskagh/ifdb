@@ -84,6 +84,9 @@ class GameSource(models.Model):
     )
     last_error = models.TextField(_("Last error"), null=True, blank=True)
     created_at = models.DateTimeField(_("Created at"), null=True, blank=True)
+    missing_since = models.DateTimeField(
+        _("Missing since"), null=True, blank=True
+    )
 
 
 class SourceDiscoveryStatus(models.Model):
@@ -101,9 +104,12 @@ class SourceDiscoveryStatus(models.Model):
     last_seen = models.DateTimeField(_("Last seen"))
     is_error = models.BooleanField(_("Error"), default=False)
     error_message = models.TextField(_("Error message"), null=True, blank=True)
-    new_count = models.IntegerField(_("New games"), default=0)
-    existing_count = models.IntegerField(_("Existing sources"), default=0)
-    missing_count = models.IntegerField(_("Missing sources"), default=0)
+    new_ids = models.JSONField(_("New sources"), default=list)
+    existing_ids = models.JSONField(_("Existing sources"), default=list)
+    missing_ids = models.JSONField(_("Missing sources"), default=list)
+    newly_missing_ids = models.JSONField(
+        _("Newly missing sources"), default=list
+    )
 
     @classmethod
     def record(
@@ -113,11 +119,16 @@ class SourceDiscoveryStatus(models.Model):
         ts,
         is_error,
         error_message,
-        new,
-        existing,
-        missing,
+        new_ids,
+        existing_ids,
+        missing_ids,
+        newly_missing_ids,
     ):
         """Extend the current run-length row, or start a new one on change."""
+        new_ids = sorted(new_ids)
+        existing_ids = sorted(existing_ids)
+        missing_ids = sorted(missing_ids)
+        newly_missing_ids = sorted(newly_missing_ids)
         last = (
             cls.objects
             .filter(source_type=source_type)
@@ -127,9 +138,10 @@ class SourceDiscoveryStatus(models.Model):
         same = last and (
             last.is_error == is_error
             and last.error_message == error_message
-            and last.new_count == new
-            and last.existing_count == existing
-            and last.missing_count == missing
+            and last.new_ids == new_ids
+            and last.existing_ids == existing_ids
+            and last.missing_ids == missing_ids
+            and last.newly_missing_ids == newly_missing_ids
         )
         if same:
             last.last_seen = ts
@@ -141,9 +153,10 @@ class SourceDiscoveryStatus(models.Model):
             last_seen=ts,
             is_error=is_error,
             error_message=error_message,
-            new_count=new,
-            existing_count=existing,
-            missing_count=missing,
+            new_ids=new_ids,
+            existing_ids=existing_ids,
+            missing_ids=missing_ids,
+            newly_missing_ids=newly_missing_ids,
         )
 
 

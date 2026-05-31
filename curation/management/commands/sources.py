@@ -42,8 +42,10 @@ class Command(BaseCommand):
                 self.stdout.write(
                     f"sources [{stats.source_type}]: "
                     f"{stats.discovered} discovered{candidate_suffix}, "
-                    f"{stats.existing} existing, {stats.new} new, "
-                    f"{stats.missing} missing"
+                    f"{len(stats.existing_ids)} existing, "
+                    f"{len(stats.new_ids)} new, "
+                    f"{len(stats.missing_ids)} missing, "
+                    f"{len(stats.newly_missing_ids)} newly missing"
                 )
             if not counts:
                 self.stdout.write("No new sources.")

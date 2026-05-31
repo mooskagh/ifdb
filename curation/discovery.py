@@ -16,9 +16,10 @@ class DiscoveryStats:
     source_type: str
     candidates: int
     discovered: int
-    existing: int
-    new: int
-    missing: int
+    new_ids: list[int]
+    existing_ids: list[int]
+    missing_ids: list[int]
+    newly_missing_ids: list[int]
 
 
 ProviderDone = Callable[[DiscoveryStats], None]
@@ -41,21 +42,22 @@ def run_discover(
     for provider in providers:
         source_type = provider.source_type
         candidates = 0
-        existing = 0
-        created = 0
+        new_ids: list[int] = []
         ts = now()
         logger.info("Discovering %s", source_type)
 
-        # Snapshot existing URLs as identity keys *before* the loop: legacy
-        # seeded rows and earlier-created orphans both count as ``existing``,
-        # while same-run duplicates are caught by ``discovered_keys``.
-        existing_urls = (
-            GameSource.objects.filter(type=source_type)
+        # Snapshot rows (id + identity key + missing flag) before the
+        # loop: legacy seeded rows and earlier-created orphans both count as
+        # ``existing``, while same-run duplicates are caught by
+        # ``discovered_keys``.
+        existing_rows = list(
+            GameSource.objects
+            .filter(type=source_type)
             .exclude(url="")
             .exclude(url__isnull=True)
-            .values_list("url", flat=True)
+            .values("id", "url", "missing_since")
         )
-        existing_keys = {provider.source_key(u) for u in existing_urls}
+        existing_keys = {provider.source_key(r["url"]) for r in existing_rows}
         discovered_keys: set[str] = set()
 
         try:
@@ -65,13 +67,11 @@ def run_discover(
                 if key in discovered_keys:
                     continue
                 discovered_keys.add(key)
-                if key in existing_keys:
-                    existing += 1
-                else:
-                    GameSource.objects.create(
+                if key not in existing_keys:
+                    source = GameSource.objects.create(
                         type=source_type, url=discovered.url, created_at=ts
                     )
-                    created += 1
+                    new_ids.append(source.id)
                     created_by_type[source_type] += 1
         except Exception as exc:
             logger.exception("%s discovery failed", source_type)
@@ -80,39 +80,58 @@ def run_discover(
                 ts=ts,
                 is_error=True,
                 error_message=str(exc),
-                new=0,
-                existing=0,
-                missing=0,
+                new_ids=[],
+                existing_ids=[],
+                missing_ids=[],
+                newly_missing_ids=[],
             )
             continue
 
-        missing = len(existing_keys - discovered_keys)
+        existing_ids, missing_ids, newly_missing_ids = [], [], []
+        for r in existing_rows:
+            if provider.source_key(r["url"]) in discovered_keys:
+                existing_ids.append(r["id"])
+            else:
+                missing_ids.append(r["id"])
+                if r["missing_since"] is None:
+                    newly_missing_ids.append(r["id"])
+
+        GameSource.objects.filter(id__in=newly_missing_ids).update(
+            missing_since=ts
+        )
+        GameSource.objects.filter(
+            id__in=existing_ids, missing_since__isnull=False
+        ).update(missing_since=None)  # rediscovered -> clear flag
+
         stats = DiscoveryStats(
             source_type=source_type,
             candidates=candidates,
             discovered=len(discovered_keys),
-            existing=existing,
-            new=created,
-            missing=missing,
+            new_ids=new_ids,
+            existing_ids=existing_ids,
+            missing_ids=missing_ids,
+            newly_missing_ids=newly_missing_ids,
         )
         SourceDiscoveryStatus.record(
             source_type,
             ts=ts,
             is_error=False,
             error_message=None,
-            new=created,
-            existing=existing,
-            missing=missing,
+            new_ids=new_ids,
+            existing_ids=existing_ids,
+            missing_ids=missing_ids,
+            newly_missing_ids=newly_missing_ids,
         )
         logger.info(
             "%s: %d candidates, %d discovered, %d existing, %d new, "
-            "%d missing",
+            "%d missing, %d newly missing",
             source_type,
             candidates,
             stats.discovered,
-            existing,
-            created,
-            missing,
+            len(existing_ids),
+            len(new_ids),
+            len(missing_ids),
+            len(newly_missing_ids),
         )
         if on_provider_done is not None:
             on_provider_done(stats)
