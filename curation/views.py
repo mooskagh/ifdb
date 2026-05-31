@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import now
@@ -12,6 +14,33 @@ from .models import (
 )
 
 PERM = "(alias curation_admin)"
+
+GROUP_WINDOW = timedelta(minutes=1)
+
+
+def _group_timeline(timeline):
+    """Collapse consecutive same-kind entries within GROUP_WINDOW."""
+    groups = []
+    for entry in timeline:  # timeline is already sorted by ts
+        last = groups[-1] if groups else None
+        if (
+            last
+            and last["kind"] == entry["kind"]
+            and entry["ts"] - last["ts_start"] <= GROUP_WINDOW
+        ):
+            last["entries"].append(entry)
+            last["ts_end"] = entry["ts"]
+        else:
+            groups.append({
+                "kind": entry["kind"],
+                "color": entry["color"],
+                "ts_start": entry["ts"],
+                "ts_end": entry["ts"],
+                "who": entry["who"],
+                "entries": [entry],
+            })
+    return groups
+
 
 # Card colour per comment type, so the timeline distinguishes them visually.
 COMMENT_TYPE_COLORS = {
@@ -150,7 +179,7 @@ def history_detail(request, history_id):
             "history": history,
             "game": history.game,
             "sources": sources,
-            "timeline": timeline,
+            "groups": _group_timeline(timeline),
             "auto_choices": GameHistory.AutoUpdate.choices,
             "state_choices": GameHistory.State.choices,
         },

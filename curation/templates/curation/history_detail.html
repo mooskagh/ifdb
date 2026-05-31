@@ -75,13 +75,17 @@
     </div>
 </div>
 
-{% for entry in timeline %}
-<div class="card card--{{ entry.color }}">
+{% for group in groups %}
+<div class="card card--{{ group.color }}">
     <div class="card--header">
-        <span class="curation-ts">{{ entry.ts|date:"d.m.Y H:i" }}</span>
-        {% if entry.who %}<span class="curation-actor">{{ entry.who }}</span>{% endif %}
+        <span class="curation-ts">
+            {{ group.ts_start|date:"d.m.Y H:i" }}
+            {% if group.ts_end != group.ts_start %}– {{ group.ts_end|date:"H:i" }}{% endif %}
+        </span>
+        {% if group.who %}<span class="curation-actor">{{ group.who }}</span>{% endif %}
     </div>
     <div class="card--body">
+        {% for entry in group.entries %}
         {% if entry.kind == "source" %}
             <div class="curation-event">Добавлен источник: {{ entry.obj.get_type_display }}</div>
             {% if entry.obj.url %}<a href="{{ entry.obj.url }}">{{ entry.obj.url }}</a>{% endif %}
@@ -99,6 +103,7 @@
             <div class="curation-meta">{{ entry.obj.get_field_display }}: {{ entry.obj.old_text|default:"—" }} → {{ entry.obj.new_text|default:"—" }}</div>
             {% endif %}
         {% endif %}
+        {% endfor %}
     </div>
 </div>
 {% empty %}
