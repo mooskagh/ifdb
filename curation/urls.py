@@ -10,6 +10,11 @@ urlpatterns = [
         name="curation_discovery_status",
     ),
     path(
+        "discovery/<int:status_id>/",
+        views.discovery_detail,
+        name="curation_discovery_detail",
+    ),
+    path(
         "<int:history_id>/",
         views.history_detail,
         name="curation_history_detail",

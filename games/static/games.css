@@ -2679,6 +2679,23 @@ h6 {
     min-width: 0;
     word-break: break-word;
 }
+.curation-discovery-source {
+    align-items: flex-start;
+}
+.curation-source-usage {
+    flex: 0 0 220px;
+    min-width: 160px;
+    word-break: break-word;
+}
+@media (max-width: 600px) {
+    .curation-discovery-source {
+        flex-direction: column;
+    }
+    .curation-source-usage {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+}
 
 .curation-meta {
     font-size: 12px;

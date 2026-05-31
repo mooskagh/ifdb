@@ -2,6 +2,7 @@ from io import StringIO
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
@@ -15,6 +16,7 @@ from .models import (
     GameHistoryComment,
     GameSource,
     GameSourceFetch,
+    SourceDiscoveryStatus,
 )
 
 
@@ -84,6 +86,74 @@ class CurationSmokeTest(TestCase):
             new_id=edit.pk,
         )
         self.assertEqual(history.gamehistoryauditlog_set.count(), 1)
+
+
+class DiscoveryViewsTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(
+            username="moder", email="moder@example.com"
+        )
+        self.user.groups.add(Group.objects.create(name="moder"))
+        self.client.force_login(self.user)
+
+    def test_discovery_status_links_to_detail_with_source_lists(self):
+        ts = timezone.now()
+        sources = [
+            GameSource.objects.create(
+                type=GameSource.SourceType.APERO,
+                url=f"https://example.com/{kind}",
+                created_at=ts,
+            )
+            for kind in ["new", "newly-missing", "missing", "existing"]
+        ]
+        game = Game.objects.create(
+            title="Linked Game", creation_time=ts, added_by=self.user
+        )
+        game_history = GameHistory.objects.create(game=game, creation_time=ts)
+        empty_history = GameHistory.objects.create(game=None, creation_time=ts)
+        sources[2].history = empty_history
+        sources[2].save(update_fields=["history"])
+        sources[3].history = game_history
+        sources[3].save(update_fields=["history"])
+        status = SourceDiscoveryStatus.objects.create(
+            source_type=GameSource.SourceType.APERO,
+            first_seen=ts,
+            last_seen=ts,
+            is_error=False,
+            new_ids=[sources[0].id],
+            newly_missing_ids=[sources[1].id],
+            missing_ids=[sources[2].id],
+            existing_ids=[sources[3].id],
+        )
+
+        list_response = self.client.get("/curation/discovery/")
+        self.assertContains(list_response, f"/curation/discovery/{status.pk}/")
+
+        detail_response = self.client.get(f"/curation/discovery/{status.pk}/")
+        self.assertEqual(detail_response.status_code, 200)
+        for text in [
+            "Новые источники: 1",
+            "Новые пропавшие: 1",
+            "Пропавшие: 1",
+            "Существующие: 1",
+            "https://example.com/new",
+            "https://example.com/newly-missing",
+            "https://example.com/missing",
+            "https://example.com/existing",
+        ]:
+            self.assertContains(detail_response, text)
+        self.assertContains(
+            detail_response, f'href="/game/{game.pk}/">Linked Game</a>'
+        )
+        self.assertContains(
+            detail_response,
+            f'href="/curation/{game_history.pk}/">история</a>',
+        )
+        self.assertContains(detail_response, "(none)")
+        self.assertContains(
+            detail_response,
+            f'href="/curation/{empty_history.pk}/">история</a>',
+        )
 
 
 class InitCurationCommandTest(TestCase):

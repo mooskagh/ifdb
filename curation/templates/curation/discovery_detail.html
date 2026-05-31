@@ -1,0 +1,57 @@
+{% extends "curation/base.html" %}
+{% load tags %}
+
+{% block titlesection %}Источники: {{ status.get_source_type_display }} - ОГОРОД - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--blue">
+    <div class="card--header">{{ status.get_source_type_display }}</div>
+    <div class="card--listbody">
+        <div class="game--info-row">
+            <div class="game--info-row-label">Впервые</div>
+            <div class="game--info-row-value">{{ status.first_seen|date:"d.m.Y H:i" }}</div>
+        </div>
+        <div class="game--info-row">
+            <div class="game--info-row-label">Последний раз</div>
+            <div class="game--info-row-value">{{ status.last_seen|date:"d.m.Y H:i" }}</div>
+        </div>
+        {% if status.is_error %}
+        <div class="game--info-row">
+            <div class="game--info-row-label">Ошибка</div>
+            <div class="game--info-row-value">{{ status.error_message }}</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% for panel in panels %}
+<div class="card card--{{ panel.color }}">
+    <div class="card--header">{{ panel.title }}: {{ panel.sources|length }}</div>
+    <div class="card--listbody">
+        {% for source in panel.sources %}
+        <div class="curation-source curation-discovery-source">
+            <div class="curation-source-body">
+                {% if source.url %}<a href="{{ source.url }}">{{ source.url }}</a>{% endif %}
+                {% if source.created_at %}<div class="curation-meta">Добавлен: {{ source.created_at|date:"d.m.Y H:i" }}</div>{% endif %}
+                {% if source.missing_since %}<div class="curation-meta">Пропал: {{ source.missing_since|date:"d.m.Y H:i" }}</div>{% endif %}
+            </div>
+            <div class="curation-source-usage">
+                {% if source.history %}
+                    {% if source.history.game %}
+                    <a href="{% url 'show_game' source.history.game.pk %}">{{ source.history.game.title }}</a>
+                    {% else %}
+                    (none)
+                    {% endif %}
+                    (<a href="{% url 'curation_history_detail' source.history.pk %}">история</a>)
+                {% else %}
+                    —
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="curation-source curation-meta">{{ panel.empty }}</div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

@@ -13,8 +13,13 @@
     </thead>
     <tbody>
         {% for row in rows %}
-        <tr class="{% if row.is_error %}error{% endif %}">
-            <td>{{ row.get_source_type_display }}</td>
+        <tr class="{% if row.is_error %}error{% endif %}"
+            onclick="location.href='{% url 'curation_discovery_detail' row.pk %}'">
+            <td>
+                <a href="{% url 'curation_discovery_detail' row.pk %}">
+                    {{ row.get_source_type_display }}
+                </a>
+            </td>
             <td>{{ row.first_seen|date:"d.m.Y H:i" }}</td>
             <td>{{ row.last_seen|date:"d.m.Y H:i" }}</td>
             <td>{{ row.new_ids|length }}</td>
