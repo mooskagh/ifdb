@@ -61,7 +61,7 @@
     <div class="card--listbody">
         {% for source in sources %}
         <div class="curation-source">
-            <div class="curation-source-type">{{ source.get_type_display }}</div>
+            <div class="curation-source-type"><a href="{% url 'curation_source_detail' source.pk %}">{{ source.get_type_display }}</a></div>
             <div class="curation-source-body">
                 {% if source.url %}<a href="{{ source.url }}">{{ source.url }}</a>{% endif %}
                 {% if source.failing_since %}<div class="curation-meta">Сбоит с: {{ source.failing_since|date:"d.m.Y H:i" }}</div>{% endif %}
@@ -87,10 +87,10 @@
     <div class="card--body">
         {% for entry in group.entries %}
         {% if entry.kind == "source" %}
-            <div class="curation-event">Добавлен источник: {{ entry.obj.get_type_display }}</div>
+            <div class="curation-event">Добавлен источник: <a href="{% url 'curation_source_detail' entry.obj.pk %}">{{ entry.obj.get_type_display }}</a></div>
             {% if entry.obj.url %}<a href="{{ entry.obj.url }}">{{ entry.obj.url }}</a>{% endif %}
         {% elif entry.kind == "fetch" %}
-            <div class="curation-event">{{ entry.label }}: {{ entry.obj.source.get_type_display }}</div>
+            <div class="curation-event">{{ entry.label }}: <a href="{% url 'curation_source_detail' entry.obj.source.pk %}">{{ entry.obj.source.get_type_display }}</a></div>
         {% elif entry.kind == "edit" %}
             <div class="curation-event">Правка: {{ entry.obj.get_status_display }}</div>
             <div class="curation-meta">Происхождение: {{ entry.obj.get_origin_display }}</div>

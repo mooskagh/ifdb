@@ -2630,6 +2630,103 @@ h6 {
     background: #fdecec;
     color: #a00;
 }
+.curation-table tbody tr.warning,
+.curation-table tbody tr.warning:nth-child(even) {
+    background: #fff6d8;
+}
+
+.curation-table--compact {
+    table-layout: fixed;
+    font-size: 12px;
+}
+.curation-table--compact th,
+.curation-table--compact td {
+    padding: 2px 6px;
+    line-height: 1.25;
+    vertical-align: middle;
+}
+.curation-source-table-type {
+    width: 70px;
+}
+.curation-source-table-state {
+    width: 58px;
+}
+.curation-source-table-attempt {
+    width: 110px;
+}
+.curation-source-table-fetch {
+    width: 173px;
+}
+.curation-history-table-state {
+    width: 78px;
+}
+.curation-history-table-auto {
+    width: 54px;
+}
+.curation-history-table-priority {
+    width: 58px;
+}
+.curation-history-table-date {
+    width: 76px;
+}
+.curation-history-table-state,
+.curation-history-table-auto,
+.curation-history-table-priority,
+.curation-history-table-date {
+    white-space: nowrap;
+}
+.curation-nowrap {
+    white-space: nowrap;
+}
+.curation-truncate,
+.curation-truncate a {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.curation-truncate a {
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: bottom;
+}
+.curation-pagination {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+.curation-source-detail {
+    display: grid;
+    gap: 4px;
+    padding: 10px 12px;
+}
+.curation-source-detail-row {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 12px;
+    align-items: baseline;
+}
+.curation-source-detail-label {
+    color: #666;
+    font-size: 12px;
+    font-weight: 600;
+}
+.curation-source-detail-value {
+    min-width: 0;
+}
+.curation-break-url {
+    overflow-wrap: anywhere;
+}
+.curation-source-error {
+    margin: 10px 12px 0;
+    padding: 8px 10px;
+    background: #fdecec;
+    color: #900;
+    border: 1px solid #f3b6b6;
+    border-radius: 4px;
+    white-space: pre-wrap;
+}
 
 .curation-menu-item {
     display: block;

@@ -88,6 +88,41 @@ class CurationSmokeTest(TestCase):
         self.assertEqual(history.gamehistoryauditlog_set.count(), 1)
 
 
+class HistoryListViewTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(
+            username="moder", email="moder@example.com"
+        )
+        self.user.groups.add(Group.objects.create(name="moder"))
+        self.client.force_login(self.user)
+
+    def test_history_list_is_compact_and_uses_short_labels(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            title="Very Long Game Title That Should Be Truncated",
+            creation_time=ts,
+            added_by=self.user,
+        )
+        GameHistory.objects.create(
+            game=game,
+            creation_time=ts,
+            state=GameHistory.State.NEEDS_ATTENTION,
+            auto_updates=GameHistory.AutoUpdate.PROPOSE,
+        )
+
+        response = self.client.get("/curation/")
+        self.assertEqual(response.status_code, 200)
+        for text in [
+            "curation-history-table",
+            '<tr class="warning"',
+            'class="curation-truncate"',
+            'title="Very Long Game Title That Should Be Truncated"',
+            "внимание",
+            "предл.",
+        ]:
+            self.assertContains(response, text)
+
+
 class DiscoveryViewsTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(
@@ -173,6 +208,9 @@ class DiscoveryViewsTest(TestCase):
             detail_response, f'href="/game/{game.pk}/">Linked Game</a>'
         )
         self.assertContains(
+            detail_response, f'href="/curation/sources/{sources[0].pk}/"'
+        )
+        self.assertContains(
             detail_response,
             f'href="/curation/{game_history.pk}/">история</a>',
         )
@@ -189,6 +227,147 @@ class DiscoveryViewsTest(TestCase):
         self.assertLess(
             content.index("Дубликаты: 1"),
             content.index("Существующие: 1"),
+        )
+
+
+class SourceViewsTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(
+            username="moder", email="moder@example.com"
+        )
+        self.user.groups.add(Group.objects.create(name="moder"))
+        self.client.force_login(self.user)
+
+    def test_source_list_detail_and_fetch_content(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            title="Source Game", creation_time=ts, added_by=self.user
+        )
+        history = GameHistory.objects.create(game=game, creation_time=ts)
+        source = GameSource.objects.create(
+            history=history,
+            url="https://example.com/source",
+            type=GameSource.SourceType.IFWIKI,
+            created_at=ts,
+            failing_since=ts,
+            last_attempt=ts,
+            last_error="Fetch failed",
+        )
+        fetch = GameSourceFetch.objects.create(
+            source=source,
+            raw_content="raw text",
+            canonical_text="canonical text",
+            canonical_text_hash="abc123",
+            first_fetch=ts,
+            last_fetch=ts,
+        )
+
+        list_response = self.client.get("/curation/sources/")
+        self.assertEqual(list_response.status_code, 200)
+        for text in [
+            'href="/curation/sources/"',
+            f'href="/curation/sources/{source.pk}/"',
+            "curation-source-table",
+            '<tr class="error"',
+            'title="https://example.com/source"',
+            f'href="/game/{game.pk}/">Source Game</a>',
+            ts.strftime("%Y-%m-%d %H:%M"),
+            f'/curation/sources/fetches/{fetch.pk}/raw/" target="_blank"',
+            f"/curation/sources/fetches/{fetch.pk}/canonical/",
+        ]:
+            self.assertContains(list_response, text)
+
+        detail_response = self.client.get(f"/curation/sources/{source.pk}/")
+        self.assertEqual(detail_response.status_code, 200)
+        for text in [
+            "https://example.com/source",
+            f'href="/game/{game.pk}/">Source Game</a>',
+            f'(<a href="/curation/{history.pk}/">история</a>)',
+            "Fetch failed",
+            'class="curation-source-error"',
+            ts.strftime("%Y-%m-%d %H:%M"),
+            f'/curation/sources/fetches/{fetch.pk}/raw/" target="_blank"',
+            f"/curation/sources/fetches/{fetch.pk}/canonical/",
+        ]:
+            self.assertContains(detail_response, text)
+
+        raw_response = self.client.get(
+            f"/curation/sources/fetches/{fetch.pk}/raw/"
+        )
+        self.assertEqual(raw_response.status_code, 200)
+        self.assertEqual(
+            raw_response["Content-Type"], "text/plain; charset=utf-8"
+        )
+        self.assertEqual(raw_response.content.decode(), "raw text")
+
+        canonical_response = self.client.get(
+            f"/curation/sources/fetches/{fetch.pk}/canonical/"
+        )
+        self.assertEqual(canonical_response.status_code, 200)
+        self.assertEqual(
+            canonical_response["Content-Type"], "text/plain; charset=utf-8"
+        )
+        self.assertEqual(canonical_response.content.decode(), "canonical text")
+
+    def test_source_list_search_filter_and_pagination(self):
+        ts = timezone.now()
+        wanted_game = Game.objects.create(
+            title="Wanted Game", creation_time=ts, added_by=self.user
+        )
+        wanted_history = GameHistory.objects.create(
+            game=wanted_game, creation_time=ts
+        )
+        wanted = GameSource.objects.create(
+            history=wanted_history,
+            url="https://example.com/wanted",
+            type=GameSource.SourceType.APERO,
+            failing_since=ts,
+            last_error="boom",
+        )
+        other = GameSource.objects.create(
+            url="https://example.com/other",
+            type=GameSource.SourceType.IFWIKI,
+        )
+        for i in range(101):
+            GameSource.objects.create(
+                url=f"https://example.com/page-{i}",
+                type=GameSource.SourceType.QSP,
+            )
+
+        response = self.client.get(
+            "/curation/sources/", {"q": "wanted", "state": "failed"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'href="/curation/sources/{wanted.pk}/"')
+        self.assertNotContains(
+            response, f'href="/curation/sources/{other.pk}/"'
+        )
+
+        page_response = self.client.get("/curation/sources/")
+        self.assertContains(page_response, "Страница 1 из 2")
+
+    def test_history_links_sources_to_detail(self):
+        ts = timezone.now()
+        history = GameHistory.objects.create(game=None, creation_time=ts)
+        source = GameSource.objects.create(
+            history=history,
+            url="https://example.com/source",
+            type=GameSource.SourceType.APERO,
+            created_at=ts,
+        )
+        GameSourceFetch.objects.create(
+            source=source,
+            raw_content="raw",
+            canonical_text="canonical",
+            canonical_text_hash="abc123",
+            first_fetch=ts,
+            last_fetch=ts,
+        )
+
+        response = self.client.get(f"/curation/{history.pk}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, f'href="/curation/sources/{source.pk}/">Apero</a>'
         )
 
 

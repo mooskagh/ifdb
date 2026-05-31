@@ -1,0 +1,20 @@
+<table class="curation-table">
+    <thead>
+        <tr>
+            <th>Впервые</th>
+            <th>Последний раз</th>
+            <th>Содержимое</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for fetch in fetches %}
+        <tr>
+            <td>{{ fetch.first_fetch|date:"d.m.Y H:i" }}</td>
+            <td>{{ fetch.last_fetch|date:"d.m.Y H:i" }}</td>
+            <td>{% include "curation/_source_fetch_links.html" with fetch=fetch %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3">Загрузок нет.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>

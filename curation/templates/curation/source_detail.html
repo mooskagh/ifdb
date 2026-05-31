@@ -1,0 +1,52 @@
+{% extends "curation/base.html" %}
+{% load tags %}
+
+{% block titlesection %}Источник: {{ source.get_type_display }} - ОГОРОД - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--brown">
+    <div class="card--header">{{ source.get_type_display }}</div>
+    {% if source.last_error %}
+    <div class="curation-source-error">{{ source.last_error }}</div>
+    {% endif %}
+    <div class="curation-source-detail">
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">URL</div>
+            <div class="curation-source-detail-value curation-break-url">{% if source.url %}<a href="{{ source.url }}">{{ source.url }}</a>{% else %}—{% endif %}</div>
+        </div>
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Игра</div>
+            <div class="curation-source-detail-value">{% include "curation/_source_game.html" with source=source %}</div>
+        </div>
+        {% if source.created_at %}
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Добавлен</div>
+            <div class="curation-source-detail-value">{{ source.created_at|date:"d.m.Y H:i" }}</div>
+        </div>
+        {% endif %}
+        {% if source.last_attempt %}
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Попытка</div>
+            <div class="curation-source-detail-value">{{ source.last_attempt|date:"d.m.Y H:i" }}</div>
+        </div>
+        {% endif %}
+        {% if source.failing_since %}
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Сбоит с</div>
+            <div class="curation-source-detail-value">{{ source.failing_since|date:"d.m.Y H:i" }}</div>
+        </div>
+        {% endif %}
+        {% if source.missing_since %}
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Пропал</div>
+            <div class="curation-source-detail-value">{{ source.missing_since|date:"d.m.Y H:i" }}</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card card--salad">
+    <div class="card--header">Загрузки</div>
+    {% include "curation/_source_fetch_table.html" with fetches=fetches %}
+</div>
+{% endblock %}

@@ -46,6 +46,7 @@
             {% for source in cluster %}
             <div class="curation-duplicate-source">
                 <div class="curation-duplicate-url">
+                    <a href="{% url 'curation_source_detail' source.pk %}">{{ source.get_type_display }}</a>
                     {% if source.url %}<a href="{{ source.url }}">{{ source.url }}</a>{% endif %}
                 </div>
                 {% if source.created_at %}<div class="curation-meta">Добавлен: {{ source.created_at|date:"d.m.Y H:i" }}</div>{% endif %}
@@ -77,6 +78,7 @@
         {% for source in panel.sources %}
         <div class="curation-source curation-discovery-source">
             <div class="curation-source-body">
+                <a href="{% url 'curation_source_detail' source.pk %}">{{ source.get_type_display }}</a>
                 {% if source.url %}<a href="{{ source.url }}">{{ source.url }}</a>{% endif %}
                 {% if source.created_at %}<div class="curation-meta">Добавлен: {{ source.created_at|date:"d.m.Y H:i" }}</div>{% endif %}
                 {% if source.missing_since %}<div class="curation-meta">Пропал: {{ source.missing_since|date:"d.m.Y H:i" }}</div>{% endif %}

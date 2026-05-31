@@ -14,6 +14,17 @@ urlpatterns = [
         views.discovery_detail,
         name="curation_discovery_detail",
     ),
+    path("sources/", views.source_list, name="curation_source_list"),
+    path(
+        "sources/<int:source_id>/",
+        views.source_detail,
+        name="curation_source_detail",
+    ),
+    path(
+        "sources/fetches/<int:fetch_id>/<str:kind>/",
+        views.source_fetch_content,
+        name="curation_source_fetch_content",
+    ),
     path(
         "<int:history_id>/",
         views.history_detail,

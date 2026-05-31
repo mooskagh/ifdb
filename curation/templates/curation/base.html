@@ -15,6 +15,8 @@
                        href="{% url 'curation_history_list' %}">Список игр</a>
                     <a class="curation-menu-item {% current 'curation_discovery_status' %}"
                        href="{% url 'curation_discovery_status' %}">Обнаружение игр</a>
+                    <a class="curation-menu-item {% current 'curation_source_list' %}"
+                       href="{% url 'curation_source_list' %}">Источники</a>
                 </div>
             </div>
             {% block curation_sidebar %}{% endblock %}

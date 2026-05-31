@@ -33,27 +33,26 @@
             <button type="submit">Показать</button>
         </form>
     </div>
-    <table class="curation-table">
+    <table class="curation-table curation-table--compact curation-history-table">
         <thead>
             <tr>
                 <th>Игра</th>
-                <th>Состояние</th>
-                <th>Автообновление</th>
-                <th>Приоритет</th>
-                <th>Создана</th>
-                <th>Обновлена</th>
+                <th class="curation-history-table-state">Статус</th>
+                <th class="curation-history-table-auto">Авто</th>
+                <th class="curation-history-table-priority">Приор.</th>
+                <th class="curation-history-table-date">Созд.</th>
+                <th class="curation-history-table-date">Обновл.</th>
             </tr>
         </thead>
         <tbody>
             {% for history in histories %}
-            <tr onclick="location.href='{% url 'curation_history_detail' history.pk %}'">
-                <td>
-                    <a href="{% url 'curation_history_detail' history.pk %}">
-                        {{ history.game.title|default:"(не назначена)" }}
-                    </a>
+            <tr class="{% if history.state == 'NEEDS_ATTENTION' %}warning{% endif %}"
+                onclick="location.href='{% url 'curation_history_detail' history.pk %}'">
+                <td class="curation-truncate">
+                    <a href="{% url 'curation_history_detail' history.pk %}" title="{{ history.game.title|default:'(не назначена)' }}">{{ history.game.title|default:"(не назначена)" }}</a>
                 </td>
-                <td>{{ history.get_state_display }}</td>
-                <td>{{ history.get_auto_updates_display }}</td>
+                <td>{{ history.state_short }}</td>
+                <td>{{ history.auto_short }}</td>
                 <td>{{ history.priority }}</td>
                 <td>{{ history.creation_time|date:"d.m.Y" }}</td>
                 <td>{{ history.updated|date:"d.m.Y" }}</td>

@@ -1,6 +1,9 @@
 from datetime import timedelta
 
+from django.core.paginator import Paginator
+from django.db.models import OuterRef, Q, Subquery
 from django.db.models.functions import Coalesce
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import now
 
@@ -62,6 +65,17 @@ EDITABLE_FIELDS = {
     "state": (GameHistory.State, GameHistoryAuditLog.AuditField.STATE),
 }
 
+HISTORY_STATE_SHORT = {
+    GameHistory.State.SETTLED: "готово",
+    GameHistory.State.IN_PROGRESS: "в работе",
+    GameHistory.State.NEEDS_ATTENTION: "внимание",
+}
+HISTORY_AUTO_SHORT = {
+    GameHistory.AutoUpdate.REJECT: "откл.",
+    GameHistory.AutoUpdate.PROPOSE: "предл.",
+    GameHistory.AutoUpdate.ACCEPT: "авто",
+}
+
 
 def history_list(request):
     request.perm.Ensure(PERM)
@@ -83,6 +97,14 @@ def history_list(request):
     else:
         sort = "priority"
         histories = histories.order_by("priority", "-updated")
+
+    for history in histories:
+        history.state_short = HISTORY_STATE_SHORT.get(
+            history.state, history.state
+        )
+        history.auto_short = HISTORY_AUTO_SHORT.get(
+            history.auto_updates, history.auto_updates
+        )
 
     return render(
         request,
@@ -118,6 +140,81 @@ def discovery_status(request):
         "curation/discovery_status.html",
         {"current": current, "history": history},
     )
+
+
+def source_list(request):
+    request.perm.Ensure(PERM)
+
+    q = request.GET.get("q", "").strip()
+    source_type = request.GET.get("type", "")
+    state = request.GET.get("state", "")
+    latest_fetch = GameSourceFetch.objects.filter(
+        source=OuterRef("pk")
+    ).order_by("-last_fetch", "-pk")
+    sources = GameSource.objects.select_related("history__game").annotate(
+        latest_fetch_id=Subquery(latest_fetch.values("pk")[:1]),
+        latest_fetch_at=Subquery(latest_fetch.values("last_fetch")[:1]),
+    )
+
+    if q:
+        sources = sources.filter(
+            Q(url__icontains=q) | Q(history__game__title__icontains=q)
+        )
+    if source_type in GameSource.SourceType.values:
+        sources = sources.filter(type=source_type)
+    else:
+        source_type = ""
+    if state == "failed":
+        sources = sources.filter(
+            Q(failing_since__isnull=False) | Q(last_error__gt="")
+        )
+    elif state == "missing":
+        sources = sources.filter(missing_since__isnull=False)
+    else:
+        state = ""
+
+    sources = sources.order_by("type", "url", "pk")
+    page = Paginator(sources, 100).get_page(request.GET.get("page"))
+
+    return render(
+        request,
+        "curation/source_list.html",
+        {
+            "page": page,
+            "sources": page.object_list,
+            "q": q,
+            "source_type": source_type,
+            "state": state,
+            "source_type_choices": GameSource.SourceType.choices,
+        },
+    )
+
+
+def source_detail(request, source_id):
+    request.perm.Ensure(PERM)
+
+    source = get_object_or_404(
+        GameSource.objects.select_related("history__game"), pk=source_id
+    )
+    fetches = source.gamesourcefetch_set.order_by("-last_fetch", "-pk")
+
+    return render(
+        request,
+        "curation/source_detail.html",
+        {"source": source, "fetches": fetches},
+    )
+
+
+def source_fetch_content(request, fetch_id, kind):
+    request.perm.Ensure(PERM)
+
+    fetch = get_object_or_404(GameSourceFetch, pk=fetch_id)
+    if kind == "raw":
+        content = fetch.raw_content
+    else:
+        content = fetch.canonical_text
+
+    return HttpResponse(content, content_type="text/plain; charset=utf-8")
 
 
 def _sources_by_ids(ids):
