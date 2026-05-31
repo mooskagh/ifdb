@@ -11,7 +11,9 @@ from .models import (
     GameHistoryComment,
     GameSource,
     GameSourceFetch,
+    SourceDiscoveryStatus,
 )
+from .providers import REGISTERED_PROVIDERS
 
 PERM = "(alias curation_admin)"
 
@@ -93,6 +95,28 @@ def history_list(request):
             "state_choices": GameHistory.State.choices,
             "auto_choices": GameHistory.AutoUpdate.choices,
         },
+    )
+
+
+def discovery_status(request):
+    request.perm.Ensure(PERM)
+
+    current = [
+        latest
+        for provider in REGISTERED_PROVIDERS
+        if (
+            latest := SourceDiscoveryStatus.objects
+            .filter(source_type=provider.source_type)
+            .order_by("-last_seen")
+            .first()
+        )
+    ]
+    history = SourceDiscoveryStatus.objects.order_by("-last_seen")[:1000]
+
+    return render(
+        request,
+        "curation/discovery_status.html",
+        {"current": current, "history": history},
     )
 
 

@@ -1,0 +1,16 @@
+{% extends "curation/base.html" %}
+{% load tags %}
+
+{% block titlesection %}Источники - ОГОРОД - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--green">
+    <div class="card--header">Текущее состояние источников</div>
+    {% include "curation/_discovery_rows.html" with rows=current empty_text="Источники ещё не запускались." %}
+</div>
+
+<div class="card card--purple">
+    <div class="card--header">История</div>
+    {% include "curation/_discovery_rows.html" with rows=history empty_text="Записей нет." %}
+</div>
+{% endblock %}

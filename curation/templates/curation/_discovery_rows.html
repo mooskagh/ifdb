@@ -1,0 +1,28 @@
+<table class="curation-table">
+    <thead>
+        <tr>
+            <th>Источник</th>
+            <th>Впервые</th>
+            <th>Последний раз</th>
+            <th>Новых</th>
+            <th>Существующих</th>
+            <th>Пропавших</th>
+            <th>Ошибка</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr class="{% if row.is_error %}error{% endif %}">
+            <td>{{ row.get_source_type_display }}</td>
+            <td>{{ row.first_seen|date:"d.m.Y H:i" }}</td>
+            <td>{{ row.last_seen|date:"d.m.Y H:i" }}</td>
+            <td>{{ row.new_count }}</td>
+            <td>{{ row.existing_count }}</td>
+            <td>{{ row.missing_count }}</td>
+            <td>{{ row.error_message|default:"" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7">{{ empty_text }}</td></tr>
+        {% endfor %}
+    </tbody>
+</table>

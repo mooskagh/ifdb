@@ -86,6 +86,67 @@ class GameSource(models.Model):
     created_at = models.DateTimeField(_("Created at"), null=True, blank=True)
 
 
+class SourceDiscoveryStatus(models.Model):
+    class Meta:
+        default_permissions = ()
+        indexes = [models.Index(fields=["source_type", "-last_seen"])]
+
+    def __str__(self):
+        return f"{self.get_source_type_display()} @ {self.last_seen:%Y-%m-%d}"
+
+    source_type = models.CharField(
+        _("Source type"), max_length=16, choices=GameSource.SourceType
+    )
+    first_seen = models.DateTimeField(_("First seen"))
+    last_seen = models.DateTimeField(_("Last seen"))
+    is_error = models.BooleanField(_("Error"), default=False)
+    error_message = models.TextField(_("Error message"), null=True, blank=True)
+    new_count = models.IntegerField(_("New games"), default=0)
+    existing_count = models.IntegerField(_("Existing sources"), default=0)
+    missing_count = models.IntegerField(_("Missing sources"), default=0)
+
+    @classmethod
+    def record(
+        cls,
+        source_type,
+        *,
+        ts,
+        is_error,
+        error_message,
+        new,
+        existing,
+        missing,
+    ):
+        """Extend the current run-length row, or start a new one on change."""
+        last = (
+            cls.objects
+            .filter(source_type=source_type)
+            .order_by("-last_seen")
+            .first()
+        )
+        same = last and (
+            last.is_error == is_error
+            and last.error_message == error_message
+            and last.new_count == new
+            and last.existing_count == existing
+            and last.missing_count == missing
+        )
+        if same:
+            last.last_seen = ts
+            last.save(update_fields=["last_seen"])
+            return last
+        return cls.objects.create(
+            source_type=source_type,
+            first_seen=ts,
+            last_seen=ts,
+            is_error=is_error,
+            error_message=error_message,
+            new_count=new,
+            existing_count=existing,
+            missing_count=missing,
+        )
+
+
 class GameSourceFetch(models.Model):
     class Meta:
         default_permissions = ()

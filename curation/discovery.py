@@ -5,7 +5,7 @@ from logging import getLogger
 
 from django.utils.timezone import now
 
-from .models import GameSource
+from .models import GameSource, SourceDiscoveryStatus
 from .providers import REGISTERED_PROVIDERS
 
 logger = getLogger("worker")
@@ -44,6 +44,7 @@ def run_discover(
         discovered_urls = set()
         existing = 0
         created = 0
+        ts = now()
         logger.info("Discovering %s", source_type)
 
         try:
@@ -55,15 +56,24 @@ def run_discover(
                 _, was_created = GameSource.objects.get_or_create(
                     type=source_type,
                     url=discovered.url,
-                    defaults={"created_at": now()},
+                    defaults={"created_at": ts},
                 )
                 if was_created:
                     created += 1
                     created_by_type[source_type] += 1
                 else:
                     existing += 1
-        except Exception:
+        except Exception as exc:
             logger.exception("%s discovery failed", source_type)
+            SourceDiscoveryStatus.record(
+                source_type,
+                ts=ts,
+                is_error=True,
+                error_message=str(exc),
+                new=0,
+                existing=0,
+                missing=0,
+            )
             continue
 
         missing = (
@@ -79,6 +89,15 @@ def run_discover(
             discovered=len(discovered_urls),
             existing=existing,
             new=created,
+            missing=missing,
+        )
+        SourceDiscoveryStatus.record(
+            source_type,
+            ts=ts,
+            is_error=False,
+            error_message=None,
+            new=created,
+            existing=existing,
             missing=missing,
         )
         logger.info(

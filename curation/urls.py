@@ -5,6 +5,11 @@ from . import views
 urlpatterns = [
     path("", views.history_list, name="curation_history_list"),
     path(
+        "discovery/",
+        views.discovery_status,
+        name="curation_discovery_status",
+    ),
+    path(
         "<int:history_id>/",
         views.history_detail,
         name="curation_history_detail",

@@ -2625,6 +2625,11 @@ h6 {
     background: var(--c-green-bg);
     cursor: pointer;
 }
+.curation-table tbody tr.error,
+.curation-table tbody tr.error:nth-child(even) {
+    background: #fdecec;
+    color: #a00;
+}
 
 .curation-menu-item {
     display: block;
