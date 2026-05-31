@@ -9,7 +9,12 @@ from django.utils.timezone import now
 from .discovery import DiscoveryStats, run_discover
 from .gameinfo import GameInfo
 from .models import GameHistory, GameSource, SourceDiscoveryStatus
-from .providers import DiscoveredSource, GameSourceProvider
+from .providers import (
+    DiscoveredSource,
+    GameSourceProvider,
+    IfictionProvider,
+    QspSuProvider,
+)
 
 
 class FakeProvider(GameSourceProvider):
@@ -84,6 +89,89 @@ class DiscoveryTest(TestCase):
             1,
         )
         self.assertEqual(GameSource.objects.count(), 2)
+
+    def test_run_discover_handles_duplicate_existing_sources(self):
+        history = GameHistory.objects.create(creation_time=now())
+        for hist in (history, None):
+            GameSource.objects.create(
+                type=GameSource.SourceType.INSTEAD,
+                url="http://example.com/dup",
+                history=hist,
+                created_at=now(),
+            )
+        provider = FakeProvider(
+            GameSource.SourceType.INSTEAD,
+            ["http://example.com/dup", "http://example.com/new"],
+        )
+        stats = []
+
+        with patch("curation.discovery.REGISTERED_PROVIDERS", [provider]):
+            counts = run_discover(on_provider_done=stats.append)
+
+        self.assertEqual(
+            counts, Counter({GameSource.SourceType.INSTEAD: 1})
+        )
+        self.assertEqual(
+            (stats[0].existing, stats[0].new), (1, 1)
+        )
+        self.assertEqual(
+            GameSource.objects.filter(
+                type=GameSource.SourceType.INSTEAD,
+                url="http://example.com/dup",
+            ).count(),
+            2,
+        )
+        self.assertEqual(
+            GameSource.objects.filter(
+                type=GameSource.SourceType.INSTEAD,
+                url="http://example.com/new",
+                history__isnull=True,
+            ).count(),
+            1,
+        )
+
+    def test_run_discover_matches_across_scheme(self):
+        GameSource.objects.create(
+            type=GameSource.SourceType.INSTEAD,
+            url="http://example.com/x",
+            created_at=now(),
+        )
+        provider = FakeProvider(
+            GameSource.SourceType.INSTEAD,
+            ["https://example.com/x", "https://example.com/new"],
+        )
+        stats = []
+
+        with patch("curation.discovery.REGISTERED_PROVIDERS", [provider]):
+            run_discover(on_provider_done=stats.append)
+
+        self.assertEqual((stats[0].existing, stats[0].new, stats[0].missing),
+                         (1, 1, 0))
+        self.assertEqual(
+            GameSource.objects.filter(
+                type=GameSource.SourceType.INSTEAD,
+                url__contains="example.com/x",
+            ).count(),
+            1,
+        )
+
+    def test_run_discover_matches_trailing_slash(self):
+        GameSource.objects.create(
+            type=GameSource.SourceType.QUESTBOOK,
+            url="http://example.com/g/",
+            created_at=now(),
+        )
+        provider = FakeProvider(
+            GameSource.SourceType.QUESTBOOK, ["http://example.com/g"]
+        )
+        stats = []
+
+        with patch("curation.discovery.REGISTERED_PROVIDERS", [provider]):
+            run_discover(on_provider_done=stats.append)
+
+        self.assertEqual((stats[0].existing, stats[0].new, stats[0].missing),
+                         (1, 0, 0))
+        self.assertEqual(GameSource.objects.count(), 1)
 
     def test_discovered_source_url_gets_provider_type(self):
         self.run_with(
@@ -178,6 +266,22 @@ class DiscoveryTest(TestCase):
         row = SourceDiscoveryStatus.objects.get()
         self.assertTrue(row.is_error)
         self.assertEqual(row.error_message, "boom")
+
+
+class SourceKeyTest(TestCase):
+    def test_ifiction_ignores_lid_param(self):
+        provider = IfictionProvider()
+        self.assertEqual(
+            provider.source_key("http://ifiction.ru/g?id=2766&lid=14"),
+            provider.source_key("https://ifiction.ru/g?id=2766"),
+        )
+
+    def test_qsp_keys_on_sobi2id_only(self):
+        provider = QspSuProvider()
+        a = "http://qsp.su/index.php?option=com_sobi2&catid=0&sobi2Id=42&Itemid=55"
+        b = "http://qsp.su/index.php?option=com_sobi2&sobi2Id=42&catid=7"
+        self.assertEqual(provider.source_key(a), provider.source_key(b))
+        self.assertEqual(provider.source_key(a), "qsp:sobi2id=42")
 
 
 class SourceDiscoveryStatusRecordTest(TestCase):

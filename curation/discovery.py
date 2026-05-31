@@ -41,28 +41,38 @@ def run_discover(
     for provider in providers:
         source_type = provider.source_type
         candidates = 0
-        discovered_urls = set()
         existing = 0
         created = 0
         ts = now()
         logger.info("Discovering %s", source_type)
 
+        # Snapshot existing URLs as identity keys *before* the loop: legacy
+        # seeded rows and earlier-created orphans both count as ``existing``,
+        # while same-run duplicates are caught by ``discovered_keys``.
+        existing_urls = (
+            GameSource.objects.filter(type=source_type)
+            .exclude(url="")
+            .exclude(url__isnull=True)
+            .values_list("url", flat=True)
+        )
+        existing_keys = {provider.source_key(u) for u in existing_urls}
+        discovered_keys: set[str] = set()
+
         try:
             for discovered in provider.discover():
                 candidates += 1
-                if discovered.url in discovered_urls:
+                key = provider.source_key(discovered.url)
+                if key in discovered_keys:
                     continue
-                discovered_urls.add(discovered.url)
-                _, was_created = GameSource.objects.get_or_create(
-                    type=source_type,
-                    url=discovered.url,
-                    defaults={"created_at": ts},
-                )
-                if was_created:
+                discovered_keys.add(key)
+                if key in existing_keys:
+                    existing += 1
+                else:
+                    GameSource.objects.create(
+                        type=source_type, url=discovered.url, created_at=ts
+                    )
                     created += 1
                     created_by_type[source_type] += 1
-                else:
-                    existing += 1
         except Exception as exc:
             logger.exception("%s discovery failed", source_type)
             SourceDiscoveryStatus.record(
@@ -76,17 +86,11 @@ def run_discover(
             )
             continue
 
-        missing = (
-            GameSource.objects
-            .filter(type=source_type, url__isnull=False)
-            .exclude(url="")
-            .exclude(url__in=discovered_urls)
-            .count()
-        )
+        missing = len(existing_keys - discovered_keys)
         stats = DiscoveryStats(
             source_type=source_type,
             candidates=candidates,
-            discovered=len(discovered_urls),
+            discovered=len(discovered_keys),
             existing=existing,
             new=created,
             missing=missing,

@@ -16,6 +16,7 @@ resolve redirects** (ifiction's ``ResolveRedirect``, ifwiki's
 ``#REDIRECT``-chase).  No nicer design exists; this is intended behavior.
 """
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -70,6 +71,17 @@ from .gameinfo import GameInfo, GameUrl
 from .models import GameSource
 
 
+def _base_source_key(url: str) -> str:
+    """Scheme- and trailing-slash-insensitive identity for matching.
+
+    Stored URLs are heterogeneous (legacy ``http://`` from seeding, clean
+    ``https://`` from discover); strip the scheme and any trailing slash so the
+    two paths collapse to the same key.  Not lowercased -- ifwiki titles are
+    case-sensitive.
+    """
+    return re.sub(r"^https?://", "", url).rstrip("/")
+
+
 @dataclass
 class DiscoveredSource:
     """A URL found by a provider's listing crawl."""
@@ -118,6 +130,13 @@ class GameSourceProvider(ABC):
     def discover(self) -> Iterable[DiscoveredSource]:
         """Listing crawl -> candidate source URLs (Phase 1)."""
         return ()
+
+    def source_key(self, url: str) -> str:
+        """Scheme- and trailing-slash-insensitive identity for matching.
+
+        Used to dedup discovered URLs against stored ones; *never* persisted.
+        """
+        return _base_source_key(url)
 
     def canonicalize_author(
         self, raw: str, url: str
@@ -220,6 +239,10 @@ class IfictionProvider(GameSourceProvider):
     def discover(self) -> Iterable[DiscoveredSource]:
         return (DiscoveredSource(url) for url in GetIfictionGameList())
 
+    def source_key(self, url: str) -> str:
+        # Identity is the game ``id``; drop the ``&lid=NN`` tracking param.
+        return re.sub(r"&lid=\d+", "", _base_source_key(url))
+
 
 class QspSuProvider(GameSourceProvider):
     source_type = GameSource.SourceType.QSP
@@ -235,6 +258,12 @@ class QspSuProvider(GameSourceProvider):
 
     def discover(self) -> Iterable[DiscoveredSource]:
         return (DiscoveredSource(url) for url in GetQspSuCandidates())
+
+    def source_key(self, url: str) -> str:
+        # Identity is ``sobi2Id`` alone; ``Itemid``, ``catid`` and param order
+        # all vary between seed and discover URLs.
+        m = re.search(r"sobi2Id=(\d+)", url)
+        return f"qsp:sobi2id={m.group(1)}" if m else _base_source_key(url)
 
 
 class PlutProvider(GameSourceProvider):
