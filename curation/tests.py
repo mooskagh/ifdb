@@ -104,7 +104,15 @@ class DiscoveryViewsTest(TestCase):
                 url=f"https://example.com/{kind}",
                 created_at=ts,
             )
-            for kind in ["new", "newly-missing", "missing", "existing"]
+            for kind in [
+                "new",
+                "newly-missing",
+                "absent",
+                "existing",
+                "unused",
+                "duplicate-a",
+                "duplicate-b",
+            ]
         ]
         game = Game.objects.create(
             title="Linked Game", creation_time=ts, added_by=self.user
@@ -122,8 +130,10 @@ class DiscoveryViewsTest(TestCase):
             is_error=False,
             new_ids=[sources[0].id],
             newly_missing_ids=[sources[1].id],
-            missing_ids=[sources[2].id],
+            absent_ids=[sources[2].id],
             existing_ids=[sources[3].id],
+            unused_ids=[sources[4].id],
+            duplicate_id_clusters=[[sources[5].id, sources[6].id]],
         )
 
         list_response = self.client.get("/curation/discovery/")
@@ -133,13 +143,30 @@ class DiscoveryViewsTest(TestCase):
         self.assertEqual(detail_response.status_code, 200)
         for text in [
             "Новые источники: 1",
-            "Новые пропавшие: 1",
-            "Пропавшие: 1",
             "Существующие: 1",
+            "Пропавшие: 1",
+            "Отсутствующие: 1",
+            "Неиспользуемые: 1",
+            "Дубликаты: 1",
             "https://example.com/new",
             "https://example.com/newly-missing",
-            "https://example.com/missing",
+            "https://example.com/absent",
             "https://example.com/existing",
+            "https://example.com/unused",
+            "https://example.com/duplicate-a",
+            "https://example.com/duplicate-b",
+            'href="#new">Новые источники: 1</a>',
+            'href="#newly-missing">Пропавшие: 1</a>',
+            'href="#absent">Отсутствующие: 1</a>',
+            'href="#unused">Неиспользуемые: 1</a>',
+            'href="#duplicates">Дубликаты: 1</a>',
+            'href="#existing">Существующие: 1</a>',
+            'id="new"',
+            'id="newly-missing"',
+            'id="absent"',
+            'id="unused"',
+            'id="duplicates"',
+            'id="existing"',
         ]:
             self.assertContains(detail_response, text)
         self.assertContains(
@@ -153,6 +180,15 @@ class DiscoveryViewsTest(TestCase):
         self.assertContains(
             detail_response,
             f'href="/curation/{empty_history.pk}/">история</a>',
+        )
+        content = detail_response.content.decode()
+        self.assertLess(
+            content.index("Неиспользуемые: 1"),
+            content.index("Существующие: 1"),
+        )
+        self.assertLess(
+            content.index("Дубликаты: 1"),
+            content.index("Существующие: 1"),
         )
 
 

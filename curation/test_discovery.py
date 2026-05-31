@@ -92,13 +92,17 @@ class DiscoveryTest(TestCase):
 
     def test_run_discover_handles_duplicate_existing_sources(self):
         history = GameHistory.objects.create(creation_time=now())
-        for hist in (history, None):
-            GameSource.objects.create(
-                type=GameSource.SourceType.INSTEAD,
-                url="http://example.com/dup",
-                history=hist,
-                created_at=now(),
-            )
+        used_dup = GameSource.objects.create(
+            type=GameSource.SourceType.INSTEAD,
+            url="http://example.com/dup",
+            history=history,
+            created_at=now(),
+        )
+        unused_dup = GameSource.objects.create(
+            type=GameSource.SourceType.INSTEAD,
+            url="http://example.com/dup",
+            created_at=now(),
+        )
         provider = FakeProvider(
             GameSource.SourceType.INSTEAD,
             ["http://example.com/dup", "http://example.com/new"],
@@ -113,6 +117,11 @@ class DiscoveryTest(TestCase):
         self.assertEqual(
             (len(stats[0].existing_ids), len(stats[0].new_ids)), (2, 1)
         )
+        new_source = GameSource.objects.get(url="http://example.com/new")
+        self.assertEqual(
+            stats[0].duplicate_id_clusters, [[used_dup.id, unused_dup.id]]
+        )
+        self.assertEqual(stats[0].unused_ids, [unused_dup.id, new_source.id])
         self.assertEqual(
             GameSource.objects.filter(
                 type=GameSource.SourceType.INSTEAD,
@@ -148,7 +157,7 @@ class DiscoveryTest(TestCase):
             (
                 len(stats[0].existing_ids),
                 len(stats[0].new_ids),
-                len(stats[0].missing_ids),
+                len(stats[0].absent_ids),
             ),
             (1, 1, 0),
         )
@@ -178,7 +187,7 @@ class DiscoveryTest(TestCase):
             (
                 len(stats[0].existing_ids),
                 len(stats[0].new_ids),
-                len(stats[0].missing_ids),
+                len(stats[0].absent_ids),
             ),
             (1, 0, 0),
         )
@@ -239,10 +248,10 @@ class DiscoveryTest(TestCase):
         self.assertEqual((stat.candidates, stat.discovered), (3, 2))
         self.assertEqual(len(stat.new_ids), 1)
         self.assertEqual(stat.existing_ids, [existing_row.id])
-        self.assertEqual(stat.missing_ids, [missing_row.id])
+        self.assertEqual(stat.absent_ids, [])
         self.assertEqual(stat.newly_missing_ids, [missing_row.id])
 
-    def test_run_discover_flags_newly_then_still_missing(self):
+    def test_run_discover_flags_newly_missing_then_absent(self):
         row = GameSource.objects.create(
             type=GameSource.SourceType.APERO,
             url="http://example.com/gone",
@@ -253,7 +262,7 @@ class DiscoveryTest(TestCase):
 
         with patch("curation.discovery.REGISTERED_PROVIDERS", [provider]):
             run_discover(on_provider_done=stats.append)
-        self.assertEqual(stats[0].missing_ids, [row.id])
+        self.assertEqual(stats[0].absent_ids, [])
         self.assertEqual(stats[0].newly_missing_ids, [row.id])
         row.refresh_from_db()
         self.assertIsNotNone(row.missing_since)
@@ -261,7 +270,7 @@ class DiscoveryTest(TestCase):
 
         with patch("curation.discovery.REGISTERED_PROVIDERS", [provider]):
             run_discover(on_provider_done=stats.append)
-        self.assertEqual(stats[1].missing_ids, [row.id])
+        self.assertEqual(stats[1].absent_ids, [row.id])
         self.assertEqual(stats[1].newly_missing_ids, [])
         row.refresh_from_db()
         self.assertEqual(row.missing_since, first_missing_since)
@@ -282,7 +291,7 @@ class DiscoveryTest(TestCase):
             run_discover(on_provider_done=stats.append)
 
         self.assertEqual(stats[0].existing_ids, [row.id])
-        self.assertEqual(stats[0].missing_ids, [])
+        self.assertEqual(stats[0].absent_ids, [])
         row.refresh_from_db()
         self.assertIsNone(row.missing_since)
 
@@ -347,16 +356,18 @@ class SourceDiscoveryStatusRecordTest(TestCase):
             new_ids=[1],
             existing_ids=[2, 3],
             newly_missing_ids=[],
+            unused_ids=[7],
+            duplicate_id_clusters=[[8, 9]],
         )
 
         first = SourceDiscoveryStatus.record(
-            GameSource.SourceType.APERO, ts=t0, missing_ids=[4, 5], **kwargs
+            GameSource.SourceType.APERO, ts=t0, absent_ids=[4, 5], **kwargs
         )
         same = SourceDiscoveryStatus.record(
-            GameSource.SourceType.APERO, ts=t1, missing_ids=[4, 5], **kwargs
+            GameSource.SourceType.APERO, ts=t1, absent_ids=[4, 5], **kwargs
         )
         changed = SourceDiscoveryStatus.record(
-            GameSource.SourceType.APERO, ts=t2, missing_ids=[4, 5, 6], **kwargs
+            GameSource.SourceType.APERO, ts=t2, absent_ids=[4, 5, 6], **kwargs
         )
 
         self.assertEqual(same.pk, first.pk)
@@ -375,8 +386,10 @@ class SourceDiscoveryStatusRecordTest(TestCase):
                     discovered=3,
                     new_ids=[1],
                     existing_ids=[2, 3],
-                    missing_ids=[4, 5, 6, 7, 8],
                     newly_missing_ids=[4, 5],
+                    absent_ids=[6, 7, 8],
+                    unused_ids=[1],
+                    duplicate_id_clusters=[[2, 3], [6, 7, 8]],
                 )
             )
             return Counter({GameSource.SourceType.APERO: 1})
@@ -397,7 +410,7 @@ class SourceDiscoveryStatusRecordTest(TestCase):
         output = stdout.getvalue()
         self.assertIn(
             "sources [APERO]: 3 discovered, 2 existing, 1 new, "
-            "5 missing, 2 newly missing",
+            "2 newly missing, 3 absent, 1 unused, 2 duplicate clusters",
             output,
         )
         self.assertNotIn("candidates", output)

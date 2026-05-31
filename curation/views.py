@@ -128,30 +128,45 @@ def _sources_by_ids(ids):
     return [by_id[id_] for id_ in ids if id_ in by_id]
 
 
+def _source_clusters(clusters):
+    return [_sources_by_ids(cluster) for cluster in clusters]
+
+
 def discovery_detail(request, status_id):
     request.perm.Ensure(PERM)
 
     status = get_object_or_404(SourceDiscoveryStatus, pk=status_id)
     panels = [
         {
+            "id": "new",
             "title": "Новые источники",
             "color": "green",
             "sources": _sources_by_ids(status.new_ids),
             "empty": "Новых источников нет.",
         },
         {
-            "title": "Новые пропавшие",
+            "id": "newly-missing",
+            "title": "Пропавшие",
             "color": "red",
             "sources": _sources_by_ids(status.newly_missing_ids),
-            "empty": "Новых пропавших источников нет.",
-        },
-        {
-            "title": "Пропавшие",
-            "color": "yellow",
-            "sources": _sources_by_ids(status.missing_ids),
             "empty": "Пропавших источников нет.",
         },
         {
+            "id": "absent",
+            "title": "Отсутствующие",
+            "color": "yellow",
+            "sources": _sources_by_ids(status.absent_ids),
+            "empty": "Отсутствующих источников нет.",
+        },
+        {
+            "id": "unused",
+            "title": "Неиспользуемые",
+            "color": "brown",
+            "sources": _sources_by_ids(status.unused_ids),
+            "empty": "Неиспользуемых источников нет.",
+        },
+        {
+            "id": "existing",
             "title": "Существующие",
             "color": "purple",
             "sources": _sources_by_ids(status.existing_ids),
@@ -162,7 +177,13 @@ def discovery_detail(request, status_id):
     return render(
         request,
         "curation/discovery_detail.html",
-        {"status": status, "panels": panels},
+        {
+            "status": status,
+            "panels": panels,
+            "duplicate_clusters": _source_clusters(
+                status.duplicate_id_clusters
+            ),
+        },
     )
 
 

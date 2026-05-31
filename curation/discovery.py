@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import getLogger
@@ -18,8 +18,10 @@ class DiscoveryStats:
     discovered: int
     new_ids: list[int]
     existing_ids: list[int]
-    missing_ids: list[int]
+    absent_ids: list[int]
     newly_missing_ids: list[int]
+    unused_ids: list[int]
+    duplicate_id_clusters: list[list[int]]
 
 
 ProviderDone = Callable[[DiscoveryStats], None]
@@ -82,19 +84,21 @@ def run_discover(
                 error_message=str(exc),
                 new_ids=[],
                 existing_ids=[],
-                missing_ids=[],
+                absent_ids=[],
                 newly_missing_ids=[],
+                unused_ids=[],
+                duplicate_id_clusters=[],
             )
             continue
 
-        existing_ids, missing_ids, newly_missing_ids = [], [], []
+        existing_ids, absent_ids, newly_missing_ids = [], [], []
         for r in existing_rows:
             if provider.source_key(r["url"]) in discovered_keys:
                 existing_ids.append(r["id"])
+            elif r["missing_since"] is None:
+                newly_missing_ids.append(r["id"])
             else:
-                missing_ids.append(r["id"])
-                if r["missing_since"] is None:
-                    newly_missing_ids.append(r["id"])
+                absent_ids.append(r["id"])
 
         GameSource.objects.filter(id__in=newly_missing_ids).update(
             missing_since=ts
@@ -103,14 +107,31 @@ def run_discover(
             id__in=existing_ids, missing_since__isnull=False
         ).update(missing_since=None)  # rediscovered -> clear flag
 
+        current_rows = list(
+            GameSource.objects
+            .filter(type=source_type)
+            .exclude(url="")
+            .exclude(url__isnull=True)
+            .values("id", "url", "history_id")
+        )
+        unused_ids = [r["id"] for r in current_rows if r["history_id"] is None]
+        duplicate_groups = defaultdict(list)
+        for r in current_rows:
+            duplicate_groups[provider.source_key(r["url"])].append(r["id"])
+        duplicate_id_clusters = [
+            ids for ids in duplicate_groups.values() if len(ids) > 1
+        ]
+
         stats = DiscoveryStats(
             source_type=source_type,
             candidates=candidates,
             discovered=len(discovered_keys),
             new_ids=new_ids,
             existing_ids=existing_ids,
-            missing_ids=missing_ids,
+            absent_ids=absent_ids,
             newly_missing_ids=newly_missing_ids,
+            unused_ids=unused_ids,
+            duplicate_id_clusters=duplicate_id_clusters,
         )
         SourceDiscoveryStatus.record(
             source_type,
@@ -119,19 +140,23 @@ def run_discover(
             error_message=None,
             new_ids=new_ids,
             existing_ids=existing_ids,
-            missing_ids=missing_ids,
+            absent_ids=absent_ids,
             newly_missing_ids=newly_missing_ids,
+            unused_ids=unused_ids,
+            duplicate_id_clusters=duplicate_id_clusters,
         )
         logger.info(
             "%s: %d candidates, %d discovered, %d existing, %d new, "
-            "%d missing, %d newly missing",
+            "%d absent, %d newly missing, %d unused, %d duplicate clusters",
             source_type,
             candidates,
             stats.discovered,
             len(existing_ids),
             len(new_ids),
-            len(missing_ids),
+            len(absent_ids),
             len(newly_missing_ids),
+            len(unused_ids),
+            len(duplicate_id_clusters),
         )
         if on_provider_done is not None:
             on_provider_done(stats)

@@ -106,9 +106,13 @@ class SourceDiscoveryStatus(models.Model):
     error_message = models.TextField(_("Error message"), null=True, blank=True)
     new_ids = models.JSONField(_("New sources"), default=list)
     existing_ids = models.JSONField(_("Existing sources"), default=list)
-    missing_ids = models.JSONField(_("Missing sources"), default=list)
+    absent_ids = models.JSONField(_("Absent sources"), default=list)
     newly_missing_ids = models.JSONField(
         _("Newly missing sources"), default=list
+    )
+    unused_ids = models.JSONField(_("Unused sources"), default=list)
+    duplicate_id_clusters = models.JSONField(
+        _("Duplicate source clusters"), default=list
     )
 
     @classmethod
@@ -121,14 +125,20 @@ class SourceDiscoveryStatus(models.Model):
         error_message,
         new_ids,
         existing_ids,
-        missing_ids,
+        absent_ids,
         newly_missing_ids,
+        unused_ids,
+        duplicate_id_clusters,
     ):
         """Extend the current run-length row, or start a new one on change."""
         new_ids = sorted(new_ids)
         existing_ids = sorted(existing_ids)
-        missing_ids = sorted(missing_ids)
+        absent_ids = sorted(absent_ids)
         newly_missing_ids = sorted(newly_missing_ids)
+        unused_ids = sorted(unused_ids)
+        duplicate_id_clusters = sorted(
+            sorted(cluster) for cluster in duplicate_id_clusters
+        )
         last = (
             cls.objects
             .filter(source_type=source_type)
@@ -140,8 +150,10 @@ class SourceDiscoveryStatus(models.Model):
             and last.error_message == error_message
             and last.new_ids == new_ids
             and last.existing_ids == existing_ids
-            and last.missing_ids == missing_ids
+            and last.absent_ids == absent_ids
             and last.newly_missing_ids == newly_missing_ids
+            and last.unused_ids == unused_ids
+            and last.duplicate_id_clusters == duplicate_id_clusters
         )
         if same:
             last.last_seen = ts
@@ -155,8 +167,10 @@ class SourceDiscoveryStatus(models.Model):
             error_message=error_message,
             new_ids=new_ids,
             existing_ids=existing_ids,
-            missing_ids=missing_ids,
+            absent_ids=absent_ids,
             newly_missing_ids=newly_missing_ids,
+            unused_ids=unused_ids,
+            duplicate_id_clusters=duplicate_id_clusters,
         )
 
 

@@ -2687,6 +2687,39 @@ h6 {
     min-width: 160px;
     word-break: break-word;
 }
+.curation-discovery-toc .card--listbody {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+}
+.curation-discovery-toc a {
+    border: 1px solid #d8e3ef;
+    border-radius: 4px;
+    padding: 4px 8px;
+    background: #f6fbff;
+}
+.curation-duplicate-cluster {
+    border-bottom: 2px solid #ddd;
+    padding: 8px 12px;
+}
+.curation-duplicate-cluster:last-child {
+    border-bottom: none;
+}
+.curation-duplicate-source {
+    margin-bottom: 8px;
+    word-break: break-word;
+}
+.curation-duplicate-source:last-child {
+    margin-bottom: 0;
+}
+.curation-duplicate-url {
+    margin-bottom: 2px;
+}
+.curation-duplicate-usage {
+    color: #555;
+    font-size: 13px;
+}
 @media (max-width: 600px) {
     .curation-discovery-source {
         flex-direction: column;

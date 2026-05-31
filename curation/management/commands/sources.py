@@ -44,8 +44,10 @@ class Command(BaseCommand):
                     f"{stats.discovered} discovered{candidate_suffix}, "
                     f"{len(stats.existing_ids)} existing, "
                     f"{len(stats.new_ids)} new, "
-                    f"{len(stats.missing_ids)} missing, "
-                    f"{len(stats.newly_missing_ids)} newly missing"
+                    f"{len(stats.newly_missing_ids)} newly missing, "
+                    f"{len(stats.absent_ids)} absent, "
+                    f"{len(stats.unused_ids)} unused, "
+                    f"{len(stats.duplicate_id_clusters)} duplicate clusters"
                 )
             if not counts:
                 self.stdout.write("No new sources.")
