@@ -270,6 +270,7 @@ class GameHistoryAuditLog(models.Model):
             "INITIAL_IMPORT",
             _("Initial import from old importer"),
         )
+        SOURCE_ATTACHED = "SOURCE_ATTACHED", _("Source attached")
         FIELD_CHANGE = "FIELD_CHANGE", _("Field changed")
 
     class AuditField(models.TextChoices):

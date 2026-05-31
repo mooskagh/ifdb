@@ -3,13 +3,16 @@ from django.core.management.base import BaseCommand
 from curation.discovery import run_discover
 from curation.fetch import run_fetch
 from curation.models import GameSource
+from curation.reconcile import run_reconcile
 
 
 class Command(BaseCommand):
     help = "Run curation source-pipeline phases."
 
     def add_arguments(self, parser):
-        parser.add_argument("phase", choices=["discover", "fetch"])
+        parser.add_argument(
+            "phase", choices=["discover", "fetch", "reconcile"]
+        )
         parser.add_argument(
             "--verbose",
             action="store_true",
@@ -26,9 +29,10 @@ class Command(BaseCommand):
         parser.add_argument("--url", help="Fetch one source URL.")
 
     def handle(self, *args, **options):
+        verbose = options["verbose"] or options["verbosity"] > 1
+
         if options["phase"] == "discover":
             provider_stats = []
-            verbose = options["verbose"] or options["verbosity"] > 1
             counts = run_discover(
                 types=options["type"],
                 on_provider_done=provider_stats.append,
@@ -53,7 +57,31 @@ class Command(BaseCommand):
                 self.stdout.write("No new sources.")
             return
 
-        verbose = options["verbose"] or options["verbosity"] > 1
+        if options["phase"] == "reconcile":
+
+            def reconcile_done(source, outcome, history):
+                target = f" -> history #{history.pk}" if history else ""
+                self.stdout.write(
+                    f"source #{source.pk} [{source.type}] "
+                    f"{source.url or '(no url)'}: {outcome}{target}"
+                )
+
+            stats = run_reconcile(
+                types=options["type"],
+                limit=options["limit"],
+                source_id=options["source"],
+                on_source_done=reconcile_done if verbose else None,
+            )
+            for item in stats:
+                self.stdout.write(
+                    f"sources [{item.source_type}]: "
+                    f"{item.processed} processed, {item.attached} attached, "
+                    f"{item.spawned} spawned, {item.ambiguous} ambiguous, "
+                    f"{item.skipped_no_fetch} skipped (no fetch)"
+                )
+            if not stats:
+                self.stdout.write("No orphan sources to reconcile.")
+            return
 
         def source_done(source, outcome, error):
             suffix = f": {error}" if error else ""

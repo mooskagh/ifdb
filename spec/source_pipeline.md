@@ -155,10 +155,14 @@ develop against, so it ships alone.
     uses renamed `canonical_text*` fields instead of `filtered_content*`.
   - `sources fetch` bypasses the legacy crawler file cache; `raw_content` in
     `GameSourceFetch` is the durable cache for this pipeline.
-- [ ] **D. Phase 3 reconcile** *(the risk — build against the corpus from B/C)* —
-  cluster orphan sources → `GameHistory`: match by URL-identity (url already
-  linked to a history), title similarity (old `SimilarEnough` bag-of-words,
-  `games/importer/tools.py`), shared authors. Attach to existing or spawn new.
+- [x] **D. Phase 3 reconcile** — cluster orphan sources → `GameHistory`.
+  - `sources reconcile` matches fetched orphans by identity URL first, then old
+    bag-of-words title similarity thresholds (`0.9` / `0.67`).
+  - Unique matches attach to existing histories; misses spawn `game=None`
+    histories; same-run and later-run spawned histories are reused for matching.
+  - Ambiguous matches leave the source orphaned and flag the best candidate
+    history as `NEEDS_ATTENTION`.
+  - Source attachment writes an explicit `SOURCE_ATTACHED` audit row.
 - [ ] **E. Phase 4 filter chain + GameEdit + apply** — gather a history's source
   canonicals → run the filter list (`merge` core, `enricher` wrapped) → diff vs
   `GameInfo.from_game(game)` → write `GameEdit` → apply via `GameInfo.save()`
