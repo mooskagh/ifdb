@@ -237,6 +237,7 @@ def ParseIfwikiLink(text):
         typ, display_name = parts[1:]
     return role, name, typ, display_name
 
+
 IFWIKI_ROLES = {
     "автор": "author",
     "переводчик": "translator",
