@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 
 from curation.discovery import run_discover
+from curation.edit import run_edit
 from curation.fetch import run_fetch
 from curation.models import GameSource
 from curation.reconcile import run_reconcile
@@ -11,7 +12,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "phase", choices=["discover", "fetch", "reconcile"]
+            "phase", choices=["discover", "fetch", "reconcile", "edit"]
         )
         parser.add_argument(
             "--verbose",
@@ -27,6 +28,7 @@ class Command(BaseCommand):
         parser.add_argument("--limit", type=int, help="Limit fetched sources.")
         parser.add_argument("--source", type=int, help="Fetch one source pk.")
         parser.add_argument("--url", help="Fetch one source URL.")
+        parser.add_argument("--history", type=int, help="Edit one history pk.")
 
     def handle(self, *args, **options):
         verbose = options["verbose"] or options["verbosity"] > 1
@@ -81,6 +83,28 @@ class Command(BaseCommand):
                 )
             if not stats:
                 self.stdout.write("No orphan sources to reconcile.")
+            return
+
+        if options["phase"] == "edit":
+
+            def edit_done(history, outcome):
+                self.stdout.write(f"history #{history.pk}: {outcome}")
+
+            stats = run_edit(
+                history_id=options["history"],
+                limit=options["limit"],
+                on_history_done=edit_done if verbose else None,
+            )
+            if stats.processed == 0 and stats.errors == 0:
+                self.stdout.write("No in-progress histories.")
+            else:
+                self.stdout.write(
+                    f"histories: {stats.processed} processed, "
+                    f"{stats.applied} applied, {stats.proposed} proposed, "
+                    f"{stats.rejected} rejected, "
+                    f"{stats.unchanged} unchanged, "
+                    f"{stats.cancelled} cancelled, {stats.errors} errors"
+                )
             return
 
         def source_done(source, outcome, error):

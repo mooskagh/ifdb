@@ -163,10 +163,18 @@ develop against, so it ships alone.
   - Ambiguous matches leave the source orphaned and flag the best candidate
     history as `NEEDS_ATTENTION`.
   - Source attachment writes an explicit `SOURCE_ATTACHED` audit row.
-- [ ] **E. Phase 4 filter chain + GameEdit + apply** — gather a history's source
+- [~] **E. Phase 4 filter chain + GameEdit + apply** — gather a history's source
   canonicals → run the filter list (`merge` core, `enricher` wrapped) → diff vs
   `GameInfo.from_game(game)` → write `GameEdit` → apply via `GameInfo.save()`
   honoring `GameHistory.auto_updates` (REJECT/PROPOSE/ACCEPT).
+  - **Scaffolded** in `curation/edit.py`: `GameEditState`, `GameEditPass` ABC,
+    an (empty) ordered `PASSES` list, and `run_edit()` over `IN_PROGRESS`
+    histories. Seeds the draft from the served game, settles unchanged drafts,
+    and writes/applies a `GameEdit` per `auto_updates`; `CANONICAL_TEXT` /
+    `PRIORITY` audit fields added. Exposed as `manage.py sources edit
+    [--history PK] [--limit N]`.
+  - **Deferred**: the real passes (merge core + `enricher`) — with `PASSES`
+    empty the runner is a faithful no-op that only settles unchanged histories.
 
 A and C/E can merge if convenient (all "plumbing around code that exists"); only
 the D boundary is firm.
