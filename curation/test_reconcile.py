@@ -162,7 +162,7 @@ class RunReconcileTests(TestCase):
         self.assertIsNotNone(a.history_id)
         self.assertEqual(a.history_id, b.history_id)
 
-    def test_ambiguous_match_flags_best_and_leaves_orphan(self):
+    def test_ambiguous_match_attaches_best_and_flags_candidates(self):
         h1 = self._existing("Match This Title", url="http://ifwiki.ru/One")
         h2 = self._existing("Totally Other Name", url="http://ifwiki.ru/Two")
         source = self._orphan(
@@ -179,18 +179,67 @@ class RunReconcileTests(TestCase):
         stats = run_reconcile()
 
         self.assertEqual(stats[0].ambiguous, 1)
-        self.assertEqual(stats[0].attached, 0)
+        self.assertEqual(stats[0].attached, 1)
         source.refresh_from_db()
-        self.assertIsNone(source.history_id)
+        self.assertEqual(source.history_id, h1.pk)
         h1.refresh_from_db()
         h2.refresh_from_db()
         self.assertEqual(h1.state, GameHistory.State.NEEDS_ATTENTION)
-        self.assertIsNotNone(h1.attention_reason)
-        self.assertEqual(h2.state, GameHistory.State.SETTLED)
-        self.assertFalse(
+        self.assertEqual(
+            h1.attention_reason,
+            f"Источник #{source.pk} присоединён неоднозначно",
+        )
+        self.assertEqual(h2.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(
+            h2.attention_reason,
+            f"Источник #{source.pk} похож на эту игру",
+        )
+        self.assertTrue(
             GameHistoryAuditLog.objects.filter(
+                history=h1,
                 kind=GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
                 new_id=source.pk,
+            ).exists()
+        )
+        self.assertEqual(
+            GameHistoryAuditLog.objects.filter(
+                kind=GameHistoryAuditLog.AuditKind.FIELD_CHANGE,
+                field=GameHistoryAuditLog.AuditField.STATE,
+                old_text=GameHistory.State.SETTLED,
+                new_text=GameHistory.State.NEEDS_ATTENTION,
+            ).count(),
+            2,
+        )
+
+    def test_ambiguous_match_appends_attention_reason(self):
+        self._existing("Match This Title", url="http://ifwiki.ru/One")
+        h2 = self._existing("Totally Other Name", url="http://ifwiki.ru/Two")
+        h2.state = GameHistory.State.NEEDS_ATTENTION
+        h2.attention_reason = "Старая причина"
+        h2.save(update_fields=["state", "attention_reason"])
+        source = self._orphan(
+            "http://apero.ru/orphan-d",
+            self._canon(
+                "Match This Title",
+                [
+                    ("game_page", "http://ifwiki.ru/One"),
+                    ("game_page", "http://ifwiki.ru/Two"),
+                ],
+            ),
+        )
+
+        run_reconcile()
+
+        h2.refresh_from_db()
+        self.assertEqual(
+            h2.attention_reason,
+            f"Старая причина\nИсточник #{source.pk} похож на эту игру",
+        )
+        self.assertFalse(
+            GameHistoryAuditLog.objects.filter(
+                history=h2,
+                kind=GameHistoryAuditLog.AuditKind.FIELD_CHANGE,
+                field=GameHistoryAuditLog.AuditField.STATE,
             ).exists()
         )
 

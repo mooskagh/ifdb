@@ -101,7 +101,7 @@ class _TargetIndex:
 
     def match(
         self, hash_urls: set[str], title_bow: set[str]
-    ) -> tuple[_Target | None, bool]:
+    ) -> tuple[_Target | None, set[_Target]]:
         """Faithful ``TryMerge`` port: URL identity first, then title floor."""
         candidates = {
             self.url_to_target[h] for h in hash_urls if h in self.url_to_target
@@ -113,8 +113,6 @@ class _TargetIndex:
                 if ComputeSimilarity(t.title_bow, title_bow)
                 > SIMILAR_TITLES_HIGHCONF
             }
-        ambiguous = len(candidates) > 1
-
         best, best_sim = None, 0.0
         for cand in candidates:
             sim = ComputeSimilarity(title_bow, cand.title_bow)
@@ -122,8 +120,8 @@ class _TargetIndex:
                 best, best_sim = cand, sim
 
         if best is None or best_sim <= SIMILAR_TITLES_LOWCONF:
-            return None, ambiguous
-        return best, ambiguous
+            return None, candidates
+        return best, candidates
 
 
 def _latest_fetch(source: GameSource) -> GameSourceFetch | None:
@@ -155,6 +153,24 @@ def _record_source_attached(source: GameSource, history: GameHistory) -> None:
         new_id=source.pk,
         new_text=f"{source.type}: {source.url or '(no url)'}",
     )
+
+
+def _mark_needs_attention(history: GameHistory, reason: str) -> None:
+    old_state = history.state
+    history.state = GameHistory.State.NEEDS_ATTENTION
+    if history.attention_reason:
+        history.attention_reason += f"\n{reason}"
+    else:
+        history.attention_reason = reason
+    history.save(update_fields=["state", "attention_reason"])
+    if old_state != history.state:
+        GameHistoryAuditLog.record_change(
+            history,
+            None,
+            GameHistoryAuditLog.AuditField.STATE,
+            old_state,
+            history.state,
+        )
 
 
 def _build_index() -> _TargetIndex:
@@ -260,23 +276,35 @@ def run_reconcile(
             continue
 
         totals.processed += 1
-        target, ambiguous = index.match(hash_urls, title_bow)
+        target, candidates = index.match(hash_urls, title_bow)
+        ambiguous = len(candidates) > 1
 
-        if ambiguous:
-            history = target.history if target else None
-            if history is not None:
-                history.state = GameHistory.State.NEEDS_ATTENTION
-                history.attention_reason = (
-                    f"Ambiguous source #{source.pk} matched multiple games"
+        if ambiguous and target is not None:
+            source.history = target.history
+            source.save(update_fields=["history"])
+            _record_source_attached(source, target.history)
+            _mark_needs_attention(
+                target.history,
+                f"Источник #{source.pk} присоединён неоднозначно",
+            )
+            for candidate in candidates - {target}:
+                _mark_needs_attention(
+                    candidate.history,
+                    f"Источник #{source.pk} похож на эту игру",
                 )
-                history.save(update_fields=["state", "attention_reason"])
+            if target.is_new:  # grow so later same-run orphans cluster onto it
+                index.register_urls(target, hash_urls)
+                target.hash_urls |= hash_urls
+                target.title_bow |= title_bow
             logger.warning(
-                "Source #%s matched multiple histories; left unattached",
+                "Source #%s matched multiple histories; "
+                "attached to best guess",
                 source.pk,
             )
             totals.ambiguous += 1
+            totals.attached += 1
             if on_source_done is not None:
-                on_source_done(source, "ambiguous", history)
+                on_source_done(source, "ambiguous", target.history)
             continue
 
         if target is not None:
