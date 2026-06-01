@@ -570,7 +570,17 @@ def convert_wikitext_to_markdown(text, context):
             context.AddUrl(url)
             return f"[{url}]({url})"
 
+    def extract_markdown_link(match):
+        desc = match.group(1).strip()
+        url = match.group(2)
+        context.AddUrl(url, desc)
+        return match.group(0)
+
     # Convert external links
+    # Pattern: [description](url) -> keep markdown, but extract the URL.
+    text = re.sub(
+        r"\[([^\]]+)\]\((https?://[^\s)]+)\)", extract_markdown_link, text
+    )
     # Pattern: [url description] -> [description](url)
     text = re.sub(r"\[([^\s\]]+)\s+([^\]]+)\]", replace_external_link, text)
     # Pattern: [url] -> [url](url) for consistency (but not markdown links)

@@ -114,6 +114,22 @@ class IfwikiProviderTest(ProviderTestBase):
         self.assertEqual([a.name for a in info.attributions], ["ifwiki.ru"])
         self.assert_round_trips(info)
 
+    def test_canonicalize_extracts_markdown_links(self):
+        raw = """
+== Ссылки ==
+* [Обсуждение на форуме](http://instead-games.ru/forum/index.php?p=/discussion/560)
+"""
+        info = IfwikiProvider().canonicalize(raw, self.url)
+
+        self.assertIn(
+            ("forum", "Обсуждение на форуме", None),
+            [(u.category, u.description, u.url_id) for u in info.urls],
+        )
+        self.assertIn(
+            "http://instead-games.ru/forum/index.php?p=/discussion/560",
+            [u.url for u in info.urls],
+        )
+
     def test_canonicalize_author(self):
         author = IfwikiProvider().canonicalize_author(
             IFWIKI_AUTHOR_WIKITEXT, "https://ifwiki.ru/Автор:Crem"

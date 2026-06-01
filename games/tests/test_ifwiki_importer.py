@@ -187,6 +187,64 @@ class TestIfwikiImporter(unittest.TestCase):
             urls,
         )
 
+    def test_markdown_links_are_extracted_as_urls(self):
+        review_url = "https://ifhub.club/2017/12/21/review.html"
+        video_url = "https://ifhub.club/2017/12/22/video.html"
+        walkthrough_url = "https://ifhub.club/2018/01/09/walkthrough.html"
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = f"""
+== Ссылки ==
+* [Страница игры в репозитории INSTEAD](http://instead-games.ru/game.php?ID=287)
+* [Обсуждение на форуме](http://instead-games.ru/forum/index.php?p=/discussion/560)
+* [Обзор]({review_url}) от **Цейковец, Никита**
+* [Видеообзор]({video_url}) от **Wol4ik**
+* [Видеопрохождение]({walkthrough_url}) от **drag**'а
+"""
+
+            result = ImportFromIfwiki(self.test_url)
+
+        urls = result.get("urls", [])
+        self.assertIn(
+            {
+                "urlcat_slug": "game_page",
+                "description": "Страница игры в репозитории INSTEAD",
+                "url": "http://instead-games.ru/game.php?ID=287",
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "forum",
+                "description": "Обсуждение на форуме",
+                "url": "http://instead-games.ru/forum/index.php?p=/discussion/560",
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "review",
+                "description": "Обзор",
+                "url": review_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "review",
+                "description": "Видеообзор",
+                "url": video_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "review",
+                "description": "Видеопрохождение",
+                "url": walkthrough_url,
+            },
+            urls,
+        )
+
     def test_redirect_handling(self):
         """Test handling of redirect pages."""
         with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
