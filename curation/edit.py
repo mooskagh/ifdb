@@ -267,6 +267,7 @@ def _process_history(history: GameHistory) -> str:
     pass_names = list(settings.CURATION_EDIT_PASSES)
     for name in pass_names:
         PASS_REGISTRY[name].apply(state)
+    state.current.canonicalize()
 
     final = state.current.to_canonical()
     base = state.served.to_canonical()

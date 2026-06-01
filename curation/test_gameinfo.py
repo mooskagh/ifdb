@@ -13,6 +13,7 @@ from games.models import (
     GameTagCategory,
     GameURL,
     PersonalityAlias,
+    PersonalityAliasRedirect,
 )
 
 from .gameinfo import (
@@ -88,6 +89,23 @@ class CanonicalRoundTripTest(GameInfoTestBase):
             rebuilt.to_canonical(), parse(canonical).to_canonical()
         )
 
+    def test_slug_tags_sort_by_slug_not_id(self):
+        fairy = GameTag.objects.get(symbolic_id="g_fairytale")
+        kids = GameTag.objects.get(symbolic_id="g_kids")
+        info = GameInfo(
+            tags=[
+                Tag("genre", "g_kids", kids.id, None),
+                Tag("genre", "g_fairytale", fairy.id, None),
+            ]
+        )
+
+        canonical = info.to_canonical()
+
+        self.assertLess(
+            canonical.index('  - "g_fairytale"'),
+            canonical.index('  - "g_kids"'),
+        )
+
 
 class LooseParseTest(GameInfoTestBase):
     def test_unordered_plain_mapping_matches_canonical(self):
@@ -131,6 +149,50 @@ class LooseParseTest(GameInfoTestBase):
         info = parse(loose)
         self.assertEqual(info.personalities["author"][0].alias_id, alias.id)
         self.assertIsNotNone(info.attributions[0].attr_id)
+
+    def test_person_redirect_resolves(self):
+        alias = PersonalityAlias.objects.create(name="Canonical Name")
+        PersonalityAliasRedirect.objects.create(
+            name="Old Name", hidden_for=alias
+        )
+
+        info = parse(
+            '---\n- personalities:\n  - author:\n    - "Old Name"\n---\n'
+        )
+
+        self.assertEqual(info.personalities["author"][0], Person(alias.id, ""))
+
+
+class CanonicalizeTest(GameInfoTestBase):
+    def test_resolves_existing_references_without_creating_new_ones(self):
+        alias = PersonalityAlias.objects.create(name="Resolved Person")
+        language_cat = GameTagCategory.objects.get(symbolic_id="language")
+        language = GameTag.objects.create(
+            category=language_cat, name="русский"
+        )
+        url = URL.objects.create(
+            original_url="http://example.com/game",
+            creation_date=timezone.now(),
+        )
+        attr = GameDescriptionAttribution.objects.create(name="ifwiki.ru")
+        info = GameInfo(
+            personalities={"author": [Person(None, "Resolved Person")]},
+            tags=[Tag("language", None, None, "русский")],
+            urls=[
+                GameUrl("game_page", None, "Page", "http://example.com/game")
+            ],
+            attributions=[Attribution(None, "ifwiki.ru")],
+        )
+
+        info.canonicalize()
+
+        self.assertEqual(info.personalities["author"], [Person(alias.id, "")])
+        self.assertEqual(info.tags, [Tag("language", None, language.id, None)])
+        self.assertEqual(
+            info.urls,
+            [GameUrl("game_page", url.id, "Page", "http://example.com/game")],
+        )
+        self.assertEqual(info.attributions, [Attribution(attr.id, "")])
 
 
 class FromImporterDictTest(GameInfoTestBase):

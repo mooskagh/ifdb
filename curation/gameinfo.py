@@ -92,6 +92,18 @@ class GameInfo:
         body = self.description or ""
         return "---\n" + "\n".join(lines) + "\n---\n" + body
 
+    def canonicalize(self) -> None:
+        """Resolve existing references without creating game data."""
+        for people in self.personalities.values():
+            for person in people:
+                self._resolve_existing_alias_id(person)
+        for tag in self.tags:
+            self._resolve_existing_tag_id(tag)
+        for url in self.urls:
+            self._resolve_existing_url_id(url)
+        for attr in self.attributions:
+            self._resolve_existing_attribution_id(attr)
+
     # -- Construction -----------------------------------------------------
 
     @classmethod
@@ -258,18 +270,54 @@ class GameInfo:
         name = person.name.strip()
         if not name:
             return None
-        redirect = PersonalityAliasRedirect.objects.filter(name=name).first()
-        if redirect:
-            alias_id = redirect.hidden_for_id
-        else:
-            alias = PersonalityAlias.objects.filter(name=name).first()
-            alias_id = (
-                alias.id
-                if alias
-                else PersonalityAlias.objects.create(name=name).id
-            )
+        alias_id = _existing_alias_id(name)
+        if alias_id is None:
+            alias_id = PersonalityAlias.objects.create(name=name).id
         person.alias_id, person.name = alias_id, ""
         return alias_id
+
+    def _resolve_existing_alias_id(self, person: Person) -> int | None:
+        if person.alias_id is not None:
+            return person.alias_id
+        alias_id = _existing_alias_id(person.name.strip())
+        if alias_id is not None:
+            person.alias_id, person.name = alias_id, ""
+        return alias_id
+
+    def _resolve_existing_tag_id(self, tag: Tag) -> int | None:
+        if tag.tag_id is not None:
+            return tag.tag_id
+        if tag.slug:
+            found = GameTag.objects.filter(symbolic_id=tag.slug).first()
+        else:
+            found = GameTag.objects.filter(
+                category__symbolic_id=tag.category, name=tag.text
+            ).first()
+        if found is None:
+            return None
+        tag.category = found.category.symbolic_id
+        tag.slug = found.symbolic_id
+        tag.tag_id = found.id
+        tag.text = None
+        return tag.tag_id
+
+    def _resolve_existing_url_id(self, entry: GameUrl) -> int | None:
+        if entry.url_id is not None:
+            return entry.url_id
+        url = URL.objects.filter(original_url=entry.url).first()
+        if url is not None:
+            entry.url_id = url.id
+        return entry.url_id
+
+    def _resolve_existing_attribution_id(
+        self, attr: Attribution
+    ) -> int | None:
+        if attr.attr_id is not None:
+            return attr.attr_id
+        obj = GameDescriptionAttribution.objects.filter(name=attr.name).first()
+        if obj is not None:
+            attr.attr_id, attr.name = obj.id, ""
+        return attr.attr_id
 
     def _save_urls(self, game: Game) -> None:
         existing = {
@@ -344,8 +392,10 @@ def parse(text: str) -> GameInfo:
 def _parse_person(value) -> Person:
     if isinstance(value, int):
         return Person(alias_id=value, name="")
-    alias = PersonalityAlias.objects.filter(name=value).first()
-    return Person(alias.id, "") if alias else Person(None, value)
+    alias_id = _existing_alias_id(value)
+    if alias_id is not None:
+        return Person(alias_id, "")
+    return Person(None, value)
 
 
 def _parse_tag(value) -> Tag:
@@ -384,6 +434,16 @@ def _parse_attribution(value) -> Attribution:
         return Attribution(value, "")
     attr = GameDescriptionAttribution.objects.filter(name=value).first()
     return Attribution(attr.id, "") if attr else Attribution(None, value)
+
+
+def _existing_alias_id(name: str) -> int | None:
+    if not name:
+        return None
+    redirect = PersonalityAliasRedirect.objects.filter(name=name).first()
+    if redirect:
+        return redirect.hidden_for_id
+    alias = PersonalityAlias.objects.filter(name=name).first()
+    return alias.id if alias else None
 
 
 # -- Merge ----------------------------------------------------------------
@@ -546,7 +606,7 @@ class _References:
             by_cat, key=lambda c: (self.tagcat_order.get(c, 0), c)
         ):
             for t in self._sorted(
-                by_cat[cat], lambda x: x.tag_id, lambda x: x.text or ""
+                by_cat[cat], self._tag_sort_key, lambda x: x.text or ""
             ):
                 if t.slug:
                     lines.append(f"  - {_dump(t.slug)}")
@@ -600,3 +660,10 @@ class _References:
         db = sorted((x for x in items if db_key(x) is not None), key=db_key)
         new = sorted((x for x in items if db_key(x) is None), key=new_key)
         return [*db, *new]
+
+    def _tag_sort_key(self, tag: Tag):
+        if tag.slug:
+            return (0, tag.slug)
+        if tag.tag_id is not None:
+            return (1, self.tag[tag.tag_id].name)
+        return None

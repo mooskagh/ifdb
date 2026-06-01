@@ -7,7 +7,14 @@ from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from games.models import URL, Game, GameURL, GameURLCategory
+from games.models import (
+    URL,
+    Game,
+    GameTag,
+    GameTagCategory,
+    GameURL,
+    GameURLCategory,
+)
 
 from .edit import run_edit
 from .gameinfo import GameInfo
@@ -659,3 +666,35 @@ class EditRunnerTest(TestCase):
         edit = GameEdit.objects.get(history=history)
         self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
         self.assertEqual(Game.objects.count(), 0)
+
+    def test_proposed_edit_is_canonicalized_before_diff(self):
+        history = self._history(
+            game=None, auto_updates=GameHistory.AutoUpdate.PROPOSE
+        )
+        language_cat = GameTagCategory.objects.create(
+            symbolic_id="language", name="Language"
+        )
+        language = GameTag.objects.create(
+            category=language_cat, name="русский"
+        )
+        source = GameSource.objects.create(
+            history=history,
+            url="https://example.com/source",
+            type=GameSource.SourceType.IFWIKI,
+        )
+        canonical = '---\n- tags:\n  - ["language", "русский"]\n---\n'
+        GameSourceFetch.objects.create(
+            source=source,
+            raw_content="raw",
+            canonical_text=canonical,
+            canonical_text_hash=str(hash(canonical)),
+            first_fetch=self.now,
+            last_fetch=self.now,
+        )
+
+        stats = run_edit()
+
+        self.assertEqual(stats.proposed, 1)
+        edit = GameEdit.objects.get(history=history)
+        self.assertIn(f'["language", {language.id}]', edit.canonical_text)
+        self.assertNotIn('["language", "русский"]', edit.canonical_text)
