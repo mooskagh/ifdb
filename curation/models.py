@@ -256,6 +256,36 @@ class GameHistoryComment(models.Model):
     creation_time = models.DateTimeField(_("Created at"))
 
 
+class EnrichmentRule(models.Model):
+    class Meta:
+        default_permissions = ()
+        ordering = ["order", "pk"]
+
+    def __str__(self):
+        return self.description or f"Rule #{self.pk}"
+
+    order = models.PositiveSmallIntegerField(_("Order"), default=0)
+    enabled = models.BooleanField(_("Enabled"), default=True)
+    description = models.CharField(
+        _("Description"), max_length=200, blank=True
+    )
+    condition = models.TextField(_("Condition"), blank=True)  # empty = always
+    action = models.TextField(_("Action"))
+
+
+class GenreMapping(models.Model):
+    class Meta:
+        default_permissions = ()
+        ordering = ["tag"]
+
+    def __str__(self):
+        return f"{self.tag} -> {self.genre_slug}"
+
+    tag = models.CharField(_("Free-text tag"), max_length=100, unique=True)
+    genre_slug = models.CharField(_("Genre slug"), max_length=32)
+    replace = models.BooleanField(_("Replace original tag"), default=True)
+
+
 class GameHistoryAuditLog(models.Model):
     class Meta:
         default_permissions = ()

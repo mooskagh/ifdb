@@ -363,4 +363,4 @@ def run_edit(
 
 # Imported for its registration side effects: each pass populates PASS_REGISTRY
 # via @register_pass on import.
-from . import passes  # noqa: E402,F401
+from . import enrichment, passes  # noqa: E402,F401

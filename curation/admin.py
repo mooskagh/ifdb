@@ -1,12 +1,14 @@
 from django.contrib import admin
 
 from .models import (
+    EnrichmentRule,
     GameEdit,
     GameHistory,
     GameHistoryAuditLog,
     GameHistoryComment,
     GameSource,
     GameSourceFetch,
+    GenreMapping,
 )
 
 
@@ -86,3 +88,17 @@ class GameHistoryAuditLogAdmin(admin.ModelAdmin):
     list_filter = ["kind", "field"]
     search_fields = ["pk"]
     raw_id_fields = ["history", "actor"]
+
+
+@admin.register(EnrichmentRule)
+class EnrichmentRuleAdmin(admin.ModelAdmin):
+    list_display = ["description", "order", "enabled"]
+    list_editable = ["order", "enabled"]
+    search_fields = ["description", "condition", "action"]
+
+
+@admin.register(GenreMapping)
+class GenreMappingAdmin(admin.ModelAdmin):
+    list_display = ["tag", "genre_slug", "replace"]
+    list_filter = ["replace"]
+    search_fields = ["tag"]

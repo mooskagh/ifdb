@@ -4,7 +4,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from games.models import URL, Game, GameURL, GameURLCategory
@@ -483,6 +483,7 @@ class InitCurationCommandTest(TestCase):
         )
 
 
+@override_settings(CURATION_EDIT_PASSES=["merge_sources"])
 class EditRunnerTest(TestCase):
     def setUp(self):
         self.now = timezone.now()

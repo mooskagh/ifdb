@@ -182,8 +182,18 @@ develop against, so it ships alone.
     (`MergeImport` reborn — first-wins name/date, `\n\n---\n\n` description
     concat, identity-dedup union). Sources only (served game is not a merge
     input → idempotent); empty-source guard keeps the served draft.
-  - **Deferred**: the enrichment / LLM passes (`enricher` wrapped, …) — they
-    slot into the same registry behind `merge_sources`.
+  - **`enrich` shipped** — second real pass (`EnrichmentPass` in
+    `curation/enrichment.py`), the DB-configurable rebirth of
+    `games/importer/enrichment.py`. Rules live in the `EnrichmentRule` table as
+    plain-Python `condition`/`action` strings eval'd/exec'd against a stripped
+    namespace of helpers (`has_tag`, `has_url_category`, `is_from_site`,
+    `add_tag`, `add_raw_tag`, `clone_url`) bound to the draft; Python's
+    `and`/`or`/`not` replace the old rule classes. Two built-in steps follow:
+    lowercase free-text tags, then map them to genres via the `GenreMapping`
+    table. Seeded with the current behavior by `manage.py initenrichment`
+    (idempotent).
+  - **Deferred**: the LLM passes — they slot into the same registry behind
+    `merge_sources` / `enrich`.
 
 A and C/E can merge if convenient (all "plumbing around code that exists"); only
 the D boundary is firm.
@@ -202,6 +212,9 @@ the D boundary is firm.
   `GameEdit`, `GameHistoryComment`, `GameHistoryAuditLog`.
 - `curation/gameinfo.py` — `GameInfo` (canonical form), `merge`, `parse`,
   `to_canonical`, `save`, alias resolution. The heart of the new system.
+- `curation/passes.py` / `curation/enrichment.py` — Phase 4 edit passes
+  (`merge_sources`, `enrich`); `enrich` is driven by the `EnrichmentRule` /
+  `GenreMapping` tables (seed: `manage.py initenrichment`).
 - `games/importer/` — old importers + `tools.py` (`Importer`, `MergeImport`,
   `SimilarEnough`, `CategorizeUrl`, `URL_CATEGORIZER_RULES`) + `enrichment.py`.
   Source material to port; stays live until Phase 4 cutover.
