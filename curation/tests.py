@@ -54,15 +54,15 @@ class CurationSmokeTest(TestCase):
         edit.used_sources.add(fetch)
         self.assertEqual(list(edit.used_sources.all()), [fetch])
 
-        child_edit = GameEdit.objects.create(
+        other_edit = GameEdit.objects.create(
             history=history,
-            parent_edit=edit,
             proposed_at=now,
             status=GameEdit.EditStatus.PROPOSED,
             origin=GameEdit.Origin.MANUAL_EDIT,
+            passes=["ManualPass"],
             canonical_text="Updated game text",
         )
-        self.assertEqual(child_edit.parent_edit, edit)
+        self.assertEqual(other_edit.passes, ["ManualPass"])
 
         parent_comment = GameHistoryComment.objects.create(
             history=history,

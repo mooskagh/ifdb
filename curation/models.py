@@ -209,12 +209,6 @@ class GameEdit(models.Model):
         return f"Edit #{self.pk} ({self.get_status_display()})"
 
     history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)
-    parent_edit = models.ForeignKey(
-        "self",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-    )
     proposed_at = models.DateTimeField(_("Proposed at"))
     approved_at = models.DateTimeField(_("Approved at"), null=True, blank=True)
     approver = models.ForeignKey(
@@ -226,6 +220,7 @@ class GameEdit(models.Model):
     status = models.CharField(_("Status"), max_length=16, choices=EditStatus)
     origin = models.CharField(_("Origin"), max_length=16, choices=Origin)
     used_sources = models.ManyToManyField(GameSourceFetch, blank=True)
+    passes = models.JSONField(_("Passes"), default=list)
     canonical_text = models.TextField(_("Canonical text"))
 
 

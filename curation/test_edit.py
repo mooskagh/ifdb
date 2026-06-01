@@ -61,6 +61,7 @@ class RunEditTests(TestCase):
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         edit_row = GameEdit.objects.get(history=history)
         self.assertEqual(edit_row.status, GameEdit.EditStatus.APPLIED)
+        self.assertEqual(edit_row.passes, ["_TagAndApprove"])
         self.assertIsNotNone(edit_row.approved_at)
         self.assertTrue(self._has_os_win(history.game))
         self.assertTrue(

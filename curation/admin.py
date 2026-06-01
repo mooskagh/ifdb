@@ -67,7 +67,6 @@ class GameEditAdmin(admin.ModelAdmin):
     search_fields = ["pk"]
     raw_id_fields = [
         "history",
-        "parent_edit",
         "approver",
         "used_sources",
     ]

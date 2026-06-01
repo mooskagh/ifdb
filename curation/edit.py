@@ -214,7 +214,7 @@ def _build_sources(
 
 def _build_state(
     history: GameHistory,
-) -> tuple[GameEditState, GameEdit | None]:
+) -> GameEditState:
     served = (
         GameInfo.from_game(history.game)
         if history.game is not None
@@ -231,7 +231,7 @@ def _build_state(
         sources=_build_sources(history, last_edit),
         priority=history.priority,
     )
-    return state, last_edit
+    return state
 
 
 def _flush(history: GameHistory, state: GameEditState) -> None:
@@ -251,7 +251,8 @@ def _flush(history: GameHistory, state: GameEditState) -> None:
 
 
 def _process_history(history: GameHistory) -> str:
-    state, parent_edit = _build_state(history)
+    state = _build_state(history)
+    passes = [p.__class__.__name__ for p in PASSES]
     for p in PASSES:
         p.apply(state)
 
@@ -267,10 +268,10 @@ def _process_history(history: GameHistory) -> str:
     else:
         edit = GameEdit.objects.create(
             history=history,
-            parent_edit=parent_edit,
             proposed_at=now(),
             origin=GameEdit.Origin.AUTO_IMPORT,
             status=_EDIT_STATUS_BY_APPROVAL[state.approval],
+            passes=passes,
             canonical_text=final,
         )
         edit.used_sources.set([s.fetch for s in state.sources if s.fetch])
