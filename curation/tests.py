@@ -117,6 +117,7 @@ class HistoryListViewTest(TestCase):
             creation_time=ts,
             state=GameHistory.State.NEEDS_ATTENTION,
             auto_updates=GameHistory.AutoUpdate.PROPOSE,
+            attention_reason="Needs manual review",
         )
 
         response = self.client.get("/curation/")
@@ -127,6 +128,7 @@ class HistoryListViewTest(TestCase):
             'class="curation-truncate"',
             'title="Very Long Game Title That Should Be Truncated"',
             "внимание",
+            "Needs manual review",
             "предл.",
         ]:
             self.assertContains(response, text)

@@ -39,6 +39,7 @@
             <tr>
                 <th>Игра</th>
                 <th class="curation-history-table-state">Статус</th>
+                <th>Причина</th>
                 <th class="curation-history-table-auto">Авто</th>
                 <th class="curation-history-table-priority">Приор.</th>
                 <th class="curation-history-table-date">Созд.</th>
@@ -53,13 +54,14 @@
                     <a href="{% url 'curation_history_detail' history.pk %}" title="{{ history.game.title|default:'(не назначена)' }}">{{ history.game.title|default:"(не назначена)" }}</a>
                 </td>
                 <td>{{ history.state_short }}</td>
+                <td class="curation-truncate" title="{{ history.attention_reason|default:'' }}">{{ history.attention_reason|default:""|linebreaksbr }}</td>
                 <td>{{ history.auto_short }}</td>
                 <td>{{ history.priority }}</td>
                 <td>{{ history.creation_time|date:"d.m.Y" }}</td>
                 <td>{{ history.updated|date:"d.m.Y" }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="6">Игр нет.</td></tr>
+            <tr><td colspan="7">Игр нет.</td></tr>
             {% endfor %}
         </tbody>
     </table>
