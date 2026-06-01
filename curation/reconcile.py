@@ -201,6 +201,13 @@ def _build_index() -> _TargetIndex:
     return index
 
 
+def _has_new_version(source: GameSource, fetch: GameSourceFetch) -> bool:
+    history = source.history
+    return bool(
+        history and history.edit_time and fetch.first_fetch > history.edit_time
+    )
+
+
 def run_reconcile(
     types: list[str] | None = None,
     limit: int | None = None,
@@ -216,17 +223,15 @@ def run_reconcile(
 
     index = _build_index()
 
-    orphans = GameSource.objects.filter(
-        history__isnull=True, type__in=source_types
-    ).order_by("id")
+    sources = GameSource.objects.filter(type__in=source_types).order_by("id")
     if source_id is not None:
-        orphans = orphans.filter(pk=source_id)
+        sources = sources.filter(pk=source_id)
     if limit is not None:
-        orphans = orphans[:limit]
+        sources = sources[:limit]
 
     logger.info("Starting source reconcile")
     totals_by_type: dict[str, _ReconcileTotals] = {}
-    for source in orphans:
+    for source in sources:
         totals = totals_by_type.setdefault(
             source.type, _ReconcileTotals(source.type)
         )
@@ -236,6 +241,15 @@ def run_reconcile(
             totals.skipped_no_fetch += 1
             if on_source_done is not None:
                 on_source_done(source, "skipped", None)
+            continue
+
+        if source.history_id is not None:
+            if _has_new_version(source, fetch):
+                source.history.state = GameHistory.State.IN_PROGRESS
+                source.history.save(update_fields=["state"])
+                totals.processed += 1
+                if on_source_done is not None:
+                    on_source_done(source, "updated", source.history)
             continue
 
         hash_urls, title_bow = _signals(source, fetch)

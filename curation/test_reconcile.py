@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.utils import timezone
 from django.utils.timezone import now
 
 from games.models import URL, Game, GameURL, GameURLCategory
@@ -62,6 +63,16 @@ class RunReconcileTests(TestCase):
             last_fetch=ts,
         )
         return source
+
+    def _source_fetch(self, source, canonical, ts):
+        return GameSourceFetch.objects.create(
+            source=source,
+            raw_content="",
+            canonical_text=canonical,
+            canonical_text_hash="",
+            first_fetch=ts,
+            last_fetch=ts,
+        )
 
     # -- tests ------------------------------------------------------------
 
@@ -200,3 +211,43 @@ class RunReconcileTests(TestCase):
                 new_id=source.pk,
             ).exists()
         )
+
+    def test_new_attached_fetch_marks_history_in_progress(self):
+        edited_at = now()
+        history = self._existing("Existing Game")
+        history.edit_time = edited_at
+        history.save(update_fields=["edit_time"])
+        source = GameSource.objects.create(
+            type=self.stype, url="http://apero.ru/attached", history=history
+        )
+        self._source_fetch(
+            source,
+            self._canon("Existing Game"),
+            edited_at + timezone.timedelta(seconds=1),
+        )
+
+        stats = run_reconcile()
+
+        self.assertEqual(stats[0].processed, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.IN_PROGRESS)
+
+    def test_old_attached_fetch_keeps_history_settled(self):
+        edited_at = now()
+        history = self._existing("Existing Game")
+        history.edit_time = edited_at
+        history.save(update_fields=["edit_time"])
+        source = GameSource.objects.create(
+            type=self.stype, url="http://apero.ru/attached", history=history
+        )
+        self._source_fetch(
+            source,
+            self._canon("Existing Game"),
+            edited_at - timezone.timedelta(seconds=1),
+        )
+
+        stats = run_reconcile()
+
+        self.assertEqual(stats[0].processed, 0)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
