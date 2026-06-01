@@ -285,6 +285,9 @@ def _process_history(history: GameHistory) -> str:
             origin=GameEdit.Origin.AUTO_IMPORT,
             status=_EDIT_STATUS_BY_APPROVAL[state.approval],
             passes=pass_names,
+            previous_canonical_text=(
+                None if state.approval is Approval.PROPOSED else base
+            ),
             canonical_text=final,
         )
         edit.used_sources.set([s.fetch for s in state.sources if s.fetch])

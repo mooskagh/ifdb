@@ -23,10 +23,19 @@
             <div class="game--info-row-value"><a href="{% url 'curation_history_detail' history.pk %}">вернуться к истории</a></div>
         </div>
     </div>
-    <div class="curation-save">
-        <button type="button">Принять</button>
-        <button type="button">Отклонить</button>
-    </div>
+    {% if show_actions %}
+    <form class="curation-save" method="post">
+        {% csrf_token %}
+        {% if show_auto_accept %}
+        <label class="curation-save__checkbox">
+            <input type="checkbox" name="auto_accept"{% if auto_accept_checked %} checked{% endif %}>
+            В дальнейшем автоматически принимать
+        </label>
+        {% endif %}
+        <button type="submit" name="action" value="accept">Принять</button>
+        <button type="submit" name="action" value="reject">Отклонить</button>
+    </form>
+    {% endif %}
 </div>
 
 {% include "curation/_diff.html" %}

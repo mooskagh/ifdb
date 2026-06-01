@@ -221,6 +221,9 @@ class GameEdit(models.Model):
     origin = models.CharField(_("Origin"), max_length=16, choices=Origin)
     used_sources = models.ManyToManyField(GameSourceFetch, blank=True)
     passes = models.JSONField(_("Passes"), default=list)
+    previous_canonical_text = models.TextField(
+        _("Previous canonical text"), null=True, blank=True
+    )
     canonical_text = models.TextField(_("Canonical text"))
 
 

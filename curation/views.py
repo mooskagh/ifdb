@@ -1,14 +1,15 @@
 from datetime import timedelta
 
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Case, IntegerField, OuterRef, Q, Subquery, When
 from django.db.models.functions import Coalesce
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import now
 
 from .diff import build_diff
-from .gameinfo import GameInfo
+from .gameinfo import GameInfo, parse
 from .models import (
     GameEdit,
     GameHistory,
@@ -396,6 +397,7 @@ def history_detail(request, history_id):
             "groups": _group_timeline(timeline),
             "auto_choices": GameHistory.AutoUpdate.choices,
             "state_choices": GameHistory.State.choices,
+            "proposed_edit_status": GameEdit.EditStatus.PROPOSED,
         },
     )
 
@@ -407,9 +409,33 @@ def edit_diff(request, edit_id):
         GameEdit.objects.select_related("history__game"), pk=edit_id
     )
     history = edit.history
-    before = ""
-    if history.game is not None:
-        before = GameInfo.from_game(history.game).to_canonical()
+    before = _served_canonical(history)
+
+    if request.method == "POST":
+        if edit.status != GameEdit.EditStatus.PROPOSED:
+            return HttpResponseBadRequest(
+                "Only proposed edits can be settled."
+            )
+        action = request.POST.get("action")
+        if action not in {"accept", "reject"}:
+            return HttpResponseBadRequest("Unknown edit action.")
+        with transaction.atomic():
+            edit = GameEdit.objects.select_for_update().get(pk=edit.pk)
+            edit = GameEdit.objects.select_related("history__game").get(
+                pk=edit.pk
+            )
+            if edit.status != GameEdit.EditStatus.PROPOSED:
+                return HttpResponseBadRequest(
+                    "Only proposed edits can be settled."
+                )
+            history = edit.history
+            before = _served_canonical(history)
+            if action == "accept":
+                _update_auto_accept(history, request)
+                _accept_edit(edit, history, before, request.user)
+            else:
+                _reject_edit(edit, history, before, request.user)
+        return redirect("curation_history_list")
 
     return render(
         request,
@@ -418,9 +444,100 @@ def edit_diff(request, edit_id):
             "edit": edit,
             "game": history.game,
             "history": history,
-            "rows": build_diff(before, edit.canonical_text),
+            "show_actions": edit.status == GameEdit.EditStatus.PROPOSED,
+            "show_auto_accept": (
+                history.auto_updates != GameHistory.AutoUpdate.REJECT
+            ),
+            "auto_accept_checked": (
+                history.auto_updates == GameHistory.AutoUpdate.ACCEPT
+            ),
+            "rows": build_diff(
+                edit.previous_canonical_text
+                if edit.previous_canonical_text is not None
+                else before,
+                edit.canonical_text,
+            ),
         },
     )
+
+
+def _served_canonical(history):
+    if history.game is None:
+        return ""
+    return GameInfo.from_game(history.game).to_canonical()
+
+
+def _update_auto_accept(history, request):
+    if history.auto_updates == GameHistory.AutoUpdate.REJECT:
+        return
+    new = (
+        GameHistory.AutoUpdate.ACCEPT
+        if request.POST.get("auto_accept") == "on"
+        else GameHistory.AutoUpdate.PROPOSE
+    )
+    if history.auto_updates == new:
+        return
+    GameHistoryAuditLog.record_change(
+        history,
+        request.user,
+        GameHistoryAuditLog.AuditField.AUTO_UPDATES,
+        history.auto_updates,
+        new,
+    )
+    history.auto_updates = new
+
+
+def _accept_edit(edit, history, before, user):
+    info = parse(edit.canonical_text)
+    created_game = history.game is None
+    game, after = info.save(history.game)
+    if created_game:
+        history.game = game
+    edit.status = GameEdit.EditStatus.APPLIED
+    edit.approved_at = now()
+    edit.approver = user
+    edit.previous_canonical_text = before
+    edit.canonical_text = after
+    edit.save(
+        update_fields=[
+            "status",
+            "approved_at",
+            "approver",
+            "previous_canonical_text",
+            "canonical_text",
+        ]
+    )
+    GameHistoryAuditLog.record_change(
+        history,
+        user,
+        GameHistoryAuditLog.AuditField.CANONICAL_TEXT,
+        before,
+        after,
+    )
+    history.state = GameHistory.State.SETTLED
+    history.edit_time = now()
+    fields = ["auto_updates", "state", "edit_time"]
+    if created_game:
+        fields.append("game")
+    history.save(update_fields=fields)
+
+
+def _reject_edit(edit, history, before, user):
+    edit.status = GameEdit.EditStatus.REJECTED
+    edit.approved_at = now()
+    edit.approver = user
+    edit.previous_canonical_text = before
+    edit.save(
+        update_fields=[
+            "status",
+            "approved_at",
+            "approver",
+            "previous_canonical_text",
+        ]
+    )
+    history.state = GameHistory.State.SETTLED
+    history.edit_time = now()
+    history.save(update_fields=["state", "edit_time"])
 
 
 def history_edit(request, history_id):

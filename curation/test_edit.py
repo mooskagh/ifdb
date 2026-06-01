@@ -71,6 +71,8 @@ class RunEditTests(TestCase):
         edit_row = GameEdit.objects.get(history=history)
         self.assertEqual(edit_row.status, GameEdit.EditStatus.APPLIED)
         self.assertEqual(edit_row.passes, ["tag_and_approve"])
+        self.assertIsNotNone(edit_row.previous_canonical_text)
+        self.assertIn("A Game", edit_row.previous_canonical_text)
         self.assertIsNotNone(edit_row.approved_at)
         self.assertTrue(self._has_os_win(history.game))
         self.assertTrue(
@@ -89,9 +91,10 @@ class RunEditTests(TestCase):
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
         self.assertEqual(
-            GameEdit.objects.get(history=history).status,
+            (edit_row := GameEdit.objects.get(history=history)).status,
             GameEdit.EditStatus.PROPOSED,
         )
+        self.assertIsNone(edit_row.previous_canonical_text)
         self.assertFalse(self._has_os_win(history.game))
 
     def test_rejected_settles_with_edit_game_untouched(self):
@@ -103,9 +106,11 @@ class RunEditTests(TestCase):
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertEqual(
-            GameEdit.objects.get(history=history).status,
+            (edit_row := GameEdit.objects.get(history=history)).status,
             GameEdit.EditStatus.REJECTED,
         )
+        self.assertIsNotNone(edit_row.previous_canonical_text)
+        self.assertIn("A Game", edit_row.previous_canonical_text)
         self.assertFalse(self._has_os_win(history.game))
 
     def test_cancelled_settles_without_edit(self):

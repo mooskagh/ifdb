@@ -215,6 +215,163 @@ class HistoryListViewTest(TestCase):
         )
 
 
+class EditDiffViewTest(TestCase):
+    def setUp(self):
+        call_command("initifdb", stdout=StringIO(), stderr=StringIO())
+        self.user = get_user_model().objects.create(
+            username="moder", email="moder@example.com"
+        )
+        self.user.groups.add(Group.objects.create(name="moder"))
+        self.client.force_login(self.user)
+        self.now = timezone.now()
+
+    def _edit(self, *, auto_updates=GameHistory.AutoUpdate.PROPOSE):
+        game = Game.objects.create(
+            title="Old Title", creation_time=self.now, added_by=self.user
+        )
+        history = GameHistory.objects.create(
+            game=game,
+            creation_time=self.now,
+            state=GameHistory.State.NEEDS_ATTENTION,
+            auto_updates=auto_updates,
+        )
+        edit = GameEdit.objects.create(
+            history=history,
+            proposed_at=self.now,
+            status=GameEdit.EditStatus.PROPOSED,
+            origin=GameEdit.Origin.AUTO_IMPORT,
+            canonical_text=GameInfo(name="New Title").to_canonical(),
+        )
+        return edit
+
+    def test_proposed_edit_shows_actions_and_auto_accept_checkbox(self):
+        edit = self._edit(auto_updates=GameHistory.AutoUpdate.ACCEPT)
+
+        response = self.client.get(f"/curation/edits/{edit.pk}/")
+
+        self.assertContains(response, "Принять")
+        self.assertContains(response, "Отклонить")
+        self.assertContains(response, "В дальнейшем автоматически принимать")
+        self.assertContains(response, 'name="auto_accept" checked')
+
+    def test_non_proposed_edit_hides_actions(self):
+        edit = self._edit()
+        edit.status = GameEdit.EditStatus.REJECTED
+        edit.save(update_fields=["status"])
+
+        response = self.client.get(f"/curation/edits/{edit.pk}/")
+
+        self.assertNotContains(response, "Принять")
+        self.assertNotContains(response, "Отклонить")
+        self.assertNotContains(
+            response, "В дальнейшем автоматически принимать"
+        )
+
+    def test_reject_settles_and_redirects_without_changing_game(self):
+        edit = self._edit()
+
+        response = self.client.post(
+            f"/curation/edits/{edit.pk}/", {"action": "reject"}
+        )
+
+        self.assertRedirects(response, "/curation/")
+        edit.refresh_from_db()
+        history = edit.history
+        history.refresh_from_db()
+        history.game.refresh_from_db()
+        self.assertEqual(edit.status, GameEdit.EditStatus.REJECTED)
+        self.assertEqual(edit.approver, self.user)
+        self.assertIn("Old Title", edit.previous_canonical_text)
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.game.title, "Old Title")
+
+    def test_accept_applies_settles_redirects_and_audits(self):
+        edit = self._edit()
+
+        response = self.client.post(
+            f"/curation/edits/{edit.pk}/", {"action": "accept"}
+        )
+
+        self.assertRedirects(response, "/curation/")
+        edit.refresh_from_db()
+        history = edit.history
+        history.refresh_from_db()
+        history.game.refresh_from_db()
+        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
+        self.assertEqual(edit.approver, self.user)
+        self.assertIn("Old Title", edit.previous_canonical_text)
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.game.title, "New Title")
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=history,
+                actor=self.user,
+                field=GameHistoryAuditLog.AuditField.CANONICAL_TEXT,
+            ).exists()
+        )
+
+    def test_accept_updates_auto_accept_with_audit(self):
+        edit = self._edit(auto_updates=GameHistory.AutoUpdate.PROPOSE)
+
+        self.client.post(
+            f"/curation/edits/{edit.pk}/",
+            {"action": "accept", "auto_accept": "on"},
+        )
+
+        history = edit.history
+        history.refresh_from_db()
+        self.assertEqual(history.auto_updates, GameHistory.AutoUpdate.ACCEPT)
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=history,
+                actor=self.user,
+                field=GameHistoryAuditLog.AuditField.AUTO_UPDATES,
+                old_text=GameHistory.AutoUpdate.PROPOSE,
+                new_text=GameHistory.AutoUpdate.ACCEPT,
+            ).exists()
+        )
+
+    def test_auto_accept_hidden_for_reject_policy(self):
+        edit = self._edit(auto_updates=GameHistory.AutoUpdate.REJECT)
+
+        response = self.client.get(f"/curation/edits/{edit.pk}/")
+
+        self.assertContains(response, "Принять")
+        self.assertNotContains(
+            response, "В дальнейшем автоматически принимать"
+        )
+
+    def test_history_page_resolve_button_only_for_proposed_edits(self):
+        proposed = self._edit()
+        rejected = GameEdit.objects.create(
+            history=proposed.history,
+            proposed_at=self.now + timezone.timedelta(minutes=5),
+            status=GameEdit.EditStatus.REJECTED,
+            origin=GameEdit.Origin.AUTO_IMPORT,
+            canonical_text=GameInfo(name="Rejected Title").to_canonical(),
+        )
+
+        response = self.client.get(f"/curation/{proposed.history.pk}/")
+
+        self.assertContains(
+            response,
+            '<a class="curation-action-link" '
+            f'href="/curation/edits/{proposed.pk}/">Resolve</a>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            f'<a href="/curation/edits/{rejected.pk}/">посмотреть</a>',
+            html=True,
+        )
+        self.assertNotContains(
+            response,
+            '<a class="curation-action-link" '
+            f'href="/curation/edits/{rejected.pk}/">Resolve</a>',
+            html=True,
+        )
+
+
 class DiscoveryViewsTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(

@@ -2873,8 +2873,15 @@ h6 {
     text-decoration: none;
 }
 .curation-save {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
     padding: 8px 12px;
-    text-align: right;
+}
+.curation-save__checkbox {
+    margin-right: auto;
 }
 
 .diff {
