@@ -61,6 +61,7 @@
     <div class="card--listbody">
         {% for source in sources %}
         <div class="curation-source">
+            <div class="curation-source-id"><a href="{% url 'curation_source_detail' source.pk %}">{{ source.pk }}</a></div>
             <div class="curation-source-type"><a href="{% url 'curation_source_detail' source.pk %}">{{ source.get_type_display }}</a></div>
             <div class="curation-source-body">
                 {% if source.url %}<a href="{{ source.url }}">{{ source.url }}</a>{% endif %}

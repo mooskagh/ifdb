@@ -617,8 +617,18 @@ class SourceViewsTest(TestCase):
 
         response = self.client.get(f"/curation/{history.pk}/")
         self.assertEqual(response.status_code, 200)
+        source_url = f"/curation/sources/{source.pk}/"
         self.assertContains(
-            response, f'href="/curation/sources/{source.pk}/">Apero</a>'
+            response,
+            '<div class="curation-source-id">'
+            f'<a href="{source_url}">{source.pk}</a></div>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<div class="curation-source-type">'
+            f'<a href="{source_url}">Apero</a></div>',
+            html=True,
         )
 
 
