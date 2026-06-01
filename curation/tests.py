@@ -30,6 +30,32 @@ from .models import (
 
 
 class CurationSmokeTest(TestCase):
+    def test_attention_reason_resets_when_state_stops_needing_attention(self):
+        history = GameHistory.objects.create(
+            creation_time=timezone.now(),
+            state=GameHistory.State.NEEDS_ATTENTION,
+            attention_reason="Needs manual review",
+        )
+
+        history.state = GameHistory.State.SETTLED
+        history.save()
+
+        history.refresh_from_db()
+        self.assertIsNone(history.attention_reason)
+
+    def test_attention_reason_resets_with_state_update_fields(self):
+        history = GameHistory.objects.create(
+            creation_time=timezone.now(),
+            state=GameHistory.State.NEEDS_ATTENTION,
+            attention_reason="Needs manual review",
+        )
+
+        history.state = GameHistory.State.IN_PROGRESS
+        history.save(update_fields=["state"])
+
+        history.refresh_from_db()
+        self.assertIsNone(history.attention_reason)
+
     def test_history_lifecycle(self):
         now = timezone.now()
 
