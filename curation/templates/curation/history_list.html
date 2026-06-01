@@ -26,6 +26,7 @@
             </label>
             <label>Сортировка
                 <select name="sort">
+                    <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>По актуальности</option>
                     <option value="priority" {% if sort == "priority" %}selected{% endif %}>По приоритету</option>
                     <option value="updated" {% if sort == "updated" %}selected{% endif %}>По обновлению</option>
                 </select>

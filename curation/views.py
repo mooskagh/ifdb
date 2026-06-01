@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from django.core.paginator import Paginator
-from django.db.models import OuterRef, Q, Subquery
+from django.db.models import Case, IntegerField, OuterRef, Q, Subquery, When
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -82,7 +82,7 @@ def history_list(request):
 
     state = request.GET.get("state") or ""
     auto = request.GET.get("auto") or ""
-    sort = request.GET.get("sort") or "priority"
+    sort = request.GET.get("sort") or "relevance"
 
     histories = GameHistory.objects.select_related("game").annotate(
         updated=Coalesce("edit_time", "creation_time")
@@ -94,9 +94,33 @@ def history_list(request):
 
     if sort == "updated":
         histories = histories.order_by("-updated")
+    elif sort == "priority":
+        histories = histories.annotate(
+            state_rank=Case(
+                When(state=GameHistory.State.NEEDS_ATTENTION, then=0),
+                When(state=GameHistory.State.IN_PROGRESS, then=1),
+                When(state=GameHistory.State.SETTLED, then=2),
+                default=3,
+                output_field=IntegerField(),
+            )
+        ).order_by("state_rank", "priority", "-updated")
     else:
-        sort = "priority"
-        histories = histories.order_by("priority", "-updated")
+        sort = "relevance"
+        histories = histories.annotate(
+            attention_rank=Case(
+                When(state=GameHistory.State.NEEDS_ATTENTION, then=0),
+                default=1,
+                output_field=IntegerField(),
+            ),
+            attention_priority=Case(
+                When(
+                    state=GameHistory.State.NEEDS_ATTENTION,
+                    then="priority",
+                ),
+                default=0,
+                output_field=IntegerField(),
+            ),
+        ).order_by("attention_rank", "attention_priority", "-updated")
 
     for history in histories:
         history.state_short = HISTORY_STATE_SHORT.get(
