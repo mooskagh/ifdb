@@ -25,6 +25,7 @@ urlpatterns = [
         views.source_fetch_content,
         name="curation_source_fetch_content",
     ),
+    path("edits/<int:edit_id>/", views.edit_diff, name="curation_edit_diff"),
     path(
         "<int:history_id>/",
         views.history_detail,

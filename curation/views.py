@@ -7,6 +7,8 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import now
 
+from .diff import build_diff
+from .gameinfo import GameInfo
 from .models import (
     GameEdit,
     GameHistory,
@@ -394,6 +396,29 @@ def history_detail(request, history_id):
             "groups": _group_timeline(timeline),
             "auto_choices": GameHistory.AutoUpdate.choices,
             "state_choices": GameHistory.State.choices,
+        },
+    )
+
+
+def edit_diff(request, edit_id):
+    request.perm.Ensure(PERM)
+
+    edit = get_object_or_404(
+        GameEdit.objects.select_related("history__game"), pk=edit_id
+    )
+    history = edit.history
+    before = ""
+    if history.game is not None:
+        before = GameInfo.from_game(history.game).to_canonical()
+
+    return render(
+        request,
+        "curation/edit_diff.html",
+        {
+            "edit": edit,
+            "game": history.game,
+            "history": history,
+            "rows": build_diff(before, edit.canonical_text),
         },
     )
 

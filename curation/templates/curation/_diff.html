@@ -1,0 +1,16 @@
+<div class="diff">
+    {% for row in rows %}
+    <div class="diff-row diff-row--{{ row.tag }}">
+        <div class="diff-cell diff-cell--left">
+            <span class="diff-line-no">{{ row.left_no|default_if_none:"" }}</span>
+            <span class="diff-line-text">{% for seg in row.left %}<span class="diff-seg diff-seg--{{ seg.kind }}">{{ seg.text }}</span>{% endfor %}</span>
+        </div>
+        <div class="diff-cell diff-cell--right">
+            <span class="diff-line-no">{{ row.right_no|default_if_none:"" }}</span>
+            <span class="diff-line-text">{% for seg in row.right %}<span class="diff-seg diff-seg--{{ seg.kind }}">{{ seg.text }}</span>{% endfor %}</span>
+        </div>
+    </div>
+    {% empty %}
+    <div class="diff-empty">Изменений нет.</div>
+    {% endfor %}
+</div>

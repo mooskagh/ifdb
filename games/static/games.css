@@ -102,6 +102,14 @@
     --card-gold: #d4a017;
 
     --card-panel-bg: #f8f8f8;
+
+    --diff-del-line: #ffecec;
+    --diff-del-char: #f7a8a8;
+    --diff-add-line: #eaffea;
+    --diff-add-char: #a6f1a6;
+    --diff-gutter-bg: #f5f5f5;
+    --diff-gutter-fg: #777;
+    --diff-border: #ddd;
 }
 
 *,
@@ -2845,7 +2853,95 @@ h6 {
     font-weight: 600;
     margin-bottom: 4px;
 }
+.curation-event--action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.curation-action-link {
+    background: var(--card-green-bg);
+    border-radius: 3px;
+    color: #fff;
+    display: inline-block;
+    font-size: 12px;
+    line-height: 1;
+    padding: 5px 8px;
+    text-decoration: none;
+}
+.curation-action-link:hover {
+    background: var(--card-green-bg-light);
+    text-decoration: none;
+}
 .curation-save {
     padding: 8px 12px;
     text-align: right;
+}
+
+.diff {
+    background: var(--card-bg-color);
+    box-shadow: var(--card-box-shadow);
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    margin-bottom: 15px;
+    overflow: hidden;
+}
+.diff-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    border-bottom: 1px solid var(--diff-border);
+}
+.diff-row:last-child {
+    border-bottom: none;
+}
+.diff-cell {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.diff-cell--left {
+    border-right: 1px solid var(--diff-border);
+}
+.diff-line-no {
+    background: var(--diff-gutter-bg);
+    color: var(--diff-gutter-fg);
+    padding: 2px 6px;
+    text-align: right;
+    user-select: none;
+}
+.diff-line-text {
+    min-width: 0;
+    padding: 2px 8px;
+}
+.diff-row--delete .diff-cell--left,
+.diff-row--insert .diff-cell--right,
+.diff-row--replace .diff-cell {
+    background: var(--diff-del-line);
+}
+.diff-row--insert .diff-cell--right {
+    background: var(--diff-add-line);
+}
+.diff-row--replace .diff-cell--right {
+    background: var(--diff-add-line);
+}
+.diff-seg--del {
+    background: var(--diff-del-char);
+}
+.diff-seg--ins {
+    background: var(--diff-add-char);
+}
+.diff-empty {
+    padding: 10px 12px;
+}
+
+@media (max-width: 700px) {
+    .diff-row {
+        grid-template-columns: 1fr;
+    }
+    .diff-cell--left {
+        border-right: none;
+        border-bottom: 1px solid var(--diff-border);
+    }
 }

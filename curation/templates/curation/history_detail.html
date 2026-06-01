@@ -92,7 +92,10 @@
         {% elif entry.kind == "fetch" %}
             <div class="curation-event">{{ entry.label }}: <a href="{% url 'curation_source_detail' entry.obj.source.pk %}">{{ entry.obj.source.get_type_display }}</a></div>
         {% elif entry.kind == "edit" %}
-            <div class="curation-event">Правка: {{ entry.obj.get_status_display }}</div>
+            <div class="curation-event curation-event--action">
+                <span>Правка: {{ entry.obj.get_status_display }}</span>
+                <a class="curation-action-link" href="{% url 'curation_edit_diff' entry.obj.pk %}">Resolve</a>
+            </div>
             <div class="curation-meta">Происхождение: {{ entry.obj.get_origin_display }}</div>
         {% elif entry.kind == "comment" %}
             <div class="curation-event">{{ entry.obj.get_type_display }}</div>

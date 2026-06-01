@@ -1,0 +1,33 @@
+{% extends "curation/base.html" %}
+
+{% block titlesection %}Правка #{{ edit.pk }} - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--green">
+    <div class="card--header">Правка #{{ edit.pk }}</div>
+    <div class="card--listbody">
+        <div class="game--info-row">
+            <div class="game--info-row-label">Статус</div>
+            <div class="game--info-row-value">{{ edit.get_status_display }}</div>
+        </div>
+        <div class="game--info-row">
+            <div class="game--info-row-label">Происхождение</div>
+            <div class="game--info-row-value">{{ edit.get_origin_display }}</div>
+        </div>
+        <div class="game--info-row">
+            <div class="game--info-row-label">Предложена</div>
+            <div class="game--info-row-value">{{ edit.proposed_at|date:"d.m.Y H:i" }}</div>
+        </div>
+        <div class="game--info-row">
+            <div class="game--info-row-label">История</div>
+            <div class="game--info-row-value"><a href="{% url 'curation_history_detail' history.pk %}">вернуться к истории</a></div>
+        </div>
+    </div>
+    <div class="curation-save">
+        <button type="button">Принять</button>
+        <button type="button">Отклонить</button>
+    </div>
+</div>
+
+{% include "curation/_diff.html" %}
+{% endblock %}
