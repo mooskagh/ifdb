@@ -168,13 +168,22 @@ develop against, so it ships alone.
   `GameInfo.from_game(game)` → write `GameEdit` → apply via `GameInfo.save()`
   honoring `GameHistory.auto_updates` (REJECT/PROPOSE/ACCEPT).
   - **Scaffolded** in `curation/edit.py`: `GameEditState`, `GameEditPass` ABC,
-    an (empty) ordered `PASSES` list, and `run_edit()` over `IN_PROGRESS`
-    histories. Seeds the draft from the served game, settles unchanged drafts,
-    and writes/applies a `GameEdit` per `auto_updates`; `CANONICAL_TEXT` /
-    `PRIORITY` audit fields added. Exposed as `manage.py sources edit
-    [--history PK] [--limit N]`.
-  - **Deferred**: the real passes (merge core + `enricher`) — with `PASSES`
-    empty the runner is a faithful no-op that only settles unchanged histories.
+    a pass registry, and `run_edit()` over `IN_PROGRESS` histories. Seeds the
+    draft from the served game, settles unchanged drafts, and writes/applies a
+    `GameEdit` per `auto_updates`; `CANONICAL_TEXT` / `PRIORITY` audit fields
+    added. Exposed as `manage.py sources edit [--history PK] [--limit N]`.
+  - **Passes register** via `@register_pass` into `PASS_REGISTRY` (keyed by
+    `name`); the ordered list to run is `settings.CURATION_EDIT_PASSES` and is
+    recorded into `GameEdit.passes`. Concrete passes live in `curation/passes.py`
+    (imported by `edit.py` for its registration side effects).
+  - **`merge_sources` shipped** — first real pass (`MergeSourcesPass`): folds the
+    history's source canonicals by `_SOURCE_PRIORITY` (the old importers'
+    `priority` values) into a fresh `GameInfo` via `gameinfo.merge`
+    (`MergeImport` reborn — first-wins name/date, `\n\n---\n\n` description
+    concat, identity-dedup union). Sources only (served game is not a merge
+    input → idempotent); empty-source guard keeps the served draft.
+  - **Deferred**: the enrichment / LLM passes (`enricher` wrapped, …) — they
+    slot into the same registry behind `merge_sources`.
 
 A and C/E can merge if convenient (all "plumbing around code that exists"); only
 the D boundary is firm.

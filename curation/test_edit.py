@@ -2,7 +2,7 @@ from io import StringIO
 from unittest import mock
 
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils.timezone import now
 
 from games.models import Game
@@ -16,6 +16,8 @@ from .models import GameEdit, GameHistory, GameHistoryAuditLog
 class _TagAndApprove(GameEditPass):
     """Throwaway pass: append a known tag and force an approval status."""
 
+    name = "tag_and_approve"
+
     def __init__(self, approval: Approval):
         self.approval = approval
 
@@ -25,6 +27,8 @@ class _TagAndApprove(GameEditPass):
 
 
 class _BumpPriority(GameEditPass):
+    name = "bump_priority"
+
     def apply(self, state):
         state.priority = 7
 
@@ -43,7 +47,12 @@ class RunEditTests(TestCase):
         )
 
     def _run_with(self, passes, history):
-        with mock.patch.object(edit, "PASSES", passes):
+        registry = {p.name: p for p in passes}
+        names = [p.name for p in passes]
+        with (
+            mock.patch.object(edit, "PASS_REGISTRY", registry),
+            override_settings(CURATION_EDIT_PASSES=names),
+        ):
             return run_edit(history_id=history.pk)
 
     def _has_os_win(self, game):
@@ -61,7 +70,7 @@ class RunEditTests(TestCase):
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         edit_row = GameEdit.objects.get(history=history)
         self.assertEqual(edit_row.status, GameEdit.EditStatus.APPLIED)
-        self.assertEqual(edit_row.passes, ["_TagAndApprove"])
+        self.assertEqual(edit_row.passes, ["tag_and_approve"])
         self.assertIsNotNone(edit_row.approved_at)
         self.assertTrue(self._has_os_win(history.game))
         self.assertTrue(

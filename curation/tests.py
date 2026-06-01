@@ -9,6 +9,8 @@ from django.utils import timezone
 
 from games.models import URL, Game, GameURL, GameURLCategory
 
+from .edit import run_edit
+from .gameinfo import GameInfo
 from .models import (
     GameEdit,
     GameHistory,
@@ -479,3 +481,97 @@ class InitCurationCommandTest(TestCase):
             GameSource.objects.get(history=history).url,
             "https://forum.ifiction.ru/viewtopic.php?id=42&lid=1",
         )
+
+
+class EditRunnerTest(TestCase):
+    def setUp(self):
+        self.now = timezone.now()
+
+    def _history(self, **kwargs):
+        return GameHistory.objects.create(creation_time=self.now, **kwargs)
+
+    def _source(self, history, type, name, desc):
+        source = GameSource.objects.create(
+            history=history,
+            url=f"https://example.com/{type}",
+            type=type,
+        )
+        canonical = GameInfo(name=name, description=desc).to_canonical()
+        fetch = GameSourceFetch.objects.create(
+            source=source,
+            raw_content="raw",
+            canonical_text=canonical,
+            canonical_text_hash=str(hash(canonical)),
+            first_fetch=self.now,
+            last_fetch=self.now,
+        )
+        return fetch
+
+    def test_merge_applies_in_priority_order(self):
+        history = self._history(game=None)
+        wiki = self._source(
+            history, GameSource.SourceType.IFWIKI, "Wiki Title", "Wiki desc"
+        )
+        apero = self._source(
+            history, GameSource.SourceType.APERO, "Apero Title", "Apero desc"
+        )
+
+        stats = run_edit()
+
+        self.assertEqual(stats.applied, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertIsNotNone(history.game)
+        # IFWIKI (priority 100) wins the title over APERO (49).
+        self.assertEqual(history.game.title, "Wiki Title")
+        # Descriptions concatenate in priority order.
+        self.assertEqual(
+            history.game.description, "Wiki desc\n\n---\n\nApero desc"
+        )
+
+        edit = GameEdit.objects.get(history=history)
+        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
+        self.assertEqual(edit.passes, ["merge_sources"])
+        self.assertEqual(set(edit.used_sources.all()), {wiki, apero})
+
+    def test_rerun_is_idempotent(self):
+        history = self._history(game=None)
+        self._source(
+            history, GameSource.SourceType.IFWIKI, "Wiki Title", "Wiki desc"
+        )
+        self._source(
+            history, GameSource.SourceType.APERO, "Apero Title", "Apero desc"
+        )
+        run_edit()
+
+        history.refresh_from_db()
+        GameHistory.objects.filter(pk=history.pk).update(
+            state=GameHistory.State.IN_PROGRESS
+        )
+        stats = run_edit()
+
+        self.assertEqual(stats.unchanged, 1)
+        self.assertEqual(GameEdit.objects.filter(history=history).count(), 1)
+        history.refresh_from_db()
+        # Description was not re-concatenated across runs.
+        self.assertEqual(
+            history.game.description, "Wiki desc\n\n---\n\nApero desc"
+        )
+
+    def test_propose_policy_does_not_apply(self):
+        history = self._history(
+            game=None, auto_updates=GameHistory.AutoUpdate.PROPOSE
+        )
+        self._source(
+            history, GameSource.SourceType.IFWIKI, "Wiki Title", "Wiki desc"
+        )
+
+        stats = run_edit()
+
+        self.assertEqual(stats.proposed, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertIsNone(history.game)
+        edit = GameEdit.objects.get(history=history)
+        self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
+        self.assertEqual(Game.objects.count(), 0)

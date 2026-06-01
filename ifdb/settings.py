@@ -451,3 +451,6 @@ STORAGES = {
         ),
     },
 }
+
+# Ordered list of curation edit passes (curation/edit.py) to run in Phase 4.
+CURATION_EDIT_PASSES = ["merge_sources"]

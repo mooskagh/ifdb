@@ -1,15 +1,18 @@
 """Phase 4 (edit): turn a history's gathered source canonicals into a GameEdit.
 
 For each ``IN_PROGRESS`` history we build a mutable ``GameInfo`` draft seeded
-from the currently served game, run it through an ordered list of
-``GameEditPass`` mutators, then diff the draft against what is already served.
-Unchanged drafts settle silently; changed drafts become a ``GameEdit`` that is
-applied / proposed / rejected per the history's ``auto_updates`` policy.
+from the currently served game, run it through the ordered list of
+``GameEditPass`` mutators named in ``settings.CURATION_EDIT_PASSES``, then diff
+the draft against what is already served. Unchanged drafts settle silently;
+changed drafts become a ``GameEdit`` that is applied / proposed / rejected per
+the history's ``auto_updates`` policy.
 
-The passes that actually populate the draft (merge core + enrichment, mirroring
-``games/tasks/game_importer.py`` and ``games/importer/enrichment.py``) come
-later -- with ``PASSES`` empty this runner is a faithful no-op that settles
-every history whose draft equals what is already served.
+Concrete passes live in ``passes.py`` and register themselves into
+``PASS_REGISTRY`` via ``@register_pass``; the runner resolves them by name at
+run time. The first real pass, ``merge_sources``, reproduces the old
+``games/tasks/game_importer.py`` reimport: fold the history's source canonicals
+by priority into a fresh ``GameInfo`` (``MergeImport`` reborn). Later
+enrichment / LLM passes slot into the same registry.
 """
 
 import copy
@@ -18,7 +21,9 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from logging import getLogger
+from typing import ClassVar
 
+from django.conf import settings
 from django.db import transaction
 from django.utils.timezone import now
 
@@ -87,12 +92,19 @@ class GameEditState:
 
 
 class GameEditPass(ABC):
+    name: ClassVar[str]  # registry key, also recorded into GameEdit.passes
+
     @abstractmethod
     def apply(self, state: GameEditState) -> None:
         """Mutate the state in place."""
 
 
-PASSES: list[GameEditPass] = []  # empty this session -> no-op
+PASS_REGISTRY: dict[str, GameEditPass] = {}
+
+
+def register_pass(cls):
+    PASS_REGISTRY[cls.name] = cls()
+    return cls
 
 
 @dataclass(frozen=True)
@@ -252,9 +264,9 @@ def _flush(history: GameHistory, state: GameEditState) -> None:
 
 def _process_history(history: GameHistory) -> str:
     state = _build_state(history)
-    passes = [p.__class__.__name__ for p in PASSES]
-    for p in PASSES:
-        p.apply(state)
+    pass_names = list(settings.CURATION_EDIT_PASSES)
+    for name in pass_names:
+        PASS_REGISTRY[name].apply(state)
 
     final = state.current.to_canonical()
     base = state.served.to_canonical()
@@ -271,7 +283,7 @@ def _process_history(history: GameHistory) -> str:
             proposed_at=now(),
             origin=GameEdit.Origin.AUTO_IMPORT,
             status=_EDIT_STATUS_BY_APPROVAL[state.approval],
-            passes=passes,
+            passes=pass_names,
             canonical_text=final,
         )
         edit.used_sources.set([s.fetch for s in state.sources if s.fetch])
@@ -347,3 +359,8 @@ def run_edit(
         stats.errors,
     )
     return stats
+
+
+# Imported for its registration side effects: each pass populates PASS_REGISTRY
+# via @register_pass on import.
+from . import passes  # noqa: E402,F401
