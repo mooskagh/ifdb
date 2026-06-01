@@ -234,6 +234,10 @@ def _build_state(
     )
     last_edit = _last_applied_edit(history)
     last_applied = parse(last_edit.canonical_text) if last_edit else GameInfo()
+    attention_reason = []
+    if history.auto_updates is GameHistory.AutoUpdate.PROPOSE:
+        attention_reason.append("Автообновление отключено")
+
     state = GameEditState(
         history=history,
         current=copy.deepcopy(served),
@@ -241,6 +245,7 @@ def _build_state(
         served=served,
         last_applied=last_applied,
         sources=_build_sources(history, last_edit),
+        attention_reason=attention_reason,
         priority=history.priority,
     )
     return state
