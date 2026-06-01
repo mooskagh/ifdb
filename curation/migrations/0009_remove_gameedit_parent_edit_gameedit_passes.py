@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("curation", "0008_alter_gamehistoryauditlog_field"),
     ]
