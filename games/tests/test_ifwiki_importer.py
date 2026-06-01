@@ -167,6 +167,26 @@ class TestIfwikiImporter(unittest.TestCase):
             self.assertTrue(len(competition_tags) > 0)
             self.assertEqual(competition_tags[0]["tag"], "ЛОК-2020")
 
+    def test_media_link_with_leading_colon_becomes_download_url(self):
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = """
+== Версии ==
+* [[:Медиа:Three_birds.zip|ZIP-архив]] - содержит PDF со сканом игры
+"""
+
+            result = ImportFromIfwiki(self.test_url)
+
+        self.assertIn("**ZIP-архив**", result["desc"])
+        urls = result.get("urls", [])
+        self.assertIn(
+            {
+                "urlcat_slug": "download_direct",
+                "description": "ZIP-архив",
+                "url": "https://ifwiki.ru/files/Three_birds.zip",
+            },
+            urls,
+        )
+
     def test_redirect_handling(self):
         """Test handling of redirect pages."""
         with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:

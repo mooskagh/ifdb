@@ -219,9 +219,23 @@ def ParseIfwiki(cont, url):
 
 IFWIKI_URL = re.compile(r"(https?://ifwiki.ru)/([^?]+)")
 IFWIKI_LINK_PARSE = re.compile(r"\[\[(.*?)\]\]")
-IFWIKI_LINK_INTERNALS_PARSE = re.compile(
-    r"^(?:([^:\]|]*)::?)?([^:\]|]+)(?:\|([^\]|]+))?(?:\|([^\]]+))?$"
-)
+
+
+def ParseIfwikiLink(text):
+    text = text.removeprefix(":")
+    parts = text.split("|")
+    if len(parts) > 3:
+        return None
+    role, _, name = parts[0].partition(":")
+    if not name:
+        role, name = None, role
+    typ = None
+    display_name = None
+    if len(parts) == 2 and role:
+        display_name = parts[1]
+    elif len(parts) == 3:
+        typ, display_name = parts[1:]
+    return role, name, typ, display_name
 
 IFWIKI_ROLES = {
     "автор": "author",
@@ -262,13 +276,10 @@ class WikiAuthorParsingContext:
         self.urls.append(CategorizeAuthorUrl(url, desc, category, base))
 
     def ProcessLink(self, text):
-        m = IFWIKI_LINK_INTERNALS_PARSE.match(text)
-        if not m:
+        parsed = ParseIfwikiLink(text)
+        if not parsed:
             return text  # Internal link without a category.
-        role = m.group(1)
-        name = m.group(2)
-        typ = m.group(3)
-        display_name = m.group(4)
+        role, name, typ, display_name = parsed
 
         if role in ["Медиа", "Media", "Изображение", "Image"]:
             self.AddUrl(
@@ -300,13 +311,10 @@ class WikiParsingContext:
         self.urls.append(CategorizeUrl(url, desc, category, base))
 
     def ProcessLink(self, text, default_role=None):
-        m = IFWIKI_LINK_INTERNALS_PARSE.match(text)
-        if not m:
+        parsed = ParseIfwikiLink(text)
+        if not parsed:
             return text  # Internal link without a category.
-        role = m.group(1)
-        name = m.group(2)
-        # typ = m.group(3)
-        display_name = m.group(4)
+        role, name, _typ, display_name = parsed
 
         if role in IFWIKI_IGNORE_ROLES:
             return ""
