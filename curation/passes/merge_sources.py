@@ -25,6 +25,7 @@ class MergeSourcesPass(GameEditPass):
     name = "merge_sources"
 
     def apply(self, state: GameEditState, params: dict) -> None:
+        keep_existing = params.get("keep_existing", True)
         usable = sorted(
             (s for s in state.sources if s.canonical_text),
             key=lambda s: _SOURCE_PRIORITY.get(s.type, _DEFAULT_PRIORITY),
@@ -35,4 +36,12 @@ class MergeSourcesPass(GameEditPass):
         merged = GameInfo()
         for s in usable:  # highest priority first -> first-wins
             merged = merge(merged, parse(s.canonical_text))
+        if keep_existing:
+            source_name = merged.name
+            source_date = merged.date
+            source_description = merged.description
+            merged = merge(state.current, merged)
+            merged.name = source_name or state.current.name
+            merged.date = source_date or state.current.date
+            merged.description = source_description
         state.current = merged

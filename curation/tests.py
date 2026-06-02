@@ -10,10 +10,14 @@ from django.utils import timezone
 from games.models import (
     URL,
     Game,
+    GameAuthor,
+    GameAuthorRole,
+    GameDescriptionAttribution,
     GameTag,
     GameTagCategory,
     GameURL,
     GameURLCategory,
+    PersonalityAlias,
 )
 
 from .edit import run_edit
@@ -754,6 +758,23 @@ class EditRunnerTest(TestCase):
         )
         return fetch
 
+    def _canonical_source(
+        self, history, canonical, type=GameSource.SourceType.IFWIKI
+    ):
+        source = GameSource.objects.create(
+            history=history,
+            url=f"https://example.com/{type}/{GameSource.objects.count()}",
+            type=type,
+        )
+        return GameSourceFetch.objects.create(
+            source=source,
+            raw_content="raw",
+            canonical_text=canonical,
+            canonical_text_hash=str(hash(canonical)),
+            first_fetch=self.now,
+            last_fetch=self.now,
+        )
+
     def test_merge_applies_in_priority_order(self):
         history = self._history(game=None)
         wiki = self._source(
@@ -804,6 +825,105 @@ class EditRunnerTest(TestCase):
         self.assertEqual(
             history.game.description, "Wiki desc\n\n---\n\nApero desc"
         )
+
+    def test_merge_keeps_existing_related_data_and_scalar_fallbacks(self):
+        game = Game.objects.create(
+            title="Old Title",
+            description="Old desc",
+            release_date="2001-02-03",
+            creation_time=self.now,
+        )
+        history = self._history(game=game)
+        role = GameAuthorRole.objects.create(
+            symbolic_id="author", title="Author"
+        )
+        old_author = PersonalityAlias.objects.create(name="Old Author")
+        source_author = PersonalityAlias.objects.create(name="Source Author")
+        GameAuthor.objects.create(game=game, role=role, author=old_author)
+        cat = GameTagCategory.objects.create(symbolic_id="tag", name="Tag")
+        old_tag = GameTag.objects.create(category=cat, name="old")
+        source_tag = GameTag.objects.create(category=cat, name="source")
+        game.tags.add(old_tag)
+        urlcat = GameURLCategory.objects.create(
+            symbolic_id="game", title="Game", allow_cloning=False
+        )
+        old_url = URL.objects.create(
+            original_url="https://example.com/old.zip",
+            creation_date=self.now,
+        )
+        GameURL.objects.create(
+            game=game, category=urlcat, url=old_url, description="old file"
+        )
+        old_attr = GameDescriptionAttribution.objects.create(name="old source")
+        source_attr = GameDescriptionAttribution.objects.create(name="wiki")
+        game.description_attributions.add(old_attr)
+        canonical = f"""---
+- name: Source Title
+- personalities:
+    author:
+      - {source_author.id}
+- tags:
+  - ["tag", {source_tag.id}]
+- urls:
+  - ["game", "source file", "https://example.com/source.zip"]
+- attributions:
+  - {source_attr.id}
+---
+Source desc"""
+        self._canonical_source(history, canonical)
+
+        stats = run_edit()
+
+        self.assertEqual(stats.applied, 1)
+        game.refresh_from_db()
+        self.assertEqual(game.title, "Source Title")
+        self.assertEqual(game.release_date.isoformat(), "2001-02-03")
+        self.assertEqual(game.description, "Source desc")
+        self.assertEqual(
+            set(game.gameauthor_set.values_list("author__name", flat=True)),
+            {"Old Author", "Source Author"},
+        )
+        self.assertEqual(
+            set(game.tags.values_list("name", flat=True)), {"old", "source"}
+        )
+        self.assertEqual(
+            set(game.gameurl_set.values_list("url__original_url", flat=True)),
+            {
+                "https://example.com/old.zip",
+                "https://example.com/source.zip",
+            },
+        )
+        self.assertEqual(
+            set(game.description_attributions.values_list("name", flat=True)),
+            {"old source", "wiki"},
+        )
+
+    @override_settings(
+        CURATION_EDIT_PASSES=[
+            {"name": "merge_sources", "keep_existing": False}
+        ]
+    )
+    def test_merge_can_drop_existing_data(self):
+        game = Game.objects.create(
+            title="Old Title",
+            description="Old desc",
+            release_date="2001-02-03",
+            creation_time=self.now,
+        )
+        history = self._history(game=game)
+        cat = GameTagCategory.objects.create(symbolic_id="tag", name="Tag")
+        game.tags.add(GameTag.objects.create(category=cat, name="old"))
+        canonical = "---\n- name: Source Title\n---\nSource desc"
+        self._canonical_source(history, canonical)
+
+        stats = run_edit()
+
+        self.assertEqual(stats.applied, 1)
+        game.refresh_from_db()
+        self.assertEqual(game.title, "Source Title")
+        self.assertIsNone(game.release_date)
+        self.assertEqual(game.description, "Source desc")
+        self.assertEqual(game.tags.count(), 0)
 
     def test_propose_policy_does_not_apply(self):
         history = self._history(
