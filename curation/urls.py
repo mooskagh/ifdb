@@ -14,6 +14,7 @@ urlpatterns = [
         views.discovery_detail,
         name="curation_discovery_detail",
     ),
+    path("models/", views.llm_models, name="curation_llm_models"),
     path("sources/", views.source_list, name="curation_source_list"),
     path(
         "sources/<int:source_id>/",

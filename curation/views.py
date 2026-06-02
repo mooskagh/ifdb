@@ -10,6 +10,7 @@ from django.utils.timezone import now
 
 from games.importer.discord import PostNewGameToDiscord
 
+from . import openrouter
 from .diff import build_diff
 from .gameinfo import GameInfo, parse
 from .models import (
@@ -19,6 +20,7 @@ from .models import (
     GameHistoryComment,
     GameSource,
     GameSourceFetch,
+    LLMModel,
     SourceDiscoveryStatus,
 )
 from .providers import REGISTERED_PROVIDERS
@@ -255,6 +257,73 @@ def history_source_add(request, history_id):
         history.save(update_fields=["edit_time"])
 
     return redirect("curation_history_detail", history_id=history.pk)
+
+
+# LLMModel fields synced from OpenRouter, compared to skip unchanged rows.
+LLM_SYNC_FIELDS = [
+    "context_length",
+    "input_cost",
+    "cached_input_cost",
+    "cache_write_cost",
+    "output_cost",
+]
+
+
+def llm_models(request):
+    request.perm.Ensure(PERM)
+
+    if request.method == "POST":
+        return _llm_models_post(request)
+
+    available = [openrouter.model_fields(e) for e in openrouter.fetch_models()]
+    for fields in available:
+        fields["typical_cents"] = openrouter.typical_cents(
+            fields["input_cost"], fields["output_cost"]
+        )
+    installed = list(LLMModel.objects.order_by("name"))
+    for model in installed:
+        model.typical_cents = openrouter.typical_cents(
+            model.input_cost, model.output_cost
+        )
+    installed_names = {model.name for model in installed}
+
+    return render(
+        request,
+        "curation/llm_models.html",
+        {
+            "installed": installed,
+            "available": available,
+            "installed_names": installed_names,
+        },
+    )
+
+
+def _llm_models_post(request):
+    action = request.POST.get("action")
+    fields_by_name = {
+        entry["id"]: openrouter.model_fields(entry)
+        for entry in openrouter.fetch_models()
+    }
+
+    if action == "update_all":
+        for model in LLMModel.objects.all():
+            fields = fields_by_name.get(model.name)
+            if not fields or all(
+                getattr(model, f) == fields[f] for f in LLM_SYNC_FIELDS
+            ):
+                continue
+            for f in LLM_SYNC_FIELDS:
+                setattr(model, f, fields[f])
+            model.updated_at = now()
+            model.save()
+    elif action == "add":
+        fields = fields_by_name.get(request.POST.get("name"))
+        if fields:
+            LLMModel.objects.create(**fields, updated_at=now())
+    else:
+        return HttpResponseBadRequest("Unknown action.")
+
+    return redirect("curation_llm_models")
 
 
 def history_source_detach(request, history_id, source_id):

@@ -199,9 +199,14 @@ develop against, so it ships alone.
     counts and snapshotted `cost`). Gating/resolution stays in code: each LLM
     functionality will be a `GameEditPass` subclass naming a `Workflow`,
     mirroring `enrich` (code pass + `EnrichmentRule` table).
-  - **Deferred**: the LLM passes themselves — the `LLMPass` runner, OpenRouter
-    client, and concrete passes slot into the same registry behind
-    `merge_sources` / `enrich`.
+  - **OpenRouter catalog client + model-management UI done** —
+    `curation/openrouter.py` fetches the `/models` catalog and maps pricing
+    ($/token → `$/Mtok` `Decimal`s); the curation "Модели LLM" page
+    (`curation_llm_models`) lists installed models with an "Update all" (diff-only
+    re-sync that bumps `LLMModel.updated_at` on real changes) and a client-side
+    filterable/sortable panel of all OpenRouter models, each with "Add".
+  - **Deferred**: the LLM passes themselves — the `LLMPass` runner and concrete
+    passes slot into the same registry behind `merge_sources` / `enrich`.
 
 A and C/E can merge if convenient (all "plumbing around code that exists"); only
 the D boundary is firm.

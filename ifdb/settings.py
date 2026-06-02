@@ -28,6 +28,7 @@ environ.Env.read_env(
 
 DEBUG = env("DEBUG")
 MAINTENANCE_USER = env("MAINTENANCE_USER", default="бездушный робот")
+OPENROUTER_API_KEY = env("OPENROUTER_API_KEY", default=None)
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

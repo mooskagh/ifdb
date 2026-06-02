@@ -62,7 +62,7 @@ class Command(BaseCommand):
                             provider.source_key(source.url),
                         ))
 
-                for gu in game.gameurl_set.all():
+                for gu in game.gameurl_set.order_by("pk"):
                     if gu.category.symbolic_id not in SOURCE_URL_CATEGORIES:
                         continue
                     provider = classify(gu.url.original_url)

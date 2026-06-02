@@ -38,6 +38,7 @@ class LLMModel(models.Model):
     output_cost = models.DecimalField(
         _("Output cost ($/Mtok)"), max_digits=12, decimal_places=4
     )
+    updated_at = models.DateTimeField(_("Updated at"), null=True, blank=True)
 
 
 class Workflow(models.Model):

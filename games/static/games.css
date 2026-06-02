@@ -2643,6 +2643,26 @@ h6 {
     background: #fff6d8;
 }
 
+.curation-table .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.curation-table th.num {
+    cursor: pointer;
+}
+.curation-table .zeros {
+    visibility: hidden;
+}
+/* Size columns to content (compound selector beats the --compact fixed layout),
+   and let the model-name column absorb all remaining width. */
+.curation-table--compact.curation-table--auto {
+    table-layout: auto;
+}
+.curation-table--auto .name-col {
+    width: 100%;
+}
+
 .curation-table--compact {
     table-layout: fixed;
     font-size: 12px;

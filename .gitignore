@@ -5,6 +5,7 @@
 /tmp
 /core/static/bundle.js
 /core/static/editor.js
+/core/static/llm_models.js
 /loonchator/out
 /virtualenv
 __pycache__

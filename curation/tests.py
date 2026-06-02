@@ -872,9 +872,10 @@ class InitCurationCommandTest(TestCase):
         self.assertEqual(bot_history.state, GameHistory.State.IN_PROGRESS)
         self.assertEqual(
             list(
-                GameSource.objects.filter(history=bot_history).values_list(
-                    "type", flat=True
-                )
+                GameSource.objects
+                .filter(history=bot_history)
+                .order_by("pk")
+                .values_list("type", flat=True)
             ),
             [GameSource.SourceType.IFWIKI, GameSource.SourceType.APERO],
         )
