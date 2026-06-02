@@ -10,6 +10,8 @@ from curation.models import GameHistory, GameHistoryAuditLog, GameSource
 from curation.providers import PROVIDER_BY_TYPE, REGISTERED_PROVIDERS
 from games.models import Game
 
+SOURCE_URL_CATEGORIES = {"game_page", "play_online"}
+
 
 class Command(BaseCommand):
     help = (
@@ -61,7 +63,7 @@ class Command(BaseCommand):
                         ))
 
                 for gu in game.gameurl_set.all():
-                    if gu.category.symbolic_id != "game_page":
+                    if gu.category.symbolic_id not in SOURCE_URL_CATEGORIES:
                         continue
                     provider = classify(gu.url.original_url)
                     if provider is None:

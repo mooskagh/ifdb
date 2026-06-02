@@ -744,6 +744,9 @@ class InitCurationCommandTest(TestCase):
         self.game_page = GameURLCategory.objects.create(
             symbolic_id="game_page", title="Game page"
         )
+        self.play_online = GameURLCategory.objects.create(
+            symbolic_id="play_online", title="Play online"
+        )
         self.video = GameURLCategory.objects.create(
             symbolic_id="video", title="Video"
         )
@@ -770,7 +773,12 @@ class InitCurationCommandTest(TestCase):
     def test_seeds_histories_sources_and_audit(self):
         bot_game = self._game("Bot game")
         self._link(bot_game, "http://ifwiki.ru/Игра", self.game_page)
-        # Only game_page links are sources, even when another category points
+        self._link(
+            bot_game,
+            "https://apero.ru/Текстовые-игры/example",
+            self.play_online,
+        )
+        # Only source categories are sources, even when another category points
         # at a recognized provider.
         self._link(bot_game, "http://ifwiki.ru/Видео", self.video)
         # An unrecognized game_page link is skipped, not turned into a source.
@@ -793,7 +801,7 @@ class InitCurationCommandTest(TestCase):
                     "type", flat=True
                 )
             ),
-            [GameSource.SourceType.IFWIKI],
+            [GameSource.SourceType.IFWIKI, GameSource.SourceType.APERO],
         )
         self.assertEqual(
             GameHistoryAuditLog.objects.filter(
