@@ -26,13 +26,6 @@ class _TagAndApprove(GameEditPass):
         state.approval = self.approval
 
 
-class _BumpPriority(GameEditPass):
-    name = "bump_priority"
-
-    def apply(self, state):
-        state.priority = 7
-
-
 class RunEditTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -133,19 +126,3 @@ class RunEditTests(TestCase):
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertFalse(GameEdit.objects.filter(history=history).exists())
-
-    def test_priority_bump_is_audited_and_persisted(self):
-        history = self._history()
-
-        self._run_with([_BumpPriority()], history)
-
-        history.refresh_from_db()
-        self.assertEqual(history.priority, 7)
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertTrue(
-            GameHistoryAuditLog.objects.filter(
-                history=history,
-                field=GameHistoryAuditLog.AuditField.PRIORITY,
-                new_text="7",
-            ).exists()
-        )

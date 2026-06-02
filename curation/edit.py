@@ -88,7 +88,6 @@ class GameEditState:
     sources: list[SourceFetchInfo]
     # passes may also mutate these:
     attention_reason: list[str] = field(default_factory=list)
-    priority: int = 100
 
 
 class GameEditPass(ABC):
@@ -246,22 +245,12 @@ def _build_state(
         last_applied=last_applied,
         sources=_build_sources(history, last_edit),
         attention_reason=attention_reason,
-        priority=history.priority,
     )
     return state
 
 
 def _flush(history: GameHistory, state: GameEditState) -> None:
     """Persist pass-mutable history fields (audited) and settle ``state``."""
-    if state.priority != history.priority:
-        GameHistoryAuditLog.record_change(
-            history,
-            None,
-            GameHistoryAuditLog.AuditField.PRIORITY,
-            str(history.priority),
-            str(state.priority),
-        )
-        history.priority = state.priority
     history.attention_reason = "\n".join(state.attention_reason) or None
     history.edit_time = now()
     history.save()

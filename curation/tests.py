@@ -164,25 +164,21 @@ class HistoryListViewTest(TestCase):
         old_settled = self._create_history(
             "Old settled",
             ts,
-            priority=1,
             state=GameHistory.State.SETTLED,
         )
         recent_progress = self._create_history(
             "Recent progress",
             ts + timezone.timedelta(days=1),
-            priority=1,
             state=GameHistory.State.IN_PROGRESS,
         )
-        urgent_low = self._create_history(
-            "Urgent low",
+        older_attention = self._create_history(
+            "Older attention",
             ts + timezone.timedelta(days=2),
-            priority=20,
             state=GameHistory.State.NEEDS_ATTENTION,
         )
-        urgent_high = self._create_history(
-            "Urgent high",
+        newer_attention = self._create_history(
+            "Newer attention",
             ts + timezone.timedelta(days=3),
-            priority=5,
             state=GameHistory.State.NEEDS_ATTENTION,
         )
 
@@ -190,45 +186,11 @@ class HistoryListViewTest(TestCase):
 
         self.assertEqual(
             list(response.context["histories"]),
-            [urgent_high, urgent_low, recent_progress, old_settled],
+            [newer_attention, older_attention, recent_progress, old_settled],
         )
         self.assertContains(response, '<option value="relevance" selected>')
 
-    def test_history_list_priority_sort_groups_by_state_first(self):
-        ts = timezone.now()
-        progress = self._create_history(
-            "Progress",
-            ts + timezone.timedelta(days=1),
-            priority=1,
-            state=GameHistory.State.IN_PROGRESS,
-        )
-        settled = self._create_history(
-            "Settled",
-            ts + timezone.timedelta(days=2),
-            priority=1,
-            state=GameHistory.State.SETTLED,
-        )
-        urgent_low = self._create_history(
-            "Urgent low",
-            ts + timezone.timedelta(days=3),
-            priority=20,
-            state=GameHistory.State.NEEDS_ATTENTION,
-        )
-        urgent_high = self._create_history(
-            "Urgent high",
-            ts + timezone.timedelta(days=4),
-            priority=5,
-            state=GameHistory.State.NEEDS_ATTENTION,
-        )
-
-        response = self.client.get("/curation/?sort=priority")
-
-        self.assertEqual(
-            list(response.context["histories"]),
-            [urgent_high, urgent_low, progress, settled],
-        )
-
-    def _create_history(self, title, updated, *, priority, state):
+    def _create_history(self, title, updated, *, state):
         game = Game.objects.create(
             title=title,
             creation_time=updated,
@@ -238,7 +200,6 @@ class HistoryListViewTest(TestCase):
             game=game,
             creation_time=updated,
             edit_time=updated,
-            priority=priority,
             state=state,
         )
 

@@ -97,16 +97,6 @@ def history_list(request):
 
     if sort == "updated":
         histories = histories.order_by("-updated")
-    elif sort == "priority":
-        histories = histories.annotate(
-            state_rank=Case(
-                When(state=GameHistory.State.NEEDS_ATTENTION, then=0),
-                When(state=GameHistory.State.IN_PROGRESS, then=1),
-                When(state=GameHistory.State.SETTLED, then=2),
-                default=3,
-                output_field=IntegerField(),
-            )
-        ).order_by("state_rank", "priority", "-updated")
     else:
         sort = "relevance"
         histories = histories.annotate(
@@ -115,15 +105,7 @@ def history_list(request):
                 default=1,
                 output_field=IntegerField(),
             ),
-            attention_priority=Case(
-                When(
-                    state=GameHistory.State.NEEDS_ATTENTION,
-                    then="priority",
-                ),
-                default=0,
-                output_field=IntegerField(),
-            ),
-        ).order_by("attention_rank", "attention_priority", "-updated")
+        ).order_by("attention_rank", "-updated")
 
     for history in histories:
         history.state_short = HISTORY_STATE_SHORT.get(

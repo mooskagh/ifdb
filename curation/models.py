@@ -43,7 +43,6 @@ class GameHistory(models.Model):
         choices=AutoUpdate,
         default=AutoUpdate.ACCEPT,
     )
-    priority = models.IntegerField(_("Priority"), default=100)
     state = models.CharField(
         _("State"),
         max_length=16,
@@ -315,7 +314,6 @@ class GameHistoryAuditLog(models.Model):
         AUTO_UPDATES = "AUTO_UPDATES", _("Auto-update policy")
         STATE = "STATE", _("State")
         CANONICAL_TEXT = "CANONICAL_TEXT", _("Canonical text")
-        PRIORITY = "PRIORITY", _("Priority")
 
     def __str__(self):
         return f"Audit #{self.pk} on history #{self.history_id}"

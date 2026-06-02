@@ -19,7 +19,6 @@ class GameHistoryAdmin(admin.ModelAdmin):
         "game",
         "state",
         "auto_updates",
-        "priority",
         "creation_time",
     ]
     list_filter = ["state", "auto_updates"]
