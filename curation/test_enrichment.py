@@ -4,9 +4,9 @@ from types import SimpleNamespace
 from django.core.management import call_command
 from django.test import TestCase
 
-from .enrichment import EnrichmentPass
 from .gameinfo import GameInfo, GameUrl, Tag
 from .models import EnrichmentRule, GenreMapping
+from .passes import EnrichmentPass
 
 
 def _enrich(info: GameInfo) -> GameInfo:

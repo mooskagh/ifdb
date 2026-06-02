@@ -7,7 +7,7 @@ the draft against what is already served. Unchanged drafts settle silently;
 changed drafts become a ``GameEdit`` that is applied / proposed / rejected per
 the history's ``auto_updates`` policy.
 
-Concrete passes live in ``passes.py`` and register themselves into
+Concrete passes live in the ``passes`` package and register themselves into
 ``PASS_REGISTRY`` via ``@register_pass``; the runner resolves them by name at
 run time. The first real pass, ``merge_sources``, reproduces the old
 ``games/tasks/game_importer.py`` reimport: fold the history's source canonicals
@@ -361,4 +361,4 @@ def run_edit(
 
 # Imported for its registration side effects: each pass populates PASS_REGISTRY
 # via @register_pass on import.
-from . import enrichment, passes  # noqa: E402,F401
+from . import passes  # noqa: E402,F401

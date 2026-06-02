@@ -1,13 +1,8 @@
-"""Concrete ``GameEditPass`` implementations, registered into the edit runner.
+"""Merge fetched source canonicals into a draft ``GameInfo``."""
 
-Each pass registers itself via ``@register_pass`` (keyed by its ``name``) so
-the runner can resolve the ordered list in ``settings.CURATION_EDIT_PASSES``.
-The module is imported for its registration side effects (see ``edit.py``).
-"""
-
-from .edit import GameEditPass, GameEditState, register_pass
-from .gameinfo import GameInfo, merge, parse
-from .models import GameSource
+from curation.edit import GameEditPass, GameEditState, register_pass
+from curation.gameinfo import GameInfo, merge, parse
+from curation.models import GameSource
 
 # Source priority mirrors the old importers' ``priority`` values
 # (games/importer/*.py); higher wins first. Sources without an explicit

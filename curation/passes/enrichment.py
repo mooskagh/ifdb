@@ -17,11 +17,10 @@ import re
 from functools import lru_cache
 from urllib.parse import urlsplit
 
+from curation.edit import GameEditPass, GameEditState, register_pass
+from curation.gameinfo import GameInfo, GameUrl, Tag
+from curation.models import EnrichmentRule, GenreMapping
 from games.models import GameTag
-
-from .edit import GameEditPass, GameEditState, register_pass
-from .gameinfo import GameInfo, GameUrl, Tag
-from .models import EnrichmentRule, GenreMapping
 
 
 @register_pass
