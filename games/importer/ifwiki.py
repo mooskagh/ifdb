@@ -226,15 +226,16 @@ def ParseIfwikiLink(text):
     parts = text.split("|")
     if len(parts) > 3:
         return None
-    role, _, name = parts[0].partition(":")
+    separator = "::" if "::" in parts[0] else ":"
+    role, _, name = parts[0].partition(separator)
     if not name:
         role, name = None, role
     typ = None
     display_name = None
     if len(parts) == 2 and role:
-        display_name = parts[1]
+        display_name = parts[1].strip() or None
     elif len(parts) == 3:
-        typ, display_name = parts[1:]
+        typ, display_name = parts[1], parts[2].strip() or None
     return role, name, typ, display_name
 
 

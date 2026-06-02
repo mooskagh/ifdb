@@ -397,6 +397,25 @@ Test game content.
         self.assertIn(("tag", "приключения"), tag_data)
         self.assertIn(("ifid", "12345-ABCDE"), tag_data)
 
+    def test_whitespace_only_link_display_falls_back_to_target(self):
+        test_url = "https://ifwiki.ru/TestGame"
+
+        wikitext = """{{game info
+|название=Test Game
+}}
+
+[[Персонаж::Алиса| ]]
+"""
+
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            result = ImportFromIfwiki(test_url)
+
+        self.assertIn(
+            ("character", "Алиса"),
+            [(a["role_slug"], a["name"]) for a in result["authors"]],
+        )
+
     def test_competition_template_processing(self):
         """Test competition template processing."""
         test_url = "https://ifwiki.ru/TestGame"
