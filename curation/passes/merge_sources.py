@@ -24,7 +24,7 @@ _SOURCE_PRIORITY = {
 class MergeSourcesPass(GameEditPass):
     name = "merge_sources"
 
-    def apply(self, state: GameEditState) -> None:
+    def apply(self, state: GameEditState, params: dict) -> None:
         usable = sorted(
             (s for s in state.sources if s.canonical_text),
             key=lambda s: _SOURCE_PRIORITY.get(s.type, _DEFAULT_PRIORITY),

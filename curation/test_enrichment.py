@@ -10,7 +10,7 @@ from .passes import EnrichmentPass
 
 
 def _enrich(info: GameInfo) -> GameInfo:
-    EnrichmentPass().apply(SimpleNamespace(current=info))
+    EnrichmentPass().apply(SimpleNamespace(current=info), {})
     return info
 
 

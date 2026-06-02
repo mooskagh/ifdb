@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from logging import getLogger
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from django.conf import settings
 from django.db import transaction
@@ -90,11 +90,20 @@ class GameEditState:
     attention_reason: list[str] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class EditPassSpec:
+    name: str
+    params: dict[str, Any]
+
+    def as_json(self) -> dict[str, Any]:
+        return {"name": self.name, **self.params}
+
+
 class GameEditPass(ABC):
     name: ClassVar[str]  # registry key, also recorded into GameEdit.passes
 
     @abstractmethod
-    def apply(self, state: GameEditState) -> None:
+    def apply(self, state: GameEditState, params: dict[str, Any]) -> None:
         """Mutate the state in place."""
 
 
@@ -104,6 +113,30 @@ PASS_REGISTRY: dict[str, GameEditPass] = {}
 def register_pass(cls):
     PASS_REGISTRY[cls.name] = cls()
     return cls
+
+
+def normalize_pass_specs(items) -> list[EditPassSpec]:
+    specs = []
+    for item in items:
+        if isinstance(item, str):
+            specs.append(EditPassSpec(item, {}))
+            continue
+        if not isinstance(item, dict):
+            raise TypeError(f"Invalid curation edit pass spec: {item!r}")
+        try:
+            name = item["name"]
+        except KeyError as e:
+            raise ValueError(
+                f"Curation edit pass spec has no name: {item!r}"
+            ) from e
+        if not isinstance(name, str):
+            raise TypeError(
+                f"Curation edit pass name must be a string: {item!r}"
+            )
+        specs.append(
+            EditPassSpec(name, {k: v for k, v in item.items() if k != "name"})
+        )
+    return specs
 
 
 @dataclass(frozen=True)
@@ -258,9 +291,9 @@ def _flush(history: GameHistory, state: GameEditState) -> None:
 
 def _process_history(history: GameHistory) -> str:
     state = _build_state(history)
-    pass_names = list(settings.CURATION_EDIT_PASSES)
-    for name in pass_names:
-        PASS_REGISTRY[name].apply(state)
+    pass_specs = normalize_pass_specs(settings.CURATION_EDIT_PASSES)
+    for spec in pass_specs:
+        PASS_REGISTRY[spec.name].apply(state, spec.params)
     state.current.canonicalize()
 
     final = state.current.to_canonical()
@@ -278,7 +311,7 @@ def _process_history(history: GameHistory) -> str:
             proposed_at=now(),
             origin=GameEdit.Origin.AUTO_IMPORT,
             status=_EDIT_STATUS_BY_APPROVAL[state.approval],
-            passes=pass_names,
+            passes=[spec.as_json() for spec in pass_specs],
             previous_canonical_text=(
                 None if state.approval is Approval.PROPOSED else base
             ),

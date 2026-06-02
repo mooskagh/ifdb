@@ -27,7 +27,7 @@ from games.models import GameTag
 class EnrichmentPass(GameEditPass):
     name = "enrich"
 
-    def apply(self, state: GameEditState) -> None:
+    def apply(self, state: GameEditState, params: dict) -> None:
         info = state.current
         ns = _namespace(info)
         for rule in EnrichmentRule.objects.filter(enabled=True):

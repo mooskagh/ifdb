@@ -21,8 +21,10 @@ class _TagAndApprove(GameEditPass):
     def __init__(self, approval: Approval):
         self.approval = approval
 
-    def apply(self, state):
-        state.current.tags.append(Tag("os", "os_win", None, None))
+    def apply(self, state, params):
+        state.current.tags.append(
+            Tag("os", params.get("tag", "os_win"), None, None)
+        )
         state.approval = self.approval
 
 
@@ -39,12 +41,12 @@ class RunEditTests(TestCase):
             creation_time=now(),
         )
 
-    def _run_with(self, passes, history):
+    def _run_with(self, passes, history, specs=None):
         registry = {p.name: p for p in passes}
-        names = [p.name for p in passes]
+        specs = specs if specs is not None else [p.name for p in passes]
         with (
             mock.patch.object(edit, "PASS_REGISTRY", registry),
-            override_settings(CURATION_EDIT_PASSES=names),
+            override_settings(CURATION_EDIT_PASSES=specs),
         ):
             return run_edit(history_id=history.pk)
 
@@ -63,7 +65,7 @@ class RunEditTests(TestCase):
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         edit_row = GameEdit.objects.get(history=history)
         self.assertEqual(edit_row.status, GameEdit.EditStatus.APPLIED)
-        self.assertEqual(edit_row.passes, ["tag_and_approve"])
+        self.assertEqual(edit_row.passes, [{"name": "tag_and_approve"}])
         self.assertIsNotNone(edit_row.previous_canonical_text)
         self.assertIn("A Game", edit_row.previous_canonical_text)
         self.assertIsNotNone(edit_row.approved_at)
@@ -126,3 +128,20 @@ class RunEditTests(TestCase):
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertFalse(GameEdit.objects.filter(history=history).exists())
+
+    def test_pass_params_are_applied_and_recorded(self):
+        history = self._history()
+
+        self._run_with(
+            [_TagAndApprove(Approval.APPLIED)],
+            history,
+            [{"name": "tag_and_approve", "tag": "os_dos"}],
+        )
+
+        edit_row = GameEdit.objects.get(history=history)
+        self.assertEqual(
+            edit_row.passes, [{"name": "tag_and_approve", "tag": "os_dos"}]
+        )
+        self.assertTrue(
+            history.game.tags.filter(symbolic_id="os_dos").exists()
+        )

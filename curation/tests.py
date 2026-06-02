@@ -778,7 +778,7 @@ class EditRunnerTest(TestCase):
 
         edit = GameEdit.objects.get(history=history)
         self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
-        self.assertEqual(edit.passes, ["merge_sources"])
+        self.assertEqual(edit.passes, [{"name": "merge_sources"}])
         self.assertEqual(set(edit.used_sources.all()), {wiki, apero})
 
     def test_rerun_is_idempotent(self):
