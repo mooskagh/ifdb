@@ -1,13 +1,14 @@
 from datetime import timedelta
 from hashlib import sha256
 from io import StringIO
+from threading import Lock
 from unittest.mock import patch
 
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from django.utils.timezone import now
 
-from .fetch import FetchStats, run_fetch
+from .fetch import FetchStats, _RateLimiter, run_fetch
 from .gameinfo import GameInfo
 from .models import GameSource, GameSourceFetch
 from .providers import GameSourceProvider
@@ -19,19 +20,22 @@ class FakeProvider(GameSourceProvider):
         self.fetches = list(fetches)
         self.infos = list(infos)
         self.fetched_urls = []
+        self.lock = Lock()
 
     def owns(self, url: str) -> bool:
         return False
 
     def fetch(self, url: str) -> str:
-        self.fetched_urls.append(url)
-        result = self.fetches.pop(0)
+        with self.lock:
+            self.fetched_urls.append(url)
+            result = self.fetches.pop(0)
         if isinstance(result, Exception):
             raise result
         return result
 
     def canonicalize(self, raw: str, url: str) -> GameInfo:
-        result = self.infos.pop(0)
+        with self.lock:
+            result = self.infos.pop(0)
         if isinstance(result, Exception):
             raise result
         return result
@@ -216,13 +220,39 @@ class FetchTest(TestCase):
         self.assertEqual(stats, [FetchStats("APERO", 1, 1, 0, 1, 0)])
         self.assertEqual(provider.fetched_urls, [wanted.url])
 
+    def test_rate_limiter_limits_per_type(self):
+        times = iter([10, 10, 10, 10])
+        sleeps = []
+
+        with (
+            patch("curation.fetch.monotonic", lambda: next(times)),
+            patch("curation.fetch.sleep", sleeps.append),
+        ):
+            limiter = _RateLimiter(2)
+            limiter.wait("APERO")
+            limiter.wait("QSP")
+            limiter.wait("APERO")
+            limiter.wait("QSP")
+
+        self.assertEqual(sleeps, [2, 2])
+
     def test_sources_fetch_command_prints_counts(self):
-        def fake_run_fetch(types, limit, source_id, url, on_source_done=None):
+        def fake_run_fetch(
+            types,
+            limit,
+            source_id,
+            url,
+            on_source_done=None,
+            threads=1,
+            rate_limit=0,
+        ):
             self.assertEqual(types, [GameSource.SourceType.APERO])
             self.assertEqual(limit, 5)
             self.assertEqual(source_id, 123)
             self.assertEqual(url, "http://example.com/game")
             self.assertIsNone(on_source_done)
+            self.assertEqual(threads, 3)
+            self.assertEqual(rate_limit, 1.5)
             return [FetchStats("APERO", 12, 11, 1, 4, 7)]
 
         stdout = StringIO()
@@ -240,6 +270,10 @@ class FetchTest(TestCase):
                 "123",
                 "--url",
                 "http://example.com/game",
+                "--threads",
+                "3",
+                "--rate-limit",
+                "1.5",
                 stdout=stdout,
             )
 
@@ -256,7 +290,15 @@ class FetchTest(TestCase):
             url="http://example.com/game",
         )
 
-        def fake_run_fetch(types, limit, source_id, url, on_source_done=None):
+        def fake_run_fetch(
+            types,
+            limit,
+            source_id,
+            url,
+            on_source_done=None,
+            threads=1,
+            rate_limit=0,
+        ):
             self.assertIsNotNone(on_source_done)
             on_source_done(source, "created", None)
             return [FetchStats("APERO", 1, 1, 0, 1, 0)]
@@ -271,3 +313,49 @@ class FetchTest(TestCase):
             "source #46 [APERO] http://example.com/game: created",
             stdout.getvalue(),
         )
+
+
+class ThreadedFetchTest(TransactionTestCase):
+    def source(self, url):
+        return GameSource.objects.create(
+            type=GameSource.SourceType.APERO, url=url
+        )
+
+    def info(self, name):
+        return GameInfo(name=name, description=f"{name} description")
+
+    def test_threaded_fetches_aggregate_stats(self):
+        self.source("http://example.com/one")
+        self.source("http://example.com/two")
+        provider = FakeProvider(
+            GameSource.SourceType.APERO,
+            fetches=["raw 1", "raw 2"],
+            infos=[self.info("One"), self.info("Two")],
+        )
+
+        with patch("curation.fetch.PROVIDER_BY_TYPE", {"APERO": provider}):
+            stats = run_fetch(threads=2)
+
+        self.assertEqual(stats, [FetchStats("APERO", 2, 2, 0, 2, 0)])
+        self.assertCountEqual(
+            provider.fetched_urls,
+            ["http://example.com/one", "http://example.com/two"],
+        )
+        self.assertEqual(GameSourceFetch.objects.count(), 2)
+
+    def test_threaded_workers_do_not_fetch_sources_from_db(self):
+        self.source("http://example.com/one")
+        provider = FakeProvider(
+            GameSource.SourceType.APERO,
+            fetches=["raw"],
+            infos=[self.info("One")],
+        )
+
+        with (
+            patch("curation.fetch.PROVIDER_BY_TYPE", {"APERO": provider}),
+            patch.object(GameSource.objects, "get") as get,
+        ):
+            stats = run_fetch(threads=2)
+
+        get.assert_not_called()
+        self.assertEqual(stats, [FetchStats("APERO", 1, 1, 0, 1, 0)])

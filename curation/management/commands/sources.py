@@ -28,6 +28,18 @@ class Command(BaseCommand):
         parser.add_argument("--limit", type=int, help="Limit fetched sources.")
         parser.add_argument("--source", type=int, help="Fetch one source pk.")
         parser.add_argument("--url", help="Fetch one source URL.")
+        parser.add_argument(
+            "--threads",
+            type=int,
+            default=1,
+            help="Fetch sources with this many worker threads.",
+        )
+        parser.add_argument(
+            "--rate-limit",
+            type=float,
+            default=0,
+            help="Minimum seconds between fetch starts per source type.",
+        )
         parser.add_argument("--history", type=int, help="Edit one history pk.")
 
     def handle(self, *args, **options):
@@ -120,6 +132,8 @@ class Command(BaseCommand):
             source_id=options["source"],
             url=options["url"],
             on_source_done=source_done if verbose else None,
+            threads=options["threads"],
+            rate_limit=options["rate_limit"],
         )
         for item in stats:
             self.stdout.write(
