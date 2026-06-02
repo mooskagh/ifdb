@@ -1025,6 +1025,30 @@ Source desc"""
             {"old source", "wiki"},
         )
 
+    def test_merge_keeps_served_description_when_source_empty(self):
+        game = Game.objects.create(
+            title="Old Title",
+            description="Old desc",
+            creation_time=self.now,
+        )
+        history = self._history(game=game)
+        cat = GameTagCategory.objects.create(symbolic_id="tag", name="Tag")
+        source_tag = GameTag.objects.create(category=cat, name="source")
+        canonical = f"""---
+- name: Source Title
+- tags:
+  - ["tag", {source_tag.id}]
+---
+"""
+        self._canonical_source(history, canonical)
+
+        stats = run_edit()
+
+        self.assertEqual(stats.applied, 1)
+        game.refresh_from_db()
+        self.assertEqual(game.title, "Source Title")
+        self.assertEqual(game.description, "Old desc")
+
     def test_merge_deduplicates_equivalent_urls(self):
         game = Game.objects.create(title="Tell", creation_time=self.now)
         history = self._history(game=game)

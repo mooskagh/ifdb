@@ -43,5 +43,5 @@ class MergeSourcesPass(GameEditPass):
             merged = merge(state.current, merged)
             merged.name = source_name or state.current.name
             merged.date = source_date or state.current.date
-            merged.description = source_description
+            merged.description = source_description or state.served.description
         state.current = merged
