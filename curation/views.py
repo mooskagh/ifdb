@@ -335,14 +335,14 @@ def history_detail(request, history_id):
             })
 
     for edit in GameEdit.objects.filter(history=history).select_related(
-        "approver"
+        "proposed_by", "approver"
     ):
         timeline.append({
             "ts": edit.proposed_at,
             "kind": "edit",
             "color": "green",
             "obj": edit,
-            "who": edit.approver,
+            "who": edit.proposed_by,
         })
 
     for comment in GameHistoryComment.objects.filter(

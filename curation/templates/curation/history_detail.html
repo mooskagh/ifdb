@@ -102,6 +102,12 @@
                 {% endif %}
             </div>
             <div class="curation-meta">Происхождение: {{ entry.obj.get_origin_display }}</div>
+            <div class="curation-meta">Предложил: {{ entry.obj.proposed_by|default:"—" }}</div>
+            {% if entry.obj.status == "APPLIED" %}
+            <div class="curation-meta">Одобрил: {{ entry.obj.approver|default:"—" }}</div>
+            {% elif entry.obj.status == "REJECTED" %}
+            <div class="curation-meta">Отклонил: {{ entry.obj.approver|default:"—" }}</div>
+            {% endif %}
         {% elif entry.kind == "comment" %}
             <div class="curation-event">{{ entry.obj.get_type_display }}</div>
             {{ entry.obj.text|linebreaksbr }}

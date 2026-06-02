@@ -72,6 +72,8 @@ class GameEditCurationViewTests(TestCase):
         self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
         self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
         self.assertEqual(edit.origin, GameEdit.Origin.USER_SUGGESTION)
+        self.assertEqual(edit.proposed_by, self.user)
+        self.assertIsNone(edit.approver)
 
     def test_store_saves_with_edit_perm(self):
         game = Game.objects.create(title="Old Title", creation_time=now())
@@ -88,3 +90,5 @@ class GameEditCurationViewTests(TestCase):
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
         self.assertEqual(edit.origin, GameEdit.Origin.MANUAL_EDIT)
+        self.assertEqual(edit.proposed_by, self.user)
+        self.assertEqual(edit.approver, self.user)

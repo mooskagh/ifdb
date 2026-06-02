@@ -231,6 +231,7 @@ class EditDiffViewTest(TestCase):
         edit = GameEdit.objects.create(
             history=history,
             proposed_at=self.now,
+            proposed_by=self.user,
             status=GameEdit.EditStatus.PROPOSED,
             origin=GameEdit.Origin.AUTO_IMPORT,
             canonical_text=GameInfo(name="New Title").to_canonical(),
@@ -419,6 +420,8 @@ class EditDiffViewTest(TestCase):
         rejected = GameEdit.objects.create(
             history=proposed.history,
             proposed_at=self.now + timezone.timedelta(minutes=5),
+            proposed_by=self.user,
+            approver=self.user,
             status=GameEdit.EditStatus.REJECTED,
             origin=GameEdit.Origin.AUTO_IMPORT,
             canonical_text=GameInfo(name="Rejected Title").to_canonical(),
@@ -437,6 +440,8 @@ class EditDiffViewTest(TestCase):
             f'<a href="/curation/edits/{rejected.pk}/">посмотреть</a>',
             html=True,
         )
+        self.assertContains(response, "Предложил: moder")
+        self.assertContains(response, "Отклонил: moder")
         self.assertNotContains(
             response,
             '<a class="curation-action-link" '

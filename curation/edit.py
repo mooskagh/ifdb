@@ -24,6 +24,7 @@ from logging import getLogger
 from typing import Any, ClassVar
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils.timezone import now
 
@@ -291,6 +292,10 @@ def _flush(history: GameHistory, state: GameEditState) -> None:
 
 def _process_history(history: GameHistory) -> str:
     state = _build_state(history)
+    maintenance_user, _ = get_user_model().objects.get_or_create(
+        username=settings.MAINTENANCE_USER,
+        defaults={"email": "robot@db.crem.xyz"},
+    )
     pass_specs = normalize_pass_specs(settings.CURATION_EDIT_PASSES)
     for spec in pass_specs:
         PASS_REGISTRY[spec.name].apply(state, spec.params)
@@ -309,6 +314,7 @@ def _process_history(history: GameHistory) -> str:
         edit = GameEdit.objects.create(
             history=history,
             proposed_at=now(),
+            proposed_by=maintenance_user,
             origin=GameEdit.Origin.AUTO_IMPORT,
             status=_EDIT_STATUS_BY_APPROVAL[state.approval],
             passes=[spec.as_json() for spec in pass_specs],
@@ -325,7 +331,10 @@ def _process_history(history: GameHistory) -> str:
             if after != final:
                 edit.canonical_text = after
             edit.approved_at = now()
-            edit.save(update_fields=["canonical_text", "approved_at"])
+            edit.approver = maintenance_user
+            edit.save(
+                update_fields=["canonical_text", "approved_at", "approver"]
+            )
             if history.game is None:
                 history.game = game
             GameHistoryAuditLog.record_change(

@@ -62,12 +62,14 @@ class GameEditAdmin(admin.ModelAdmin):
         "status",
         "origin",
         "proposed_at",
+        "proposed_by",
         "approver",
     ]
     list_filter = ["status", "origin"]
     search_fields = ["pk"]
     raw_id_fields = [
         "history",
+        "proposed_by",
         "approver",
         "used_sources",
     ]

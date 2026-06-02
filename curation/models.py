@@ -220,6 +220,13 @@ class GameEdit(models.Model):
     history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)
     proposed_at = models.DateTimeField(_("Proposed at"))
     approved_at = models.DateTimeField(_("Approved at"), null=True, blank=True)
+    proposed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="proposed_game_edits",
+    )
     approver = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

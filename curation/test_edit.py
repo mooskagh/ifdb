@@ -1,6 +1,7 @@
 from io import StringIO
 from unittest import mock
 
+from django.conf import settings
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils.timezone import now
@@ -100,6 +101,10 @@ class RunEditTests(TestCase):
         self.assertIsNotNone(edit_row.previous_canonical_text)
         self.assertIn("A Game", edit_row.previous_canonical_text)
         self.assertIsNotNone(edit_row.approved_at)
+        self.assertEqual(
+            edit_row.proposed_by.username, settings.MAINTENANCE_USER
+        )
+        self.assertEqual(edit_row.approver.username, settings.MAINTENANCE_USER)
         self.assertTrue(self._has_os_win(history.game))
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
@@ -121,6 +126,10 @@ class RunEditTests(TestCase):
             GameEdit.EditStatus.PROPOSED,
         )
         self.assertIsNone(edit_row.previous_canonical_text)
+        self.assertEqual(
+            edit_row.proposed_by.username, settings.MAINTENANCE_USER
+        )
+        self.assertIsNone(edit_row.approver)
         self.assertFalse(self._has_os_win(history.game))
 
     def test_rejected_settles_with_edit_game_untouched(self):

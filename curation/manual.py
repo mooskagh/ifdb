@@ -44,6 +44,7 @@ def store_manual_edit(
     edit = GameEdit.objects.create(
         history=history,
         proposed_at=now(),
+        proposed_by=user,
         origin=(
             GameEdit.Origin.MANUAL_EDIT
             if apply
