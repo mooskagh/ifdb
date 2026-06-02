@@ -30,6 +30,7 @@ from games.models import (
     GameTagCategory,
     GameURL,
     GameURLCategory,
+    Personality,
     PersonalityAlias,
     PersonalityAliasRedirect,
 )
@@ -250,24 +251,29 @@ class GameInfo:
                 symbolic_id=role_slug, defaults={"title": role_slug}
             )
             for person in people:
-                alias_id = self._resolve_alias_id(person)
-                if alias_id is None:
+                alias = self._resolve_alias(person)
+                if alias is None:
                     continue
-                key = (role.id, alias_id)
+                if alias.personality_id is None:
+                    alias.personality = Personality.objects.create(
+                        name=alias.name
+                    )
+                    alias.save(update_fields=["personality"])
+                key = (role.id, alias.id)
                 desired.add(key)
                 if key not in existing:
                     to_create.append(
                         GameAuthor(
-                            game=game, role_id=role.id, author_id=alias_id
+                            game=game, role_id=role.id, author_id=alias.id
                         )
                     )
         GameAuthor.objects.bulk_create(to_create)
         if stale := [v for k, v in existing.items() if k not in desired]:
             GameAuthor.objects.filter(id__in=stale).delete()
 
-    def _resolve_alias_id(self, person: Person) -> int | None:
+    def _resolve_alias(self, person: Person) -> PersonalityAlias | None:
         if person.alias_id is not None:
-            return person.alias_id
+            return PersonalityAlias.objects.get(pk=person.alias_id)
         name = person.name.strip()
         if not name:
             return None
@@ -275,7 +281,7 @@ class GameInfo:
         if alias_id is None:
             alias_id = PersonalityAlias.objects.create(name=name).id
         person.alias_id, person.name = alias_id, ""
-        return alias_id
+        return PersonalityAlias.objects.get(pk=alias_id)
 
     def _resolve_existing_alias_id(self, person: Person) -> int | None:
         if person.alias_id is not None:

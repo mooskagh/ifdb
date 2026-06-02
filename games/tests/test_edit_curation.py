@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.utils.timezone import now
 
 from curation.models import GameEdit, GameHistory
-from games.models import Game
+from games.models import Game, GameAuthor, GameAuthorRole, PersonalityAlias
 
 
 class GameEditCurationViewTests(TestCase):
@@ -92,3 +92,13 @@ class GameEditCurationViewTests(TestCase):
         self.assertEqual(edit.origin, GameEdit.Origin.MANUAL_EDIT)
         self.assertEqual(edit.proposed_by, self.user)
         self.assertEqual(edit.approver, self.user)
+
+    def test_game_page_renders_unlinked_author_alias(self):
+        game = Game.objects.create(title="Old Title", creation_time=now())
+        role = GameAuthorRole.objects.get(symbolic_id="author")
+        alias = PersonalityAlias.objects.create(name="Unlinked Author")
+        GameAuthor.objects.create(game=game, role=role, author=alias)
+
+        response = self.client.get(reverse("show_game", args=[game.id]))
+
+        self.assertContains(response, "Unlinked Author")

@@ -12,6 +12,7 @@ from games.models import (
     GameTag,
     GameTagCategory,
     GameURL,
+    Personality,
     PersonalityAlias,
     PersonalityAliasRedirect,
 )
@@ -306,6 +307,10 @@ class SaveTest(GameInfoTestBase):
         self.assertEqual(game.gameauthor_set.count(), 2)
         self.assertEqual(game.gameurl_set.count(), 2)
         self.assertEqual(game.description_attributions.count(), 2)
+        self.assertEqual(
+            Personality.objects.get(personalityalias__name="New artist").name,
+            "New artist",
+        )
 
         # The new "fresh" tag was created and resolved to an id in the doc:
         # it appears as a DB entry, not as a new-entry ["tag", "fresh"] form.
