@@ -19,6 +19,7 @@ from dateutil.parser import parse as parse_date
 from django.utils import timezone
 
 from core.taskqueue import Enqueue
+from games.importer.tools import HashizeUrl
 from games.models import (
     URL,
     Game,
@@ -451,6 +452,16 @@ def _existing_alias_id(name: str) -> int | None:
 
 def merge(base: GameInfo, incoming: GameInfo) -> GameInfo:
     """Union both docs: de-dup by identity, concat descriptions, first-wins."""
+    url_by_id = {
+        u.id: u.original_url
+        for u in URL.objects.filter(
+            id__in={
+                u.url_id
+                for u in [*base.urls, *incoming.urls]
+                if u.url_id is not None
+            }
+        )
+    }
     result = GameInfo(
         name=base.name or incoming.name,
         date=base.date or incoming.date,
@@ -470,7 +481,9 @@ def merge(base: GameInfo, incoming: GameInfo) -> GameInfo:
         if people:
             result.personalities[role] = people
     result.tags = _dedup(base.tags + incoming.tags, _tag_key)
-    result.urls = _dedup(base.urls + incoming.urls, _url_key)
+    result.urls = _dedup(
+        base.urls + incoming.urls, lambda u: _url_key(u, url_by_id)
+    )
     result.attributions = _dedup(
         base.attributions + incoming.attributions, _attribution_key
     )
@@ -489,12 +502,13 @@ def _tag_key(t: Tag):
     return ("new", t.category, t.text)
 
 
-def _url_key(u: GameUrl):
-    return (
-        ("id", u.url_id)
-        if u.url_id is not None
-        else ("new", u.category, u.url)
-    )
+def _url_key(u: GameUrl, url_by_id: dict[int, str | None]):
+    url = u.url if u.url is not None else url_by_id.get(u.url_id)
+    return (u.category, _hash_url_for_merge(url or ""))
+
+
+def _hash_url_for_merge(url: str) -> str:
+    return HashizeUrl(url).replace("rinform.stormway.ru/", "rinform.org/")
 
 
 def _attribution_key(a: Attribution):

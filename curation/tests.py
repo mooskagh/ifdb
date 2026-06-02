@@ -903,6 +903,64 @@ Source desc"""
             {"old source", "wiki"},
         )
 
+    def test_merge_deduplicates_equivalent_urls(self):
+        game = Game.objects.create(title="Tell", creation_time=self.now)
+        history = self._history(game=game)
+        play_online = GameURLCategory.objects.create(
+            symbolic_id="play_online", title="Play online"
+        )
+        GameURLCategory.objects.create(
+            symbolic_id="play_in_interpreter", title="Play in interpreter"
+        )
+        url = URL.objects.create(
+            original_url=(
+                "http://iplayif.com/?story="
+                "http://rinform.stormway.ru/games/wtell/WTellR.z5"
+            ),
+            creation_date=self.now,
+        )
+        GameURL.objects.create(game=game, category=play_online, url=url)
+        canonical = """---
+- name: Tell
+- urls:
+  - ["play_online", "Играть онлайн", "http://iplayif.com/?story=http://rinform.org/games/wtell/WTellR.z5"]
+---
+"""
+        self._canonical_source(history, canonical)
+
+        stats = run_edit()
+
+        self.assertEqual(stats.unchanged, 1)
+        self.assertFalse(GameEdit.objects.filter(history=history).exists())
+
+    def test_merge_deduplicates_existing_exact_url(self):
+        game = Game.objects.create(title="Tell", creation_time=self.now)
+        history = self._history(game=game)
+        game_page = GameURLCategory.objects.create(
+            symbolic_id="game_page", title="Game page"
+        )
+        url = URL.objects.create(
+            original_url=(
+                "https://ifwiki.ru/%D0%92%D0%B8%D0%BB%D1%8C%D0%B3"
+                "%D0%B5%D0%BB%D1%8C%D0%BC_%D0%A2%D0%B5%D0%BB"
+                "%D0%BB%D1%8C"
+            ),
+            creation_date=self.now,
+        )
+        GameURL.objects.create(game=game, category=game_page, url=url)
+        canonical = f"""---
+- name: Tell
+- urls:
+  - ["game_page", "{url.original_url}"]
+---
+"""
+        self._canonical_source(history, canonical)
+
+        stats = run_edit()
+
+        self.assertEqual(stats.unchanged, 1)
+        self.assertFalse(GameEdit.objects.filter(history=history).exists())
+
     @override_settings(
         CURATION_EDIT_PASSES=[
             {"name": "merge_sources", "keep_existing": False}
