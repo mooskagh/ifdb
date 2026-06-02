@@ -432,7 +432,8 @@ class EditDiffViewTest(TestCase):
         self.assertContains(
             response,
             '<a class="curation-action-link" '
-            f'href="/curation/edits/{proposed.pk}/">Resolve</a>',
+            f'href="/curation/edits/{proposed.pk}/">посмотреть правку и '
+            "решить, что с ней делать</a>",
             html=True,
         )
         self.assertContains(
@@ -445,8 +446,40 @@ class EditDiffViewTest(TestCase):
         self.assertNotContains(
             response,
             '<a class="curation-action-link" '
-            f'href="/curation/edits/{rejected.pk}/">Resolve</a>',
+            f'href="/curation/edits/{rejected.pk}/">посмотреть правку и '
+            "решить, что с ней делать</a>",
             html=True,
+        )
+
+    def test_history_page_sorts_settled_edits_by_approval_date(self):
+        proposed = self._edit()
+        proposed.proposed_at = self.now + timezone.timedelta(minutes=10)
+        proposed.save(update_fields=["proposed_at"])
+        approved = GameEdit.objects.create(
+            history=proposed.history,
+            proposed_at=self.now - timezone.timedelta(days=1),
+            proposed_by=self.user,
+            approved_at=self.now + timezone.timedelta(minutes=20),
+            approver=self.user,
+            status=GameEdit.EditStatus.APPLIED,
+            origin=GameEdit.Origin.AUTO_IMPORT,
+            canonical_text=GameInfo(name="Approved Title").to_canonical(),
+        )
+
+        response = self.client.get(f"/curation/{proposed.history.pk}/")
+        content = response.content.decode()
+
+        self.assertContains(
+            response,
+            f"Предложил: moder ({proposed.proposed_at:%d.%m.%Y %H:%M})",
+        )
+        self.assertContains(
+            response,
+            f"Одобрил: moder ({approved.approved_at:%d.%m.%Y %H:%M})",
+        )
+        self.assertLess(
+            content.index(f"/curation/edits/{proposed.pk}/"),
+            content.index(f"/curation/edits/{approved.pk}/"),
         )
 
 

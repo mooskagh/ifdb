@@ -340,7 +340,7 @@ def history_detail(request, history_id):
         "proposed_by", "approver"
     ):
         timeline.append({
-            "ts": edit.proposed_at,
+            "ts": edit.approved_at or edit.proposed_at,
             "kind": "edit",
             "color": "green",
             "obj": edit,

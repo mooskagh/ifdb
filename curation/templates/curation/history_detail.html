@@ -96,17 +96,17 @@
             <div class="curation-event curation-event--action">
                 <span>Правка: {{ entry.obj.get_status_display }}</span>
                 {% if entry.obj.status == proposed_edit_status %}
-                <a class="curation-action-link" href="{% url 'curation_edit_diff' entry.obj.pk %}">Resolve</a>
+                <a class="curation-action-link" href="{% url 'curation_edit_diff' entry.obj.pk %}">посмотреть правку и решить, что с ней делать</a>
                 {% else %}
                 <a href="{% url 'curation_edit_diff' entry.obj.pk %}">посмотреть</a>
                 {% endif %}
             </div>
             <div class="curation-meta">Происхождение: {{ entry.obj.get_origin_display }}</div>
-            <div class="curation-meta">Предложил: {{ entry.obj.proposed_by|default:"—" }}</div>
+            <div class="curation-meta">Предложил: {{ entry.obj.proposed_by|default:"—" }}{% if entry.obj.proposed_at %} ({{ entry.obj.proposed_at|date:"d.m.Y H:i" }}){% endif %}</div>
             {% if entry.obj.status == "APPLIED" %}
-            <div class="curation-meta">Одобрил: {{ entry.obj.approver|default:"—" }}</div>
+            <div class="curation-meta">Одобрил: {{ entry.obj.approver|default:"—" }}{% if entry.obj.approved_at %} ({{ entry.obj.approved_at|date:"d.m.Y H:i" }}){% endif %}</div>
             {% elif entry.obj.status == "REJECTED" %}
-            <div class="curation-meta">Отклонил: {{ entry.obj.approver|default:"—" }}</div>
+            <div class="curation-meta">Отклонил: {{ entry.obj.approver|default:"—" }}{% if entry.obj.approved_at %} ({{ entry.obj.approved_at|date:"d.m.Y H:i" }}){% endif %}</div>
             {% endif %}
         {% elif entry.kind == "comment" %}
             <div class="curation-event">{{ entry.obj.get_type_display }}</div>
