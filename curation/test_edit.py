@@ -5,11 +5,11 @@ from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils.timezone import now
 
-from games.models import Game
+from games.models import Game, PersonalityAlias
 
 from . import edit
 from .edit import Approval, GameEditPass, run_edit
-from .gameinfo import Tag
+from .gameinfo import Person, Tag
 from .models import GameEdit, GameHistory, GameHistoryAuditLog
 
 
@@ -26,6 +26,22 @@ class _TagAndApprove(GameEditPass):
             Tag("os", params.get("tag", "os_win"), None, None)
         )
         state.approval = self.approval
+
+
+class _AddNamedPerson(GameEditPass):
+    name = "add_named_person"
+
+    def apply(self, state, params):
+        state.current.personalities.setdefault("author", []).append(
+            Person(None, params["person_name"])
+        )
+
+
+class _AssertResolvedPerson(GameEditPass):
+    name = "assert_resolved_person"
+
+    def apply(self, state, params):
+        self.seen = state.current.personalities["author"][-1]
 
 
 class RunEditTests(TestCase):
@@ -145,3 +161,20 @@ class RunEditTests(TestCase):
         self.assertTrue(
             history.game.tags.filter(symbolic_id="os_dos").exists()
         )
+
+    def test_canonicalizes_after_each_pass(self):
+        history = self._history()
+        alias = PersonalityAlias.objects.create(name="Known Author")
+        observer = _AssertResolvedPerson()
+
+        self._run_with(
+            [_AddNamedPerson(), observer, _TagAndApprove(Approval.CANCELLED)],
+            history,
+            [
+                {"name": "add_named_person", "person_name": "Known Author"},
+                {"name": "assert_resolved_person"},
+                {"name": "tag_and_approve"},
+            ],
+        )
+
+        self.assertEqual(observer.seen, Person(alias.id, ""))

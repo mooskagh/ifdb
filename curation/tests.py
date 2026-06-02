@@ -847,6 +847,11 @@ class EditRunnerTest(TestCase):
         urlcat = GameURLCategory.objects.create(
             symbolic_id="game", title="Game", allow_cloning=False
         )
+        GameURLCategory.objects.create(
+            symbolic_id="play_in_interpreter",
+            title="Play in interpreter",
+            allow_cloning=False,
+        )
         old_url = URL.objects.create(
             original_url="https://example.com/old.zip",
             creation_date=self.now,

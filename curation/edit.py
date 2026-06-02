@@ -294,7 +294,7 @@ def _process_history(history: GameHistory) -> str:
     pass_specs = normalize_pass_specs(settings.CURATION_EDIT_PASSES)
     for spec in pass_specs:
         PASS_REGISTRY[spec.name].apply(state, spec.params)
-    state.current.canonicalize()
+        state.current.canonicalize()
 
     final = state.current.to_canonical()
     base = state.served.to_canonical()
