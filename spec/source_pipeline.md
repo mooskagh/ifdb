@@ -192,7 +192,15 @@ develop against, so it ships alone.
     lowercase free-text tags, then map them to genres via the `GenreMapping`
     table. Seeded with the current behavior by `manage.py initenrichment`
     (idempotent).
-  - **Deferred**: the LLM passes — they slot into the same registry behind
+  - **LLM-pass data foundation underway** — `curation/models/llm.py` adds
+    `LLMModel` (OpenRouter id + 4 `$/Mtok` rates, `cost_for(...)`), `Workflow`
+    (declarative prompt template + model + allowed tools), and `Trajectory` (one
+    LLM conversation, FK to `GameHistory` always + nullable `GameEdit`, token
+    counts and snapshotted `cost`). Gating/resolution stays in code: each LLM
+    functionality will be a `GameEditPass` subclass naming a `Workflow`,
+    mirroring `enrich` (code pass + `EnrichmentRule` table).
+  - **Deferred**: the LLM passes themselves — the `LLMPass` runner, OpenRouter
+    client, and concrete passes slot into the same registry behind
     `merge_sources` / `enrich`.
 
 A and C/E can merge if convenient (all "plumbing around code that exists"); only

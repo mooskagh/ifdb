@@ -9,6 +9,9 @@ from .models import (
     GameSource,
     GameSourceFetch,
     GenreMapping,
+    LLMModel,
+    Trajectory,
+    Workflow,
 )
 
 
@@ -103,3 +106,39 @@ class GenreMappingAdmin(admin.ModelAdmin):
     list_display = ["tag", "genre_slug", "replace"]
     list_filter = ["replace"]
     search_fields = ["tag"]
+
+
+@admin.register(LLMModel)
+class LLMModelAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "context_length",
+        "input_cost",
+        "cached_input_cost",
+        "cache_write_cost",
+        "output_cost",
+    ]
+    search_fields = ["name"]
+
+
+@admin.register(Workflow)
+class WorkflowAdmin(admin.ModelAdmin):
+    list_display = ["name", "model"]
+    search_fields = ["name"]
+    raw_id_fields = ["model"]
+
+
+@admin.register(Trajectory)
+class TrajectoryAdmin(admin.ModelAdmin):
+    list_display = [
+        "pk",
+        "history",
+        "edit",
+        "workflow",
+        "model",
+        "cost",
+        "created_at",
+    ]
+    list_filter = ["workflow", "model"]
+    search_fields = ["pk"]
+    raw_id_fields = ["history", "edit", "workflow", "model"]
