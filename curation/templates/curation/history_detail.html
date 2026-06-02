@@ -69,10 +69,24 @@
                 {% if source.last_error %}<div class="curation-meta">Ошибка: {{ source.last_error }}</div>{% endif %}
                 {% if source.created_at %}<div class="curation-meta">Добавлен: {{ source.created_at|date:"d.m.Y H:i" }}</div>{% endif %}
             </div>
+            <form method="post" action="{% url 'curation_history_source_detach' history.pk source.pk %}" data-confirm="Открепить этот источник от истории?">
+                {% csrf_token %}
+                <button type="submit" title="Открепить источник" aria-label="Открепить источник">{% include "svg/delete.svg" %}</button>
+            </form>
         </div>
         {% empty %}
         <div class="curation-source curation-meta">Источников нет.</div>
         {% endfor %}
+        <form method="post" action="{% url 'curation_history_source_add' history.pk %}" class="curation-source-add">
+            {% csrf_token %}
+            <select name="type" required>
+                {% for value, label in source_type_choices %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <input type="url" name="url" placeholder="URL">
+            <button type="submit">Добавить источник</button>
+        </form>
     </div>
 </div>
 
@@ -113,7 +127,11 @@
             {{ entry.obj.text|linebreaksbr }}
         {% elif entry.kind == "audit" %}
             <div class="curation-event">{{ entry.obj.get_kind_display }}</div>
-            {% if entry.obj.get_field_display %}
+            {% if entry.obj.kind == "SOURCE_ATTACHED" %}
+            <div class="curation-meta">#{{ entry.obj.new_id }}: {{ entry.obj.new_text|default:"—" }}</div>
+            {% elif entry.obj.kind == "SOURCE_DETACHED" %}
+            <div class="curation-meta">#{{ entry.obj.old_id }}: {{ entry.obj.old_text|default:"—" }}</div>
+            {% elif entry.obj.get_field_display %}
             <div class="curation-meta">{{ entry.obj.get_field_display }}: {{ entry.obj.old_text|default:"—" }} → {{ entry.obj.new_text|default:"—" }}</div>
             {% endif %}
         {% endif %}

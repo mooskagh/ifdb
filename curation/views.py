@@ -228,6 +228,63 @@ def source_fetch_content(request, fetch_id, kind):
     return HttpResponse(content, content_type="text/plain; charset=utf-8")
 
 
+def history_source_add(request, history_id):
+    request.perm.Ensure(PERM)
+    if request.method != "POST":
+        return HttpResponseBadRequest("Only POST is supported.")
+
+    history = get_object_or_404(GameHistory, pk=history_id)
+    source_type = request.POST.get("type")
+    if source_type not in GameSource.SourceType.values:
+        return HttpResponseBadRequest("Unknown source type.")
+
+    with transaction.atomic():
+        source = GameSource.objects.create(
+            history=history,
+            type=source_type,
+            url=request.POST.get("url", "").strip() or None,
+            created_at=now(),
+        )
+        GameHistoryAuditLog.record_source(
+            history,
+            request.user,
+            GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
+            source,
+        )
+        history.edit_time = now()
+        history.save(update_fields=["edit_time"])
+
+    return redirect("curation_history_detail", history_id=history.pk)
+
+
+def history_source_detach(request, history_id, source_id):
+    request.perm.Ensure(PERM)
+    if request.method != "POST":
+        return HttpResponseBadRequest("Only POST is supported.")
+
+    with transaction.atomic():
+        history = get_object_or_404(
+            GameHistory.objects.select_for_update(), pk=history_id
+        )
+        source = get_object_or_404(
+            GameSource.objects.select_for_update(),
+            pk=source_id,
+            history=history,
+        )
+        GameHistoryAuditLog.record_source(
+            history,
+            request.user,
+            GameHistoryAuditLog.AuditKind.SOURCE_DETACHED,
+            source,
+        )
+        source.history = None
+        source.save(update_fields=["history"])
+        history.edit_time = now()
+        history.save(update_fields=["edit_time"])
+
+    return redirect("curation_history_detail", history_id=history.pk)
+
+
 def _sources_by_ids(ids):
     sources = GameSource.objects.filter(id__in=ids).select_related(
         "history__game"
@@ -381,6 +438,7 @@ def history_detail(request, history_id):
             "groups": _group_timeline(timeline),
             "auto_choices": GameHistory.AutoUpdate.choices,
             "state_choices": GameHistory.State.choices,
+            "source_type_choices": GameSource.SourceType.choices,
             "proposed_edit_status": GameEdit.EditStatus.PROPOSED,
         },
     )

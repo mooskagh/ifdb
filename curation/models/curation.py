@@ -315,6 +315,7 @@ class GameHistoryAuditLog(models.Model):
             _("Initial import from old importer"),
         )
         SOURCE_ATTACHED = "SOURCE_ATTACHED", _("Source attached")
+        SOURCE_DETACHED = "SOURCE_DETACHED", _("Source detached")
         FIELD_CHANGE = "FIELD_CHANGE", _("Field changed")
 
     class AuditField(models.TextChoices):
@@ -335,6 +336,30 @@ class GameHistoryAuditLog(models.Model):
             field=field,
             old_text=old,
             new_text=new,
+        )
+
+    @classmethod
+    def record_source(cls, history, actor, kind, source):
+        source_text = (
+            f"{source.get_type_display()}: {source.url or '(no url)'}"
+        )
+        return cls.objects.create(
+            history=history,
+            actor=actor,
+            created_at=now(),
+            kind=kind,
+            old_id=(
+                source.pk if kind == cls.AuditKind.SOURCE_DETACHED else None
+            ),
+            new_id=(
+                source.pk if kind == cls.AuditKind.SOURCE_ATTACHED else None
+            ),
+            old_text=(
+                source_text if kind == cls.AuditKind.SOURCE_DETACHED else None
+            ),
+            new_text=(
+                source_text if kind == cls.AuditKind.SOURCE_ATTACHED else None
+            ),
         )
 
     history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)

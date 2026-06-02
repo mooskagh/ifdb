@@ -25,6 +25,16 @@ urlpatterns = [
         views.source_fetch_content,
         name="curation_source_fetch_content",
     ),
+    path(
+        "<int:history_id>/sources/add/",
+        views.history_source_add,
+        name="curation_history_source_add",
+    ),
+    path(
+        "<int:history_id>/sources/<int:source_id>/delete/",
+        views.history_source_detach,
+        name="curation_history_source_detach",
+    ),
     path("edits/<int:edit_id>/", views.edit_diff, name="curation_edit_diff"),
     path(
         "<int:history_id>/",

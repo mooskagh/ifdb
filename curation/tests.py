@@ -732,6 +732,81 @@ class SourceViewsTest(TestCase):
             f'<a href="{source_url}">Apero</a></div>',
             html=True,
         )
+        self.assertContains(
+            response,
+            f'action="/curation/{history.pk}/sources/add/"',
+        )
+        self.assertContains(
+            response,
+            f'action="/curation/{history.pk}/sources/{source.pk}/delete/"',
+        )
+        self.assertContains(response, 'data-confirm="Открепить этот источник')
+
+    def test_history_source_add_records_audit(self):
+        ts = timezone.now()
+        history = GameHistory.objects.create(game=None, creation_time=ts)
+
+        response = self.client.post(
+            f"/curation/{history.pk}/sources/add/",
+            {
+                "type": GameSource.SourceType.IFWIKI,
+                "url": " https://example.com/new ",
+            },
+        )
+
+        self.assertRedirects(response, f"/curation/{history.pk}/")
+        source = GameSource.objects.get(history=history)
+        self.assertEqual(source.type, GameSource.SourceType.IFWIKI)
+        self.assertEqual(source.url, "https://example.com/new")
+        audit = GameHistoryAuditLog.objects.get(history=history)
+        self.assertEqual(
+            audit.kind, GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED
+        )
+        self.assertEqual(audit.actor, self.user)
+        self.assertEqual(audit.new_id, source.pk)
+        self.assertIn("IFWiki", audit.new_text)
+        history.refresh_from_db()
+        self.assertIsNotNone(history.edit_time)
+
+    def test_history_source_add_rejects_unknown_type(self):
+        history = GameHistory.objects.create(
+            game=None, creation_time=timezone.now()
+        )
+
+        response = self.client.post(
+            f"/curation/{history.pk}/sources/add/",
+            {"type": "NOPE", "url": "https://example.com/new"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(GameSource.objects.exists())
+        self.assertFalse(GameHistoryAuditLog.objects.exists())
+
+    def test_history_source_detach_keeps_source_and_records_audit(self):
+        ts = timezone.now()
+        history = GameHistory.objects.create(game=None, creation_time=ts)
+        source = GameSource.objects.create(
+            history=history,
+            type=GameSource.SourceType.APERO,
+            url="https://example.com/source",
+        )
+
+        response = self.client.post(
+            f"/curation/{history.pk}/sources/{source.pk}/delete/"
+        )
+
+        self.assertRedirects(response, f"/curation/{history.pk}/")
+        source.refresh_from_db()
+        self.assertIsNone(source.history)
+        audit = GameHistoryAuditLog.objects.get(history=history)
+        self.assertEqual(
+            audit.kind, GameHistoryAuditLog.AuditKind.SOURCE_DETACHED
+        )
+        self.assertEqual(audit.actor, self.user)
+        self.assertEqual(audit.old_id, source.pk)
+        self.assertIn("Apero", audit.old_text)
+        history.refresh_from_db()
+        self.assertIsNotNone(history.edit_time)
 
 
 class InitCurationCommandTest(TestCase):
