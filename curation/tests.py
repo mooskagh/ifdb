@@ -770,8 +770,11 @@ class InitCurationCommandTest(TestCase):
     def test_seeds_histories_sources_and_audit(self):
         bot_game = self._game("Bot game")
         self._link(bot_game, "http://ifwiki.ru/Игра", self.game_page)
-        # An unrecognized link is skipped, not turned into a source.
-        self._link(bot_game, "https://youtube.com/watch?v=x", self.video)
+        # Only game_page links are sources, even when another category points
+        # at a recognized provider.
+        self._link(bot_game, "http://ifwiki.ru/Видео", self.video)
+        # An unrecognized game_page link is skipped, not turned into a source.
+        self._link(bot_game, "https://youtube.com/watch?v=x", self.game_page)
 
         # Bot-added but human-edited ⇒ PROPOSE rather than ACCEPT.
         edited_game = self._game("Edited game", edit_time=self.now)

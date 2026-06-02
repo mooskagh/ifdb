@@ -61,6 +61,8 @@ class Command(BaseCommand):
                         ))
 
                 for gu in game.gameurl_set.all():
+                    if gu.category.symbolic_id != "game_page":
+                        continue
                     provider = classify(gu.url.original_url)
                     if provider is None:
                         skipped += 1
