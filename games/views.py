@@ -19,6 +19,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 
 from core.snippets import RenderSnippets
+from curation.manual import store_manual_edit
 from ifdb.permissioner import perm_required
 from moder.actions import GetModerActions
 from moder.userlog import LogAction
@@ -74,8 +75,16 @@ def add_game(request):
 @login_required
 def edit_game(request, game_id):
     game = Game.objects.get(id=game_id)
-    request.perm.Ensure(game.edit_perm)
-    return render(request, "games/edit.html", {"game_id": game.id})
+    return render(
+        request,
+        "games/edit.html",
+        {
+            "game_id": game.id,
+            "submit_label": (
+                "Сохранить" if request.perm(game.edit_perm) else "Предложить"
+            ),
+        },
+    )
 
 
 def search_game(request):
@@ -97,12 +106,24 @@ def store_game(request):
             {"message": "У игры должно быть название."},
         )
 
-    before = None
     is_new_game = "game_id" not in j
-    if "game_id" in j:
-        before = BuildJsonGameInfo(request, j["game_id"])
-        before["game_id"] = str(j["game_id"])
+    if not is_new_game:
+        game = Game.objects.get(id=j["game_id"])
+        can_save = request.perm(game.edit_perm)
+        if not can_save:
+            request.perm.Ensure("@auth")
+        edit = store_manual_edit(game, j, request.user, apply=can_save)
+        LogAction(
+            request,
+            "gam-store" if can_save else "gam-propose",
+            is_mutation=True,
+            obj=game,
+            obj2=edit,
+            after=j,
+        )
+        return redirect(reverse("show_game", kwargs={"game_id": game.id}))
 
+    before = None
     id = UpdateGame(request, j)
     LogAction(
         request,

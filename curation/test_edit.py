@@ -5,12 +5,27 @@ from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils.timezone import now
 
-from games.models import Game, PersonalityAlias
+from games.models import (
+    Game,
+    GameAuthorRole,
+    GameDescriptionAttribution,
+    GameTag,
+    GameTagCategory,
+    GameURLCategory,
+    PersonalityAlias,
+)
 
 from . import edit
 from .edit import Approval, GameEditPass, run_edit
 from .gameinfo import Person, Tag
-from .models import GameEdit, GameHistory, GameHistoryAuditLog
+from .manual import store_manual_edit
+from .models import (
+    GameEdit,
+    GameHistory,
+    GameHistoryAuditLog,
+    GameSource,
+    GameSourceFetch,
+)
 
 
 class _TagAndApprove(GameEditPass):
@@ -178,3 +193,95 @@ class RunEditTests(TestCase):
         )
 
         self.assertEqual(observer.seen, Person(alias.id, ""))
+
+
+class ManualEditTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("initifdb", stdout=StringIO(), stderr=StringIO())
+
+    def _payload(self):
+        role = GameAuthorRole.objects.get(symbolic_id="author")
+        alias = PersonalityAlias.objects.create(name="Manual Author")
+        cat = GameTagCategory.objects.get(symbolic_id="genre")
+        tag = GameTag.objects.filter(category=cat).first()
+        urlcat = GameURLCategory.objects.get(symbolic_id="game_page")
+        attr = GameDescriptionAttribution.objects.create(name="manual source")
+        return {
+            "title": "New Title",
+            "desc": "New description",
+            "release_date": "2020-01-02",
+            "authors": [[role.id, alias.id]],
+            "tags": [[cat.id, tag.id]],
+            "links": [[urlcat.id, "Homepage", "https://example.com/game"]],
+            "description_attributions": [attr.name],
+        }
+
+    def _history_with_source(self, game):
+        history = GameHistory.objects.create(game=game, creation_time=now())
+        source = GameSource.objects.create(
+            history=history,
+            type=GameSource.SourceType.IFWIKI,
+            url="https://example.com/wiki",
+        )
+        fetch = GameSourceFetch.objects.create(
+            source=source,
+            raw_content="raw",
+            canonical_text="---\n- name: Old Title\n---\nOld description",
+            canonical_text_hash="hash",
+            first_fetch=now(),
+            last_fetch=now(),
+        )
+        applied = GameEdit.objects.create(
+            history=history,
+            proposed_at=now(),
+            approved_at=now(),
+            status=GameEdit.EditStatus.APPLIED,
+            origin=GameEdit.Origin.AUTO_IMPORT,
+            canonical_text=fetch.canonical_text,
+        )
+        applied.used_sources.add(fetch)
+        return history, fetch
+
+    def test_apply_updates_game_and_records_history(self):
+        game = Game.objects.create(title="Old Title", creation_time=now())
+        history, fetch = self._history_with_source(game)
+
+        edit_row = store_manual_edit(game, self._payload(), None, apply=True)
+
+        game.refresh_from_db()
+        history.refresh_from_db()
+        self.assertEqual(game.title, "New Title")
+        self.assertEqual(game.description, "New description")
+        self.assertEqual(game.release_date.isoformat(), "2020-01-02")
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(edit_row.status, GameEdit.EditStatus.APPLIED)
+        self.assertEqual(edit_row.origin, GameEdit.Origin.MANUAL_EDIT)
+        self.assertEqual(list(edit_row.used_sources.all()), [fetch])
+        self.assertIn("manual source", edit_row.canonical_text)
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=history,
+                field=GameHistoryAuditLog.AuditField.CANONICAL_TEXT,
+            ).exists()
+        )
+
+    def test_propose_creates_attention_edit_without_changing_game(self):
+        game = Game.objects.create(title="Old Title", creation_time=now())
+        history, fetch = self._history_with_source(game)
+
+        edit_row = store_manual_edit(game, self._payload(), None, apply=False)
+
+        game.refresh_from_db()
+        history.refresh_from_db()
+        self.assertEqual(game.title, "Old Title")
+        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(
+            history.attention_reason, "Пользователь предложил правку"
+        )
+        self.assertEqual(edit_row.status, GameEdit.EditStatus.PROPOSED)
+        self.assertEqual(edit_row.origin, GameEdit.Origin.USER_SUGGESTION)
+        self.assertIsNone(edit_row.previous_canonical_text)
+        self.assertEqual(list(edit_row.used_sources.all()), [fetch])
+        self.assertIn("New Title", edit_row.canonical_text)
+        self.assertIn("manual source", edit_row.canonical_text)
