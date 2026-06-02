@@ -246,6 +246,26 @@ class EditDiffViewTest(TestCase):
         self.assertContains(response, "Отклонить")
         self.assertContains(response, "В дальнейшем автоматически принимать")
         self.assertContains(response, 'name="auto_accept" checked')
+        self.assertContains(response, 'name="next"')
+        self.assertContains(response, "к списку игр")
+        self.assertContains(response, "к редактированию игры")
+        self.assertContains(response, "к игре")
+        self.assertContains(response, "к истории игры")
+        self.assertContains(response, "остаться тут")
+
+    def test_edit_redirect_dropdown_hides_game_options_without_game(self):
+        edit = self._edit()
+        edit.history.game = None
+        edit.history.save(update_fields=["game"])
+
+        response = self.client.get(f"/curation/edits/{edit.pk}/")
+
+        self.assertContains(response, 'name="next"')
+        self.assertContains(response, "к списку игр")
+        self.assertNotContains(response, "к редактированию игры")
+        self.assertNotContains(response, "к игре")
+        self.assertContains(response, "к истории игры")
+        self.assertContains(response, "остаться тут")
 
     def test_non_proposed_edit_hides_actions(self):
         edit = self._edit()
@@ -302,6 +322,66 @@ class EditDiffViewTest(TestCase):
                 field=GameHistoryAuditLog.AuditField.CANONICAL_TEXT,
             ).exists()
         )
+
+    def test_accept_redirects_to_game_edit_when_requested(self):
+        edit = self._edit()
+
+        response = self.client.post(
+            f"/curation/edits/{edit.pk}/",
+            {"action": "accept", "next": "edit_game"},
+        )
+
+        self.assertRedirects(
+            response,
+            f"/game/edit/{edit.history.game_id}/",
+            fetch_redirect_response=False,
+        )
+
+    def test_accept_redirects_to_game_when_requested(self):
+        edit = self._edit()
+
+        response = self.client.post(
+            f"/curation/edits/{edit.pk}/",
+            {"action": "accept", "next": "game"},
+        )
+
+        self.assertRedirects(
+            response,
+            f"/game/{edit.history.game_id}/",
+            fetch_redirect_response=False,
+        )
+
+    def test_accept_redirects_to_history_when_requested(self):
+        edit = self._edit()
+
+        response = self.client.post(
+            f"/curation/edits/{edit.pk}/",
+            {"action": "accept", "next": "history"},
+        )
+
+        self.assertRedirects(response, f"/curation/{edit.history_id}/")
+
+    def test_accept_redirects_to_edit_when_stay_requested(self):
+        edit = self._edit()
+
+        response = self.client.post(
+            f"/curation/edits/{edit.pk}/",
+            {"action": "accept", "next": "stay"},
+        )
+
+        self.assertRedirects(response, f"/curation/edits/{edit.pk}/")
+
+    def test_game_redirect_falls_back_to_list_without_game(self):
+        edit = self._edit()
+        edit.history.game = None
+        edit.history.save(update_fields=["game"])
+
+        response = self.client.post(
+            f"/curation/edits/{edit.pk}/",
+            {"action": "reject", "next": "game"},
+        )
+
+        self.assertRedirects(response, "/curation/")
 
     def test_accept_updates_auto_accept_with_audit(self):
         edit = self._edit(auto_updates=GameHistory.AutoUpdate.PROPOSE)

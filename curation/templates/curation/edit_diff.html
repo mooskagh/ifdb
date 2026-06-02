@@ -32,6 +32,18 @@
             В дальнейшем автоматически принимать
         </label>
         {% endif %}
+        <label>
+            и перейти
+            <select name="next">
+                <option value="list" selected>к списку игр</option>
+                {% if game %}
+                <option value="edit_game">к редактированию игры</option>
+                <option value="game">к игре</option>
+                {% endif %}
+                <option value="history">к истории игры</option>
+                <option value="stay">остаться тут</option>
+            </select>
+        </label>
         <button type="submit" name="action" value="accept">Принять</button>
         <button type="submit" name="action" value="reject">Отклонить</button>
     </form>

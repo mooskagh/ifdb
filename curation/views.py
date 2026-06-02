@@ -417,7 +417,7 @@ def edit_diff(request, edit_id):
                 _accept_edit(edit, history, before, request.user)
             else:
                 _reject_edit(edit, history, before, request.user)
-        return redirect("curation_history_list")
+        return _redirect_after_edit(request.POST.get("next"), edit, history)
 
     return render(
         request,
@@ -441,6 +441,18 @@ def edit_diff(request, edit_id):
             ),
         },
     )
+
+
+def _redirect_after_edit(next_page, edit, history):
+    if next_page == "edit_game" and history.game_id:
+        return redirect("edit_game", game_id=history.game_id)
+    if next_page == "game" and history.game_id:
+        return redirect("show_game", game_id=history.game_id)
+    if next_page == "history":
+        return redirect("curation_history_detail", history_id=history.pk)
+    if next_page == "stay":
+        return redirect("curation_edit_diff", edit_id=edit.pk)
+    return redirect("curation_history_list")
 
 
 def _served_canonical(history):
