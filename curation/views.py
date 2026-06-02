@@ -8,6 +8,8 @@ from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import now
 
+from games.importer.discord import PostNewGameToDiscord
+
 from .diff import build_diff
 from .gameinfo import GameInfo, parse
 from .models import (
@@ -487,6 +489,8 @@ def _accept_edit(edit, history, before, user):
     game, after = info.save(history.game)
     if created_game:
         history.game = game
+        game.added_by = edit.proposed_by
+        game.save(update_fields=["added_by"])
     edit.status = GameEdit.EditStatus.APPLIED
     edit.approved_at = now()
     edit.approver = user
@@ -514,6 +518,8 @@ def _accept_edit(edit, history, before, user):
     if created_game:
         fields.append("game")
     history.save(update_fields=fields)
+    if created_game:
+        PostNewGameToDiscord(game.id)
 
 
 def _reject_edit(edit, history, before, user):

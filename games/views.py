@@ -19,14 +19,13 @@ from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 
 from core.snippets import RenderSnippets
-from curation.manual import store_manual_edit
+from curation.manual import store_manual_add, store_manual_edit
 from ifdb.permissioner import perm_required
 from moder.actions import GetModerActions
 from moder.userlog import LogAction
 
 from .game_details import GameDetailsBuilder, GetCommentVotes, StarsFromRating
 from .importer import Importer
-from .importer.discord import PostNewGameToDiscord
 from .importer.tools import CategorizeUrl
 from .models import (
     URL,
@@ -51,9 +50,10 @@ from .tools import (
     RenderMarkdown,
     SnippetFromList,
 )
-from .updater import Importer2Json, UpdateGame
+from .updater import Importer2Json
 
 PERM_ADD_GAME = "@auth"  # Also for file upload, game import, vote
+PERM_ACCEPT_GAME_ADD = "(alias curation_admin)"
 logger = getLogger("web")
 
 
@@ -68,7 +68,17 @@ def index(request):
 @login_required
 @perm_required(PERM_ADD_GAME)
 def add_game(request):
-    return render(request, "games/edit.html", {})
+    return render(
+        request,
+        "games/edit.html",
+        {
+            "submit_label": (
+                "Сохранить"
+                if request.perm(PERM_ACCEPT_GAME_ADD)
+                else "Предложить"
+            ),
+        },
+    )
 
 
 @ensure_csrf_cookie
@@ -123,21 +133,20 @@ def store_game(request):
         )
         return redirect(reverse("show_game", kwargs={"game_id": game.id}))
 
-    before = None
-    id = UpdateGame(request, j)
+    can_save = request.perm(PERM_ACCEPT_GAME_ADD)
+    edit = store_manual_add(j, request.user, apply=can_save)
+    game = edit.history.game
     LogAction(
         request,
-        "gam-store",
+        "gam-store" if can_save else "gam-propose",
         is_mutation=True,
-        obj_type="Game",
-        obj_id=id,
-        before=before,
+        obj=game,
+        obj2=edit,
         after=j,
     )
-    print(is_new_game)
-    if is_new_game:
-        PostNewGameToDiscord(id)
-    return redirect(reverse("show_game", kwargs={"game_id": id}))
+    if can_save:
+        return redirect(reverse("show_game", kwargs={"game_id": game.id}))
+    return redirect(reverse("list_games"))
 
 
 def vote_game(request):

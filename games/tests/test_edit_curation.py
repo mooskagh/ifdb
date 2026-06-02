@@ -2,6 +2,7 @@ import json
 from io import StringIO
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
@@ -33,6 +34,11 @@ class GameEditCurationViewTests(TestCase):
             "links": [],
             "description_attributions": [],
         }
+
+    def _add_payload(self, title="New Game"):
+        data = self._payload(Game(title="", creation_time=now()), title)
+        del data["game_id"]
+        return data
 
     def test_edit_page_button_says_propose_without_edit_perm(self):
         game = Game.objects.create(
@@ -87,6 +93,77 @@ class GameEditCurationViewTests(TestCase):
         history = GameHistory.objects.get(game=game)
         edit = GameEdit.objects.get(history=history)
         self.assertEqual(game.title, "New Title")
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
+        self.assertEqual(edit.origin, GameEdit.Origin.MANUAL_EDIT)
+        self.assertEqual(edit.proposed_by, self.user)
+        self.assertEqual(edit.approver, self.user)
+
+    def test_add_page_button_says_propose_without_moder_perm(self):
+        response = self.client.get(reverse("add_game"))
+
+        self.assertContains(response, "Предложить")
+        self.assertNotContains(response, ">Сохранить</button>")
+
+    def test_add_page_button_says_save_with_moder_perm(self):
+        self.user.groups.add(Group.objects.create(name="moder"))
+
+        response = self.client.get(reverse("add_game"))
+
+        self.assertContains(response, "Сохранить")
+
+    def test_add_proposes_unlinked_history_without_moder_perm(self):
+        response = self.client.post(
+            reverse("store_game"),
+            {"json": json.dumps(self._add_payload())},
+        )
+
+        history = GameHistory.objects.get()
+        edit = GameEdit.objects.get(history=history)
+        self.assertRedirects(response, reverse("list_games"))
+        self.assertIsNone(history.game)
+        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
+        self.assertEqual(edit.origin, GameEdit.Origin.USER_SUGGESTION)
+        self.assertEqual(edit.proposed_by, self.user)
+        self.assertIsNone(edit.approver)
+        self.assertEqual(Game.objects.count(), 0)
+
+    def test_accepting_proposed_add_creates_game(self):
+        self.client.post(
+            reverse("store_game"),
+            {"json": json.dumps(self._add_payload())},
+        )
+        self.user.groups.add(Group.objects.create(name="moder"))
+        edit = GameEdit.objects.get()
+
+        self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]), {"action": "accept"}
+        )
+
+        edit.refresh_from_db()
+        history = edit.history
+        history.refresh_from_db()
+        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertIsNotNone(history.game)
+        self.assertEqual(history.game.title, "New Game")
+        self.assertEqual(history.game.added_by, self.user)
+
+    def test_add_saves_with_moder_perm(self):
+        self.user.groups.add(Group.objects.create(name="moder"))
+
+        response = self.client.post(
+            reverse("store_game"),
+            {"json": json.dumps(self._add_payload())},
+        )
+
+        game = Game.objects.get()
+        history = GameHistory.objects.get(game=game)
+        edit = GameEdit.objects.get(history=history)
+        self.assertRedirects(response, reverse("show_game", args=[game.id]))
+        self.assertEqual(game.title, "New Game")
+        self.assertEqual(game.added_by, self.user)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
         self.assertEqual(edit.origin, GameEdit.Origin.MANUAL_EDIT)

@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.utils.timezone import now
 
+from games.importer.discord import PostNewGameToDiscord
 from games.models import (
     Game,
     GameAuthorRole,
@@ -81,6 +82,58 @@ def store_manual_edit(
         history.attention_reason = "Пользователь предложил правку"
     history.edit_time = now()
     history.save(update_fields=["state", "attention_reason", "edit_time"])
+    return edit
+
+
+@transaction.atomic
+def store_manual_add(data: dict, user, *, apply: bool) -> GameEdit:
+    history = GameHistory.objects.create(creation_time=now())
+    info = editor_payload_to_gameinfo(data)
+    canonical = info.to_canonical()
+    edit = GameEdit.objects.create(
+        history=history,
+        proposed_at=now(),
+        proposed_by=user,
+        origin=(
+            GameEdit.Origin.MANUAL_EDIT
+            if apply
+            else GameEdit.Origin.USER_SUGGESTION
+        ),
+        status=(
+            GameEdit.EditStatus.APPLIED
+            if apply
+            else GameEdit.EditStatus.PROPOSED
+        ),
+        approved_at=now() if apply else None,
+        approver=user if apply else None,
+        previous_canonical_text="" if apply else None,
+        canonical_text=canonical,
+    )
+
+    if apply:
+        game, after = info.save(None)
+        game.added_by = user
+        game.save(update_fields=["added_by"])
+        edit.canonical_text = after
+        edit.save(update_fields=["canonical_text"])
+        history.game = game
+        history.state = GameHistory.State.SETTLED
+        history.attention_reason = None
+        GameHistoryAuditLog.record_change(
+            history,
+            user,
+            GameHistoryAuditLog.AuditField.CANONICAL_TEXT,
+            "",
+            after,
+        )
+        PostNewGameToDiscord(game.id)
+    else:
+        history.state = GameHistory.State.NEEDS_ATTENTION
+        history.attention_reason = "Пользователь предложил новую игру"
+    history.edit_time = now()
+    history.save(
+        update_fields=["game", "state", "attention_reason", "edit_time"]
+    )
     return edit
 
 
