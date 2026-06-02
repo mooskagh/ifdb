@@ -1,15 +1,15 @@
 {% if fetch %}
     <span class="curation-fetch-links">
         {{ fetch.last_fetch|date:"Y-m-d H:i" }}:
-        <a href="{% url 'curation_source_fetch_content' fetch.pk 'raw' %}" target="_blank" rel="noopener">raw</a>
-        <a href="{% url 'curation_source_fetch_content' fetch.pk 'canonical' %}" target="_blank" rel="noopener">canonical</a>
+        <a href="{% url 'curation_source_fetch_content' fetch.pk 'raw' %}">raw</a>
+        <a href="{% url 'curation_source_fetch_content' fetch.pk 'canonical' %}">canonical</a>
     </span>
 {% else %}
 {% for fetch in fetches %}
     <span class="curation-fetch-links">
         {{ fetch.last_fetch|date:"Y-m-d H:i" }}:
-        <a href="{% url 'curation_source_fetch_content' fetch.pk 'raw' %}" target="_blank" rel="noopener">raw</a>
-        <a href="{% url 'curation_source_fetch_content' fetch.pk 'canonical' %}" target="_blank" rel="noopener">canonical</a>
+        <a href="{% url 'curation_source_fetch_content' fetch.pk 'raw' %}">raw</a>
+        <a href="{% url 'curation_source_fetch_content' fetch.pk 'canonical' %}">canonical</a>
     </span>{% if not forloop.last %}<br>{% endif %}
 {% empty %}
     —

@@ -625,7 +625,7 @@ class SourceViewsTest(TestCase):
             'title="https://example.com/source"',
             f'href="/game/{game.pk}/">Source Game</a>',
             ts.strftime("%Y-%m-%d %H:%M"),
-            f'/curation/sources/fetches/{fetch.pk}/raw/" target="_blank"',
+            f'href="/curation/sources/fetches/{fetch.pk}/raw/"',
             f"/curation/sources/fetches/{fetch.pk}/canonical/",
         ]:
             self.assertContains(list_response, text)
@@ -639,7 +639,7 @@ class SourceViewsTest(TestCase):
             "Fetch failed",
             'class="curation-source-error"',
             ts.strftime("%Y-%m-%d %H:%M"),
-            f'/curation/sources/fetches/{fetch.pk}/raw/" target="_blank"',
+            f'href="/curation/sources/fetches/{fetch.pk}/raw/"',
             f"/curation/sources/fetches/{fetch.pk}/canonical/",
         ]:
             self.assertContains(detail_response, text)

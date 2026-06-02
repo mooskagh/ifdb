@@ -47,7 +47,7 @@
         <tbody>
             {% for history in histories %}
             <tr class="{% if history.state == 'NEEDS_ATTENTION' %}warning{% endif %}"
-                onclick="location.href='{% url 'curation_history_detail' history.pk %}'">
+                data-href="{% url 'curation_history_detail' history.pk %}">
                 <td class="curation-truncate">
                     <a href="{% url 'curation_history_detail' history.pk %}" title="{{ history.game.title|default:'(не назначена)' }}">{{ history.game.title|default:"(не назначена)" }}</a>
                 </td>

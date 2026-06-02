@@ -16,7 +16,7 @@
     <tbody>
         {% for row in rows %}
         <tr class="{% if row.is_error %}error{% endif %}"
-            onclick="location.href='{% url 'curation_discovery_detail' row.pk %}'">
+            data-href="{% url 'curation_discovery_detail' row.pk %}">
             <td>
                 <a href="{% url 'curation_discovery_detail' row.pk %}">
                     {{ row.get_source_type_display }}

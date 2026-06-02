@@ -43,7 +43,7 @@
         <tbody>
             {% for source in sources %}
             <tr class="{% if source.failing_since or source.last_error %}error{% elif source.missing_since %}warning{% endif %}"
-                onclick="location.href='{% url 'curation_source_detail' source.pk %}'">
+                data-href="{% url 'curation_source_detail' source.pk %}">
                 <td><a href="{% url 'curation_source_detail' source.pk %}">{{ source.get_type_display }}</a></td>
                 <td>
                     {% if source.failing_since or source.last_error %}ошибка{% elif source.missing_since %}пропал{% else %}ok{% endif %}
@@ -54,7 +54,7 @@
                 <td class="curation-nowrap">
                     {% if source.latest_fetch_id %}
                     {{ source.latest_fetch_at|date:"Y-m-d H:i" }}:
-                    <a href="{% url 'curation_source_fetch_content' source.latest_fetch_id 'raw' %}" target="_blank" rel="noopener">raw</a>/<a href="{% url 'curation_source_fetch_content' source.latest_fetch_id 'canonical' %}" target="_blank" rel="noopener">canonical</a>
+                    <a href="{% url 'curation_source_fetch_content' source.latest_fetch_id 'raw' %}">raw</a>/<a href="{% url 'curation_source_fetch_content' source.latest_fetch_id 'canonical' %}">canonical</a>
                     {% else %}—{% endif %}
                 </td>
             </tr>
