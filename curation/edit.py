@@ -32,7 +32,6 @@ from .gameinfo import GameInfo, parse
 from .models import (
     GameEdit,
     GameHistory,
-    GameHistoryAuditLog,
     GameSource,
     GameSourceFetch,
 )
@@ -326,7 +325,6 @@ def _process_history(history: GameHistory) -> str:
         edit.used_sources.set([s.fetch for s in state.sources if s.fetch])
 
         if state.approval is Approval.APPLIED:
-            before = base
             game, after = state.current.save(history.game)
             if after != final:
                 edit.canonical_text = after
@@ -337,13 +335,6 @@ def _process_history(history: GameHistory) -> str:
             )
             if history.game is None:
                 history.game = game
-            GameHistoryAuditLog.record_change(
-                history,
-                None,
-                GameHistoryAuditLog.AuditField.CANONICAL_TEXT,
-                before,
-                after,
-            )
             history.state = GameHistory.State.SETTLED
             outcome = "applied"
         elif state.approval is Approval.PROPOSED:

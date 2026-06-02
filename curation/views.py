@@ -505,13 +505,6 @@ def _accept_edit(edit, history, before, user):
             "canonical_text",
         ]
     )
-    GameHistoryAuditLog.record_change(
-        history,
-        user,
-        GameHistoryAuditLog.AuditField.CANONICAL_TEXT,
-        before,
-        after,
-    )
     history.state = GameHistory.State.SETTLED
     history.edit_time = now()
     fields = ["auto_updates", "state", "edit_time"]

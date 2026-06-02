@@ -299,7 +299,7 @@ class EditDiffViewTest(TestCase):
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertEqual(history.game.title, "Old Title")
 
-    def test_accept_applies_settles_redirects_and_audits(self):
+    def test_accept_applies_and_settles(self):
         edit = self._edit()
 
         response = self.client.post(
@@ -316,13 +316,6 @@ class EditDiffViewTest(TestCase):
         self.assertIn("Old Title", edit.previous_canonical_text)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertEqual(history.game.title, "New Title")
-        self.assertTrue(
-            GameHistoryAuditLog.objects.filter(
-                history=history,
-                actor=self.user,
-                field=GameHistoryAuditLog.AuditField.CANONICAL_TEXT,
-            ).exists()
-        )
 
     def test_accept_redirects_to_game_edit_when_requested(self):
         edit = self._edit()

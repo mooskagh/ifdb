@@ -12,7 +12,7 @@ from games.models import (
 )
 
 from .gameinfo import Attribution, GameInfo, GameUrl, Person, Tag
-from .models import GameEdit, GameHistory, GameHistoryAuditLog
+from .models import GameEdit, GameHistory
 
 
 def editor_payload_to_gameinfo(data: dict) -> GameInfo:
@@ -68,13 +68,6 @@ def store_manual_edit(
         _, after = info.save(game)
         edit.canonical_text = after
         edit.save(update_fields=["canonical_text"])
-        GameHistoryAuditLog.record_change(
-            history,
-            user,
-            GameHistoryAuditLog.AuditField.CANONICAL_TEXT,
-            before,
-            after,
-        )
         history.state = GameHistory.State.SETTLED
         history.attention_reason = None
     else:
@@ -119,13 +112,6 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameEdit:
         history.game = game
         history.state = GameHistory.State.SETTLED
         history.attention_reason = None
-        GameHistoryAuditLog.record_change(
-            history,
-            user,
-            GameHistoryAuditLog.AuditField.CANONICAL_TEXT,
-            "",
-            after,
-        )
         PostNewGameToDiscord(game.id)
     else:
         history.state = GameHistory.State.NEEDS_ATTENTION

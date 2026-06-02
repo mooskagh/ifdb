@@ -320,7 +320,6 @@ class GameHistoryAuditLog(models.Model):
     class AuditField(models.TextChoices):
         AUTO_UPDATES = "AUTO_UPDATES", _("Auto-update policy")
         STATE = "STATE", _("State")
-        CANONICAL_TEXT = "CANONICAL_TEXT", _("Canonical text")
 
     def __str__(self):
         return f"Audit #{self.pk} on history #{self.history_id}"

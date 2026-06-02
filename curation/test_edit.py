@@ -23,7 +23,6 @@ from .manual import store_manual_edit
 from .models import (
     GameEdit,
     GameHistory,
-    GameHistoryAuditLog,
     GameSource,
     GameSourceFetch,
 )
@@ -87,7 +86,7 @@ class RunEditTests(TestCase):
 
     # -- tests ------------------------------------------------------------
 
-    def test_applied_writes_game_audit_and_settles(self):
+    def test_applied_writes_game_and_settles(self):
         history = self._history()
 
         stats = self._run_with([_TagAndApprove(Approval.APPLIED)], history)
@@ -106,12 +105,6 @@ class RunEditTests(TestCase):
         )
         self.assertEqual(edit_row.approver.username, settings.MAINTENANCE_USER)
         self.assertTrue(self._has_os_win(history.game))
-        self.assertTrue(
-            GameHistoryAuditLog.objects.filter(
-                history=history,
-                field=GameHistoryAuditLog.AuditField.CANONICAL_TEXT,
-            ).exists()
-        )
 
     def test_proposed_needs_attention_game_untouched(self):
         history = self._history()
@@ -252,7 +245,7 @@ class ManualEditTests(TestCase):
         applied.used_sources.add(fetch)
         return history, fetch
 
-    def test_apply_updates_game_and_records_history(self):
+    def test_apply_updates_game_and_records_edit(self):
         game = Game.objects.create(title="Old Title", creation_time=now())
         history, fetch = self._history_with_source(game)
 
@@ -268,12 +261,6 @@ class ManualEditTests(TestCase):
         self.assertEqual(edit_row.origin, GameEdit.Origin.MANUAL_EDIT)
         self.assertEqual(list(edit_row.used_sources.all()), [fetch])
         self.assertIn("manual source", edit_row.canonical_text)
-        self.assertTrue(
-            GameHistoryAuditLog.objects.filter(
-                history=history,
-                field=GameHistoryAuditLog.AuditField.CANONICAL_TEXT,
-            ).exists()
-        )
 
     def test_propose_creates_attention_edit_without_changing_game(self):
         game = Game.objects.create(title="Old Title", creation_time=now())
