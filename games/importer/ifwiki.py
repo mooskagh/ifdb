@@ -622,9 +622,13 @@ def convert_wikitext_to_markdown(text, context):
     return text
 
 
-SHORT_LIST_ITEM_LINK_RE = re.compile(
+SHORT_LIST_ITEM_MARKDOWN_LINK_RE = re.compile(
     rf"\[([^\]\n]{{1,{IFWIKI_SHORT_LINK_LIST_MAX_LABEL}}})\]"
     r"\((https?://[^\s)]+)\)"
+)
+SHORT_LIST_ITEM_WIKI_EXTERNAL_LINK_RE = re.compile(
+    rf"\[(https?://[^\s\]]+)\s+"
+    rf"([^\]\n]{{1,{IFWIKI_SHORT_LINK_LIST_MAX_LABEL}}})\]"
 )
 
 
@@ -638,7 +642,7 @@ def extract_short_link_list_items(text, context):
             continue
 
         marker, content = bullet.groups()
-        links = list(SHORT_LIST_ITEM_LINK_RE.finditer(content))
+        links = short_list_item_links(content)
         if (
             len(links) != 1
             or len(content) > IFWIKI_SHORT_LINK_LIST_MAX_CONTENT
@@ -647,8 +651,8 @@ def extract_short_link_list_items(text, context):
             continue
 
         link = links[0]
-        prefix = content[: link.start()]
-        suffix = content[link.end() :]
+        prefix = content[: link["start"]]
+        suffix = content[link["end"] :]
         surroundings = prefix + suffix
 
         if (
@@ -665,11 +669,33 @@ def extract_short_link_list_items(text, context):
             continue
 
         context.AddUrl(
-            link.group(2),
-            build_short_link_description(prefix, link.group(1), suffix),
+            link["url"],
+            build_short_link_description(prefix, link["label"], suffix),
         )
 
     return "\n".join(result)
+
+
+def short_list_item_links(content):
+    links = [
+        {
+            "start": m.start(),
+            "end": m.end(),
+            "label": m.group(1),
+            "url": m.group(2),
+        }
+        for m in SHORT_LIST_ITEM_MARKDOWN_LINK_RE.finditer(content)
+    ]
+    links += [
+        {
+            "start": m.start(),
+            "end": m.end(),
+            "label": m.group(2),
+            "url": m.group(1),
+        }
+        for m in SHORT_LIST_ITEM_WIKI_EXTERNAL_LINK_RE.finditer(content)
+    ]
+    return sorted(links, key=lambda link: link["start"])
 
 
 def build_short_link_description(prefix, label, suffix):
@@ -679,6 +705,7 @@ def build_short_link_description(prefix, label, suffix):
         f"{clean_short_link_side_text(suffix)}"
     )
     description = re.sub(r"\s+", " ", description).strip()
+    description = re.sub(r"\s+'", "'", description)
     return description.rstrip(".。 ").strip()
 
 

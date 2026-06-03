@@ -251,16 +251,20 @@ class TestIfwikiImporter(unittest.TestCase):
     def test_short_single_link_bullets_are_extracted(self):
         review_url = "https://ifhub.club/review.html"
         video_url = "https://ifhub.club/video.html"
+        walkthrough_url = "https://ifhub.club/walkthrough.html"
         forum_url = "https://ifwiki.ru/forum"
         play_url = "http://apero.ru/Текстовые-игры/Подпольный-военный"
+        itch_url = "https://klockwerk-kat.itch.io/go-ask-alice"
         formatted_url = "https://ifhub.club/formatted.html"
         with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
             mock_fetch.return_value = f"""
 == Ссылки ==
 * [Обзор]({review_url})
 * [Видеообзор]({video_url}) от **Wol4ik**.
+* [{walkthrough_url} Видеопрохождение] от **drag**'а.
 * обсуждение на [ifwiki]({forum_url}).
 * [Играть онлайн]({play_url})
+* [{itch_url} Играть онлайн]
 * [Об__зор]({formatted_url}) те__кст.
 Полезный текст.
 """
@@ -271,6 +275,7 @@ class TestIfwikiImporter(unittest.TestCase):
         self.assertIn("## Ссылки", desc)
         self.assertNotIn(f"[Обзор]({review_url})", desc)
         self.assertNotIn("Видеообзор", desc)
+        self.assertNotIn("Видеопрохождение", desc)
         self.assertNotIn("обсуждение на ifwiki", desc)
         self.assertIn("Полезный текст.", desc)
 
@@ -301,9 +306,25 @@ class TestIfwikiImporter(unittest.TestCase):
         )
         self.assertIn(
             {
+                "urlcat_slug": "review",
+                "description": "Видеопрохождение от drag'а",
+                "url": walkthrough_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
                 "urlcat_slug": "play_online",
                 "description": "Играть онлайн",
                 "url": play_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "play_online",
+                "description": "Играть онлайн",
+                "url": itch_url,
             },
             urls,
         )
