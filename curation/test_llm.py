@@ -4,9 +4,19 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.test import TestCase
+from django.utils.timezone import now
 
 from . import openrouter
-from .models import LLMModel
+from .edit import Approval, GameEditState
+from .gameinfo import GameInfo
+from .llm import (
+    LLM_RUNNERS,
+    LlmWorkflowRunner,
+    register_llm_runner,
+    runner_for_workflow,
+)
+from .models import GameHistory, LLMModel, LlmTrajectory, LlmWorkflow
+from .passes.llm_workflow import LlmWorkflowPass
 
 
 class CostForTests(TestCase):
@@ -142,3 +152,130 @@ class UpdateAllViewTest(TestCase):
         self.assertEqual(stale.input_cost, Decimal("1"))
         self.assertIsNotNone(stale.updated_at)
         self.assertIsNone(fresh.updated_at)
+
+
+class LlmWorkflowRunnerTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        @register_llm_runner
+        class TestRunner(LlmWorkflowRunner):
+            runner_name = "test_runner"
+
+            def run(self):
+                return self.run_agent_loop({"items": ["a", "b"]})
+
+            def set_description(self, description: str) -> str:
+                """Set the draft description."""
+                self.state.current.description = description
+                return "updated"
+
+        cls.runner_cls = TestRunner
+
+    @classmethod
+    def tearDownClass(cls):
+        LLM_RUNNERS.pop("test_runner", None)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.model = LLMModel.objects.create(
+            name="openai/test",
+            context_length=1000,
+            input_cost=Decimal("1"),
+            cached_input_cost=Decimal("0.1"),
+            cache_write_cost=Decimal("2"),
+            output_cost=Decimal("3"),
+        )
+        self.workflow = LlmWorkflow.objects.create(
+            name="Test workflow",
+            runner="test_runner",
+            prompt_template="{% for item in items %}{{ item }}{% endfor %}",
+            model=self.model,
+            allowed_tools=["set_description"],
+        )
+        self.history = GameHistory.objects.create(creation_time=now())
+        self.state = GameEditState(
+            history=self.history,
+            current=GameInfo(),
+            approval=Approval.APPLIED,
+            served=GameInfo(),
+            last_applied=GameInfo(),
+            sources=[],
+        )
+
+    def test_runner_for_workflow_uses_runner_field(self):
+        runner = runner_for_workflow(self.workflow, self.state)
+
+        self.assertIsInstance(runner, self.runner_cls)
+
+    def test_agent_loop_runs_tool_and_records_trajectory(self):
+        responses = [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "set_description",
+                                        "arguments": (
+                                            '{"description": "New text"}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 2,
+                    "prompt_tokens_details": {
+                        "cached_tokens": 3,
+                        "cache_write_tokens": 4,
+                    },
+                },
+            },
+            {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "done"}}
+                ],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 1},
+            },
+        ]
+
+        with patch.object(
+            openrouter, "chat_completion", side_effect=responses
+        ) as chat:
+            trajectory = runner_for_workflow(self.workflow, self.state).run()
+
+        self.assertEqual(self.state.current.description, "New text")
+        self.assertEqual(chat.call_args_list[0].args[1][0]["content"], "ab")
+        tool = chat.call_args_list[0].kwargs["tools"][0]
+        self.assertEqual(tool["function"]["name"], "set_description")
+        self.assertEqual(trajectory.prompt_tokens, 15)
+        self.assertEqual(trajectory.cached_input_tokens, 3)
+        self.assertEqual(trajectory.cache_write_tokens, 4)
+        self.assertEqual(trajectory.completion_tokens, 3)
+        self.assertEqual(trajectory.cost, Decimal("0.000032"))
+        self.assertEqual(LlmTrajectory.objects.count(), 1)
+
+    def test_pass_adapter_fetches_workflow_and_runs_registered_runner(self):
+        with patch.object(openrouter, "chat_completion") as chat:
+            chat.return_value = {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "done"}}
+                ],
+                "usage": {},
+            }
+
+            LlmWorkflowPass().apply(
+                self.state, {"workflow": self.workflow.name}
+            )
+
+        self.assertEqual(LlmTrajectory.objects.count(), 1)

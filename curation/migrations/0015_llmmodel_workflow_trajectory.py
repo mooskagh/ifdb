@@ -72,7 +72,7 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.CreateModel(
-            name="Workflow",
+            name="LlmWorkflow",
             fields=[
                 (
                     "id",
@@ -87,6 +87,14 @@ class Migration(migrations.Migration):
                     "name",
                     models.CharField(
                         max_length=100, unique=True, verbose_name="Name"
+                    ),
+                ),
+                (
+                    "runner",
+                    models.CharField(
+                        db_index=True,
+                        max_length=100,
+                        verbose_name="Python runner",
                     ),
                 ),
                 (
@@ -112,7 +120,7 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.CreateModel(
-            name="Trajectory",
+            name="LlmTrajectory",
             fields=[
                 (
                     "id",
@@ -194,7 +202,7 @@ class Migration(migrations.Migration):
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        to="curation.workflow",
+                        to="curation.llmworkflow",
                     ),
                 ),
             ],

@@ -9,7 +9,7 @@ from .curation import (
     GenreMapping,
     SourceDiscoveryStatus,
 )
-from .llm import LLMModel, Trajectory, Workflow
+from .llm import LLMModel, LlmTrajectory, LlmWorkflow
 
 __all__ = [
     "EnrichmentRule",
@@ -21,7 +21,7 @@ __all__ = [
     "GameSourceFetch",
     "GenreMapping",
     "LLMModel",
+    "LlmTrajectory",
+    "LlmWorkflow",
     "SourceDiscoveryStatus",
-    "Trajectory",
-    "Workflow",
 ]

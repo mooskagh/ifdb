@@ -41,7 +41,7 @@ class LLMModel(models.Model):
     updated_at = models.DateTimeField(_("Updated at"), null=True, blank=True)
 
 
-class Workflow(models.Model):
+class LlmWorkflow(models.Model):
     class Meta:
         default_permissions = ()
 
@@ -49,17 +49,20 @@ class Workflow(models.Model):
         return self.name
 
     name = models.CharField(_("Name"), max_length=100, unique=True)
+    runner = models.CharField(
+        _("Python runner"), max_length=100, db_index=True
+    )
     prompt_template = models.TextField(_("Prompt template"))
     model = models.ForeignKey(LLMModel, on_delete=models.PROTECT)
     allowed_tools = models.JSONField(_("Allowed tools"), default=list)
 
 
-class Trajectory(models.Model):
+class LlmTrajectory(models.Model):
     class Meta:
         default_permissions = ()
 
     def __str__(self):
-        return f"Trajectory #{self.pk} (${self.cost})"
+        return f"LLM trajectory #{self.pk} (${self.cost})"
 
     history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)
     edit = models.ForeignKey(
@@ -69,7 +72,7 @@ class Trajectory(models.Model):
         blank=True,
     )
     workflow = models.ForeignKey(
-        Workflow,
+        LlmWorkflow,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

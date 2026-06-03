@@ -10,8 +10,8 @@ from .models import (
     GameSourceFetch,
     GenreMapping,
     LLMModel,
-    Trajectory,
-    Workflow,
+    LlmTrajectory,
+    LlmWorkflow,
 )
 
 
@@ -121,15 +121,15 @@ class LLMModelAdmin(admin.ModelAdmin):
     search_fields = ["name"]
 
 
-@admin.register(Workflow)
-class WorkflowAdmin(admin.ModelAdmin):
-    list_display = ["name", "model"]
-    search_fields = ["name"]
+@admin.register(LlmWorkflow)
+class LlmWorkflowAdmin(admin.ModelAdmin):
+    list_display = ["name", "runner", "model"]
+    search_fields = ["name", "runner"]
     raw_id_fields = ["model"]
 
 
-@admin.register(Trajectory)
-class TrajectoryAdmin(admin.ModelAdmin):
+@admin.register(LlmTrajectory)
+class LlmTrajectoryAdmin(admin.ModelAdmin):
     list_display = [
         "pk",
         "history",

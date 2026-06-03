@@ -6,6 +6,7 @@ import requests
 from django.conf import settings
 
 MODELS_URL = "https://openrouter.ai/api/v1/models"
+CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 _MTOK = Decimal(1_000_000)
 
@@ -21,12 +22,25 @@ _PRICING_FIELDS = {
 
 def fetch_models() -> list[dict]:
     """Return the OpenRouter `/models` catalog (the `data` list)."""
+    response = requests.get(MODELS_URL, headers=_headers())
+    response.raise_for_status()
+    return response.json().get("data", [])
+
+
+def _headers() -> dict[str, str]:
     headers = {}
     if settings.OPENROUTER_API_KEY:
         headers["Authorization"] = f"Bearer {settings.OPENROUTER_API_KEY}"
-    response = requests.get(MODELS_URL, headers=headers)
+    return headers
+
+
+def chat_completion(model: str, messages: list[dict], tools=None) -> dict:
+    payload = {"model": model, "messages": messages}
+    if tools:
+        payload["tools"] = tools
+    response = requests.post(CHAT_URL, json=payload, headers=_headers())
     response.raise_for_status()
-    return response.json().get("data", [])
+    return response.json()
 
 
 def model_fields(entry: dict) -> dict:
