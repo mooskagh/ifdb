@@ -505,6 +505,49 @@ Test game content.
             ("character", "Алиса"),
             [(a["role_slug"], a["name"]) for a in result["authors"]],
         )
+        self.assertNotIn("Персонаж", result["desc"])
+        self.assertNotIn("Алиса", result["desc"])
+
+    def test_role_link_display_text_is_kept_in_description(self):
+        test_url = "https://ifwiki.ru/TestGame"
+
+        wikitext = """{{game info
+|название=Test Game
+}}
+
+Героиня: [[Персонаж::Алиса|Алиса Лидделл]]
+"""
+
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            result = ImportFromIfwiki(test_url)
+
+        self.assertIn(
+            ("character", "Алиса Лидделл"),
+            [(a["role_slug"], a["name"]) for a in result["authors"]],
+        )
+        self.assertIn("Героиня: **Алиса Лидделл**", result["desc"])
+
+    def test_role_link_without_display_is_removed_from_description(self):
+        test_url = "https://ifwiki.ru/TestGame"
+
+        wikitext = """{{game info
+|название=Test Game
+}}
+
+[[Персонаж::Алиса]]
+"""
+
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            result = ImportFromIfwiki(test_url)
+
+        self.assertIn(
+            ("character", "Алиса"),
+            [(a["role_slug"], a["name"]) for a in result["authors"]],
+        )
+        self.assertNotIn("Персонаж", result["desc"])
+        self.assertNotIn("Алиса", result["desc"])
 
     def test_competition_template_processing(self):
         """Test competition template processing."""

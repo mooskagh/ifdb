@@ -334,6 +334,7 @@ class WikiParsingContext:
                 "url": f"http://ifwiki.ru/{WikiQuote(name)}",
                 "urldesc": "Страница автора на ifwiki",
             })
+            return display_name or ""
         else:
             if role in {"Медиа", "Media", "Image"}:
                 self.AddUrl(
@@ -561,6 +562,8 @@ def convert_wikitext_to_markdown(text, context):
         link_content = match.group(1)
         # Process the link through context
         processed = context.ProcessLink(link_content)
+        if not processed:
+            return ""
         return f"**{processed}**"
 
     text = re.sub(r"\[\[(.*?)\]\]", replace_internal_link, text)
