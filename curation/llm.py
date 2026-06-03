@@ -186,3 +186,8 @@ class LlmWorkflowRunner(ABC):
         details = usage.get("prompt_tokens_details") or {}
         total["cached_input_tokens"] += details.get("cached_tokens") or 0
         total["cache_write_tokens"] += details.get("cache_write_tokens") or 0
+
+
+# Imported for registration side effects: each runner populates LLM_RUNNERS via
+# @register_llm_runner on import.
+from . import llm_runners  # noqa: E402,F401

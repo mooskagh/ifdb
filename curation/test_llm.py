@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.utils.timezone import now
 
 from . import openrouter
-from .edit import Approval, GameEditState
+from .edit import Approval, GameEditState, SourceFetchInfo, SourceStatus
 from .gameinfo import GameInfo
 from .llm import (
     LLM_RUNNERS,
@@ -15,7 +15,15 @@ from .llm import (
     register_llm_runner,
     runner_for_workflow,
 )
-from .models import GameHistory, LLMModel, LlmTrajectory, LlmWorkflow
+from .llm_runners.base import game_edit_state_context
+from .models import (
+    GameHistory,
+    GameSource,
+    GameSourceFetch,
+    LLMModel,
+    LlmTrajectory,
+    LlmWorkflow,
+)
 from .passes.llm_workflow import LlmWorkflowPass
 
 
@@ -266,6 +274,7 @@ class LlmWorkflowRunnerTests(TestCase):
         self.assertEqual(LlmTrajectory.objects.count(), 1)
 
     def test_pass_adapter_fetches_workflow_and_runs_registered_runner(self):
+        self.state.current.description = "changed"
         with patch.object(openrouter, "chat_completion") as chat:
             chat.return_value = {
                 "choices": [
@@ -278,4 +287,152 @@ class LlmWorkflowRunnerTests(TestCase):
                 self.state, {"workflow": self.workflow.name}
             )
 
+        self.assertEqual(LlmTrajectory.objects.count(), 1)
+
+    def test_pass_adapter_skips_when_already_proposed(self):
+        self.state.approval = Approval.PROPOSED
+        self.state.current.description = "changed"
+
+        with patch.object(openrouter, "chat_completion") as chat:
+            LlmWorkflowPass().apply(
+                self.state, {"workflow": self.workflow.name}
+            )
+
+        chat.assert_not_called()
+        self.assertEqual(LlmTrajectory.objects.count(), 0)
+
+    def test_pass_adapter_skips_when_no_diff(self):
+        self.state.current = GameInfo(name="Same", description="Text")
+        self.state.served = GameInfo(name="Same", description="Text")
+
+        with patch.object(openrouter, "chat_completion") as chat:
+            LlmWorkflowPass().apply(
+                self.state, {"workflow": self.workflow.name}
+            )
+
+        chat.assert_not_called()
+        self.assertEqual(LlmTrajectory.objects.count(), 0)
+
+
+class HumanReviewRunnerTests(TestCase):
+    def setUp(self):
+        self.model = LLMModel.objects.create(
+            name="google/gemma-test",
+            context_length=1000,
+            input_cost=Decimal("1"),
+            cached_input_cost=Decimal("0"),
+            cache_write_cost=Decimal("0"),
+            output_cost=Decimal("1"),
+        )
+        self.workflow = LlmWorkflow.objects.create(
+            name="human_review",
+            runner="human_review",
+            prompt_template=(
+                "Approval: {{ approval }}\n"
+                "Served:\n{{ served_canonical_text }}\n"
+                "Current:\n{{ current_canonical_text }}"
+            ),
+            model=self.model,
+            allowed_tools=["needs_human_review"],
+        )
+        self.history = GameHistory.objects.create(creation_time=now())
+        self.source = GameSource.objects.create(
+            history=self.history,
+            type=GameSource.SourceType.IFWIKI,
+            url="https://example.test/game",
+        )
+        self.fetch = GameSourceFetch.objects.create(
+            source=self.source,
+            raw_content="raw",
+            canonical_text="canonical",
+            canonical_text_hash="hash",
+            first_fetch=now(),
+            last_fetch=now(),
+        )
+        self.state = GameEditState(
+            history=self.history,
+            current=GameInfo(name="Title", description="Short"),
+            approval=Approval.APPLIED,
+            served=GameInfo(name="Title", description="Long text"),
+            last_applied=GameInfo(name="Old", description="Old text"),
+            sources=[
+                SourceFetchInfo(
+                    url=self.source.url,
+                    type=self.source.type,
+                    raw_content="raw",
+                    canonical_text="canonical",
+                    previous_raw_content="previous raw",
+                    previous_canonical_text="previous canonical",
+                    status=SourceStatus.CHANGED,
+                    fetch=self.fetch,
+                )
+            ],
+        )
+
+    def test_context_contains_game_edit_state(self):
+        context = game_edit_state_context(self.state)
+
+        self.assertEqual(context["history"]["id"], self.history.id)
+        self.assertEqual(context["approval"], "APPLIED")
+        self.assertIn("Long text", context["served_canonical_text"])
+        self.assertIn("Short", context["current_canonical_text"])
+        self.assertIn("Old text", context["last_applied_canonical_text"])
+        self.assertEqual(context["served"]["name"], "Title")
+        self.assertEqual(context["current"]["description"], "Short")
+        self.assertEqual(context["sources"][0]["status"], "CHANGED")
+        self.assertEqual(context["sources"][0]["fetch_id"], self.fetch.id)
+        self.assertEqual(
+            context["sources"][0]["previous_canonical_text"],
+            "previous canonical",
+        )
+
+    def test_runner_is_registered(self):
+        runner = runner_for_workflow(self.workflow, self.state)
+
+        self.assertEqual(runner.runner_name, "human_review")
+
+    def test_tool_requests_human_review_and_records_trajectory(self):
+        responses = [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "needs_human_review",
+                                        "arguments": (
+                                            '{"reason": "Description lost"}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 2},
+            },
+            {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "done"}}
+                ],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            },
+        ]
+
+        with patch.object(
+            openrouter, "chat_completion", side_effect=responses
+        ) as chat:
+            runner_for_workflow(self.workflow, self.state).run()
+
+        prompt = chat.call_args_list[0].args[1][0]["content"]
+        self.assertIn("Approval: APPLIED", prompt)
+        self.assertIn("Long text", prompt)
+        self.assertIn("Short", prompt)
+        self.assertEqual(self.state.approval, Approval.PROPOSED)
+        self.assertEqual(self.state.attention_reason, ["Description lost"])
         self.assertEqual(LlmTrajectory.objects.count(), 1)
