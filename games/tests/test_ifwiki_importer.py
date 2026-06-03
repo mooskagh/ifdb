@@ -248,16 +248,20 @@ class TestIfwikiImporter(unittest.TestCase):
         self.assertNotIn("Страница игры в репозитории INSTEAD", result["desc"])
         self.assertNotIn("Обсуждение на форуме", result["desc"])
 
-    def test_short_single_link_bullets_are_simplified(self):
+    def test_short_single_link_bullets_are_extracted(self):
         review_url = "https://ifhub.club/review.html"
         video_url = "https://ifhub.club/video.html"
         forum_url = "https://ifwiki.ru/forum"
+        play_url = "http://apero.ru/Текстовые-игры/Подпольный-военный"
+        formatted_url = "https://ifhub.club/formatted.html"
         with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
             mock_fetch.return_value = f"""
 == Ссылки ==
 * [Обзор]({review_url})
-* [Видеообзор]({video_url}) от **Wol4ik**
-* обсуждение на [ifwiki]({forum_url})
+* [Видеообзор]({video_url}) от **Wol4ik**.
+* обсуждение на [ifwiki]({forum_url}).
+* [Играть онлайн]({play_url})
+* [Об__зор]({formatted_url}) те__кст.
 Полезный текст.
 """
 
@@ -266,9 +270,51 @@ class TestIfwikiImporter(unittest.TestCase):
         desc = result["desc"]
         self.assertIn("## Ссылки", desc)
         self.assertNotIn(f"[Обзор]({review_url})", desc)
-        self.assertIn("* Видеообзор от **Wol4ik**", desc)
-        self.assertIn("* обсуждение на ifwiki", desc)
+        self.assertNotIn("Видеообзор", desc)
+        self.assertNotIn("обсуждение на ifwiki", desc)
         self.assertIn("Полезный текст.", desc)
+
+        urls = result["urls"]
+        self.assertIn(
+            {
+                "urlcat_slug": "review",
+                "description": "Обзор",
+                "url": review_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "review",
+                "description": "Видеообзор от Wol4ik",
+                "url": video_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "game_page",
+                "description": "обсуждение на ifwiki",
+                "url": forum_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "play_online",
+                "description": "Играть онлайн",
+                "url": play_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "review",
+                "description": "Об__зор те кст",
+                "url": formatted_url,
+            },
+            urls,
+        )
 
     def test_short_link_simplification_ignores_complex_text(self):
         review_url = "https://ifhub.club/review.html"

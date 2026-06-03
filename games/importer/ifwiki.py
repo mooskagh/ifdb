@@ -266,6 +266,11 @@ IFWIKI_IGNORE = {"ЗаглушкаТекста", "ЗаглушкаСсылок"}
 
 GAMEINFO_IGNORE = {"ширинаобложки", "высотаобложки"}
 
+IFWIKI_SHORT_LINK_LIST_MAX_LABEL = 80
+IFWIKI_SHORT_LINK_LIST_MAX_CONTENT = 160
+IFWIKI_SHORT_LINK_LIST_MAX_PREFIX = 40
+IFWIKI_SHORT_LINK_LIST_MAX_SUFFIX = 80
+
 
 class WikiAuthorParsingContext:
     def __init__(self, name, url):
@@ -578,6 +583,7 @@ def convert_wikitext_to_markdown(text, context):
         return match.group(0)
 
     # Convert external links
+    text = extract_short_link_list_items(text, context)
     # Pattern: [description](url) -> keep markdown, but extract the URL.
     text = re.sub(
         r"\[([^\]]+)\]\((https?://[^\s)]+)\)",
@@ -586,7 +592,7 @@ def convert_wikitext_to_markdown(text, context):
     )
     # Pattern: [url description] -> [description](url)
     text = re.sub(
-        r"\[([^\s\]]+)\s+([^\]]+)\](?!\()", replace_external_link, text
+        r"\[(https?://[^\s\]]+)\s+([^\]]+)\]", replace_external_link, text
     )
     # Pattern: [url] -> [url](url) for consistency (but not markdown links)
     text = re.sub(
@@ -600,7 +606,6 @@ def convert_wikitext_to_markdown(text, context):
     text = re.sub(r"^----+", r"===", text, flags=re.MULTILINE)
 
     # Clean up extra whitespace but preserve paragraph breaks
-    text = simplify_short_link_list_items(text)
     text = re.sub(r"\n\n+", "\n\n", text)
     # Fix bold/italic markup issues
     text = re.sub(r"\*{4,}", "****", text)  # Normalize excessive asterisks
@@ -615,11 +620,12 @@ def convert_wikitext_to_markdown(text, context):
 
 
 SHORT_LIST_ITEM_LINK_RE = re.compile(
-    r"\[([^\]\n]{1,80})\]\(https?://[^\s)]+\)"
+    rf"\[([^\]\n]{{1,{IFWIKI_SHORT_LINK_LIST_MAX_LABEL}}})\]"
+    r"\((https?://[^\s)]+)\)"
 )
 
 
-def simplify_short_link_list_items(text):
+def extract_short_link_list_items(text, context):
     lines = text.splitlines()
     result = []
     for line in lines:
@@ -630,7 +636,10 @@ def simplify_short_link_list_items(text):
 
         marker, content = bullet.groups()
         links = list(SHORT_LIST_ITEM_LINK_RE.finditer(content))
-        if len(links) != 1 or len(content) > 160:
+        if (
+            len(links) != 1
+            or len(content) > IFWIKI_SHORT_LINK_LIST_MAX_CONTENT
+        ):
             result.append(line)
             continue
 
@@ -639,7 +648,10 @@ def simplify_short_link_list_items(text):
         suffix = content[link.end() :]
         surroundings = prefix + suffix
 
-        if len(prefix) > 40 or len(suffix) > 80:
+        if (
+            len(prefix) > IFWIKI_SHORT_LINK_LIST_MAX_PREFIX
+            or len(suffix) > IFWIKI_SHORT_LINK_LIST_MAX_SUFFIX
+        ):
             result.append(line)
             continue
         if "http://" in surroundings or "https://" in surroundings:
@@ -648,9 +660,24 @@ def simplify_short_link_list_items(text):
         if "[" in surroundings or "](" in surroundings:
             result.append(line)
             continue
-        if not prefix.strip() and not suffix.strip():
-            continue
 
-        result.append(f"{marker}{prefix}{link.group(1)}{suffix}")
+        context.AddUrl(
+            link.group(2),
+            build_short_link_description(prefix, link.group(1), suffix),
+        )
 
     return "\n".join(result)
+
+
+def build_short_link_description(prefix, label, suffix):
+    description = (
+        f"{clean_short_link_side_text(prefix)}"
+        f"{label}"
+        f"{clean_short_link_side_text(suffix)}"
+    )
+    description = re.sub(r"\s+", " ", description).strip()
+    return description.rstrip(".。 ").strip()
+
+
+def clean_short_link_side_text(text):
+    return re.sub(r"\s+", " ", text.replace("**", " ").replace("__", " "))
