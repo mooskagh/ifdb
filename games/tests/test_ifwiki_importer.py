@@ -176,15 +176,36 @@ class TestIfwikiImporter(unittest.TestCase):
 
             result = ImportFromIfwiki(self.test_url)
 
-        self.assertIn("**ZIP-архив**", result["desc"])
+        self.assertIn("## Версии", result["desc"])
+        self.assertNotIn("ZIP-архив", result["desc"])
+        self.assertNotIn("содержит PDF", result["desc"])
         urls = result.get("urls", [])
         self.assertIn(
             {
                 "urlcat_slug": "download_direct",
-                "description": "ZIP-архив",
+                "description": "ZIP-архив - содержит PDF со сканом игры",
                 "url": "https://ifwiki.ru/files/Three_birds.zip",
             },
             urls,
+        )
+
+    def test_image_link_bullet_becomes_screenshot_url(self):
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = """
+== Скриншоты ==
+* [[Изображение:screen.png|Скриншот]] - финальная сцена
+"""
+
+            result = ImportFromIfwiki(self.test_url)
+
+        self.assertNotIn("финальная сцена", result["desc"])
+        self.assertIn(
+            {
+                "urlcat_slug": "screenshot",
+                "description": "Скриншот - финальная сцена",
+                "url": "https://ifwiki.ru/files/Screen.png",
+            },
+            result.get("urls", []),
         )
 
     def test_markdown_links_are_extracted_as_urls(self):
@@ -255,6 +276,12 @@ class TestIfwikiImporter(unittest.TestCase):
         forum_url = "https://ifwiki.ru/forum"
         play_url = "http://apero.ru/Текстовые-игры/Подпольный-военный"
         itch_url = "https://klockwerk-kat.itch.io/go-ask-alice"
+        long_apero_url = (
+            "http://apero.ru/%D0%A2%D0%B5%D0%BA%D1%81%D1%82%D0%BE"
+            "%D0%B2%D1%8B%D0%B5-%D0%B8%D0%B3%D1%80%D1%8B/%D0%A1"
+            "%D0%BC%D0%B5%D1%88%D0%B0%D1%80%D0%B8%D0%BA%D0%B8-%D0%9C"
+            "%D0%BE%D1%80%D0%B4%D0%BE%D0%B1%D0%BE%D0%B9"
+        )
         formatted_url = "https://ifhub.club/formatted.html"
         with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
             mock_fetch.return_value = f"""
@@ -265,6 +292,7 @@ class TestIfwikiImporter(unittest.TestCase):
 * обсуждение на [ifwiki]({forum_url}).
 * [Играть онлайн]({play_url})
 * [{itch_url} Играть онлайн]
+* [{long_apero_url} Играть онлайн]
 * [Об__зор]({formatted_url}) те__кст.
 Полезный текст.
 """
@@ -325,6 +353,14 @@ class TestIfwikiImporter(unittest.TestCase):
                 "urlcat_slug": "play_online",
                 "description": "Играть онлайн",
                 "url": itch_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "play_online",
+                "description": "Играть онлайн",
+                "url": long_apero_url,
             },
             urls,
         )

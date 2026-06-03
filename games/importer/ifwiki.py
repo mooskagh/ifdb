@@ -267,7 +267,7 @@ IFWIKI_IGNORE = {"ЗаглушкаТекста", "ЗаглушкаСсылок"}
 GAMEINFO_IGNORE = {"ширинаобложки", "высотаобложки"}
 
 IFWIKI_SHORT_LINK_LIST_MAX_LABEL = 80
-IFWIKI_SHORT_LINK_LIST_MAX_CONTENT = 160
+IFWIKI_SHORT_LINK_LIST_MAX_URL = 2048
 IFWIKI_SHORT_LINK_LIST_MAX_PREFIX = 40
 IFWIKI_SHORT_LINK_LIST_MAX_SUFFIX = 80
 
@@ -557,6 +557,8 @@ def convert_wikitext_to_markdown(text, context):
     text = re.sub(r"^\*\s+", r"* ", text, flags=re.MULTILINE)
     text = re.sub(r"^#\s+", r"1. ", text, flags=re.MULTILINE)
 
+    text = extract_short_internal_link_list_items(text, context)
+
     # Convert internal links FIRST
     def replace_internal_link(match):
         link_content = match.group(1)
@@ -630,6 +632,7 @@ SHORT_LIST_ITEM_WIKI_EXTERNAL_LINK_RE = re.compile(
     rf"\[(https?://[^\s\]]+)\s+"
     rf"([^\]\n]{{1,{IFWIKI_SHORT_LINK_LIST_MAX_LABEL}}})\]"
 )
+SHORT_LIST_ITEM_INTERNAL_LINK_RE = re.compile(r"\[\[([^\]\n]+)\]\]")
 
 
 def extract_short_link_list_items(text, context):
@@ -643,14 +646,15 @@ def extract_short_link_list_items(text, context):
 
         marker, content = bullet.groups()
         links = short_list_item_links(content)
-        if (
-            len(links) != 1
-            or len(content) > IFWIKI_SHORT_LINK_LIST_MAX_CONTENT
-        ):
+        if len(links) != 1:
             result.append(line)
             continue
 
         link = links[0]
+        if len(link["url"]) > IFWIKI_SHORT_LINK_LIST_MAX_URL:
+            result.append(line)
+            continue
+
         prefix = content[: link["start"]]
         suffix = content[link["end"] :]
         surroundings = prefix + suffix
@@ -671,6 +675,65 @@ def extract_short_link_list_items(text, context):
         context.AddUrl(
             link["url"],
             build_short_link_description(prefix, link["label"], suffix),
+        )
+
+    return "\n".join(result)
+
+
+def extract_short_internal_link_list_items(text, context):
+    lines = text.splitlines()
+    result = []
+    for line in lines:
+        bullet = re.match(r"^(\s*\*\s+)(.*)$", line)
+        if not bullet:
+            result.append(line)
+            continue
+
+        _marker, content = bullet.groups()
+        links = list(SHORT_LIST_ITEM_INTERNAL_LINK_RE.finditer(content))
+        if len(links) != 1:
+            result.append(line)
+            continue
+
+        link = links[0]
+        parsed = ParseIfwikiLink(link.group(1))
+        if not parsed:
+            result.append(line)
+            continue
+        role, name, typ, display_name = parsed
+        if role not in {"Медиа", "Media", "Image", "Изображение"}:
+            result.append(line)
+            continue
+
+        if len(name) > IFWIKI_SHORT_LINK_LIST_MAX_URL:
+            result.append(line)
+            continue
+
+        prefix = content[: link.start()]
+        suffix = content[link.end() :]
+        surroundings = prefix + suffix
+        label = display_name or name
+        if len(label) > IFWIKI_SHORT_LINK_LIST_MAX_LABEL:
+            result.append(line)
+            continue
+        if (
+            len(prefix) > IFWIKI_SHORT_LINK_LIST_MAX_PREFIX
+            or len(suffix) > IFWIKI_SHORT_LINK_LIST_MAX_SUFFIX
+        ):
+            result.append(line)
+            continue
+        if "http://" in surroundings or "https://" in surroundings:
+            result.append(line)
+            continue
+        if "[" in surroundings or "](" in surroundings:
+            result.append(line)
+            continue
+
+        context.AddUrl(
+            "/files/" + WikiQuote(name),
+            build_short_link_description(prefix, label, suffix),
+            "screenshot" if role == "Изображение" else None,
+            context.url,
         )
 
     return "\n".join(result)
