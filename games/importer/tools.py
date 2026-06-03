@@ -88,6 +88,7 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ("instead-games.ru", "/instead-em/.*", "", "play_online", "Играть онлайн"),
     ("instead-games.ru", "/forum/.*", "", "forum", "Форум на инстеде"),
     ("instead-games.ru", "", "", "game_page", "Страница на инстеде"),
+    ("gamin.me", "/posts/.*", "", "forum", "Обсуждение на gamin.me"),
     ("instead.syscall.ru", ".*/forum/.*", "", "forum", "Форум на инстеде"),
     ("youtube.com", "", "", "video", "Видео игры"),
     ("youtu.be", "", "", "video", "Видео игры"),
@@ -167,10 +168,13 @@ def CategorizeUrl(url, desc="", category=None, base=None):
         break
 
     if cat_slug == "unknown":
-        if desc.lower() == "играть онлайн":
+        desc_lower = desc.lower()
+        if desc_lower == "играть онлайн":
             cat_slug = "play_online"
-        elif "скачать" in desc.lower():
+        elif "скачать" in desc_lower:
             cat_slug = "download_landing"
+        elif "обсуждение" in desc_lower:
+            cat_slug = "forum"
 
     if not desc:
         desc = url
