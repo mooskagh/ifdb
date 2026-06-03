@@ -247,6 +247,8 @@ class GameInfo:
         desired = set()
         to_create = []
         for role_slug, people in self.personalities.items():
+            if not role_slug:
+                continue
             role, _ = GameAuthorRole.objects.get_or_create(
                 symbolic_id=role_slug, defaults={"title": role_slug}
             )
@@ -485,6 +487,8 @@ def merge(base: GameInfo, incoming: GameInfo) -> GameInfo:
         r for r in incoming.personalities if r not in base.personalities
     ]
     for role in roles:
+        if not role:
+            continue
         people = _dedup(
             base.personalities.get(role, [])
             + incoming.personalities.get(role, []),
@@ -608,7 +612,7 @@ class _References:
     def personality_lines(self, personalities: dict[str, list[Person]]):
         lines = []
         roles = sorted(
-            (r for r, p in personalities.items() if p),
+            (r for r, p in personalities.items() if r and p),
             key=lambda r: (self.role_order.get(r, 1000), r),
         )
         for role in roles:

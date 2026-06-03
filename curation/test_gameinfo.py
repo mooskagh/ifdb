@@ -111,6 +111,20 @@ class CanonicalRoundTripTest(GameInfoTestBase):
             canonical.index('  - "g_kids"'),
         )
 
+    def test_empty_personality_role_is_ignored(self):
+        info = GameInfo(
+            personalities={
+                None: [Person(None, "Nobody")],
+                "author": [Person(None, "Alice")],
+            }
+        )
+
+        canonical = info.to_canonical()
+
+        self.assertIn("  - author:\n", canonical)
+        self.assertIn('    - "Alice"\n', canonical)
+        self.assertNotIn("Nobody", canonical)
+
 
 class LooseParseTest(GameInfoTestBase):
     def test_unordered_plain_mapping_matches_canonical(self):
