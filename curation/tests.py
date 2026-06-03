@@ -1125,6 +1125,110 @@ Source desc"""
         self.assertEqual(game.title, "Source Title")
         self.assertEqual(game.description, "Old desc")
 
+    @override_settings(
+        CURATION_EDIT_PASSES=[
+            {"name": "merge_sources"},
+            {"name": "cleanup_text"},
+        ]
+    )
+    def test_cleanup_text_normalizes_description(self):
+        history = self._history(game=None)
+        canonical = """---
+- name: Source Title
+---
+
+
+First   paragraph
+   
+  * * *  
+
+
+
+Second    paragraph
+
+"""
+        self._canonical_source(history, canonical)
+
+        stats = run_edit()
+
+        self.assertEqual(stats.applied, 1)
+        history.refresh_from_db()
+        self.assertEqual(
+            history.game.description, "First paragraph\n\nSecond paragraph\n"
+        )
+        edit = GameEdit.objects.get(history=history)
+        self.assertEqual(
+            edit.passes, [{"name": "merge_sources"}, {"name": "cleanup_text"}]
+        )
+
+    @override_settings(
+        CURATION_EDIT_PASSES=[
+            {"name": "merge_sources"},
+            {"name": "cleanup_text"},
+        ]
+    )
+    def test_cleanup_text_removes_empty_sections(self):
+        history = self._history(game=None)
+        canonical = """---
+- name: Source Title
+---
+# Empty top
+
+## Child has content
+Text
+
+## Empty sibling
+
+## Next sibling
+Text
+
+### Empty child
+
+## Parent sibling
+Text
+
+## Empty tail"""
+        self._canonical_source(history, canonical)
+
+        stats = run_edit()
+
+        self.assertEqual(stats.applied, 1)
+        history.refresh_from_db()
+        self.assertEqual(
+            history.game.description,
+            (
+                "# Empty top\n\n"
+                "## Child has content\nText\n\n"
+                "## Next sibling\nText\n\n"
+                "## Parent sibling\nText\n"
+            ),
+        )
+
+    @override_settings(
+        CURATION_EDIT_PASSES=[
+            {"name": "merge_sources"},
+            {"name": "cleanup_text"},
+        ]
+    )
+    def test_cleanup_text_treats_separator_as_section_end(self):
+        history = self._history(game=None)
+        wiki = GameInfo(
+            name="Source Title",
+            description="# Real section\nText\n\n## Empty before separator",
+        ).to_canonical()
+        apero = GameInfo(description="Apero text").to_canonical()
+        self._canonical_source(history, wiki, GameSource.SourceType.IFWIKI)
+        self._canonical_source(history, apero, GameSource.SourceType.APERO)
+
+        stats = run_edit()
+
+        self.assertEqual(stats.applied, 1)
+        history.refresh_from_db()
+        self.assertEqual(
+            history.game.description,
+            "# Real section\nText\n\n---\n\nApero text\n",
+        )
+
     def test_merge_deduplicates_equivalent_urls(self):
         game = Game.objects.create(title="Tell", creation_time=self.now)
         history = self._history(game=game)
