@@ -429,7 +429,13 @@ def _parse_tag(value) -> Tag:
 def _parse_url(value) -> GameUrl:
     cat, *rest = value
     if len(rest) == 1 and isinstance(rest[0], int):  # DB url; desc/url dropped
-        return GameUrl(cat, rest[0], None, None)
+        game_url = GameURL.objects.filter(url_id=rest[0]).first()
+        return GameUrl(
+            cat,
+            rest[0],
+            game_url.description if game_url else None,
+            None,
+        )
     if len(rest) == 2:  # [cat, desc, url]
         desc, url = rest
         return GameUrl(cat, None, desc or None, url)
@@ -652,9 +658,9 @@ class _References:
             ):
                 if u.url_id is not None:
                     original = self.url[u.url_id]
-                    lines.append(
-                        f"  - {_dump([cat, u.url_id])}  # {_dump(original)}"
-                    )
+                    label = f"{_dump(u.description)} " if u.description else ""
+                    item = _dump([cat, u.url_id])
+                    lines.append(f"  - {item}  # {label}{_dump(original)}")
                 else:
                     lines.append(
                         f"  - {_dump([cat, u.description or '', u.url])}"

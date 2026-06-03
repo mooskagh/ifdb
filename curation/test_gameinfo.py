@@ -56,7 +56,7 @@ class GameInfoTestBase(TestCase):
                 Tag("tag", None, None, "fresh"),
             ],
             urls=[
-                GameUrl("download_direct", url.id, None, None),
+                GameUrl("download_direct", url.id, "Скачать", None),
                 GameUrl("poster", None, "Постер", "http://example.com/p.png"),
             ],
             attributions=[
@@ -68,7 +68,7 @@ class GameInfoTestBase(TestCase):
 
 class CanonicalRoundTripTest(GameInfoTestBase):
     def test_canonical_is_idempotent(self):
-        canonical = self._seeded_info().to_canonical()
+        _, canonical = self._seeded_info().save()
         reparsed = parse(canonical)
         # Re-canonicalizing parsed output is stable.
         self.assertEqual(reparsed.to_canonical(), canonical)
@@ -81,6 +81,10 @@ class CanonicalRoundTripTest(GameInfoTestBase):
         self.assertIn('- name: "Неправильная сказка"\n', canonical)
         self.assertIn('- release_date: "2021-05-30"\n', canonical)
         self.assertIn('  - "os_win"\n', canonical)
+        self.assertRegex(
+            canonical,
+            r'  - \["download_direct", \d+\]  # "Скачать" "http://example\.com/game\.zip"\n',
+        )
         self.assertTrue(canonical.endswith("---\nA *markdown* body."))
 
     def test_from_game_round_trips(self):
