@@ -196,9 +196,9 @@ class TestIfwikiImporter(unittest.TestCase):
 == Ссылки ==
 * [Страница игры в репозитории INSTEAD](http://instead-games.ru/game.php?ID=287)
 * [Обсуждение на форуме](http://instead-games.ru/forum/index.php?p=/discussion/560)
-* [Обзор]({review_url}) от **Цейковец, Никита**
-* [Видеообзор]({video_url}) от **Wol4ik**
-* [Видеопрохождение]({walkthrough_url}) от **drag**'а
+* [Обзор]({review_url})
+* [Видеообзор]({video_url})
+* [Видеопрохождение]({walkthrough_url})
 """
 
             result = ImportFromIfwiki(self.test_url)
@@ -244,6 +244,50 @@ class TestIfwikiImporter(unittest.TestCase):
             },
             urls,
         )
+        self.assertIn("## Ссылки", result["desc"])
+        self.assertNotIn("Страница игры в репозитории INSTEAD", result["desc"])
+        self.assertNotIn("Обсуждение на форуме", result["desc"])
+
+    def test_short_single_link_bullets_are_simplified(self):
+        review_url = "https://ifhub.club/review.html"
+        video_url = "https://ifhub.club/video.html"
+        forum_url = "https://ifwiki.ru/forum"
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = f"""
+== Ссылки ==
+* [Обзор]({review_url})
+* [Видеообзор]({video_url}) от **Wol4ik**
+* обсуждение на [ifwiki]({forum_url})
+Полезный текст.
+"""
+
+            result = ImportFromIfwiki(self.test_url)
+
+        desc = result["desc"]
+        self.assertIn("## Ссылки", desc)
+        self.assertNotIn(f"[Обзор]({review_url})", desc)
+        self.assertIn("* Видеообзор от **Wol4ik**", desc)
+        self.assertIn("* обсуждение на ifwiki", desc)
+        self.assertIn("Полезный текст.", desc)
+
+    def test_short_link_simplification_ignores_complex_text(self):
+        review_url = "https://ifhub.club/review.html"
+        long_prefix_url = "https://ifhub.club/long.html"
+        video_url = "https://ifhub.club/video.html"
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = f"""
+Paragraph with [Обзор]({review_url}) от **Wol4ik**.
+* Это достаточно длинный текст перед ссылкой на [обзор]({long_prefix_url})
+* [Обзор]({review_url}) и [видео]({video_url})
+"""
+
+            result = ImportFromIfwiki(self.test_url)
+
+        desc = result["desc"]
+        self.assertIn(f"Paragraph with [Обзор]({review_url})", desc)
+        self.assertIn("* Это достаточно длинный текст перед", desc)
+        self.assertIn(f"[обзор]({long_prefix_url})", desc)
+        self.assertIn(f"* [Обзор]({review_url}) и [видео]({video_url})", desc)
 
     def test_redirect_handling(self):
         """Test handling of redirect pages."""

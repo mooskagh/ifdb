@@ -580,12 +580,18 @@ def convert_wikitext_to_markdown(text, context):
     # Convert external links
     # Pattern: [description](url) -> keep markdown, but extract the URL.
     text = re.sub(
-        r"\[([^\]]+)\]\((https?://[^\s)]+)\)", extract_markdown_link, text
+        r"\[([^\]]+)\]\((https?://[^\s)]+)\)",
+        extract_markdown_link,
+        text,
     )
     # Pattern: [url description] -> [description](url)
-    text = re.sub(r"\[([^\s\]]+)\s+([^\]]+)\]", replace_external_link, text)
+    text = re.sub(
+        r"\[([^\s\]]+)\s+([^\]]+)\](?!\()", replace_external_link, text
+    )
     # Pattern: [url] -> [url](url) for consistency (but not markdown links)
-    text = re.sub(r"\[([^\s\]]+)\](?!\()", replace_external_link, text)
+    text = re.sub(
+        r"\[(https?://[^\s\]]+)\](?!\()", replace_external_link, text
+    )
 
     # Remove category links
     text = re.sub(r"\[\[Категория:.*?\]\]", "", text)
@@ -594,6 +600,7 @@ def convert_wikitext_to_markdown(text, context):
     text = re.sub(r"^----+", r"===", text, flags=re.MULTILINE)
 
     # Clean up extra whitespace but preserve paragraph breaks
+    text = simplify_short_link_list_items(text)
     text = re.sub(r"\n\n+", "\n\n", text)
     # Fix bold/italic markup issues
     text = re.sub(r"\*{4,}", "****", text)  # Normalize excessive asterisks
@@ -605,3 +612,45 @@ def convert_wikitext_to_markdown(text, context):
     text = text.strip()
 
     return text
+
+
+SHORT_LIST_ITEM_LINK_RE = re.compile(
+    r"\[([^\]\n]{1,80})\]\(https?://[^\s)]+\)"
+)
+
+
+def simplify_short_link_list_items(text):
+    lines = text.splitlines()
+    result = []
+    for line in lines:
+        bullet = re.match(r"^(\s*\*\s+)(.*)$", line)
+        if not bullet:
+            result.append(line)
+            continue
+
+        marker, content = bullet.groups()
+        links = list(SHORT_LIST_ITEM_LINK_RE.finditer(content))
+        if len(links) != 1 or len(content) > 160:
+            result.append(line)
+            continue
+
+        link = links[0]
+        prefix = content[: link.start()]
+        suffix = content[link.end() :]
+        surroundings = prefix + suffix
+
+        if len(prefix) > 40 or len(suffix) > 80:
+            result.append(line)
+            continue
+        if "http://" in surroundings or "https://" in surroundings:
+            result.append(line)
+            continue
+        if "[" in surroundings or "](" in surroundings:
+            result.append(line)
+            continue
+        if not prefix.strip() and not suffix.strip():
+            continue
+
+        result.append(f"{marker}{prefix}{link.group(1)}{suffix}")
+
+    return "\n".join(result)
