@@ -4,6 +4,8 @@ from types import SimpleNamespace
 from django.core.management import call_command
 from django.test import TestCase
 
+from games.models import GameTag, GameTagCategory
+
 from .gameinfo import GameInfo, GameUrl, Tag
 from .models import EnrichmentRule, GenreMapping
 from .passes import EnrichmentPass
@@ -107,6 +109,19 @@ class GenreMappingTests(TestCase):
         kinds = {(t.category, t.slug, t.text) for t in info.tags}
         self.assertIn(("tag", None, "космос"), kinds)
         self.assertIn(("genre", "g_scifi", None), kinds)
+
+    def test_replace_rewrites_resolved_db_tag_to_genre(self):
+        cat = GameTagCategory.objects.create(symbolic_id="tag", name="Tag")
+        tag = GameTag.objects.create(category=cat, name="Детектив")
+        info = GameInfo(tags=[Tag("tag", tag.symbolic_id, tag.id, None)])
+
+        _enrich(info)
+
+        self.assertEqual(len(info.tags), 1)
+        self.assertEqual(
+            (info.tags[0].category, info.tags[0].slug, info.tags[0].text),
+            ("genre", "g_detective", None),
+        )
 
 
 class SandboxTests(TestCase):

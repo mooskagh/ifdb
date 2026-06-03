@@ -139,11 +139,25 @@ def _lowercase_tags(info: GameInfo) -> None:
 
 def _tags_to_genre(info: GameInfo) -> None:
     mapping = {m.tag: m for m in GenreMapping.objects.all()}
+    tag_names = {
+        t.id: t.name
+        for t in GameTag.objects.filter(
+            id__in={
+                tag.tag_id
+                for tag in info.tags
+                if tag.category == "tag" and tag.tag_id is not None
+            }
+        )
+    }
+    present_slugs = {tag.slug for tag in info.tags if tag.slug}
     extra: list[Tag] = []
     for tag in info.tags:
-        if tag.category != "tag" or not tag.text:
+        if tag.category != "tag":
             continue
-        m = mapping.get(tag.text.lower())
+        text = tag.text or tag_names.get(tag.tag_id)
+        if not text:
+            continue
+        m = mapping.get(text.lower())
         if m is None:
             continue
         if m.replace:
@@ -153,6 +167,8 @@ def _tags_to_genre(info: GameInfo) -> None:
                 None,
                 None,
             )
-        else:
+            present_slugs.add(m.genre_slug)
+        elif m.genre_slug not in present_slugs:
             extra.append(Tag("genre", m.genre_slug, None, None))
+            present_slugs.add(m.genre_slug)
     info.tags.extend(extra)

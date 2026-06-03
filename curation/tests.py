@@ -1363,3 +1363,30 @@ Text
         edit = GameEdit.objects.get(history=history)
         self.assertIn(f'["language", {language.id}]', edit.canonical_text)
         self.assertNotIn('["language", "русский"]', edit.canonical_text)
+
+    @override_settings(CURATION_EDIT_PASSES=["merge_sources", "enrich"])
+    def test_enrichment_replaces_canonicalized_tag_genres(self):
+        call_command("initifdb", stdout=StringIO(), stderr=StringIO())
+        call_command("initenrichment", stdout=StringIO())
+        history = self._history(
+            game=None, auto_updates=GameHistory.AutoUpdate.PROPOSE
+        )
+        tag_cat = GameTagCategory.objects.get(symbolic_id="tag")
+        GameTag.objects.create(category=tag_cat, name="детское")
+        GameTag.objects.create(category=tag_cat, name="сказка")
+        canonical = """---
+- name: Source Title
+- tags:
+  - ["tag", "Детское"]
+  - ["tag", "Сказка"]
+---
+"""
+        self._canonical_source(history, canonical)
+
+        stats = run_edit()
+
+        self.assertEqual(stats.proposed, 1)
+        edit = GameEdit.objects.get(history=history)
+        self.assertEqual(edit.canonical_text.count('"g_fairytale"'), 1)
+        self.assertEqual(edit.canonical_text.count('"g_kids"'), 1)
+        self.assertNotIn('["tag",', edit.canonical_text)
