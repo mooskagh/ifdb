@@ -507,10 +507,10 @@ def _person_key(p: Person):
 
 
 def _tag_key(t: Tag):
-    if t.tag_id is not None:
-        return ("id", t.tag_id)
     if t.slug:
         return ("slug", t.slug)
+    if t.tag_id is not None:
+        return ("id", t.tag_id)
     return ("new", t.category, t.text)
 
 

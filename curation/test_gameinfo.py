@@ -299,6 +299,28 @@ class MergeTest(GameInfoTestBase):
             [a.name for a in result.attributions], ["shared", "new"]
         )
 
+    def test_dedups_resolved_and_imported_slug_tags(self):
+        fairy = GameTag.objects.get(symbolic_id="g_fairytale")
+        kids = GameTag.objects.get(symbolic_id="g_kids")
+        base = GameInfo(
+            tags=[
+                Tag("genre", "g_fairytale", fairy.id, None),
+                Tag("genre", "g_kids", kids.id, None),
+            ]
+        )
+        incoming = GameInfo.from_importer_dict({
+            "tags": [
+                {"tag_slug": "g_fairytale"},
+                {"tag_slug": "g_kids"},
+            ]
+        })
+
+        result = merge(base, incoming)
+
+        self.assertEqual(
+            [t.slug for t in result.tags], ["g_fairytale", "g_kids"]
+        )
+
 
 class SaveTest(GameInfoTestBase):
     def test_create_resolves_new_entries_and_resave_is_noop(self):
