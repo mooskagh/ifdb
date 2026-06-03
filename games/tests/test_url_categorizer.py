@@ -13,3 +13,10 @@ class TestUrlCategorizer(unittest.TestCase):
         result = CategorizeUrl("https://example.com/thread", "Обсуждение")
 
         self.assertEqual(result["urlcat_slug"], "forum")
+
+    def test_hyperbook_comments_are_forum_links(self):
+        result = CategorizeUrl(
+            "http://hyperbook.ru/comments.php?id=15138858934730"
+        )
+
+        self.assertEqual(result["urlcat_slug"], "forum")

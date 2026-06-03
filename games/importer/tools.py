@@ -118,6 +118,13 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
         "Скачать с hyperbook.ru",
     ),
     (
+        "hyperbook.ru",
+        "/comments.php",
+        "",
+        "forum",
+        "Обсуждение на hyperbook.ru",
+    ),
+    (
         "",
         r"(?i).*\.(zip|rar|z5)",
         "",
