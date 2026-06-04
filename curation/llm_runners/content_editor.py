@@ -1,11 +1,8 @@
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
-from django.utils.timezone import now
-
 from curation.edit import Approval
 from curation.llm import llm_tool, register_llm_runner
-from curation.models import LlmTrajectory
 
 from .base import GameEditStateLlmRunner
 
@@ -15,8 +12,7 @@ class MatchParams:
     text_start: Annotated[
         str,
         "Existing body text at the start of the span to replace; not new "
-        "text; "
-        "must not be empty",
+        "text; must not be empty; around 5 words recommended",
     ]
     text_end: Annotated[
         str,
@@ -151,19 +147,7 @@ class ContentEditorRunner(GameEditStateLlmRunner):
             reason = "Content editor skipped empty description body."
             if reason not in self.state.attention_reason:
                 self.state.attention_reason.append(reason)
-            return LlmTrajectory.objects.create(
-                history=self.state.history,
-                workflow=self.workflow,
-                model=self.model,
-                created_at=now(),
-                messages=[
-                    {
-                        "role": "assistant",
-                        "content": reason,
-                    }
-                ],
-                cost=0,
-            )
+            return None
         trajectory = self.run_agent_loop(self.context(), require_tool=True)
         self._mark_attention_if_incomplete(trajectory)
         return trajectory

@@ -1221,25 +1221,13 @@ class ContentEditorRunnerTests(TestCase):
             trajectory = self._runner().run()
 
         chat.assert_not_called()
+        self.assertIsNone(trajectory)
         self.assertEqual(self.state.approval, Approval.PROPOSED)
         self.assertEqual(
             self.state.attention_reason,
             ["Content editor skipped empty description body."],
         )
-        self.assertEqual(trajectory.prompt_tokens, 0)
-        self.assertEqual(trajectory.completion_tokens, 0)
-        self.assertEqual(trajectory.cost, 0)
-        self.assertEqual(
-            trajectory.messages,
-            [
-                {
-                    "role": "assistant",
-                    "content": (
-                        "Content editor skipped empty description body."
-                    ),
-                }
-            ],
-        )
+        self.assertEqual(LlmTrajectory.objects.count(), 0)
 
     def test_run_marks_attention_after_repeated_missing_tool_calls(self):
         self.workflow.runner_params = {"max_error_tool_calls": 2}
