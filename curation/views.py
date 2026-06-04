@@ -639,10 +639,22 @@ def edit_diff(request, edit_id):
     request.perm.Ensure(PERM)
 
     edit = get_object_or_404(
-        GameEdit.objects.select_related("history__game"), pk=edit_id
+        GameEdit.objects
+        .select_related("history__game", "proposed_by", "approver")
+        .prefetch_related(
+            Prefetch(
+                "llmtrajectory_set",
+                queryset=LlmTrajectory.objects.select_related(
+                    "workflow", "model"
+                ).order_by("created_at", "pk"),
+                to_attr="llm_trajectories",
+            )
+        ),
+        pk=edit_id,
     )
     history = edit.history
     before = _served_canonical(history)
+    edit.display_passes = _display_passes(edit.passes)
 
     if request.method == "POST":
         if edit.status != GameEdit.EditStatus.PROPOSED:

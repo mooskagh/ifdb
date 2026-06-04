@@ -410,6 +410,70 @@ class EditDiffViewTest(TestCase):
         self.assertContains(response, "к истории игры")
         self.assertContains(response, "остаться тут")
 
+    def test_edit_page_shows_game_users_passes_and_llm_links(self):
+        edit = self._edit()
+        edit.passes = [
+            "NormalizeText",
+            {"name": "LlmWorkflowPass", "workflow": "test_workflow"},
+        ]
+        edit.save(update_fields=["passes"])
+        model = LLMModel.objects.create(
+            name="test/model",
+            context_length=1000,
+            input_cost=1,
+            cached_input_cost=0,
+            cache_write_cost=0,
+            output_cost=1,
+        )
+        workflow = LlmWorkflow.objects.create(
+            name="test_workflow",
+            runner="test_runner",
+            prompt_template="Prompt",
+            model=model,
+        )
+        trajectory = LlmTrajectory.objects.create(
+            history=edit.history,
+            edit=edit,
+            workflow=workflow,
+            model=model,
+            created_at=self.now + timezone.timedelta(minutes=1),
+            messages=[],
+            cost="0.000000",
+        )
+
+        response = self.client.get(f"/curation/edits/{edit.pk}/")
+        content = unescape(response.content.decode())
+
+        self.assertContains(response, f'href="/game/{edit.history.game_id}/"')
+        self.assertContains(response, "Old Title")
+        self.assertContains(response, "Предложил")
+        self.assertContains(response, "moder")
+        self.assertContains(response, "Passes")
+        self.assertContains(response, "<strong>NormalizeText</strong>")
+        self.assertContains(response, "<strong>LlmWorkflowPass</strong>")
+        self.assertIn('"workflow": "test_workflow"', content)
+        self.assertContains(response, "LLM")
+        self.assertContains(response, "test_workflow")
+        self.assertContains(response, "test/model")
+        self.assertContains(
+            response, f'href="/curation/trajectories/{trajectory.pk}/"'
+        )
+
+    def test_settled_edit_page_shows_approver(self):
+        edit = self._edit()
+        edit.status = GameEdit.EditStatus.APPLIED
+        edit.approved_at = self.now + timezone.timedelta(minutes=5)
+        edit.approver = self.user
+        edit.save(update_fields=["status", "approved_at", "approver"])
+
+        response = self.client.get(f"/curation/edits/{edit.pk}/")
+
+        self.assertContains(response, "Одобрил")
+        self.assertContains(
+            response,
+            f"moder ({edit.approved_at:%d.%m.%Y %H:%M})",
+        )
+
     def test_edit_redirect_dropdown_hides_game_options_without_game(self):
         edit = self._edit()
         edit.history.game = None
