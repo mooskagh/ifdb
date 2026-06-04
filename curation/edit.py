@@ -34,6 +34,7 @@ from .models import (
     GameHistory,
     GameSource,
     GameSourceFetch,
+    LlmTrajectory,
 )
 
 logger = getLogger("worker")
@@ -295,6 +296,14 @@ def _process_history(history: GameHistory) -> str:
         username=settings.MAINTENANCE_USER,
         defaults={"email": "robot@db.crem.xyz"},
     )
+    last_trajectory_id = (
+        LlmTrajectory.objects
+        .filter(history=history)
+        .order_by("-pk")
+        .values_list("pk", flat=True)
+        .first()
+        or 0
+    )
     pass_specs = normalize_pass_specs(settings.CURATION_EDIT_PASSES)
     for spec in pass_specs:
         PASS_REGISTRY[spec.name].apply(state, spec.params)
@@ -323,6 +332,11 @@ def _process_history(history: GameHistory) -> str:
             canonical_text=final,
         )
         edit.used_sources.set([s.fetch for s in state.sources if s.fetch])
+        LlmTrajectory.objects.filter(
+            history=history,
+            edit__isnull=True,
+            pk__gt=last_trajectory_id,
+        ).update(edit=edit)
 
         if state.approval is Approval.APPLIED:
             game, after = state.current.save(history.game)

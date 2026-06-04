@@ -122,14 +122,28 @@
             {% elif entry.obj.status == "REJECTED" %}
             <div class="curation-meta">Отклонил: {{ entry.obj.approver|default:"—" }}{% if entry.obj.approved_at %} ({{ entry.obj.approved_at|date:"d.m.Y H:i" }}){% endif %}</div>
             {% endif %}
-        {% elif entry.kind == "trajectory" %}
-            <div class="curation-event curation-event--action">
-                <span>Траектория LLM</span>
-                <a href="{% url 'curation_llm_trajectory_detail' entry.obj.pk %}">посмотреть</a>
-                {% if entry.obj.edit %}
-                <a href="{% url 'curation_edit_diff' entry.obj.edit.pk %}">правка #{{ entry.obj.edit.pk }}</a>
-                {% endif %}
+            {% if entry.obj.display_passes %}
+            <div class="curation-meta curation-edit-passes">
+                Passes:
+                {% for pass in entry.obj.display_passes %}
+                <span class="curation-edit-pass"><strong>{{ pass.name }}</strong>{% if pass.params %} {{ pass.params|prettyjson }}{% endif %}</span>{% if not forloop.last %}, {% endif %}
+                {% endfor %}
             </div>
+            {% endif %}
+            {% if entry.obj.llm_trajectories %}
+            <div class="curation-meta curation-llm-workflows">
+                LLM:
+                {% for trajectory in entry.obj.llm_trajectories %}
+                <a href="{% url 'curation_llm_trajectory_detail' trajectory.pk %}">{{ trajectory.workflow.name|default:"—" }}</a>{% if not forloop.last %}, {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% elif entry.kind == "orphan_trajectory" %}
+            <div class="curation-event curation-event--action">
+                <span>Сиротская траектория LLM</span>
+                <a href="{% url 'curation_llm_trajectory_detail' entry.obj.pk %}">посмотреть</a>
+            </div>
+            <div class="curation-meta">У этой траектории нет ссылки на GameEdit.</div>
             <div class="curation-meta">Workflow: {{ entry.obj.workflow.name|default:"—" }}</div>
             <div class="curation-meta">Модель: {{ entry.obj.model.name|default:"—" }}</div>
         {% elif entry.kind == "comment" %}

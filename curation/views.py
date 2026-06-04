@@ -9,6 +9,7 @@ from django.db.models import (
     F,
     IntegerField,
     OuterRef,
+    Prefetch,
     Q,
     Subquery,
     Sum,
@@ -40,6 +41,21 @@ from .providers import REGISTERED_PROVIDERS
 PERM = "(alias curation_admin)"
 
 GROUP_WINDOW = timedelta(minutes=1)
+
+
+def _display_passes(passes):
+    display = []
+    for item in passes:
+        if isinstance(item, str):
+            display.append({"name": item, "params": {}})
+        elif isinstance(item, dict):
+            display.append({
+                "name": item.get("name", "—"),
+                "params": {k: v for k, v in item.items() if k != "name"},
+            })
+        else:
+            display.append({"name": str(item), "params": {}})
+    return display
 
 
 def _group_timeline(timeline):
@@ -540,9 +556,22 @@ def history_detail(request, history_id):
                 "label": "Последняя загрузка",
             })
 
-    for edit in GameEdit.objects.filter(history=history).select_related(
-        "proposed_by", "approver"
-    ):
+    edits = list(
+        GameEdit.objects
+        .filter(history=history)
+        .select_related("proposed_by", "approver")
+        .prefetch_related(
+            Prefetch(
+                "llmtrajectory_set",
+                queryset=LlmTrajectory.objects.select_related(
+                    "workflow", "model"
+                ).order_by("created_at", "pk"),
+                to_attr="llm_trajectories",
+            )
+        )
+    )
+    for edit in edits:
+        edit.display_passes = _display_passes(edit.passes)
         timeline.append({
             "ts": edit.approved_at or edit.proposed_at,
             "kind": "edit",
@@ -552,11 +581,11 @@ def history_detail(request, history_id):
         })
 
     for trajectory in LlmTrajectory.objects.filter(
-        history=history
-    ).select_related("workflow", "model", "edit"):
+        history=history, edit__isnull=True
+    ).select_related("workflow", "model"):
         timeline.append({
             "ts": trajectory.created_at,
-            "kind": "trajectory",
+            "kind": "orphan_trajectory",
             "color": "green",
             "obj": trajectory,
             "who": None,

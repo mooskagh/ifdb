@@ -584,8 +584,13 @@ class EditDiffViewTest(TestCase):
             content.index(f"/curation/edits/{approved.pk}/"),
         )
 
-    def test_history_page_links_trajectories_to_related_edits(self):
+    def test_history_page_lists_related_llm_workflows_in_edit_panel(self):
         edit = self._edit()
+        edit.passes = [
+            "NormalizeText",
+            {"name": "LlmWorkflowPass", "workflow": "test_workflow"},
+        ]
+        edit.save(update_fields=["passes"])
         model = LLMModel.objects.create(
             name="test/model",
             context_length=1000,
@@ -611,14 +616,54 @@ class EditDiffViewTest(TestCase):
         )
 
         response = self.client.get(f"/curation/{edit.history.pk}/")
+        content = unescape(response.content.decode())
 
-        self.assertContains(response, "Траектория LLM")
+        self.assertNotContains(response, "Траектория LLM")
+        self.assertContains(response, "LLM:")
+        self.assertContains(response, "test_workflow")
+        self.assertContains(response, "Passes:")
+        self.assertContains(response, "<strong>NormalizeText</strong>")
+        self.assertContains(response, "<strong>LlmWorkflowPass</strong>")
+        self.assertIn('"workflow": "test_workflow"', content)
+        self.assertNotIn('"name": "LlmWorkflowPass"', content)
         self.assertContains(
             response, f'href="/curation/trajectories/{trajectory.pk}/"'
         )
+
+    def test_history_page_shows_orphan_trajectories_separately(self):
+        edit = self._edit()
+        model = LLMModel.objects.create(
+            name="orphan/model",
+            context_length=1000,
+            input_cost=1,
+            cached_input_cost=0,
+            cache_write_cost=0,
+            output_cost=1,
+        )
+        workflow = LlmWorkflow.objects.create(
+            name="orphan_workflow",
+            runner="test_runner",
+            prompt_template="Prompt",
+            model=model,
+        )
+        trajectory = LlmTrajectory.objects.create(
+            history=edit.history,
+            workflow=workflow,
+            model=model,
+            created_at=self.now + timezone.timedelta(minutes=1),
+            messages=[],
+            cost="0.000000",
+        )
+
+        response = self.client.get(f"/curation/{edit.history.pk}/")
+
+        self.assertContains(response, "Сиротская траектория LLM")
         self.assertContains(
-            response,
-            f'href="/curation/edits/{edit.pk}/">правка #{edit.pk}</a>',
+            response, "У этой траектории нет ссылки на GameEdit."
+        )
+        self.assertContains(response, "orphan_workflow")
+        self.assertContains(
+            response, f'href="/curation/trajectories/{trajectory.pk}/"'
         )
 
 

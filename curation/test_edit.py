@@ -25,6 +25,9 @@ from .models import (
     GameHistory,
     GameSource,
     GameSourceFetch,
+    LLMModel,
+    LlmTrajectory,
+    LlmWorkflow,
 )
 
 
@@ -57,6 +60,34 @@ class _AssertResolvedPerson(GameEditPass):
 
     def apply(self, state, params):
         self.seen = state.current.personalities["author"][-1]
+
+
+class _CreateTrajectory(GameEditPass):
+    name = "create_trajectory"
+
+    def apply(self, state, params):
+        model = LLMModel.objects.create(
+            name="test/model",
+            context_length=1000,
+            input_cost=1,
+            cached_input_cost=0,
+            cache_write_cost=0,
+            output_cost=1,
+        )
+        workflow = LlmWorkflow.objects.create(
+            name="test_workflow",
+            runner="test_runner",
+            prompt_template="Prompt",
+            model=model,
+        )
+        LlmTrajectory.objects.create(
+            history=state.history,
+            workflow=workflow,
+            model=model,
+            created_at=now(),
+            messages=[],
+            cost="0.000000",
+        )
 
 
 class RunEditTests(TestCase):
@@ -178,6 +209,17 @@ class RunEditTests(TestCase):
         self.assertTrue(
             history.game.tags.filter(symbolic_id="os_dos").exists()
         )
+
+    def test_new_llm_trajectories_are_attached_to_created_edit(self):
+        history = self._history()
+
+        self._run_with(
+            [_TagAndApprove(Approval.APPLIED), _CreateTrajectory()], history
+        )
+
+        edit_row = GameEdit.objects.get(history=history)
+        trajectory = LlmTrajectory.objects.get(history=history)
+        self.assertEqual(trajectory.edit, edit_row)
 
     def test_canonicalizes_after_each_pass(self):
         history = self._history()
