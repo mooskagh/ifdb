@@ -2688,6 +2688,9 @@ h6 {
 .curation-history-table-state {
     width: 78px;
 }
+.curation-history-table-action {
+    width: 75px;
+}
 .curation-history-table-auto {
     width: 54px;
 }
@@ -2698,6 +2701,7 @@ h6 {
     width: 76px;
 }
 .curation-history-table-state,
+.curation-history-table-action,
 .curation-history-table-auto,
 .curation-history-table-priority,
 .curation-history-table-date {
@@ -3018,6 +3022,12 @@ h6 {
 .curation-action-link:hover {
     background: var(--card-green-bg-light);
     text-decoration: none;
+}
+.curation-action-link--compact {
+    font-size: 11px;
+    line-height: 1;
+    padding: 2px 5px;
+    white-space: nowrap;
 }
 .curation-save {
     align-items: center;

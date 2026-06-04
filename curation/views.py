@@ -119,8 +119,12 @@ def history_list(request):
     auto = request.GET.get("auto") or ""
     sort = request.GET.get("sort") or "relevance"
 
+    pending_edits = GameEdit.objects.filter(
+        history=OuterRef("pk"), status=GameEdit.EditStatus.PROPOSED
+    ).order_by("-proposed_at", "-pk")
     histories = GameHistory.objects.select_related("game").annotate(
-        updated=Coalesce("edit_time", "creation_time")
+        updated=Coalesce("edit_time", "creation_time"),
+        pending_edit_id=Subquery(pending_edits.values("pk")[:1]),
     )
     if state:
         histories = histories.filter(state=state)

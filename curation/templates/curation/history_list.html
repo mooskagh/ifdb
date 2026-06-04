@@ -37,6 +37,7 @@
         <thead>
             <tr>
                 <th>Игра</th>
+                <th class="curation-history-table-action"></th>
                 <th class="curation-history-table-state">Статус</th>
                 <th>Причина</th>
                 <th class="curation-history-table-auto">Авто</th>
@@ -51,6 +52,11 @@
                 <td class="curation-truncate">
                     <a href="{% url 'curation_history_detail' history.pk %}" title="{{ history.game.title|default:'(не назначена)' }}">{{ history.game.title|default:"(не назначена)" }}</a>
                 </td>
+                <td class="curation-history-table-action">
+                    {% if history.pending_edit_id %}
+                    <a class="curation-action-link curation-action-link--compact" href="{% url 'curation_edit_diff' history.pending_edit_id %}">правка ждёт</a>
+                    {% endif %}
+                </td>
                 <td>{{ history.state_short }}</td>
                 <td class="curation-truncate" title="{{ history.attention_reason|default:'' }}">{{ history.attention_reason|default:""|linebreaksbr }}</td>
                 <td>{{ history.auto_short }}</td>
@@ -58,7 +64,7 @@
                 <td>{{ history.updated|date:"d.m.Y" }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="6">Игр нет.</td></tr>
+            <tr><td colspan="7">Игр нет.</td></tr>
             {% endfor %}
         </tbody>
     </table>

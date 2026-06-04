@@ -198,6 +198,44 @@ class HistoryListViewTest(TestCase):
         )
         self.assertContains(response, '<option value="relevance" selected>')
 
+    def test_history_list_links_latest_pending_edit(self):
+        ts = timezone.now()
+        pending_history = self._create_history(
+            "Pending", ts, state=GameHistory.State.SETTLED
+        )
+        old_pending = self._create_edit(
+            pending_history,
+            ts,
+            status=GameEdit.EditStatus.PROPOSED,
+        )
+        latest_pending = self._create_edit(
+            pending_history,
+            ts + timezone.timedelta(minutes=1),
+            status=GameEdit.EditStatus.PROPOSED,
+        )
+        done_history = self._create_history(
+            "Done", ts, state=GameHistory.State.SETTLED
+        )
+        done_edit = self._create_edit(
+            done_history,
+            ts,
+            status=GameEdit.EditStatus.APPLIED,
+        )
+
+        response = self.client.get("/curation/")
+
+        self.assertContains(response, "правка ждёт")
+        self.assertContains(response, "curation-action-link--compact")
+        self.assertContains(
+            response, f'href="/curation/edits/{latest_pending.pk}/"'
+        )
+        self.assertNotContains(
+            response, f'href="/curation/edits/{old_pending.pk}/"'
+        )
+        self.assertNotContains(
+            response, f'href="/curation/edits/{done_edit.pk}/"'
+        )
+
     def _create_history(self, title, updated, *, state):
         game = Game.objects.create(
             title=title,
@@ -209,6 +247,16 @@ class HistoryListViewTest(TestCase):
             creation_time=updated,
             edit_time=updated,
             state=state,
+        )
+
+    def _create_edit(self, history, proposed_at, *, status):
+        return GameEdit.objects.create(
+            history=history,
+            proposed_at=proposed_at,
+            status=status,
+            origin=GameEdit.Origin.AUTO_IMPORT,
+            previous_canonical_text="old",
+            canonical_text="new",
         )
 
 
