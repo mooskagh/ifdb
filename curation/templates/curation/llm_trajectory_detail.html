@@ -1,0 +1,109 @@
+{% extends "curation/base.html" %}
+{% load tags %}
+
+{% block titlesection %}Траектория LLM #{{ trajectory.pk }} - ОГОРОД - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--purple">
+    <div class="card--header">Траектория LLM #{{ trajectory.pk }}</div>
+    <div class="curation-source-detail">
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Дата</div>
+            <div class="curation-source-detail-value">{{ trajectory.created_at|date:"Y-m-d H:i:s" }}</div>
+        </div>
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Workflow</div>
+            <div class="curation-source-detail-value">{{ trajectory.workflow.name|default:"—" }}</div>
+        </div>
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Модель</div>
+            <div class="curation-source-detail-value">{{ trajectory.model.name|default:"—" }}</div>
+        </div>
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Игра</div>
+            <div class="curation-source-detail-value">
+                {% if trajectory.history.game %}
+                <a href="{% url 'show_game' trajectory.history.game.pk %}">{{ trajectory.history.game.title }}</a>
+                <a href="{% url 'curation_history_detail' trajectory.history.pk %}">история #{{ trajectory.history.pk }}</a>
+                {% else %}
+                <a href="{% url 'curation_history_detail' trajectory.history.pk %}">История #{{ trajectory.history.pk }}</a>
+                {% endif %}
+            </div>
+        </div>
+        {% if trajectory.edit %}
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Правка</div>
+            <div class="curation-source-detail-value"><a href="{% url 'curation_edit_diff' trajectory.edit.pk %}">#{{ trajectory.edit.pk }}</a></div>
+        </div>
+        {% endif %}
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Токены</div>
+            <div class="curation-source-detail-value">
+                prompt {{ trajectory.prompt_tokens }}, cached {{ trajectory.cached_input_tokens }}, write {{ trajectory.cache_write_tokens }}, completion {{ trajectory.completion_tokens }}
+            </div>
+        </div>
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Стоимость</div>
+            <div class="curation-source-detail-value">{{ trajectory.cost|costcell:6 }} $ · {{ trajectory.cost_cents|costcell:4 }} ¢</div>
+        </div>
+    </div>
+</div>
+
+<div class="card card--green">
+    <div class="card--header">Сообщения</div>
+    <div class="curation-message-list">
+        {% for message in trajectory.messages %}
+        <article class="curation-message curation-message--{{ message.role|default:'unknown' }}">
+            <div class="curation-message-meta-col">
+                <div class="curation-message-role">{{ message.role|default:"unknown" }}</div>
+                {% if message.name %}
+                <div class="curation-message-meta-row">
+                    <span>name</span>
+                    <code>{{ message.name }}</code>
+                </div>
+                {% endif %}
+                {% if message.tool_call_id %}
+                <div class="curation-message-meta-row">
+                    <span>tool call</span>
+                    <code>{{ message.tool_call_id }}</code>
+                </div>
+                {% endif %}
+                {% if message.tool_calls %}
+                <div class="curation-message-meta-row">
+                    <span>calls</span>
+                    <code>{{ message.tool_calls|length }}</code>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="curation-message-body">
+                {% if message.content %}
+                <pre class="curation-message-content">{{ message.content|prettyjson }}</pre>
+                {% elif message.content == None %}
+                <div class="curation-message-empty">content: null</div>
+                {% endif %}
+
+                {% if message.tool_calls %}
+                <div class="curation-tool-calls">
+                    {% for call in message.tool_calls %}
+                    <section class="curation-tool-call">
+                        <div class="curation-tool-call-meta">
+                            <span class="curation-tool-call-kind">{{ call.type|default:"tool" }}</span>
+                            <strong>{{ call.function.name|default:call.type }}</strong>
+                            {% if call.id %}<code>{{ call.id }}</code>{% endif %}
+                        </div>
+                        {% if call.function.arguments %}
+                        <pre class="curation-message-content curation-message-content--json">{{ call.function.arguments|prettyjson }}</pre>
+                        {% endif %}
+                    </section>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </article>
+        {% empty %}
+        <div class="curation-message-empty">Сообщений нет.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

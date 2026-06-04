@@ -20,6 +20,11 @@ urlpatterns = [
         views.llm_trajectories,
         name="curation_llm_trajectories",
     ),
+    path(
+        "trajectories/<int:trajectory_id>/",
+        views.llm_trajectory_detail,
+        name="curation_llm_trajectory_detail",
+    ),
     path("sources/", views.source_list, name="curation_source_list"),
     path(
         "sources/<int:source_id>/",

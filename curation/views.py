@@ -2,7 +2,18 @@ from datetime import timedelta
 
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Avg, Case, Count, F, IntegerField, OuterRef, Q, Sum, Subquery, When
+from django.db.models import (
+    Avg,
+    Case,
+    Count,
+    F,
+    IntegerField,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    When,
+)
 from django.db.models.functions import Coalesce, TruncMonth
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
@@ -168,13 +179,15 @@ def llm_trajectories(request):
         "avg_completion_tokens": Avg("completion_tokens"),
     }
     months = list(
-        LlmTrajectory.objects.annotate(month=TruncMonth("created_at"))
+        LlmTrajectory.objects
+        .annotate(month=TruncMonth("created_at"))
         .values("month")
         .annotate(**aggregates)
         .order_by("-month")
     )
     breakdowns = (
-        LlmTrajectory.objects.annotate(month=TruncMonth("created_at"))
+        LlmTrajectory.objects
+        .annotate(month=TruncMonth("created_at"))
         .values("month", "workflow__name", "model__name")
         .annotate(**aggregates)
         .order_by("-month", "workflow__name", "model__name")
@@ -186,7 +199,8 @@ def llm_trajectories(request):
         month_by_key[row["month"]]["breakdowns"].append(row)
 
     trajectories = (
-        LlmTrajectory.objects.select_related("workflow", "history__game")
+        LlmTrajectory.objects
+        .select_related("workflow", "history__game")
         .annotate(cost_cents=F("cost") * 100)
         .order_by("-created_at", "-pk")
     )
@@ -200,6 +214,22 @@ def llm_trajectories(request):
             "page": page,
             "trajectories": page.object_list,
         },
+    )
+
+
+def llm_trajectory_detail(request, trajectory_id):
+    request.perm.Ensure(PERM)
+
+    trajectory = get_object_or_404(
+        LlmTrajectory.objects.select_related(
+            "workflow", "model", "history__game", "edit"
+        ).annotate(cost_cents=F("cost") * 100),
+        pk=trajectory_id,
+    )
+    return render(
+        request,
+        "curation/llm_trajectory_detail.html",
+        {"trajectory": trajectory},
     )
 
 
@@ -519,6 +549,17 @@ def history_detail(request, history_id):
             "color": "green",
             "obj": edit,
             "who": edit.proposed_by,
+        })
+
+    for trajectory in LlmTrajectory.objects.filter(
+        history=history
+    ).select_related("workflow", "model", "edit"):
+        timeline.append({
+            "ts": trajectory.created_at,
+            "kind": "trajectory",
+            "color": "green",
+            "obj": trajectory,
+            "who": None,
         })
 
     for comment in GameHistoryComment.objects.filter(

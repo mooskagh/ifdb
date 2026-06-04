@@ -1,12 +1,14 @@
+import json
 import re
 from decimal import Decimal, InvalidOperation
+from html import unescape
 
 from django import template
 from django.conf import settings
 from django.template import TemplateSyntaxError
 from django.template.defaultfilters import stringfilter
 from django.urls import NoReverseMatch, reverse
-from django.utils.html import format_html
+from django.utils.html import conditional_escape, format_html
 from django.utils.safestring import mark_safe
 
 register = template.Library()
@@ -28,6 +30,19 @@ def costcell(value, decimals=4):
     if not tail:
         return mark_safe(head)
     return format_html('{}<span class="zeros">{}</span>', head, tail)
+
+
+@register.filter
+def prettyjson(value):
+    if isinstance(value, str):
+        value = unescape(value)
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return mark_safe(conditional_escape(value))
+    return mark_safe(
+        conditional_escape(json.dumps(value, ensure_ascii=False, indent=2))
+    )
 
 
 @register.simple_tag(takes_context=True)

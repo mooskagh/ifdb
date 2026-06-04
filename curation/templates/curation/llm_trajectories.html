@@ -70,8 +70,8 @@
         </thead>
         <tbody>
             {% for trajectory in trajectories %}
-            <tr>
-                <td class="curation-nowrap">{{ trajectory.created_at|date:"Y-m-d H:i" }}</td>
+            <tr data-href="{% url 'curation_llm_trajectory_detail' trajectory.pk %}">
+                <td class="curation-nowrap"><a href="{% url 'curation_llm_trajectory_detail' trajectory.pk %}">{{ trajectory.created_at|date:"Y-m-d H:i" }}</a></td>
                 <td>{{ trajectory.workflow.name|default:"—" }}</td>
                 <td class="curation-truncate">
                     {% if trajectory.history.game %}
