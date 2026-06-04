@@ -1202,6 +1202,33 @@ class ContentEditorRunnerTests(TestCase):
         )
         self.assertEqual(self.state.attention_reason, [])
 
+    def test_run_skips_llm_for_empty_content_body(self):
+        self.state.current.description = " \n\t "
+
+        with patch.object(openrouter, "chat_completion") as chat:
+            trajectory = self._runner().run()
+
+        chat.assert_not_called()
+        self.assertEqual(self.state.approval, Approval.PROPOSED)
+        self.assertEqual(
+            self.state.attention_reason,
+            ["Content editor skipped empty description body."],
+        )
+        self.assertEqual(trajectory.prompt_tokens, 0)
+        self.assertEqual(trajectory.completion_tokens, 0)
+        self.assertEqual(trajectory.cost, 0)
+        self.assertEqual(
+            trajectory.messages,
+            [
+                {
+                    "role": "assistant",
+                    "content": (
+                        "Content editor skipped empty description body."
+                    ),
+                }
+            ],
+        )
+
     def test_run_marks_attention_after_repeated_missing_tool_calls(self):
         self.workflow.runner_params = {"max_error_tool_calls": 2}
         self.workflow.save(update_fields=["runner_params"])
@@ -1269,6 +1296,20 @@ class ContentEditorRunnerTests(TestCase):
         self.assertEqual(deleted["status"], "edited")
         self.assertEqual(
             self.state.current.description, "before same two after"
+        )
+
+    def test_edit_rejects_text_start_repeated_inside_matched_span(self):
+        self.state.current.description = "same one\nsame two\nend"
+
+        result = self._runner().edit(
+            self._edit_params("same", "end", occurrence=1, replace="")
+        )
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("text_start appears again", result["error"])
+        self.assertEqual(
+            self.state.current.description,
+            "same one\nsame two\nend",
         )
 
     def test_edit_empty_text_end_matches_through_end_of_file(self):

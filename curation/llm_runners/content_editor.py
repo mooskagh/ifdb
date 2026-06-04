@@ -1,8 +1,11 @@
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
+from django.utils.timezone import now
+
 from curation.edit import Approval
 from curation.llm import llm_tool, register_llm_runner
+from curation.models import LlmTrajectory
 
 from .base import GameEditStateLlmRunner
 
@@ -141,6 +144,24 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         self._undo_stack: list[str] = []
 
     def run(self):
+        if not self._current_text().strip():
+            self.state.approval = Approval.PROPOSED
+            reason = "Content editor skipped empty description body."
+            if reason not in self.state.attention_reason:
+                self.state.attention_reason.append(reason)
+            return LlmTrajectory.objects.create(
+                history=self.state.history,
+                workflow=self.workflow,
+                model=self.model,
+                created_at=now(),
+                messages=[
+                    {
+                        "role": "assistant",
+                        "content": reason,
+                    }
+                ],
+                cost=0,
+            )
         trajectory = self.run_agent_loop(self.context(), require_tool=True)
         self._mark_attention_if_incomplete(trajectory)
         return trajectory
@@ -369,7 +390,9 @@ def _match_span(text: str, match: MatchParams) -> tuple[int, int]:
         start = starts[match.occurrence - 1]
 
     if not match.text_end:
-        return start, len(text)
+        end = len(text)
+        _reject_repeated_start_inside_span(text, match, start, end)
+        return start, end
 
     end = text.find(match.text_end, start)
     if end == -1:
@@ -377,7 +400,20 @@ def _match_span(text: str, match: MatchParams) -> tuple[int, int]:
             "text_end was not found after the selected text_start; use an "
             "empty string to match through end of file"
         )
-    return start, end + len(match.text_end)
+    end += len(match.text_end)
+    _reject_repeated_start_inside_span(text, match, start, end)
+    return start, end
+
+
+def _reject_repeated_start_inside_span(
+    text: str, match: MatchParams, start: int, end: int
+) -> None:
+    repeat = text.find(match.text_start, start + len(match.text_start), end)
+    if repeat != -1:
+        raise ValueError(
+            "text_start appears again inside the matched span; choose a more "
+            "specific text_start or a narrower span"
+        )
 
 
 def _occurrences(text: str, needle: str, *, label: str) -> list[int]:
