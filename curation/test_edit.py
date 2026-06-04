@@ -46,6 +46,13 @@ class _TagAndApprove(GameEditPass):
         state.approval = self.approval
 
 
+class _AttentionReason(GameEditPass):
+    name = "attention_reason"
+
+    def apply(self, state, params):
+        state.attention_reason.append(params.get("reason", "Needs review"))
+
+
 class _AddNamedPerson(GameEditPass):
     name = "add_named_person"
 
@@ -170,6 +177,23 @@ class RunEditTests(TestCase):
         )
         self.assertIsNotNone(edit_row.previous_canonical_text)
         self.assertIn("A Game", edit_row.previous_canonical_text)
+        self.assertFalse(self._has_os_win(history.game))
+
+    def test_rejected_with_attention_reason_needs_attention(self):
+        history = self._history()
+
+        stats = self._run_with(
+            [_AttentionReason(), _TagAndApprove(Approval.REJECTED)], history
+        )
+
+        self.assertEqual(stats.rejected, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(history.attention_reason, "Needs review")
+        self.assertEqual(
+            GameEdit.objects.get(history=history).status,
+            GameEdit.EditStatus.REJECTED,
+        )
         self.assertFalse(self._has_os_win(history.game))
 
     def test_cancelled_settles_without_edit(self):

@@ -355,7 +355,11 @@ def _process_history(history: GameHistory) -> str:
             history.state = GameHistory.State.NEEDS_ATTENTION
             outcome = "proposed"
         else:  # REJECTED
-            history.state = GameHistory.State.SETTLED
+            history.state = (
+                GameHistory.State.NEEDS_ATTENTION
+                if state.attention_reason
+                else GameHistory.State.SETTLED
+            )
             outcome = "rejected"
 
     _flush(history, state)

@@ -1327,6 +1327,7 @@ class ContentEditorRunnerTests(TestCase):
 
         self.assertEqual(result["status"], "finished")
         self.assertEqual(self.state.approval, Approval.REJECTED)
+        self.assertEqual(self.state.attention_reason, ["Bad edit"])
         self.assertEqual(
             self.state.current.description,
             "First line\nSecond line\nThird line",

@@ -232,6 +232,11 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         if params.resolution == "abort":
             self.state.current.description = self._original_text
             self.state.approval = Approval.REJECTED
+            if (
+                params.summary
+                and params.summary not in self.state.attention_reason
+            ):
+                self.state.attention_reason.append(params.summary)
         elif params.resolution == "request_human_review":
             self.state.approval = Approval.PROPOSED
             if (
