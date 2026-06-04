@@ -639,9 +639,9 @@ def edit_diff(request, edit_id):
     request.perm.Ensure(PERM)
 
     edit = get_object_or_404(
-        GameEdit.objects
-        .select_related("history__game", "proposed_by", "approver")
-        .prefetch_related(
+        GameEdit.objects.select_related(
+            "history__game", "proposed_by", "approver"
+        ).prefetch_related(
             Prefetch(
                 "llmtrajectory_set",
                 queryset=LlmTrajectory.objects.select_related(
