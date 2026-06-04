@@ -54,7 +54,9 @@ class LlmWorkflow(models.Model):
     )
     prompt_template = models.TextField(_("Prompt template"))
     model = models.ForeignKey(LLMModel, on_delete=models.PROTECT)
-    allowed_tools = models.JSONField(_("Allowed tools"), default=list)
+    runner_params = models.JSONField(
+        _("Runner parameters"), default=dict, blank=True
+    )
 
 
 class LlmTrajectory(models.Model):

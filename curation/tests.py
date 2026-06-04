@@ -240,7 +240,6 @@ class LlmTrajectoryViewTest(TestCase):
             runner="test_runner",
             prompt_template="Prompt",
             model=self.model,
-            allowed_tools=["set_description"],
         )
         self.trajectory = LlmTrajectory.objects.create(
             history=self.history,

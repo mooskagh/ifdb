@@ -459,5 +459,5 @@ CURATION_EDIT_PASSES = [
     {"name": "enrich"},
     {"name": "cleanup_text"},
     {"name": "dedup_personality_aliases"},
-    # {"name": "llm_workflow", "workflow": "human_review"},
+    {"name": "llm_workflow", "workflow": "deduplicate"},
 ]

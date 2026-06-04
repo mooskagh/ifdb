@@ -10,9 +10,15 @@ class LlmWorkflowPass(GameEditPass):
     name = "llm_workflow"
 
     def apply(self, state: GameEditState, params: dict[str, Any]) -> None:
-        if state.approval == Approval.PROPOSED:
+        if state.approval in {Approval.REJECTED, Approval.CANCELLED}:
             return
         if state.current.to_canonical() == state.served.to_canonical():
             return
         workflow = LlmWorkflow.objects.get(name=params["workflow"])
-        runner_for_workflow(workflow, state).run()
+        try:
+            runner_for_workflow(workflow, state).run()
+        except Exception as e:
+            state.approval = Approval.PROPOSED
+            state.attention_reason.append(
+                f'LLM workflow "{workflow.name}" failed: {e}; review logs.'
+            )

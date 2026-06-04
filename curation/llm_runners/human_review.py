@@ -1,16 +1,30 @@
+from dataclasses import dataclass
+from typing import Annotated
+
 from curation.edit import Approval
-from curation.llm import register_llm_runner
+from curation.llm import llm_tool, register_llm_runner
 
 from .base import GameEditStateLlmRunner
+
+
+@dataclass
+class NeedsHumanReviewParams:
+    reason: Annotated[str, "Why this edit needs human review"]
 
 
 @register_llm_runner
 class HumanReviewRunner(GameEditStateLlmRunner):
     runner_name = "human_review"
 
-    def needs_human_review(self, reason: str) -> str:
+    @llm_tool
+    def needs_human_review(self, params: NeedsHumanReviewParams) -> dict:
         """Request human review for this edit."""
         self.state.approval = Approval.PROPOSED
-        if reason and reason not in self.state.attention_reason:
-            self.state.attention_reason.append(reason)
-        return "human review requested"
+        if params.reason and params.reason not in self.state.attention_reason:
+            self.state.attention_reason.append(params.reason)
+        return {"status": "human_review_requested"}
+
+    def should_stop(self, message, tool_results, step) -> bool:
+        return self.state.approval == Approval.PROPOSED or super().should_stop(
+            message, tool_results, step
+        )

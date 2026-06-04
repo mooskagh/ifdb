@@ -1,14 +1,21 @@
 from dataclasses import asdict
 from typing import Any
 
-from curation.edit import GameEditState, SourceFetchInfo
+from curation.edit import Approval, GameEditState, SourceFetchInfo
 from curation.gameinfo import GameInfo
 from curation.llm import LlmWorkflowRunner
 
 
 class GameEditStateLlmRunner(LlmWorkflowRunner):
     def run(self):
-        return self.run_agent_loop(self.context())
+        trajectory = self.run_agent_loop(self.context())
+        if self.stop_reason == "max_error_tool_calls":
+            self.state.approval = Approval.PROPOSED
+            self.state.attention_reason.append(
+                f'LLM workflow "{self.workflow.name}" stopped after too many '
+                f"failed tool calls; review trajectory #{trajectory.pk}."
+            )
+        return trajectory
 
     def context(self) -> dict[str, Any]:
         return game_edit_state_context(self.state)
@@ -27,10 +34,13 @@ def game_edit_state_context(state: GameEditState) -> dict[str, Any]:
         "attention_reason": state.attention_reason,
         "served": game_info_context(state.served),
         "served_canonical_text": state.served.to_canonical(),
+        "served_content_text": state.served.description or "",
         "current": game_info_context(state.current),
         "current_canonical_text": state.current.to_canonical(),
+        "current_content_text": state.current.description or "",
         "last_applied": game_info_context(state.last_applied),
         "last_applied_canonical_text": state.last_applied.to_canonical(),
+        "last_applied_content_text": state.last_applied.description or "",
         "sources": [source_context(source) for source in state.sources],
     }
 

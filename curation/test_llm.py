@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 from decimal import Decimal
+from typing import Annotated
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -16,6 +18,13 @@ from .llm import (
     runner_for_workflow,
 )
 from .llm_runners.base import game_edit_state_context
+from .llm_runners.content_editor import (
+    ComplainParams,
+    EditParams,
+    FinishParams,
+    MatchParams,
+    PatchParams,
+)
 from .models import (
     GameHistory,
     GameSource,
@@ -167,19 +176,39 @@ class LlmWorkflowRunnerTests(TestCase):
     def setUpClass(cls):
         super().setUpClass()
 
+        @dataclass
+        class SetDescriptionParams:
+            description: Annotated[str, "New draft description"]
+            note: str | None = None
+
         @register_llm_runner
         class TestRunner(LlmWorkflowRunner):
             runner_name = "test_runner"
 
+            def __init__(
+                self, workflow, state, *, include_tool=True, label="default"
+            ):
+                super().__init__(workflow, state)
+                self.include_tool = include_tool
+                self.label = label
+
             def run(self):
                 return self.run_agent_loop({"items": ["a", "b"]})
 
-            def set_description(self, description: str) -> str:
+            def tools(self):
+                return (
+                    {"set_description": self.set_description}
+                    if self.include_tool
+                    else {}
+                )
+
+            def set_description(self, params: SetDescriptionParams) -> dict:
                 """Set the draft description."""
-                self.state.current.description = description
-                return "updated"
+                self.state.current.description = params.description
+                return {"status": "updated", "label": self.label}
 
         cls.runner_cls = TestRunner
+        cls.set_description_params = SetDescriptionParams
 
     @classmethod
     def tearDownClass(cls):
@@ -200,7 +229,7 @@ class LlmWorkflowRunnerTests(TestCase):
             runner="test_runner",
             prompt_template="{% for item in items %}{{ item }}{% endfor %}",
             model=self.model,
-            allowed_tools=["set_description"],
+            runner_params={"label": "configured"},
         )
         self.history = GameHistory.objects.create(creation_time=now())
         self.state = GameEditState(
@@ -216,6 +245,7 @@ class LlmWorkflowRunnerTests(TestCase):
         runner = runner_for_workflow(self.workflow, self.state)
 
         self.assertIsInstance(runner, self.runner_cls)
+        self.assertEqual(runner.label, "configured")
 
     def test_agent_loop_runs_tool_and_records_trajectory(self):
         responses = [
@@ -266,12 +296,248 @@ class LlmWorkflowRunnerTests(TestCase):
         self.assertEqual(chat.call_args_list[0].args[1][0]["content"], "ab")
         tool = chat.call_args_list[0].kwargs["tools"][0]
         self.assertEqual(tool["function"]["name"], "set_description")
+        params = tool["function"]["parameters"]
+        self.assertEqual(
+            params["properties"]["description"]["description"],
+            "New draft description",
+        )
+        self.assertIn("description", params["required"])
+        self.assertNotIn("note", params["required"])
+        self.assertEqual(
+            trajectory.messages[2]["content"],
+            '{"status": "updated", "label": "configured"}',
+        )
         self.assertEqual(trajectory.prompt_tokens, 15)
         self.assertEqual(trajectory.cached_input_tokens, 3)
         self.assertEqual(trajectory.cache_write_tokens, 4)
         self.assertEqual(trajectory.completion_tokens, 3)
         self.assertEqual(trajectory.cost, Decimal("0.000032"))
         self.assertEqual(LlmTrajectory.objects.count(), 1)
+
+    def test_runner_can_conditionally_disable_dynamic_tool(self):
+        self.workflow.runner_params = {"include_tool": False}
+        self.workflow.save(update_fields=["runner_params"])
+
+        with patch.object(openrouter, "chat_completion") as chat:
+            chat.return_value = {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "done"}}
+                ],
+                "usage": {},
+            }
+
+            runner_for_workflow(self.workflow, self.state).run()
+
+        self.assertEqual(chat.call_args.kwargs["tools"], [])
+
+    def test_runner_can_stop_after_tool_call(self):
+        responses = [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "set_description",
+                                        "arguments": (
+                                            '{"description": "Stop here"}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {},
+            },
+            {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "done"}}
+                ],
+                "usage": {},
+            },
+        ]
+
+        def should_stop(self, message, tool_results, step):
+            return bool(tool_results)
+
+        with (
+            patch.object(self.runner_cls, "should_stop", should_stop),
+            patch.object(
+                openrouter, "chat_completion", side_effect=responses
+            ) as chat,
+        ):
+            runner_for_workflow(self.workflow, self.state).run()
+
+        self.assertEqual(chat.call_count, 1)
+        self.assertEqual(self.state.current.description, "Stop here")
+
+    def test_agent_loop_uses_configured_step_limit_over_old_default(self):
+        self.workflow.runner_params = {"label": "configured"}
+        self.workflow.save(update_fields=["runner_params"])
+        responses = [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": f"call_{i}",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "set_description",
+                                        "arguments": (
+                                            f'{{"description": "Text {i}"}}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {},
+            }
+            for i in range(9)
+        ]
+
+        with patch.object(
+            openrouter, "chat_completion", side_effect=responses
+        ) as chat:
+            runner_for_workflow(self.workflow, self.state).run_agent_loop(
+                {}, max_steps=9
+            )
+
+        self.assertEqual(chat.call_count, 9)
+        self.assertEqual(self.state.current.description, "Text 8")
+
+    def test_agent_loop_renders_prompt_without_html_escaping(self):
+        self.workflow.prompt_template = "{{ description }}"
+        self.workflow.save(update_fields=["prompt_template"])
+        self.state.current.description = 'Text with "quotes" & ampersand'
+
+        with patch.object(openrouter, "chat_completion") as chat:
+            chat.return_value = {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "done"}}
+                ],
+                "usage": {},
+            }
+            runner_for_workflow(self.workflow, self.state).run_agent_loop({
+                "description": 'Text with "quotes" & ampersand'
+            })
+
+        self.assertEqual(
+            chat.call_args.args[1][0]["content"],
+            'Text with "quotes" & ampersand',
+        )
+
+    def test_agent_loop_stops_after_error_tool_limit(self):
+        self.workflow.runner_params = {"label": "configured"}
+        self.workflow.save(update_fields=["runner_params"])
+        responses = [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": f"call_{i}",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "set_description",
+                                        "arguments": (
+                                            '{"description": "error"}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {},
+            }
+            for i in range(3)
+        ]
+
+        with (
+            patch.object(
+                self.runner_cls,
+                "_run_tool_call",
+                return_value={
+                    "role": "tool",
+                    "tool_call_id": "call",
+                    "name": "set_description",
+                    "content": '{"status": "error", "error": "bad"}',
+                },
+            ),
+            patch.object(
+                openrouter, "chat_completion", side_effect=responses
+            ) as chat,
+        ):
+            runner = runner_for_workflow(self.workflow, self.state)
+            trajectory = runner.run_agent_loop({}, max_error_tool_calls=2)
+
+        self.assertEqual(chat.call_count, 2)
+        self.assertEqual(runner.stop_reason, "max_error_tool_calls")
+        self.assertEqual(len(trajectory.messages), 5)
+
+    def test_game_edit_runner_marks_attention_when_error_limit_hit(self):
+        self.workflow.runner = "content_editor"
+        self.workflow.runner_params = {"max_error_tool_calls": 2}
+        self.workflow.save(update_fields=["runner", "runner_params"])
+        self.state.current.description = "Body"
+        responses = [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": f"call_{i}",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "edit",
+                                        "arguments": (
+                                            '{"rationale":"test",'
+                                            '"match":{"text_start":"missing",'
+                                            '"text_end":"missing"},'
+                                            '"edit":{"replace":"New"}}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {},
+            }
+            for i in range(2)
+        ]
+
+        with patch.object(
+            openrouter, "chat_completion", side_effect=responses
+        ):
+            trajectory = runner_for_workflow(self.workflow, self.state).run()
+
+        self.assertEqual(self.state.approval, Approval.PROPOSED)
+        self.assertEqual(
+            self.state.attention_reason,
+            [
+                'LLM workflow "Test workflow" stopped after too many '
+                f"failed tool calls; review trajectory #{trajectory.pk}."
+            ],
+        )
 
     def test_pass_adapter_fetches_workflow_and_runs_registered_runner(self):
         self.state.current.description = "changed"
@@ -289,8 +555,56 @@ class LlmWorkflowRunnerTests(TestCase):
 
         self.assertEqual(LlmTrajectory.objects.count(), 1)
 
-    def test_pass_adapter_skips_when_already_proposed(self):
+    def test_pass_adapter_marks_attention_when_workflow_fails(self):
+        self.state.current.description = "changed"
+
+        with patch.object(openrouter, "chat_completion") as chat:
+            chat.side_effect = RuntimeError("network down")
+            LlmWorkflowPass().apply(
+                self.state, {"workflow": self.workflow.name}
+            )
+
+        self.assertEqual(self.state.approval, Approval.PROPOSED)
+        self.assertEqual(
+            self.state.attention_reason,
+            [
+                'LLM workflow "Test workflow" failed: network down; '
+                "review logs."
+            ],
+        )
+
+    def test_pass_adapter_runs_when_already_proposed(self):
         self.state.approval = Approval.PROPOSED
+        self.state.current.description = "changed"
+
+        with patch.object(openrouter, "chat_completion") as chat:
+            chat.return_value = {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "done"}}
+                ],
+                "usage": {},
+            }
+            LlmWorkflowPass().apply(
+                self.state, {"workflow": self.workflow.name}
+            )
+
+        chat.assert_called_once()
+        self.assertEqual(LlmTrajectory.objects.count(), 1)
+
+    def test_pass_adapter_skips_when_rejected(self):
+        self.state.approval = Approval.REJECTED
+        self.state.current.description = "changed"
+
+        with patch.object(openrouter, "chat_completion") as chat:
+            LlmWorkflowPass().apply(
+                self.state, {"workflow": self.workflow.name}
+            )
+
+        chat.assert_not_called()
+        self.assertEqual(LlmTrajectory.objects.count(), 0)
+
+    def test_pass_adapter_skips_when_cancelled(self):
+        self.state.approval = Approval.CANCELLED
         self.state.current.description = "changed"
 
         with patch.object(openrouter, "chat_completion") as chat:
@@ -333,7 +647,6 @@ class HumanReviewRunnerTests(TestCase):
                 "Current:\n{{ current_canonical_text }}"
             ),
             model=self.model,
-            allowed_tools=["needs_human_review"],
         )
         self.history = GameHistory.objects.create(creation_time=now())
         self.source = GameSource.objects.create(
@@ -377,6 +690,9 @@ class HumanReviewRunnerTests(TestCase):
         self.assertIn("Long text", context["served_canonical_text"])
         self.assertIn("Short", context["current_canonical_text"])
         self.assertIn("Old text", context["last_applied_canonical_text"])
+        self.assertEqual(context["served_content_text"], "Long text")
+        self.assertEqual(context["current_content_text"], "Short")
+        self.assertEqual(context["last_applied_content_text"], "Old text")
         self.assertEqual(context["served"]["name"], "Title")
         self.assertEqual(context["current"]["description"], "Short")
         self.assertEqual(context["sources"][0]["status"], "CHANGED")
@@ -436,3 +752,253 @@ class HumanReviewRunnerTests(TestCase):
         self.assertEqual(self.state.approval, Approval.PROPOSED)
         self.assertEqual(self.state.attention_reason, ["Description lost"])
         self.assertEqual(LlmTrajectory.objects.count(), 1)
+        self.assertEqual(chat.call_count, 1)
+
+
+class ContentEditorRunnerTests(TestCase):
+    def setUp(self):
+        self.model = LLMModel.objects.create(
+            name="openai/editor-test",
+            context_length=1000,
+            input_cost=Decimal("1"),
+            cached_input_cost=Decimal("0"),
+            cache_write_cost=Decimal("0"),
+            output_cost=Decimal("1"),
+        )
+        self.workflow = LlmWorkflow.objects.create(
+            name="content_editor",
+            runner="content_editor",
+            prompt_template="Current:\n{{ current_content_text }}",
+            model=self.model,
+        )
+        self.history = GameHistory.objects.create(creation_time=now())
+        self.state = GameEditState(
+            history=self.history,
+            current=GameInfo(
+                name="Title",
+                description="First line\nSecond line\nThird line",
+            ),
+            approval=Approval.APPLIED,
+            served=GameInfo(name="Title", description="First line"),
+            last_applied=GameInfo(),
+            sources=[],
+        )
+
+    def _runner(self):
+        return runner_for_workflow(self.workflow, self.state)
+
+    def test_runner_is_registered_and_resolution_schema_is_enum(self):
+        runner = self._runner()
+
+        names = {tool["function"]["name"] for tool in runner._tools_schema()}
+        self.assertEqual(names, {"complain", "edit", "finish"})
+        edit = next(
+            tool
+            for tool in runner._tools_schema()
+            if tool["function"]["name"] == "edit"
+        )
+        finish = next(
+            tool
+            for tool in runner._tools_schema()
+            if tool["function"]["name"] == "finish"
+        )
+
+        edit_params = edit["function"]["parameters"]["properties"]
+        self.assertIn("replace", edit_params["edit"]["required"])
+        self.assertNotIn("insert_before", edit_params["edit"]["properties"])
+        self.assertNotIn("insert_after", edit_params["edit"]["properties"])
+        resolution = finish["function"]["parameters"]["properties"][
+            "resolution"
+        ]
+        self.assertEqual(resolution["type"], "string")
+        self.assertEqual(
+            resolution["enum"],
+            ["abort", "commit", "request_human_review"],
+        )
+
+    def test_complain_records_feedback_without_mutating_state(self):
+        result = self._runner().complain(
+            ComplainParams(
+                complaint="Need structured URL editing",
+                suggestion="Add add_url/remove_url tools",
+            )
+        )
+
+        self.assertEqual(result, {"status": "complaint_recorded"})
+        self.assertEqual(
+            self.state.current.description,
+            "First line\nSecond line\nThird line",
+        )
+
+    def test_edit_replaces_text_and_returns_post_edit_line_snippet(self):
+        result = self._runner().edit(
+            self._edit_params(
+                "Second line",
+                "Second line",
+                replace="Changed line",
+            )
+        )
+
+        self.assertEqual(result["status"], "edited")
+        self.assertEqual(
+            self.state.current.description,
+            "First line\nChanged line\nThird line",
+        )
+        self.assertIn("First line", result["snippet"])
+        self.assertIn("Changed line", result["snippet"])
+        self.assertIn("Third line", result["snippet"])
+
+    def test_edit_only_changes_description_body(self):
+        result = self._runner().edit(
+            self._edit_params("Title", "Title", replace="Changed")
+        )
+
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(self.state.current.name, "Title")
+        self.assertEqual(
+            self.state.current.description,
+            "First line\nSecond line\nThird line",
+        )
+
+    def test_tool_call_coerces_nested_edit_params(self):
+        responses = [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "edit",
+                                        "arguments": (
+                                            '{"rationale":"test",'
+                                            '"match":{'
+                                            '"text_start":"Second line",'
+                                            '"text_end":"Second line"},'
+                                            '"edit":{'
+                                            '"replace":"Changed line"}}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {},
+            },
+            {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "done"}}
+                ],
+                "usage": {},
+            },
+        ]
+
+        with patch.object(
+            openrouter, "chat_completion", side_effect=responses
+        ):
+            self._runner().run()
+
+        self.assertEqual(
+            self.state.current.description,
+            "First line\nChanged line\nThird line",
+        )
+
+    def test_edit_requires_occurrence_only_for_duplicate_text_start(self):
+        self.state.current.description = "same one\nsame two"
+
+        duplicate = self._runner().edit(
+            self._edit_params("same", "one", replace="first")
+        )
+        unique = self._runner().edit(
+            self._edit_params(
+                "same two",
+                "same two",
+                occurrence=1,
+                replace="second",
+            )
+        )
+
+        self.assertEqual(duplicate["status"], "error")
+        self.assertIn("found 2 times", duplicate["error"])
+        self.assertEqual(unique["status"], "error")
+        self.assertIn("unique", unique["error"])
+
+    def test_edit_uses_occurrence_and_can_delete(self):
+        self.state.current.description = "same one\nsame two"
+        runner = self._runner()
+
+        replaced = runner.edit(
+            self._edit_params(
+                "same",
+                "two",
+                occurrence=2,
+                replace="before same two after",
+            )
+        )
+        deleted = runner.edit(
+            self._edit_params("same one\n", "same one\n", replace="")
+        )
+
+        self.assertEqual(replaced["status"], "edited")
+        self.assertEqual(deleted["status"], "edited")
+        self.assertEqual(
+            self.state.current.description, "before same two after"
+        )
+
+    def test_edit_error_does_not_mutate_state(self):
+        result = self._runner().edit(
+            self._edit_params("missing", "missing", replace="New")
+        )
+
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(
+            self.state.current.description,
+            "First line\nSecond line\nThird line",
+        )
+
+    def test_finish_abort_restores_original_and_cancels(self):
+        runner = self._runner()
+        runner.edit(
+            self._edit_params("Second line", "Second line", replace="Changed")
+        )
+
+        result = runner.finish(
+            FinishParams(summary="Bad edit", resolution="abort")
+        )
+
+        self.assertEqual(result["status"], "finished")
+        self.assertEqual(self.state.approval, Approval.CANCELLED)
+        self.assertEqual(
+            self.state.current.description,
+            "First line\nSecond line\nThird line",
+        )
+
+    def test_finish_human_review_marks_proposed(self):
+        result = self._runner().finish(
+            FinishParams(
+                summary="Needs review", resolution="request_human_review"
+            )
+        )
+
+        self.assertEqual(result["resolution"], "request_human_review")
+        self.assertEqual(self.state.approval, Approval.PROPOSED)
+        self.assertEqual(self.state.attention_reason, ["Needs review"])
+
+    def _edit_params(
+        self,
+        text_start,
+        text_end,
+        *,
+        replace,
+        occurrence=None,
+    ):
+        return EditParams(
+            rationale="test",
+            match=MatchParams(text_start, text_end, occurrence),
+            edit=PatchParams(replace),
+        )
