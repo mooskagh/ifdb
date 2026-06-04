@@ -1692,3 +1692,33 @@ Text
         self.assertEqual(edit.canonical_text.count('"g_fairytale"'), 1)
         self.assertEqual(edit.canonical_text.count('"g_kids"'), 1)
         self.assertNotIn('["tag",', edit.canonical_text)
+
+    @override_settings(CURATION_EDIT_PASSES=["merge_sources", "enrich"])
+    def test_enrichment_deduplicates_existing_and_mapped_genre_slug(self):
+        call_command("initifdb", stdout=StringIO(), stderr=StringIO())
+        call_command("initenrichment", stdout=StringIO())
+        game = Game.objects.create(
+            title="Old Title",
+            description="Old desc",
+            creation_time=self.now,
+        )
+        fantasy = GameTag.objects.get(symbolic_id="g_fantasy")
+        game.tags.add(fantasy)
+        history = self._history(
+            game=game, auto_updates=GameHistory.AutoUpdate.PROPOSE
+        )
+        tag_cat = GameTagCategory.objects.get(symbolic_id="tag")
+        GameTag.objects.create(category=tag_cat, name="фэнтези")
+        canonical = """---
+- name: Source Title
+- tags:
+  - ["tag", "Фэнтези"]
+---
+Source desc"""
+        self._canonical_source(history, canonical)
+
+        stats = run_edit()
+
+        self.assertEqual(stats.proposed, 1)
+        edit = GameEdit.objects.get(history=history)
+        self.assertEqual(edit.canonical_text.count('"g_fantasy"'), 1)

@@ -105,6 +105,26 @@ class GameInfo:
             self._resolve_existing_url_id(url)
         for attr in self.attributions:
             self._resolve_existing_attribution_id(attr)
+        self._dedup_canonicalized()
+
+    def _dedup_canonicalized(self) -> None:
+        personalities = {}
+        for role, people in self.personalities.items():
+            if not role:
+                continue
+            deduped = _dedup(people, _person_key)
+            if deduped:
+                personalities[role] = deduped
+        self.personalities = personalities
+        self.tags = _dedup(self.tags, _tag_key)
+        url_by_id = {
+            u.id: u.original_url
+            for u in URL.objects.filter(
+                id__in={u.url_id for u in self.urls if u.url_id is not None}
+            )
+        }
+        self.urls = _dedup(self.urls, lambda u: _url_key(u, url_by_id))
+        self.attributions = _dedup(self.attributions, _attribution_key)
 
     # -- Construction -----------------------------------------------------
 

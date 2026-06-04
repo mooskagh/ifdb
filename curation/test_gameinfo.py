@@ -213,6 +213,54 @@ class CanonicalizeTest(GameInfoTestBase):
         )
         self.assertEqual(info.attributions, [Attribution(attr.id, "")])
 
+    def test_deduplicates_after_resolving_existing_references(self):
+        alias = PersonalityAlias.objects.create(name="Resolved Person")
+        fantasy = GameTag.objects.get(symbolic_id="g_fantasy")
+        url = URL.objects.create(
+            original_url="http://rinform.org/game.zip",
+            creation_date=timezone.now(),
+        )
+        attr = GameDescriptionAttribution.objects.create(name="ifwiki.ru")
+        info = GameInfo(
+            personalities={
+                "author": [
+                    Person(alias.id, ""),
+                    Person(None, "Resolved Person"),
+                ]
+            },
+            tags=[
+                Tag("genre", fantasy.symbolic_id, fantasy.id, None),
+                Tag("genre", fantasy.symbolic_id, None, None),
+            ],
+            urls=[
+                GameUrl("download_direct", url.id, "Скачать", None),
+                GameUrl(
+                    "download_direct",
+                    None,
+                    "Скачать",
+                    "http://rinform.stormway.ru/game.zip",
+                ),
+            ],
+            attributions=[
+                Attribution(attr.id, ""),
+                Attribution(None, "ifwiki.ru"),
+            ],
+        )
+
+        info.canonicalize()
+
+        self.assertEqual(
+            info.personalities, {"author": [Person(alias.id, "")]}
+        )
+        self.assertEqual(
+            info.tags, [Tag("genre", fantasy.symbolic_id, fantasy.id, None)]
+        )
+        self.assertEqual(
+            info.urls,
+            [GameUrl("download_direct", url.id, "Скачать", None)],
+        )
+        self.assertEqual(info.attributions, [Attribution(attr.id, "")])
+
 
 class FromImporterDictTest(GameInfoTestBase):
     def test_scalar_fields(self):
