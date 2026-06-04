@@ -621,7 +621,7 @@ class LlmWorkflowRunnerTests(TestCase):
         ):
             trajectory = runner_for_workflow(self.workflow, self.state).run()
 
-        self.assertEqual(self.state.approval, Approval.PROPOSED)
+        self.assertEqual(self.state.approval, Approval.REJECTED)
         self.assertEqual(
             self.state.attention_reason,
             [
@@ -1220,7 +1220,7 @@ class ContentEditorRunnerTests(TestCase):
         ):
             trajectory = self._runner().run()
 
-        self.assertEqual(self.state.approval, Approval.PROPOSED)
+        self.assertEqual(self.state.approval, Approval.REJECTED)
         self.assertEqual(
             self.state.attention_reason,
             [
