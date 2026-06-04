@@ -11,12 +11,14 @@ from .base import GameEditStateLlmRunner
 class MatchParams:
     text_start: Annotated[
         str,
-        "Existing body text at the start of the span to replace; not new text",
+        "Existing body text at the start of the span to replace; not new "
+        "text; "
+        "must not be empty",
     ]
     text_end: Annotated[
         str,
         "Existing body text at the end of the span to replace; included in "
-        "the span",
+        "the span; use an empty string to match through end of file",
     ]
     occurrence: Annotated[
         int | None,
@@ -83,6 +85,8 @@ class ContentEditorRunner(GameEditStateLlmRunner):
             new_text, edit_start, edit_end = self._edited_text(params)
         except ValueError as e:
             return {"status": "error", "error": str(e)}
+        if new_text == (self.state.current.description or ""):
+            return {"status": "error", "error": "edit produced no change"}
         self.state.current.description = new_text
 
         return {
@@ -96,7 +100,7 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         self._finished = True
         if params.resolution == "abort":
             self.state.current.description = self._original_text
-            self.state.approval = Approval.CANCELLED
+            self.state.approval = Approval.REJECTED
         elif params.resolution == "request_human_review":
             self.state.approval = Approval.PROPOSED
             if (
@@ -145,17 +149,24 @@ def _match_span(text: str, match: MatchParams) -> tuple[int, int]:
     else:
         start = starts[match.occurrence - 1]
 
+    if not match.text_end:
+        return start, len(text)
+
     end = text.find(match.text_end, start)
     if end == -1:
         raise ValueError(
-            "text_end was not found after the selected text_start"
+            "text_end was not found after the selected text_start; use an "
+            "empty string to match through end of file"
         )
     return start, end + len(match.text_end)
 
 
 def _occurrences(text: str, needle: str) -> list[int]:
     if not needle:
-        raise ValueError("text_start must not be empty")
+        raise ValueError(
+            "text_start must not be empty; choose existing text at the "
+            "beginning of the replacement span"
+        )
     starts = []
     start = 0
     while True:

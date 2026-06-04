@@ -1126,6 +1126,34 @@ class ContentEditorRunnerTests(TestCase):
             self.state.current.description, "before same two after"
         )
 
+    def test_edit_empty_text_end_matches_through_end_of_file(self):
+        result = self._runner().edit(
+            self._edit_params(
+                "\nSecond line",
+                "",
+                replace="",
+            )
+        )
+
+        self.assertEqual(result["status"], "edited")
+        self.assertEqual(self.state.current.description, "First line")
+
+    def test_edit_rejects_no_change(self):
+        result = self._runner().edit(
+            self._edit_params(
+                "Second line",
+                "Second line",
+                replace="Second line",
+            )
+        )
+
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["error"], "edit produced no change")
+        self.assertEqual(
+            self.state.current.description,
+            "First line\nSecond line\nThird line",
+        )
+
     def test_edit_error_does_not_mutate_state(self):
         result = self._runner().edit(
             self._edit_params("missing", "missing", replace="New")
@@ -1137,7 +1165,7 @@ class ContentEditorRunnerTests(TestCase):
             "First line\nSecond line\nThird line",
         )
 
-    def test_finish_abort_restores_original_and_cancels(self):
+    def test_finish_abort_restores_original_and_rejects(self):
         runner = self._runner()
         runner.edit(
             self._edit_params("Second line", "Second line", replace="Changed")
@@ -1148,7 +1176,7 @@ class ContentEditorRunnerTests(TestCase):
         )
 
         self.assertEqual(result["status"], "finished")
-        self.assertEqual(self.state.approval, Approval.CANCELLED)
+        self.assertEqual(self.state.approval, Approval.REJECTED)
         self.assertEqual(
             self.state.current.description,
             "First line\nSecond line\nThird line",
