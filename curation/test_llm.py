@@ -718,6 +718,18 @@ class LlmWorkflowRunnerTests(TestCase):
         chat.assert_not_called()
         self.assertEqual(LlmTrajectory.objects.count(), 0)
 
+    def test_pass_adapter_skips_when_only_final_newline_differs(self):
+        self.state.current = GameInfo(name="Same", description="Text\n")
+        self.state.served = GameInfo(name="Same", description="Text")
+
+        with patch.object(openrouter, "chat_completion") as chat:
+            LlmWorkflowPass().apply(
+                self.state, {"workflow": self.workflow.name}
+            )
+
+        chat.assert_not_called()
+        self.assertEqual(LlmTrajectory.objects.count(), 0)
+
 
 class HumanReviewRunnerTests(TestCase):
     def setUp(self):

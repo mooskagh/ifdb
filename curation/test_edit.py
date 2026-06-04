@@ -97,6 +97,13 @@ class _CreateTrajectory(GameEditPass):
         )
 
 
+class _SetDescription(GameEditPass):
+    name = "set_description"
+
+    def apply(self, state, params):
+        state.current.description = params["description"]
+
+
 class RunEditTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -211,6 +218,22 @@ class RunEditTests(TestCase):
         history = self._history()
 
         stats = self._run_with([], history)
+
+        self.assertEqual(stats.unchanged, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertFalse(GameEdit.objects.filter(history=history).exists())
+
+    def test_final_trailing_newline_only_change_is_noop(self):
+        history = self._history()
+        history.game.description = "Text"
+        history.game.save(update_fields=["description"])
+
+        stats = self._run_with(
+            [_SetDescription()],
+            history,
+            [{"name": "set_description", "description": "Text\n"}],
+        )
 
         self.assertEqual(stats.unchanged, 1)
         history.refresh_from_db()

@@ -1,6 +1,12 @@
 from typing import Any
 
-from curation.edit import Approval, GameEditPass, GameEditState, register_pass
+from curation.edit import (
+    Approval,
+    GameEditPass,
+    GameEditState,
+    is_noop_edit,
+    register_pass,
+)
 from curation.llm import runner_for_workflow
 from curation.models import LlmWorkflow
 
@@ -12,7 +18,7 @@ class LlmWorkflowPass(GameEditPass):
     def apply(self, state: GameEditState, params: dict[str, Any]) -> None:
         if state.approval in {Approval.REJECTED, Approval.CANCELLED}:
             return
-        if state.current.to_canonical() == state.served.to_canonical():
+        if is_noop_edit(state.current, state.served):
             return
         workflow = LlmWorkflow.objects.get(name=params["workflow"])
         try:

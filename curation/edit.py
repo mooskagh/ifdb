@@ -290,6 +290,12 @@ def _flush(history: GameHistory, state: GameEditState) -> None:
     history.save()
 
 
+def is_noop_edit(current: GameInfo, served: GameInfo) -> bool:
+    return current.to_canonical().rstrip("\n") == served.to_canonical().rstrip(
+        "\n"
+    )
+
+
 def _process_history(history: GameHistory) -> str:
     state = _build_state(history)
     maintenance_user, _ = get_user_model().objects.get_or_create(
@@ -312,7 +318,7 @@ def _process_history(history: GameHistory) -> str:
     final = state.current.to_canonical()
     base = state.served.to_canonical()
 
-    if final == base:
+    if is_noop_edit(state.current, state.served):
         history.state = GameHistory.State.SETTLED
         outcome = "unchanged"
     elif state.approval is Approval.CANCELLED:
