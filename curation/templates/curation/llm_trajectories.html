@@ -1,0 +1,103 @@
+{% extends "curation/base.html" %}
+{% load tags %}
+
+{% block titlesection %}Траектории LLM - ОГОРОД - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--purple">
+    <div class="card--header">Траектории по месяцам</div>
+    <table class="curation-table curation-table--compact curation-table--auto">
+        <thead>
+            <tr>
+                <th>Месяц</th>
+                <th>Workflow</th>
+                <th>Model</th>
+                <th class="num">Шт.</th>
+                <th class="num">Avg prompt</th>
+                <th class="num">Avg cached</th>
+                <th class="num">Avg write</th>
+                <th class="num">Avg completion</th>
+                <th class="num">$</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for month in months %}
+            <tr>
+                <td>{{ month.month|date:"Y-m" }}</td>
+                <td></td>
+                <td></td>
+                <td class="num">{{ month.count }}</td>
+                <td class="num">{{ month.avg_prompt_tokens|floatformat:0 }}</td>
+                <td class="num">{{ month.avg_cached_input_tokens|floatformat:0 }}</td>
+                <td class="num">{{ month.avg_cache_write_tokens|floatformat:0 }}</td>
+                <td class="num">{{ month.avg_completion_tokens|floatformat:0 }}</td>
+                <td class="num">{{ month.total_cost|costcell }}</td>
+            </tr>
+            {% for row in month.breakdowns %}
+            <tr>
+                <td></td>
+                <td>{{ row.workflow__name|default:"—" }}</td>
+                <td>{{ row.model__name|default:"—" }}</td>
+                <td class="num">{{ row.count }}</td>
+                <td class="num">{{ row.avg_prompt_tokens|floatformat:0 }}</td>
+                <td class="num">{{ row.avg_cached_input_tokens|floatformat:0 }}</td>
+                <td class="num">{{ row.avg_cache_write_tokens|floatformat:0 }}</td>
+                <td class="num">{{ row.avg_completion_tokens|floatformat:0 }}</td>
+                <td class="num">{{ row.total_cost|costcell }}</td>
+            </tr>
+            {% endfor %}
+            {% empty %}
+            <tr><td colspan="9">Траекторий нет.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card card--green">
+    <div class="card--header">Последние траектории</div>
+    <table class="curation-table curation-table--compact curation-table--auto">
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Workflow</th>
+                <th>Игра</th>
+                <th class="num">Prompt</th>
+                <th class="num">Cached</th>
+                <th class="num">Write</th>
+                <th class="num">Completion</th>
+                <th class="num">¢</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for trajectory in trajectories %}
+            <tr>
+                <td class="curation-nowrap">{{ trajectory.created_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ trajectory.workflow.name|default:"—" }}</td>
+                <td class="curation-truncate">
+                    {% if trajectory.history.game %}
+                    <a href="{% url 'show_game' trajectory.history.game.pk %}">{{ trajectory.history.game.title }}</a>
+                    <a href="{% url 'curation_history_detail' trajectory.history.pk %}">#{{ trajectory.history.pk }}</a>
+                    {% else %}
+                    <a href="{% url 'curation_history_detail' trajectory.history.pk %}">История #{{ trajectory.history.pk }}</a>
+                    {% endif %}
+                </td>
+                <td class="num">{{ trajectory.prompt_tokens }}</td>
+                <td class="num">{{ trajectory.cached_input_tokens }}</td>
+                <td class="num">{{ trajectory.cache_write_tokens }}</td>
+                <td class="num">{{ trajectory.completion_tokens }}</td>
+                <td class="num">{{ trajectory.cost_cents|costcell:4 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8">Траекторий нет.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if page.has_other_pages %}
+    <div class="curation-pagination">
+        {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">← Назад</a>{% endif %}
+        <span>Страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a href="?page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

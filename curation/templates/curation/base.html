@@ -19,6 +19,8 @@
                        href="{% url 'curation_source_list' %}">Источники</a>
                     <a class="curation-menu-item {% current 'curation_llm_models' %}"
                        href="{% url 'curation_llm_models' %}">Модели LLM</a>
+                    <a class="curation-menu-item {% current 'curation_llm_trajectories' %}"
+                       href="{% url 'curation_llm_trajectories' %}">Траектории LLM</a>
                 </div>
             </div>
             {% block curation_sidebar %}{% endblock %}

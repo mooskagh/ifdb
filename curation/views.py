@@ -2,8 +2,8 @@ from datetime import timedelta
 
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Case, IntegerField, OuterRef, Q, Subquery, When
-from django.db.models.functions import Coalesce
+from django.db.models import Avg, Case, Count, F, IntegerField, OuterRef, Q, Sum, Subquery, When
+from django.db.models.functions import Coalesce, TruncMonth
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import now
@@ -21,6 +21,7 @@ from .models import (
     GameSource,
     GameSourceFetch,
     LLMModel,
+    LlmTrajectory,
     SourceDiscoveryStatus,
 )
 from .providers import REGISTERED_PROVIDERS
@@ -152,6 +153,53 @@ def discovery_status(request):
         request,
         "curation/discovery_status.html",
         {"current": current, "history": history},
+    )
+
+
+def llm_trajectories(request):
+    request.perm.Ensure(PERM)
+
+    aggregates = {
+        "count": Count("id"),
+        "total_cost": Sum("cost"),
+        "avg_prompt_tokens": Avg("prompt_tokens"),
+        "avg_cached_input_tokens": Avg("cached_input_tokens"),
+        "avg_cache_write_tokens": Avg("cache_write_tokens"),
+        "avg_completion_tokens": Avg("completion_tokens"),
+    }
+    months = list(
+        LlmTrajectory.objects.annotate(month=TruncMonth("created_at"))
+        .values("month")
+        .annotate(**aggregates)
+        .order_by("-month")
+    )
+    breakdowns = (
+        LlmTrajectory.objects.annotate(month=TruncMonth("created_at"))
+        .values("month", "workflow__name", "model__name")
+        .annotate(**aggregates)
+        .order_by("-month", "workflow__name", "model__name")
+    )
+    month_by_key = {month["month"]: month for month in months}
+    for month in months:
+        month["breakdowns"] = []
+    for row in breakdowns:
+        month_by_key[row["month"]]["breakdowns"].append(row)
+
+    trajectories = (
+        LlmTrajectory.objects.select_related("workflow", "history__game")
+        .annotate(cost_cents=F("cost") * 100)
+        .order_by("-created_at", "-pk")
+    )
+    page = Paginator(trajectories, 100).get_page(request.GET.get("page"))
+
+    return render(
+        request,
+        "curation/llm_trajectories.html",
+        {
+            "months": months,
+            "page": page,
+            "trajectories": page.object_list,
+        },
     )
 
 
