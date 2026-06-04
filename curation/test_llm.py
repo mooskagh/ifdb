@@ -20,10 +20,15 @@ from .llm import (
 from .llm_runners.base import game_edit_state_context
 from .llm_runners.content_editor import (
     ComplainParams,
+    CutParams,
     EditParams,
     FinishParams,
     MatchParams,
+    PasteParams,
     PatchParams,
+    ReplacementParams,
+    ReplaceParams,
+    UndoParams,
 )
 from .models import (
     GameHistory,
@@ -877,7 +882,18 @@ class ContentEditorRunnerTests(TestCase):
         runner = self._runner()
 
         names = {tool["function"]["name"] for tool in runner._tools_schema()}
-        self.assertEqual(names, {"complain", "edit", "finish"})
+        self.assertEqual(
+            names,
+            {
+                "complain",
+                "cut",
+                "edit",
+                "finish",
+                "paste",
+                "replace",
+                "undo",
+            },
+        )
         edit = next(
             tool
             for tool in runner._tools_schema()
@@ -926,6 +942,11 @@ class ContentEditorRunnerTests(TestCase):
         )
 
         self.assertEqual(result["status"], "edited")
+        self.assertIn("call finish", result["message"])
+        self.assertEqual(
+            result["current_text"],
+            "First line\nChanged line\nThird line",
+        )
         self.assertEqual(
             self.state.current.description,
             "First line\nChanged line\nThird line",
@@ -934,12 +955,136 @@ class ContentEditorRunnerTests(TestCase):
         self.assertIn("Changed line", result["snippet"])
         self.assertIn("Third line", result["snippet"])
 
+    def test_replace_replaces_text(self):
+        result = self._runner().replace(
+            ReplaceParams(
+                rationale="test",
+                match=MatchParams("Second line", "Second line"),
+                replacement=ReplacementParams(text="Changed line"),
+            )
+        )
+
+        self.assertEqual(result["status"], "replaced")
+        self.assertEqual(
+            result["current_text"],
+            "First line\nChanged line\nThird line",
+        )
+
+    def test_cut_removes_text_and_returns_clipboard(self):
+        result = self._runner().cut(
+            CutParams(
+                rationale="test",
+                match=MatchParams("Second line\n", "Second line\n"),
+            )
+        )
+
+        self.assertEqual(result["status"], "cut")
+        self.assertEqual(result["clipboard_id"], "clip_1")
+        self.assertEqual(result["clipboard_text"], "Second line\n")
+        self.assertEqual(result["current_text"], "First line\nThird line")
+
+    def test_paste_inserts_text_at_end(self):
+        result = self._runner().paste(
+            PasteParams(
+                rationale="test",
+                position="end",
+                text="\nFourth line",
+            )
+        )
+
+        self.assertEqual(result["status"], "pasted")
+        self.assertEqual(
+            result["current_text"],
+            "First line\nSecond line\nThird line\nFourth line",
+        )
+
+    def test_paste_inserts_clipboard_after_anchor(self):
+        runner = self._runner()
+        cut = runner.cut(
+            CutParams(
+                rationale="test",
+                match=MatchParams("Second line\n", "Second line\n"),
+            )
+        )
+
+        result = runner.paste(
+            PasteParams(
+                rationale="test",
+                position="after",
+                clipboard_id=cut["clipboard_id"],
+                anchor="Third line",
+            )
+        )
+
+        self.assertEqual(result["status"], "pasted")
+        self.assertEqual(
+            result["current_text"],
+            "First line\nThird lineSecond line\n",
+        )
+
+    def test_paste_rejects_invalid_text_sources(self):
+        runner = self._runner()
+
+        missing = runner.paste(PasteParams(rationale="test", position="end"))
+        both = runner.paste(
+            PasteParams(
+                rationale="test",
+                position="end",
+                text="x",
+                clipboard_id="clip_1",
+            )
+        )
+
+        self.assertEqual(missing["status"], "error")
+        self.assertIn("exactly one", missing["error"])
+        self.assertEqual(both["status"], "error")
+        self.assertIn("exactly one", both["error"])
+
+    def test_paste_rejects_ambiguous_anchor_without_occurrence(self):
+        self.state.current.description = "same\nother\nsame"
+
+        result = self._runner().paste(
+            PasteParams(
+                rationale="test",
+                position="before",
+                text="new\n",
+                anchor="same",
+            )
+        )
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("anchor was found 2 times", result["error"])
+
+    def test_undo_restores_previous_successful_mutation(self):
+        runner = self._runner()
+        runner.cut(
+            CutParams(
+                rationale="test",
+                match=MatchParams("Second line\n", "Second line\n"),
+            )
+        )
+
+        result = runner.undo(UndoParams(rationale="test"))
+
+        self.assertEqual(result["status"], "undone")
+        self.assertEqual(
+            result["current_text"],
+            "First line\nSecond line\nThird line",
+        )
+
+    def test_undo_without_history_returns_error(self):
+        result = self._runner().undo(UndoParams(rationale="test"))
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("nothing to undo", result["error"])
+
     def test_edit_only_changes_description_body(self):
         result = self._runner().edit(
             self._edit_params("Title", "Title", replace="Changed")
         )
 
         self.assertEqual(result["status"], "error")
+        self.assertIn("current_text", result)
         self.assertEqual(self.state.current.name, "Title")
         self.assertEqual(
             self.state.current.description,
@@ -1150,6 +1295,10 @@ class ContentEditorRunnerTests(TestCase):
         self.assertEqual(result["status"], "error")
         self.assertEqual(result["error"], "edit produced no change")
         self.assertEqual(
+            result["current_text"],
+            "First line\nSecond line\nThird line",
+        )
+        self.assertEqual(
             self.state.current.description,
             "First line\nSecond line\nThird line",
         )
@@ -1160,6 +1309,7 @@ class ContentEditorRunnerTests(TestCase):
         )
 
         self.assertEqual(result["status"], "error")
+        self.assertIn("current_text", result)
         self.assertEqual(
             self.state.current.description,
             "First line\nSecond line\nThird line",

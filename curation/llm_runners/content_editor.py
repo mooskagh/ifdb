@@ -36,6 +36,18 @@ class PatchParams:
 
 
 @dataclass
+class ReplacementParams:
+    text: Annotated[
+        str | None,
+        "Exact text to insert; use an empty string to delete the matched span",
+    ] = None
+    clipboard_id: Annotated[
+        str | None,
+        "Clipboard id from a previous cut call to insert instead of text",
+    ] = None
+
+
+@dataclass
 class EditParams:
     rationale: Annotated[
         str,
@@ -44,6 +56,58 @@ class EditParams:
     ]
     match: MatchParams
     edit: PatchParams
+
+
+@dataclass
+class ReplaceParams:
+    rationale: Annotated[
+        str,
+        "Explain the decided replacement before selecting match/replacement; "
+        "do not replace while uncertain",
+    ]
+    match: MatchParams
+    replacement: ReplacementParams
+
+
+@dataclass
+class CutParams:
+    rationale: Annotated[
+        str,
+        "Explain why this exact span should be cut before selecting match",
+    ]
+    match: MatchParams
+
+
+@dataclass
+class PasteParams:
+    rationale: Annotated[
+        str,
+        "Explain why this text should be pasted at the selected position",
+    ]
+    position: Literal["start", "end", "before", "after"]
+    text: Annotated[
+        str | None,
+        "Exact text to paste; provide exactly one of text or clipboard_id",
+    ] = None
+    clipboard_id: Annotated[
+        str | None,
+        "Clipboard id from a previous cut call; provide exactly one of text "
+        "or clipboard_id",
+    ] = None
+    anchor: Annotated[
+        str | None,
+        "Existing current_text used for before/after insertion; forbidden for "
+        "start/end",
+    ] = None
+    occurrence: Annotated[
+        int | None,
+        "1-based occurrence; required only for non-unique anchor",
+    ] = None
+
+
+@dataclass
+class UndoParams:
+    rationale: Annotated[str, "Explain why the previous edit should be undone"]
 
 
 @dataclass
@@ -72,6 +136,9 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         super().__init__(workflow, state, **params)
         self._original_text = state.current.description or ""
         self._finished = False
+        self._clipboard: dict[str, str] = {}
+        self._next_clipboard_id = 1
+        self._undo_stack: list[str] = []
 
     def run(self):
         trajectory = self.run_agent_loop(self.context(), require_tool=True)
@@ -81,18 +148,82 @@ class ContentEditorRunner(GameEditStateLlmRunner):
     @llm_tool
     def edit(self, params: EditParams) -> dict:
         """Replace exact text in the current game description body."""
-        try:
-            new_text, edit_start, edit_end = self._edited_text(params)
-        except ValueError as e:
-            return {"status": "error", "error": str(e)}
-        if new_text == (self.state.current.description or ""):
-            return {"status": "error", "error": "edit produced no change"}
-        self.state.current.description = new_text
+        result = self.replace(
+            ReplaceParams(
+                rationale=params.rationale,
+                match=params.match,
+                replacement=ReplacementParams(text=params.edit.replace),
+            )
+        )
+        if result["status"] == "replaced":
+            result["status"] = "edited"
+        elif result.get("error", "").startswith(
+            "replacement produced no change"
+        ):
+            result["error"] = "edit produced no change"
+        return result
 
-        return {
-            "status": "edited",
-            "snippet": _snippet(new_text, edit_start, edit_end),
-        }
+    @llm_tool
+    def replace(self, params: ReplaceParams) -> dict:
+        """Replace exact text in the current game description body."""
+        text = self._current_text()
+        try:
+            replacement = self._replacement_text(params.replacement)
+            start, end = _match_span(text, params.match)
+        except ValueError as e:
+            return self._error(e)
+
+        new_text = text[:start] + replacement + text[end:]
+        if new_text == text:
+            return self._error("replacement produced no change")
+        self._apply_text(new_text)
+        return self._success("replaced", start, start + len(replacement))
+
+    @llm_tool
+    def cut(self, params: CutParams) -> dict:
+        """Cut exact text from the current game description into clipboard."""
+        text = self._current_text()
+        try:
+            start, end = _match_span(text, params.match)
+        except ValueError as e:
+            return self._error(e)
+        if start == end:
+            return self._error("cut produced no change")
+
+        clipboard_id = self._new_clipboard_id()
+        clipboard_text = text[start:end]
+        self._clipboard[clipboard_id] = clipboard_text
+        self._apply_text(text[:start] + text[end:])
+        result = self._success("cut", start, start)
+        result.update({
+            "clipboard_id": clipboard_id,
+            "clipboard_text": clipboard_text,
+        })
+        return result
+
+    @llm_tool
+    def paste(self, params: PasteParams) -> dict:
+        """Paste exact text into the current game description body."""
+        text = self._current_text()
+        try:
+            pasted = self._paste_text(params)
+            index = _paste_index(text, params)
+        except ValueError as e:
+            return self._error(e)
+        if not pasted:
+            return self._error("paste text must not be empty")
+
+        new_text = text[:index] + pasted + text[index:]
+        self._apply_text(new_text)
+        return self._success("pasted", index, index + len(pasted))
+
+    @llm_tool
+    def undo(self, params: UndoParams) -> dict:
+        """Undo the most recent successful edit, cut, paste, or replace."""
+        if not self._undo_stack:
+            return self._error("nothing to undo")
+        self.state.current.description = self._undo_stack.pop()
+        return self._success("undone", 0, 0)
 
     @llm_tool
     def finish(self, params: FinishParams) -> dict:
@@ -122,15 +253,98 @@ class ContentEditorRunner(GameEditStateLlmRunner):
     def should_stop(self, message, tool_results, step) -> bool:
         return self._finished
 
-    def _edited_text(self, params: EditParams) -> tuple[str, int, int]:
-        text = self.state.current.description or ""
-        start, end = _match_span(text, params.match)
-        new_text = text[:start] + params.edit.replace + text[end:]
-        return new_text, start, start + len(params.edit.replace)
+    def _current_text(self) -> str:
+        return self.state.current.description or ""
+
+    def _replacement_text(self, replacement: ReplacementParams) -> str:
+        return self._one_text_source(
+            replacement.text, replacement.clipboard_id
+        )
+
+    def _paste_text(self, params: PasteParams) -> str:
+        return self._one_text_source(params.text, params.clipboard_id)
+
+    def _one_text_source(
+        self, text: str | None, clipboard_id: str | None
+    ) -> str:
+        if (text is None) == (clipboard_id is None):
+            raise ValueError("provide exactly one of text or clipboard_id")
+        if clipboard_id is None:
+            return text or ""
+        try:
+            return self._clipboard[clipboard_id]
+        except KeyError as e:
+            raise ValueError(f"unknown clipboard_id {clipboard_id!r}") from e
+
+    def _apply_text(self, new_text: str) -> None:
+        self._undo_stack.append(self._current_text())
+        self.state.current.description = new_text
+
+    def _new_clipboard_id(self) -> str:
+        clipboard_id = f"clip_{self._next_clipboard_id}"
+        self._next_clipboard_id += 1
+        return clipboard_id
+
+    def _success(self, status: str, start: int, end: int) -> dict:
+        text = self._current_text()
+        return {
+            "status": status,
+            "message": (
+                "Operation applied to current_text. Inspect current_text; "
+                "if it satisfies the task, call finish."
+            ),
+            "current_text": text,
+            "snippet": _snippet(text, start, end),
+        }
+
+    def _error(self, error) -> dict:
+        return {
+            "status": "error",
+            "error": f"{error}; text is matched against current_text",
+            "current_text": self._current_text(),
+        }
+
+
+def _paste_index(text: str, params: PasteParams) -> int:
+    if params.position == "start":
+        if params.anchor is not None or params.occurrence is not None:
+            raise ValueError("anchor and occurrence are forbidden for start")
+        return 0
+    if params.position == "end":
+        if params.anchor is not None or params.occurrence is not None:
+            raise ValueError("anchor and occurrence are forbidden for end")
+        return len(text)
+    if params.anchor is None:
+        raise ValueError("anchor is required for before/after")
+    start, end = _anchor_span(text, params.anchor, params.occurrence)
+    return start if params.position == "before" else end
+
+
+def _anchor_span(
+    text: str, anchor: str, occurrence: int | None
+) -> tuple[int, int]:
+    starts = _occurrences(text, anchor, label="anchor")
+    if not starts:
+        raise ValueError("anchor was not found")
+    if len(starts) == 1 and occurrence is not None:
+        raise ValueError("anchor is unique, so occurrence must be unset")
+    if len(starts) > 1 and occurrence is None:
+        raise ValueError(
+            f"anchor was found {len(starts)} times; set 1-based occurrence"
+        )
+    if occurrence is None:
+        start = starts[0]
+    elif not 1 <= occurrence <= len(starts):
+        raise ValueError(
+            f"occurrence must be between 1 and {len(starts)} for this anchor"
+        )
+    else:
+        start = starts[occurrence - 1]
+    return start, start + len(anchor)
 
 
 def _match_span(text: str, match: MatchParams) -> tuple[int, int]:
-    starts = _occurrences(text, match.text_start)
+    starts = _occurrences(text, match.text_start, label="text_start")
     if not starts:
         raise ValueError("text_start was not found")
     if len(starts) == 1 and match.occurrence is not None:
@@ -161,11 +375,10 @@ def _match_span(text: str, match: MatchParams) -> tuple[int, int]:
     return start, end + len(match.text_end)
 
 
-def _occurrences(text: str, needle: str) -> list[int]:
+def _occurrences(text: str, needle: str, *, label: str) -> list[int]:
     if not needle:
         raise ValueError(
-            "text_start must not be empty; choose existing text at the "
-            "beginning of the replacement span"
+            f"{label} must not be empty; choose existing text in current_text"
         )
     starts = []
     start = 0
