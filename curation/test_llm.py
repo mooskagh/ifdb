@@ -1356,6 +1356,18 @@ class ContentEditorRunnerTests(TestCase):
             "First line\nSecond line\nThird line",
         )
 
+    def test_edit_rejects_deleting_entire_text(self):
+        result = self._runner().edit(
+            self._edit_params("First line", "", replace="")
+        )
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("remove the entire current_text", result["error"])
+        self.assertEqual(
+            self.state.current.description,
+            "First line\nSecond line\nThird line",
+        )
+
     def test_edit_error_does_not_mutate_state(self):
         result = self._runner().edit(
             self._edit_params("missing", "missing", replace="New")

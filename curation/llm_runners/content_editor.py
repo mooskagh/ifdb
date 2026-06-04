@@ -21,7 +21,9 @@ class MatchParams:
     text_end: Annotated[
         str,
         "Existing body text at the end of the span to replace; included in "
-        "the span; use an empty string to match through end of file",
+        "the span; empty string matches through the end of current_text; do "
+        "not use it for deletion unless deleting everything after text_start "
+        "is intended",
     ]
     occurrence: Annotated[
         int | None,
@@ -197,6 +199,11 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         new_text = text[:start] + replacement + text[end:]
         if new_text == text:
             return self._error("replacement produced no change")
+        if not new_text.strip():
+            return self._error(
+                "replacement would remove the entire current_text; choose a "
+                "narrower span or request human review"
+            )
         self._apply_text(new_text)
         return self._success("replaced", start, start + len(replacement))
 
