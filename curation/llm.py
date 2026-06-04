@@ -166,12 +166,18 @@ class LlmWorkflowRunner(ABC):
         *,
         max_steps: int | None = None,
         max_error_tool_calls: int | None = None,
+        require_tool: bool | None = None,
     ) -> LlmTrajectory:
         max_steps = max_steps or self.params.get(
             "max_steps", DEFAULT_MAX_STEPS
         )
         max_error_tool_calls = max_error_tool_calls or self.params.get(
             "max_error_tool_calls", DEFAULT_MAX_ERROR_TOOL_CALLS
+        )
+        require_tool = (
+            self.params.get("require_tool", False)
+            if require_tool is None
+            else require_tool
         )
         messages = [
             {
@@ -190,10 +196,14 @@ class LlmWorkflowRunner(ABC):
             "cache_write_tokens": 0,
         }
         error_tool_calls = 0
+        missing_tool_calls = 0
 
         for _ in range(max_steps):
             response = openrouter.chat_completion(
-                self.model.name, messages, tools=tools
+                self.model.name,
+                messages,
+                tools=tools,
+                tool_choice="required" if require_tool and tools else None,
             )
             self._add_usage(usage, response.get("usage") or {})
             message = response["choices"][0]["message"]
@@ -201,6 +211,12 @@ class LlmWorkflowRunner(ABC):
 
             tool_calls = message.get("tool_calls") or []
             if not tool_calls:
+                if require_tool and tools:
+                    missing_tool_calls += 1
+                    if missing_tool_calls >= max_error_tool_calls:
+                        self.stop_reason = "missing_tool_calls"
+                        break
+                    continue
                 break
             tool_results = []
             for call in tool_calls:

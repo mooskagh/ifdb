@@ -71,6 +71,11 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         self._original_text = state.current.description or ""
         self._finished = False
 
+    def run(self):
+        trajectory = self.run_agent_loop(self.context(), require_tool=True)
+        self._mark_attention_if_incomplete(trajectory)
+        return trajectory
+
     @llm_tool
     def edit(self, params: EditParams) -> dict:
         """Replace exact text in the current game description body."""
@@ -111,9 +116,7 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         return {"status": "complaint_recorded"}
 
     def should_stop(self, message, tool_results, step) -> bool:
-        return self._finished or super().should_stop(
-            message, tool_results, step
-        )
+        return self._finished
 
     def _edited_text(self, params: EditParams) -> tuple[str, int, int]:
         text = self.state.current.description or ""

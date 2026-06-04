@@ -109,6 +109,23 @@ class ModelFieldsTests(TestCase):
         self.assertEqual(fields["output_cost"], Decimal("1.5"))
 
 
+class ChatCompletionTests(TestCase):
+    def test_includes_tool_choice_when_requested(self):
+        with patch.object(openrouter.requests, "post") as post:
+            post.return_value.json.return_value = {"ok": True}
+
+            result = openrouter.chat_completion(
+                "model",
+                [{"role": "user", "content": "Prompt"}],
+                tools=[{"type": "function"}],
+                tool_choice="required",
+            )
+
+        self.assertEqual(result, {"ok": True})
+        payload = post.call_args.kwargs["json"]
+        self.assertEqual(payload["tool_choice"], "required")
+
+
 class TypicalCentsTests(TestCase):
     def test_uses_input_and_output_rates_in_cents(self):
         # input $3/Mtok, output $15/Mtok over the 11250/450 token profile.
@@ -355,12 +372,6 @@ class LlmWorkflowRunnerTests(TestCase):
                 ],
                 "usage": {},
             },
-            {
-                "choices": [
-                    {"message": {"role": "assistant", "content": "done"}}
-                ],
-                "usage": {},
-            },
         ]
 
         def should_stop(self, message, tool_results, step):
@@ -489,6 +500,81 @@ class LlmWorkflowRunnerTests(TestCase):
         self.assertEqual(chat.call_count, 2)
         self.assertEqual(runner.stop_reason, "max_error_tool_calls")
         self.assertEqual(len(trajectory.messages), 5)
+
+    def test_required_tool_loop_retries_missing_tool_calls(self):
+        responses = [
+            {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "text"}}
+                ],
+                "usage": {},
+            },
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "set_description",
+                                        "arguments": (
+                                            '{"description": "Used tool"}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {},
+            },
+        ]
+
+        def should_stop(self, message, tool_results, step):
+            return bool(tool_results)
+
+        with (
+            patch.object(self.runner_cls, "should_stop", should_stop),
+            patch.object(
+                openrouter, "chat_completion", side_effect=responses
+            ) as chat,
+        ):
+            runner_for_workflow(self.workflow, self.state).run_agent_loop(
+                {}, require_tool=True
+            )
+
+        self.assertEqual(chat.call_count, 2)
+        self.assertEqual(
+            chat.call_args_list[0].kwargs["tool_choice"], "required"
+        )
+        self.assertEqual(self.state.current.description, "Used tool")
+
+    def test_required_tool_loop_stops_after_missing_tool_limit(self):
+        responses = [
+            {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "text"}}
+                ],
+                "usage": {},
+            }
+            for _ in range(2)
+        ]
+
+        with patch.object(
+            openrouter, "chat_completion", side_effect=responses
+        ) as chat:
+            runner = runner_for_workflow(self.workflow, self.state)
+            trajectory = runner.run_agent_loop(
+                {}, require_tool=True, max_error_tool_calls=2
+            )
+
+        self.assertEqual(chat.call_count, 2)
+        self.assertEqual(runner.stop_reason, "missing_tool_calls")
+        self.assertEqual(len(trajectory.messages), 3)
 
     def test_game_edit_runner_marks_attention_when_error_limit_hit(self):
         self.workflow.runner = "content_editor"
@@ -892,7 +978,25 @@ class ContentEditorRunnerTests(TestCase):
             },
             {
                 "choices": [
-                    {"message": {"role": "assistant", "content": "done"}}
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_2",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "finish",
+                                        "arguments": (
+                                            '{"summary":"Changed line",'
+                                            '"resolution":"commit"}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
                 ],
                 "usage": {},
             },
@@ -906,6 +1010,78 @@ class ContentEditorRunnerTests(TestCase):
         self.assertEqual(
             self.state.current.description,
             "First line\nChanged line\nThird line",
+        )
+
+    def test_run_requires_tool_call_and_finish(self):
+        responses = [
+            {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "<finish/>"}}
+                ],
+                "usage": {},
+            },
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "finish",
+                                        "arguments": (
+                                            '{"summary":"No changes",'
+                                            '"resolution":"commit"}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {},
+            },
+        ]
+
+        with patch.object(
+            openrouter, "chat_completion", side_effect=responses
+        ) as chat:
+            self._runner().run()
+
+        self.assertEqual(chat.call_count, 2)
+        self.assertEqual(
+            chat.call_args_list[0].kwargs["tool_choice"], "required"
+        )
+        self.assertEqual(self.state.attention_reason, [])
+
+    def test_run_marks_attention_after_repeated_missing_tool_calls(self):
+        self.workflow.runner_params = {"max_error_tool_calls": 2}
+        self.workflow.save(update_fields=["runner_params"])
+        responses = [
+            {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "<finish/>"}}
+                ],
+                "usage": {},
+            }
+            for _ in range(2)
+        ]
+
+        with patch.object(
+            openrouter, "chat_completion", side_effect=responses
+        ):
+            trajectory = self._runner().run()
+
+        self.assertEqual(self.state.approval, Approval.PROPOSED)
+        self.assertEqual(
+            self.state.attention_reason,
+            [
+                'LLM workflow "content_editor" stopped without using tools; '
+                f"review trajectory #{trajectory.pk}."
+            ],
         )
 
     def test_edit_requires_occurrence_only_for_duplicate_text_start(self):

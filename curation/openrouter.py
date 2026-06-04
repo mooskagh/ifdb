@@ -34,10 +34,14 @@ def _headers() -> dict[str, str]:
     return headers
 
 
-def chat_completion(model: str, messages: list[dict], tools=None) -> dict:
+def chat_completion(
+    model: str, messages: list[dict], tools=None, tool_choice=None
+) -> dict:
     payload = {"model": model, "messages": messages}
     if tools:
         payload["tools"] = tools
+    if tool_choice:
+        payload["tool_choice"] = tool_choice
     response = requests.post(CHAT_URL, json=payload, headers=_headers())
     response.raise_for_status()
     return response.json()

@@ -9,13 +9,22 @@ from curation.llm import LlmWorkflowRunner
 class GameEditStateLlmRunner(LlmWorkflowRunner):
     def run(self):
         trajectory = self.run_agent_loop(self.context())
+        self._mark_attention_if_incomplete(trajectory)
+        return trajectory
+
+    def _mark_attention_if_incomplete(self, trajectory):
         if self.stop_reason == "max_error_tool_calls":
             self.state.approval = Approval.PROPOSED
             self.state.attention_reason.append(
                 f'LLM workflow "{self.workflow.name}" stopped after too many '
                 f"failed tool calls; review trajectory #{trajectory.pk}."
             )
-        return trajectory
+        elif self.stop_reason == "missing_tool_calls":
+            self.state.approval = Approval.PROPOSED
+            self.state.attention_reason.append(
+                f'LLM workflow "{self.workflow.name}" stopped without using '
+                f"tools; review trajectory #{trajectory.pk}."
+            )
 
     def context(self) -> dict[str, Any]:
         return game_edit_state_context(self.state)
