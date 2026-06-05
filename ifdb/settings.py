@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 import logging.config
 import os
 import os.path
+import sys
 from urllib.parse import quote_plus
 
 import environ
@@ -420,6 +421,10 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_IMPORTS = ["core.tasks", "curation.tasks", "games.tasks"]
+
+if "test" in sys.argv:
+    CELERY_BROKER_URL = "memory://"
+    CELERY_RESULT_BACKEND = "cache+memory://"
 
 AUTH_USER_MODEL = "core.User"
 FILE_UPLOAD_PERMISSIONS = 0o644
