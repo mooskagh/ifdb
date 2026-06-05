@@ -65,7 +65,7 @@ start-db:
 
 # Start Celery development worker
 celery-worker:
-    uv run celery -A ifdb worker -l INFO
+    uv run python manage.py celeryworker
 
 # Start Celery beat development scheduler
 celery-beat:
