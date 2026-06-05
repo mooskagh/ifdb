@@ -309,6 +309,31 @@ class RunEditTests(TestCase):
         self.assertIsNone(history.processing_started_at)
         self.assertIsNone(history.processing_task_id)
 
+    def test_orphan_histories_are_claimed_before_attached_histories(self):
+        attached = self._history()
+        orphan = GameHistory.objects.create(
+            game=None,
+            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
+            creation_time=now(),
+        )
+        pipeline = EditPipeline.objects.create(
+            name="Test", passes=["tag_and_approve"]
+        )
+        with mock.patch.object(
+            edit,
+            "PASS_REGISTRY",
+            {"tag_and_approve": _TagAndApprove(Approval.CANCELLED)},
+        ):
+            stats = run_edit(limit=1, pipeline_id=pipeline.pk)
+
+        self.assertEqual(stats.cancelled, 1)
+        attached.refresh_from_db()
+        orphan.refresh_from_db()
+        self.assertEqual(
+            attached.state, GameHistory.State.SCHEDULED_FOR_UPDATE
+        )
+        self.assertEqual(orphan.state, GameHistory.State.SETTLED)
+
     def test_final_trailing_newline_only_change_is_noop(self):
         history = self._history()
         history.game.description = "Text"

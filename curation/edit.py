@@ -27,7 +27,7 @@ from typing import Any, ClassVar
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Case, IntegerField, Q, Value, When
 from django.utils.timezone import now
 
 from .gameinfo import GameInfo, parse
@@ -397,7 +397,18 @@ def _claim_histories(
         state=GameHistory.State.PROCESSING,
         processing_started_at__lt=stale_before,
     )
-    histories = GameHistory.objects.filter(eligible).order_by("id")
+    histories = (
+        GameHistory.objects
+        .filter(eligible)
+        .alias(
+            orphan_order=Case(
+                When(game__isnull=True, then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("orphan_order", "id")
+    )
     if history_id is not None:
         histories = histories.filter(pk=history_id)
 
