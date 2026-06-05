@@ -1,5 +1,7 @@
 from html import unescape
 from io import StringIO
+from json import loads
+from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -7,6 +9,7 @@ from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone
+from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
 from games.models import (
     URL,
@@ -883,6 +886,170 @@ class DiscoveryViewsTest(TestCase):
             content.index("Дубликаты: 1"),
             content.index("Существующие: 1"),
         )
+
+
+class TasksViewTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(
+            username="moder", email="moder@example.com"
+        )
+        self.user.groups.add(Group.objects.create(name="moder"))
+        self.client.force_login(self.user)
+
+    def test_page_shows_ready_and_total_orphan_sources(self):
+        ts = timezone.now()
+        ready = GameSource.objects.create(
+            type=GameSource.SourceType.APERO,
+            url="https://example.com/ready",
+        )
+        GameSourceFetch.objects.create(
+            source=ready,
+            raw_content="raw",
+            canonical_text="canonical",
+            canonical_text_hash="abc123",
+            first_fetch=ts,
+            last_fetch=ts,
+        )
+        GameSource.objects.create(
+            type=GameSource.SourceType.IFWIKI,
+            url="https://example.com/unfetched",
+        )
+
+        response = self.client.get("/curation/tasks/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Периодические задания")
+        self.assertContains(response, "Обработать новые источники (1/2)")
+        self.assertContains(response, "(все сайты)")
+        self.assertContains(response, "выкачивать источники")
+        self.assertContains(response, "выкачивать всякие там форумы")
+
+    @patch("curation.views.discover_sources.delay")
+    def test_discover_button_starts_task_for_all_sites(self, delay):
+        response = self.client.post(
+            "/curation/tasks/",
+            {"action": "run_discover_sources"},
+        )
+
+        self.assertRedirects(response, "/curation/tasks/")
+        delay.assert_called_once_with(types=None)
+
+    @patch("curation.views.fetch_sources.delay")
+    def test_fetch_sources_button_starts_task_with_run_limit(self, delay):
+        response = self.client.post(
+            "/curation/tasks/",
+            {"action": "run_fetch_sources", "run_limit": "9"},
+        )
+
+        self.assertRedirects(response, "/curation/tasks/")
+        delay.assert_called_once_with(limit=9)
+
+    @patch("curation.views.reconcile_sources.delay")
+    def test_reconcile_button_starts_task(self, delay):
+        response = self.client.post(
+            "/curation/tasks/", {"action": "run_reconcile_sources"}
+        )
+
+        self.assertRedirects(response, "/curation/tasks/")
+        delay.assert_called_once_with()
+
+    @patch("curation.views.fetch_feeds.delay")
+    def test_fetch_feeds_button_starts_task(self, delay):
+        response = self.client.post(
+            "/curation/tasks/", {"action": "run_fetch_feeds"}
+        )
+
+        self.assertRedirects(response, "/curation/tasks/")
+        delay.assert_called_once_with()
+
+    def test_save_discover_sources_periodic_task(self):
+        response = self.client.post(
+            "/curation/tasks/",
+            {
+                "action": "save_discover_sources",
+                "enabled": "on",
+                "every": "3",
+                "period": IntervalSchedule.HOURS,
+            },
+        )
+
+        self.assertRedirects(response, "/curation/tasks/")
+        task = PeriodicTask.objects.get(name="Discover sources")
+        self.assertTrue(task.enabled)
+        self.assertEqual(task.task, "curation.tasks.discover_sources")
+        self.assertEqual(loads(task.kwargs), {"types": None})
+        self.assertEqual(task.interval.every, 3)
+        self.assertEqual(task.interval.period, IntervalSchedule.HOURS)
+
+    def test_save_fetch_sources_periodic_task(self):
+        response = self.client.post(
+            "/curation/tasks/",
+            {
+                "action": "save_fetch_sources",
+                "enabled": "on",
+                "periodic_limit": "7",
+                "every": "10",
+                "period": IntervalSchedule.MINUTES,
+            },
+        )
+
+        self.assertRedirects(response, "/curation/tasks/")
+        task = PeriodicTask.objects.get(name="Fetch sources")
+        self.assertTrue(task.enabled)
+        self.assertEqual(task.task, "curation.tasks.fetch_sources")
+        self.assertEqual(loads(task.kwargs), {"limit": 7})
+        self.assertEqual(task.interval.every, 10)
+        self.assertEqual(task.interval.period, IntervalSchedule.MINUTES)
+
+    def test_save_reconcile_sources_periodic_task(self):
+        response = self.client.post(
+            "/curation/tasks/",
+            {
+                "action": "save_reconcile_sources",
+                "enabled": "on",
+                "every": "15",
+                "period": IntervalSchedule.MINUTES,
+            },
+        )
+
+        self.assertRedirects(response, "/curation/tasks/")
+        task = PeriodicTask.objects.get(name="Reconcile sources")
+        self.assertTrue(task.enabled)
+        self.assertEqual(task.task, "curation.tasks.reconcile_sources")
+        self.assertEqual(loads(task.kwargs), {})
+        self.assertEqual(task.interval.every, 15)
+        self.assertEqual(task.interval.period, IntervalSchedule.MINUTES)
+
+    def test_save_fetch_feeds_periodic_task_preserves_task(self):
+        schedule = IntervalSchedule.objects.create(
+            every=1, period=IntervalSchedule.HOURS
+        )
+        PeriodicTask.objects.update_or_create(
+            name="Fetch feeds",
+            defaults={
+                "task": "core.tasks.fetch_feeds",
+                "interval": schedule,
+                "args": "[]",
+                "kwargs": "{}",
+            },
+        )
+
+        response = self.client.post(
+            "/curation/tasks/",
+            {
+                "action": "save_fetch_feeds",
+                "every": "2",
+                "period": IntervalSchedule.HOURS,
+            },
+        )
+
+        self.assertRedirects(response, "/curation/tasks/")
+        task = PeriodicTask.objects.get(name="Fetch feeds")
+        self.assertFalse(task.enabled)
+        self.assertEqual(task.task, "core.tasks.fetch_feeds")
+        self.assertEqual(loads(task.kwargs), {})
+        self.assertEqual(task.interval.every, 2)
+        self.assertEqual(task.interval.period, IntervalSchedule.HOURS)
 
 
 class SourceViewsTest(TestCase):

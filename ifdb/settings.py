@@ -419,7 +419,7 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
-CELERY_IMPORTS = ["core.tasks", "games.tasks"]
+CELERY_IMPORTS = ["core.tasks", "curation.tasks", "games.tasks"]
 
 AUTH_USER_MODEL = "core.User"
 FILE_UPLOAD_PERMISSIONS = 0o644

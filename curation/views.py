@@ -1,5 +1,7 @@
+import json
 from datetime import timedelta
 
+from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import (
@@ -19,7 +21,9 @@ from django.db.models.functions import Coalesce, TruncMonth
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import now
+from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
+from core.tasks import fetch_feeds
 from games.importer.discord import PostNewGameToDiscord
 
 from . import openrouter
@@ -37,10 +41,26 @@ from .models import (
     SourceDiscoveryStatus,
 )
 from .providers import REGISTERED_PROVIDERS
+from .tasks import discover_sources, fetch_sources, reconcile_sources
 
 PERM = "(alias curation_admin)"
 
 GROUP_WINDOW = timedelta(minutes=1)
+
+FETCH_SOURCES_TASK_NAME = "Fetch sources"
+FETCH_SOURCES_TASK = "curation.tasks.fetch_sources"
+DISCOVER_SOURCES_TASK_NAME = "Discover sources"
+DISCOVER_SOURCES_TASK = "curation.tasks.discover_sources"
+RECONCILE_SOURCES_TASK_NAME = "Reconcile sources"
+RECONCILE_SOURCES_TASK = "curation.tasks.reconcile_sources"
+FETCH_FEEDS_TASK_NAME = "Fetch feeds"
+FETCH_FEEDS_TASK = "core.tasks.fetch_feeds"
+INTERVAL_PERIODS = [
+    (IntervalSchedule.MINUTES, "минут"),
+    (IntervalSchedule.HOURS, "часов"),
+    (IntervalSchedule.DAYS, "дней"),
+]
+INTERVAL_PERIOD_VALUES = {period for period, _label in INTERVAL_PERIODS}
 
 
 def _display_passes(passes):
@@ -185,6 +205,200 @@ def discovery_status(request):
         "curation/discovery_status.html",
         {"current": current, "history": history},
     )
+
+
+def tasks(request):
+    request.perm.Ensure(PERM)
+
+    if request.method == "POST":
+        return _tasks_post(request)
+
+    return _render_tasks(request)
+
+
+def _tasks_post(request):
+    action = request.POST.get("action")
+    if action == "run_discover_sources":
+        source_type = request.POST.get("source_type")
+        types = [source_type] if source_type in _discoverable_types() else None
+        discover_sources.delay(types=types)
+        messages.success(
+            request, "Задание на вытягивание списков игр запущено."
+        )
+    elif action == "run_reconcile_sources":
+        reconcile_sources.delay()
+        messages.success(
+            request, "Задание на обработку новых источников запущено."
+        )
+    elif action == "run_fetch_sources":
+        limit = _positive_int(request.POST.get("run_limit"), default=5)
+        fetch_sources.delay(limit=limit)
+        messages.success(
+            request, "Задание на выкачивание источников запущено."
+        )
+    elif action == "run_fetch_feeds":
+        fetch_feeds.delay()
+        messages.success(request, "Задание на выкачивание форумов запущено.")
+    elif action == "save_fetch_sources":
+        limit = _positive_int(request.POST.get("periodic_limit"), default=5)
+        _save_periodic_task(
+            FETCH_SOURCES_TASK_NAME,
+            FETCH_SOURCES_TASK,
+            request.POST,
+            kwargs={"limit": limit},
+        )
+        messages.success(
+            request, "Расписание выкачивания источников сохранено."
+        )
+    elif action == "save_discover_sources":
+        _save_periodic_task(
+            DISCOVER_SOURCES_TASK_NAME,
+            DISCOVER_SOURCES_TASK,
+            request.POST,
+            kwargs={"types": None},
+        )
+        messages.success(
+            request, "Расписание вытягивания списков игр сохранено."
+        )
+    elif action == "save_reconcile_sources":
+        _save_periodic_task(
+            RECONCILE_SOURCES_TASK_NAME,
+            RECONCILE_SOURCES_TASK,
+            request.POST,
+        )
+        messages.success(
+            request, "Расписание обработки новых источников сохранено."
+        )
+    elif action == "save_fetch_feeds":
+        _save_periodic_task(
+            FETCH_FEEDS_TASK_NAME,
+            FETCH_FEEDS_TASK,
+            request.POST,
+        )
+        messages.success(request, "Расписание выкачивания форумов сохранено.")
+    else:
+        return HttpResponseBadRequest("Unknown action.")
+    return redirect("curation_tasks")
+
+
+def _render_tasks(request):
+    orphan_total = GameSource.objects.filter(history__isnull=True).count()
+    orphan_ready = (
+        GameSource.objects
+        .filter(history__isnull=True, gamesourcefetch__isnull=False)
+        .distinct()
+        .count()
+    )
+    return render(
+        request,
+        "curation/tasks.html",
+        {
+            "discoverable_types": _discoverable_type_choices(),
+            "orphan_ready": orphan_ready,
+            "orphan_total": orphan_total,
+            "periods": INTERVAL_PERIODS,
+            "discover_sources": _periodic_task_config(
+                DISCOVER_SOURCES_TASK_NAME,
+                default_every=1,
+                default_period=IntervalSchedule.HOURS,
+            ),
+            "reconcile_sources": _periodic_task_config(
+                RECONCILE_SOURCES_TASK_NAME,
+                default_every=5,
+                default_period=IntervalSchedule.MINUTES,
+            ),
+            "fetch_sources": _periodic_task_config(
+                FETCH_SOURCES_TASK_NAME,
+                default_every=5,
+                default_period=IntervalSchedule.MINUTES,
+                default_periodic_limit=5,
+                default_run_limit=5,
+            ),
+            "fetch_feeds": _periodic_task_config(
+                FETCH_FEEDS_TASK_NAME,
+                default_every=1,
+                default_period=IntervalSchedule.HOURS,
+            ),
+        },
+    )
+
+
+def _discoverable_types():
+    return {provider.source_type for provider in REGISTERED_PROVIDERS}
+
+
+def _discoverable_type_choices():
+    labels = dict(GameSource.SourceType.choices)
+    return [
+        (provider.source_type, labels[provider.source_type])
+        for provider in REGISTERED_PROVIDERS
+    ]
+
+
+def _periodic_task_config(
+    name,
+    *,
+    default_every,
+    default_period,
+    default_periodic_limit=None,
+    default_run_limit=None,
+):
+    task = (
+        PeriodicTask.objects
+        .filter(name=name)
+        .select_related("interval")
+        .first()
+    )
+    kwargs = _task_kwargs(task)
+    return {
+        "enabled": task.enabled if task else False,
+        "every": task.interval.every
+        if task and task.interval
+        else default_every,
+        "period": task.interval.period
+        if task and task.interval
+        else default_period,
+        "periodic_limit": kwargs.get("limit", default_periodic_limit),
+        "run_limit": default_run_limit,
+    }
+
+
+def _task_kwargs(task):
+    if not task or not task.kwargs:
+        return {}
+    try:
+        return json.loads(task.kwargs)
+    except json.JSONDecodeError:
+        return {}
+
+
+def _save_periodic_task(name, task, data, kwargs=None):
+    every = _positive_int(data.get("every"), default=1)
+    period = data.get("period")
+    if period not in INTERVAL_PERIOD_VALUES:
+        period = IntervalSchedule.HOURS
+    schedule, _ = IntervalSchedule.objects.get_or_create(
+        every=every,
+        period=period,
+    )
+    PeriodicTask.objects.update_or_create(
+        name=name,
+        defaults={
+            "interval": schedule,
+            "task": task,
+            "args": json.dumps([]),
+            "kwargs": json.dumps(kwargs or {}),
+            "enabled": data.get("enabled") == "on",
+        },
+    )
+
+
+def _positive_int(value, *, default):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
 
 
 def llm_trajectories(request):

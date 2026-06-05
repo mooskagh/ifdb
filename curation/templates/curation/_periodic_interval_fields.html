@@ -1,0 +1,10 @@
+<label>каждые
+    <input type="number" name="every" min="1" value="{{ config.every }}" style="width: 4rem;">
+</label>
+<label>
+    <select name="period">
+        {% for value, label in periods %}
+        <option value="{{ value }}" {% if value == config.period %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+</label>

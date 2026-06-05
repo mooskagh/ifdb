@@ -15,6 +15,7 @@ urlpatterns = [
         name="curation_discovery_detail",
     ),
     path("models/", views.llm_models, name="curation_llm_models"),
+    path("tasks/", views.tasks, name="curation_tasks"),
     path(
         "trajectories/",
         views.llm_trajectories,
