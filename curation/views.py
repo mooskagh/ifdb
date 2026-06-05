@@ -622,9 +622,7 @@ def history_sources_fetch_now(request, history_id):
 
     history = get_object_or_404(GameHistory, pk=history_id)
     source_ids = list(
-        GameSource.objects.filter(history=history).values_list(
-            "pk", flat=True
-        )
+        GameSource.objects.filter(history=history).values_list("pk", flat=True)
     )
     for source_id in source_ids:
         fetch_sources.delay(limit=None, source_id=source_id)
