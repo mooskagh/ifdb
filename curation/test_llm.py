@@ -914,8 +914,12 @@ class StatusReviewRunnerTests(TestCase):
         status = tools[0]["function"]["parameters"]["properties"]["status"]
         self.assertEqual(status["enum"], ["accept", "needs_human_review"])
 
-    def test_run_skips_when_status_is_not_proposed_or_applied(self):
-        for approval in [Approval.REJECTED, Approval.CANCELLED]:
+    def test_run_skips_when_status_is_not_applied(self):
+        for approval in [
+            Approval.PROPOSED,
+            Approval.REJECTED,
+            Approval.CANCELLED,
+        ]:
             with self.subTest(approval=approval):
                 self.state.approval = approval
                 with patch.object(openrouter, "chat_completion") as chat:
@@ -923,6 +927,29 @@ class StatusReviewRunnerTests(TestCase):
 
                 self.assertIsNone(trajectory)
                 chat.assert_not_called()
+                self.assertEqual(self.state.approval, approval)
+        self.assertEqual(LlmTrajectory.objects.count(), 0)
+
+    def test_run_skips_when_served_is_empty(self):
+        self.state.approval = Approval.APPLIED
+        self.state.served = GameInfo()
+
+        with patch.object(openrouter, "chat_completion") as chat:
+            trajectory = self._runner().run()
+
+        self.assertIsNone(trajectory)
+        chat.assert_not_called()
+        self.assertEqual(LlmTrajectory.objects.count(), 0)
+
+    def test_run_skips_when_content_matches_served(self):
+        self.state.approval = Approval.APPLIED
+        self.state.current = GameInfo(name="Different", description="Old")
+
+        with patch.object(openrouter, "chat_completion") as chat:
+            trajectory = self._runner().run()
+
+        self.assertIsNone(trajectory)
+        chat.assert_not_called()
         self.assertEqual(LlmTrajectory.objects.count(), 0)
 
     def test_set_status_accept_marks_applied_and_clears_attention(self):
