@@ -446,9 +446,7 @@ class ManualEditTests(TestCase):
         history.refresh_from_db()
         self.assertEqual(game.title, "Old Title")
         self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
-        self.assertEqual(
-            history.note, "Пользователь предложил правку"
-        )
+        self.assertEqual(history.note, "Пользователь предложил правку")
         self.assertEqual(edit_row.status, GameEdit.EditStatus.PROPOSED)
         self.assertEqual(edit_row.origin, GameEdit.Origin.USER_SUGGESTION)
         self.assertIsNone(edit_row.previous_canonical_text)
