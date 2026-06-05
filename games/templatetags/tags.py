@@ -45,6 +45,17 @@ def prettyjson(value):
     )
 
 
+@register.filter
+def is_error_tool_result(message):
+    if not isinstance(message, dict) or message.get("role") != "tool":
+        return False
+    try:
+        content = json.loads(message.get("content") or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return False
+    return isinstance(content, dict) and content.get("status") == "error"
+
+
 @register.simple_tag(takes_context=True)
 def current(context, pattern_or_urlname):
     try:

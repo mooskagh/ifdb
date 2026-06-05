@@ -2784,6 +2784,11 @@ h6 {
 .curation-message--tool {
     border-left-color: #b8872f;
 }
+.curation-message--error {
+    border-color: #efb4b4;
+    border-left-color: #b3261e;
+    background: #fff4f4;
+}
 .curation-message-meta-col {
     display: grid;
     align-content: start;
@@ -2792,6 +2797,10 @@ h6 {
     background: #f7f9fb;
     border-right: 1px solid #edf1f5;
     min-width: 0;
+}
+.curation-message--error .curation-message-meta-col {
+    background: #fdeaea;
+    border-right-color: #f3c5c5;
 }
 .curation-message-role {
     font-size: 12px;
@@ -2837,6 +2846,10 @@ h6 {
 .curation-message-content--json {
     background: #fffdf8;
     border-top: 1px solid #edf1f5;
+}
+.curation-message--error .curation-message-content {
+    background: #fff4f4;
+    color: #5f1515;
 }
 .curation-message-empty {
     padding: 8px 10px;

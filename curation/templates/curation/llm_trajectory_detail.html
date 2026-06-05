@@ -53,7 +53,7 @@
     <div class="card--header">Сообщения</div>
     <div class="curation-message-list">
         {% for message in trajectory.messages %}
-        <article class="curation-message curation-message--{{ message.role|default:'unknown' }}">
+        <article class="curation-message curation-message--{{ message.role|default:'unknown' }}{% if message|is_error_tool_result %} curation-message--error{% endif %}">
             <div class="curation-message-meta-col">
                 <div class="curation-message-role">{{ message.role|default:"unknown" }}</div>
                 {% if message.name %}

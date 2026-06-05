@@ -384,6 +384,23 @@ class LlmTrajectoryViewTest(TestCase):
         ]:
             self.assertIn(text, content)
 
+    def test_detail_marks_error_tool_results(self):
+        self.trajectory.messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": "call_2",
+                "content": '{"status":"error","error":"Bad response"}',
+            }
+        )
+        self.trajectory.save(update_fields=["messages"])
+
+        response = self.client.get(
+            f"/curation/trajectories/{self.trajectory.pk}/"
+        )
+
+        self.assertContains(response, "curation-message--error")
+        self.assertContains(response, "Bad response")
+
 
 class EditDiffViewTest(TestCase):
     def setUp(self):
