@@ -11,6 +11,12 @@
                 {% csrf_token %}
                 <input type="hidden" name="action" value="save_discover_sources">
                 <label><input type="checkbox" name="enabled" {% if discover_sources.enabled %}checked{% endif %}> включено</label>
+                <label><input type="checkbox" name="auto_import_new" {% if discover_sources.auto_import_new %}checked{% endif %}> автоимпорт нового</label>
+                <select name="pipeline" required>
+                    {% for pipeline in edit_pipelines %}
+                    <option value="{{ pipeline.pk }}" {% if pipeline.pk == discover_sources.pipeline_id %}selected{% endif %}>{{ pipeline.name }}</option>
+                    {% endfor %}
+                </select>
                 {% include "curation/_periodic_interval_fields.html" with config=discover_sources periods=periods %}
                 <button type="submit">Сохранить</button>
             </form>

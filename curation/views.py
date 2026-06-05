@@ -265,11 +265,17 @@ def _tasks_post(request):
             request, "Расписание выкачивания источников сохранено."
         )
     elif action == "save_discover_sources":
+        pipeline = _pipeline_from_post(request.POST)
         _save_periodic_task(
             DISCOVER_SOURCES_TASK_NAME,
             DISCOVER_SOURCES_TASK,
             request.POST,
-            kwargs={"types": None},
+            kwargs={
+                "types": None,
+                "auto_import_new": request.POST.get("auto_import_new")
+                == "on",
+                "pipeline_id": pipeline.pk,
+            },
         )
         messages.success(
             request, "Расписание вытягивания списков игр сохранено."
@@ -397,6 +403,7 @@ def _periodic_task_config(
         "periodic_limit": kwargs.get("limit", default_periodic_limit),
         "run_limit": default_run_limit,
         "pipeline_id": kwargs.get("pipeline_id"),
+        "auto_import_new": kwargs.get("auto_import_new", False),
     }
 
 

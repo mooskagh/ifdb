@@ -925,6 +925,7 @@ class TasksViewTest(TestCase):
         self.assertContains(response, "Периодические задания")
         self.assertContains(response, "Обработать новые источники (1/2)")
         self.assertContains(response, "(все сайты)")
+        self.assertContains(response, "автоимпорт нового")
         self.assertContains(response, "выкачивать источники")
         self.assertContains(response, "выкачивать всякие там форумы")
         self.assertContains(response, "автоматическая обработка очереди")
@@ -990,6 +991,8 @@ class TasksViewTest(TestCase):
             {
                 "action": "save_discover_sources",
                 "enabled": "on",
+                "auto_import_new": "on",
+                "pipeline": self.pipeline.pk,
                 "every": "3",
                 "period": IntervalSchedule.HOURS,
             },
@@ -999,9 +1002,39 @@ class TasksViewTest(TestCase):
         task = PeriodicTask.objects.get(name="Discover sources")
         self.assertTrue(task.enabled)
         self.assertEqual(task.task, "curation.tasks.discover_sources")
-        self.assertEqual(loads(task.kwargs), {"types": None})
+        self.assertEqual(
+            loads(task.kwargs),
+            {
+                "types": None,
+                "auto_import_new": True,
+                "pipeline_id": self.pipeline.pk,
+            },
+        )
         self.assertEqual(task.interval.every, 3)
         self.assertEqual(task.interval.period, IntervalSchedule.HOURS)
+
+    def test_save_discover_sources_periodic_task_without_auto_import(self):
+        response = self.client.post(
+            "/curation/tasks/",
+            {
+                "action": "save_discover_sources",
+                "pipeline": self.pipeline.pk,
+                "every": "3",
+                "period": IntervalSchedule.HOURS,
+            },
+        )
+
+        self.assertRedirects(response, "/curation/tasks/")
+        task = PeriodicTask.objects.get(name="Discover sources")
+        self.assertFalse(task.enabled)
+        self.assertEqual(
+            loads(task.kwargs),
+            {
+                "types": None,
+                "auto_import_new": False,
+                "pipeline_id": self.pipeline.pk,
+            },
+        )
 
     def test_save_fetch_sources_periodic_task(self):
         response = self.client.post(

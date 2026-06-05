@@ -7,6 +7,8 @@ from django.test import TestCase
 from django.utils.timezone import now
 
 from .discovery import DiscoveryStats, run_discover
+from .edit import EditStats
+from .fetch import FetchStats
 from .gameinfo import GameInfo
 from .models import GameHistory, GameSource, SourceDiscoveryStatus
 from .providers import (
@@ -15,6 +17,8 @@ from .providers import (
     IfictionProvider,
     QspSuProvider,
 )
+from .reconcile import ReconcileStats
+from .tasks import discover_sources
 
 
 class FakeProvider(GameSourceProvider):
@@ -414,3 +418,102 @@ class SourceDiscoveryStatusRecordTest(TestCase):
             output,
         )
         self.assertNotIn("candidates", output)
+
+
+class DiscoverSourcesTaskTest(TestCase):
+    def test_auto_import_fetches_reconciles_and_edits_new_orphans(self):
+        calls = []
+        orphan_history = GameHistory(pk=51, game=None)
+
+        def fake_run_discover(types, on_provider_done=None):
+            self.assertEqual(types, [GameSource.SourceType.APERO])
+            on_provider_done(
+                DiscoveryStats(
+                    source_type=GameSource.SourceType.APERO,
+                    candidates=2,
+                    discovered=2,
+                    new_ids=[11, 12],
+                    existing_ids=[],
+                    absent_ids=[],
+                    newly_missing_ids=[],
+                    unused_ids=[11, 12],
+                    duplicate_id_clusters=[],
+                )
+            )
+            return Counter({GameSource.SourceType.APERO: 2})
+
+        def fake_run_fetch(source_id):
+            calls.append(("fetch", source_id))
+            return [FetchStats(GameSource.SourceType.APERO, 1, 1, 0, 1, 0)]
+
+        def fake_run_reconcile(source_id, on_source_done=None):
+            calls.append(("reconcile", source_id))
+            on_source_done(
+                GameSource(pk=source_id, type=GameSource.SourceType.APERO),
+                "spawned",
+                orphan_history,
+            )
+            return [
+                ReconcileStats(GameSource.SourceType.APERO, 1, 0, 0, 1, 0)
+            ]
+
+        def fake_run_edit(history_id, pipeline_id):
+            calls.append(("edit", history_id, pipeline_id))
+            return EditStats(1, 0, 0, 1, 0, 0, 0)
+
+        with (
+            patch("curation.tasks.run_discover", fake_run_discover),
+            patch("curation.tasks.run_fetch", fake_run_fetch),
+            patch("curation.tasks.run_reconcile", fake_run_reconcile),
+            patch("curation.tasks.run_edit", fake_run_edit),
+        ):
+            result = discover_sources(
+                types=[GameSource.SourceType.APERO],
+                auto_import_new=True,
+                pipeline_id=7,
+            )
+
+        self.assertEqual(
+            calls,
+            [
+                ("fetch", 11),
+                ("fetch", 12),
+                ("reconcile", 11),
+                ("reconcile", 12),
+                ("edit", 51, 7),
+            ],
+        )
+        self.assertEqual(
+            result["discovered"], {GameSource.SourceType.APERO: 2}
+        )
+        self.assertEqual(result["auto_import_new"]["source_ids"], [11, 12])
+
+    def test_auto_import_skips_pipeline_when_no_new_sources(self):
+        def fake_run_discover(types, on_provider_done=None):
+            on_provider_done(
+                DiscoveryStats(
+                    source_type=GameSource.SourceType.APERO,
+                    candidates=1,
+                    discovered=1,
+                    new_ids=[],
+                    existing_ids=[11],
+                    absent_ids=[],
+                    newly_missing_ids=[],
+                    unused_ids=[],
+                    duplicate_id_clusters=[],
+                )
+            )
+            return Counter()
+
+        with (
+            patch("curation.tasks.run_discover", fake_run_discover),
+            patch("curation.tasks.run_fetch") as run_fetch,
+            patch("curation.tasks.run_reconcile") as run_reconcile,
+            patch("curation.tasks.run_edit") as run_edit,
+        ):
+            result = discover_sources(auto_import_new=True, pipeline_id=7)
+
+        self.assertEqual(result, {"discovered": {}, "auto_import_new": None})
+        run_fetch.assert_not_called()
+        run_reconcile.assert_not_called()
+        run_edit.assert_not_called()
