@@ -18,6 +18,7 @@ def create_hourly_fetch_feeds_task(apps, schema_editor):
             "task": "core.tasks.fetch_feeds",
             "args": json.dumps([]),
             "kwargs": json.dumps({}),
+            "enabled": False,
         },
     )
 

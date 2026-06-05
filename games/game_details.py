@@ -30,7 +30,7 @@ logger = getLogger("web")
 def AnnotateMedia(media):
     res = []
     media.sort(
-        key=lambda x: (x.category.symbolic_id == "video", x.description)
+        key=lambda x: (x.category.symbolic_id == "video", x.description or "")
     )
     for y in media:
         val = {}
