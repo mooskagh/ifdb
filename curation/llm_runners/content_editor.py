@@ -17,13 +17,45 @@ class MatchParams:
     text_end: Annotated[
         str,
         "Existing body text at the end of the span to replace; included in "
-        "the span; empty string matches through the end of current_text; do "
-        "not use it for deletion unless deleting everything after text_start "
-        "is intended",
+        "the span; must not be empty unless to_end is true",
     ]
     occurrence: Annotated[
         int | None,
         "1-based occurrence; required only for non-unique text_start",
+    ] = None
+    to_end: Annotated[
+        bool,
+        "Set true only when the span must continue through the end of "
+        "current_text; text_end must then be empty",
+    ] = False
+
+
+@dataclass
+class DeleteExactParams:
+    rationale: Annotated[str, "Explain why this exact text should be deleted"]
+    text: Annotated[
+        str,
+        "Exact current_text substring to delete; must not be empty",
+    ]
+    occurrence: Annotated[
+        int | None,
+        "1-based occurrence; required for duplicate text; optional for "
+        "unique text",
+    ] = None
+
+
+@dataclass
+class ReplaceExactParams:
+    rationale: Annotated[str, "Explain why this exact text should be replaced"]
+    old: Annotated[
+        str,
+        "Exact current_text substring to replace; must not be empty",
+    ]
+    new: Annotated[str, "Exact replacement text"]
+    occurrence: Annotated[
+        int | None,
+        "1-based occurrence; required for duplicate old text; optional for "
+        "unique text",
     ] = None
 
 
@@ -140,6 +172,8 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         self._clipboard: dict[str, str] = {}
         self._next_clipboard_id = 1
         self._undo_stack: list[str] = []
+        self._successful_mutations = 0
+        self._failed_mutations = 0
 
     def run(self):
         if not self._current_text().strip():
@@ -168,6 +202,43 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         ):
             result["error"] = "edit produced no change"
         return result
+
+    @llm_tool
+    def delete_exact(self, params: DeleteExactParams) -> dict:
+        """Delete an exact substring from the current game description body."""
+        result = self.replace_exact(
+            ReplaceExactParams(
+                rationale=params.rationale,
+                old=params.text,
+                new="",
+                occurrence=params.occurrence,
+            )
+        )
+        if result["status"] == "replaced":
+            result["status"] = "deleted"
+        return result
+
+    @llm_tool
+    def replace_exact(self, params: ReplaceExactParams) -> dict:
+        """Replace an exact substring in the current game description body."""
+        text = self._current_text()
+        try:
+            start, end = _exact_span(
+                text, params.old, params.occurrence, label="old"
+            )
+        except ValueError as e:
+            return self._error(e)
+
+        new_text = text[:start] + params.new + text[end:]
+        if new_text == text:
+            return self._error("replacement produced no change")
+        if not new_text.strip():
+            return self._error(
+                "replacement would remove the entire current_text; choose a "
+                "narrower exact text or request human review"
+            )
+        self._apply_text(new_text)
+        return self._success("replaced", start, start + len(params.new))
 
     @llm_tool
     def replace(self, params: ReplaceParams) -> dict:
@@ -234,6 +305,7 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         if not self._undo_stack:
             return self._error("nothing to undo")
         self.state.current.description = self._undo_stack.pop()
+        self._successful_mutations += 1
         return self._success("undone", 0, 0)
 
     @llm_tool
@@ -244,6 +316,26 @@ class ContentEditorRunner(GameEditStateLlmRunner):
             self.state.current.description = self._original_text
             self.state.approval = Approval.REJECTED
             self.state.add_note(params.summary)
+        elif (
+            params.resolution == "commit"
+            and self._failed_mutations
+            and not self._successful_mutations
+        ):
+            self.state.approval = Approval.PROPOSED
+            self.state.needs_attention = True
+            self.state.add_note(
+                "Content editor had failed edit attempts and made no changes: "
+                f"{params.summary}"
+            )
+            return {
+                "status": "finished",
+                "resolution": "request_human_review",
+                "summary": params.summary,
+                "error": (
+                    "commit rejected after failed edit attempts with no "
+                    "successful mutation"
+                ),
+            }
         elif params.resolution == "request_human_review":
             self.state.approval = Approval.PROPOSED
             self.state.needs_attention = True
@@ -293,6 +385,7 @@ class ContentEditorRunner(GameEditStateLlmRunner):
     def _apply_text(self, new_text: str) -> None:
         self._undo_stack.append(self._current_text())
         self.state.current.description = new_text
+        self._successful_mutations += 1
 
     def _new_clipboard_id(self) -> str:
         clipboard_id = f"clip_{self._next_clipboard_id}"
@@ -312,6 +405,7 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         }
 
     def _error(self, error) -> dict:
+        self._failed_mutations += 1
         return {
             "status": "error",
             "error": f"{error}; text is matched against current_text",
@@ -377,20 +471,44 @@ def _match_span(text: str, match: MatchParams) -> tuple[int, int]:
     else:
         start = starts[match.occurrence - 1]
 
-    if not match.text_end:
+    if match.to_end:
+        if match.text_end:
+            raise ValueError("text_end must be empty when to_end is true")
         end = len(text)
         _reject_repeated_start_inside_span(text, match, start, end)
         return start, end
+    if not match.text_end:
+        raise ValueError("text_end is required unless to_end is true")
 
     end = text.find(match.text_end, start)
     if end == -1:
         raise ValueError(
-            "text_end was not found after the selected text_start; use an "
-            "empty string to match through end of file"
+            "text_end was not found after the selected text_start"
         )
     end += len(match.text_end)
     _reject_repeated_start_inside_span(text, match, start, end)
     return start, end
+
+
+def _exact_span(
+    text: str, needle: str, occurrence: int | None, *, label: str
+) -> tuple[int, int]:
+    starts = _occurrences(text, needle, label=label)
+    if not starts:
+        raise ValueError(f"{label} was not found")
+    if len(starts) > 1 and occurrence is None:
+        raise ValueError(
+            f"{label} was found {len(starts)} times; set 1-based occurrence"
+        )
+    if occurrence is None:
+        start = starts[0]
+    elif not 1 <= occurrence <= len(starts):
+        raise ValueError(
+            f"occurrence must be between 1 and {len(starts)} for this {label}"
+        )
+    else:
+        start = starts[occurrence - 1]
+    return start, start + len(needle)
 
 
 def _reject_repeated_start_inside_span(

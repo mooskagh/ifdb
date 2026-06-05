@@ -21,11 +21,13 @@ from .llm_runners.base import game_edit_state_context
 from .llm_runners.content_editor import (
     ComplainParams,
     CutParams,
+    DeleteExactParams,
     EditParams,
     FinishParams,
     MatchParams,
     PasteParams,
     PatchParams,
+    ReplaceExactParams,
     ReplacementParams,
     ReplaceParams,
     UndoParams,
@@ -1033,10 +1035,12 @@ class ContentEditorRunnerTests(TestCase):
             {
                 "complain",
                 "cut",
+                "delete_exact",
                 "edit",
                 "finish",
                 "paste",
                 "replace",
+                "replace_exact",
                 "undo",
             },
         )
@@ -1123,6 +1127,55 @@ class ContentEditorRunnerTests(TestCase):
             result["current_text"],
             "First line\nChanged line\nThird line",
         )
+
+    def test_delete_exact_removes_unique_text_with_optional_occurrence(self):
+        result = self._runner().delete_exact(
+            DeleteExactParams(
+                rationale="test",
+                text="Second line\n",
+                occurrence=1,
+            )
+        )
+
+        self.assertEqual(result["status"], "deleted")
+        self.assertEqual(result["current_text"], "First line\nThird line")
+        self.assertEqual(
+            self.state.current.description, result["current_text"]
+        )
+
+    def test_replace_exact_replaces_unique_text_with_optional_occurrence(self):
+        result = self._runner().replace_exact(
+            ReplaceExactParams(
+                rationale="test",
+                old="Second line",
+                new="Changed line",
+                occurrence=1,
+            )
+        )
+
+        self.assertEqual(result["status"], "replaced")
+        self.assertEqual(
+            result["current_text"],
+            "First line\nChanged line\nThird line",
+        )
+
+    def test_replace_exact_requires_occurrence_for_duplicate_text(self):
+        self.state.current.description = "same one\nsame two"
+        runner = self._runner()
+
+        ambiguous = runner.replace_exact(
+            ReplaceExactParams(rationale="test", old="same", new="other")
+        )
+        second = runner.replace_exact(
+            ReplaceExactParams(
+                rationale="test", old="same", new="other", occurrence=2
+            )
+        )
+
+        self.assertEqual(ambiguous["status"], "error")
+        self.assertIn("found 2 times", ambiguous["error"])
+        self.assertEqual(second["status"], "replaced")
+        self.assertEqual(self.state.current.description, "same one\nother two")
 
     def test_cut_removes_text_and_returns_clipboard(self):
         result = self._runner().cut(
@@ -1456,12 +1509,29 @@ class ContentEditorRunnerTests(TestCase):
             "same one\nsame two\nend",
         )
 
-    def test_edit_empty_text_end_matches_through_end_of_file(self):
+    def test_edit_empty_text_end_requires_explicit_to_end(self):
         result = self._runner().edit(
             self._edit_params(
                 "\nSecond line",
                 "",
                 replace="",
+            )
+        )
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("text_end is required", result["error"])
+        self.assertEqual(
+            self.state.current.description,
+            "First line\nSecond line\nThird line",
+        )
+
+    def test_edit_to_end_matches_through_end_of_file(self):
+        result = self._runner().edit(
+            self._edit_params(
+                "\nSecond line",
+                "",
+                replace="",
+                to_end=True,
             )
         )
 
@@ -1490,7 +1560,7 @@ class ContentEditorRunnerTests(TestCase):
 
     def test_edit_rejects_deleting_entire_text(self):
         result = self._runner().edit(
-            self._edit_params("First line", "", replace="")
+            self._edit_params("First line", "", replace="", to_end=True)
         )
 
         self.assertEqual(result["status"], "error")
@@ -1543,6 +1613,50 @@ class ContentEditorRunnerTests(TestCase):
         self.assertIs(self.state.needs_attention, True)
         self.assertEqual(self.state.notes, ["Needs review"])
 
+    def test_finish_commit_after_failed_mutation_without_success_needs_review(
+        self,
+    ):
+        runner = self._runner()
+        runner.delete_exact(
+            DeleteExactParams(rationale="test", text="Missing line")
+        )
+
+        result = runner.finish(
+            FinishParams(summary="Done", resolution="commit")
+        )
+
+        self.assertEqual(result["status"], "finished")
+        self.assertEqual(result["resolution"], "request_human_review")
+        self.assertIn("commit rejected", result["error"])
+        self.assertEqual(self.state.approval, Approval.PROPOSED)
+        self.assertIs(self.state.needs_attention, True)
+        self.assertEqual(
+            self.state.notes,
+            [
+                "Content editor had failed edit attempts and made no changes: "
+                "Done"
+            ],
+        )
+
+    def test_finish_commit_after_failed_then_successful_mutation_is_allowed(
+        self,
+    ):
+        runner = self._runner()
+        runner.delete_exact(
+            DeleteExactParams(rationale="test", text="Missing line")
+        )
+        runner.delete_exact(
+            DeleteExactParams(rationale="test", text="Second line\n")
+        )
+
+        result = runner.finish(
+            FinishParams(summary="Done", resolution="commit")
+        )
+
+        self.assertEqual(result["resolution"], "commit")
+        self.assertEqual(self.state.approval, Approval.APPLIED)
+        self.assertIs(self.state.needs_attention, False)
+
     def _edit_params(
         self,
         text_start,
@@ -1550,9 +1664,10 @@ class ContentEditorRunnerTests(TestCase):
         *,
         replace,
         occurrence=None,
+        to_end=False,
     ):
         return EditParams(
             rationale="test",
-            match=MatchParams(text_start, text_end, occurrence),
+            match=MatchParams(text_start, text_end, occurrence, to_end),
             edit=PatchParams(replace),
         )
