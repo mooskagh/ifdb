@@ -69,23 +69,39 @@
                 {% if source.last_error %}<div class="curation-meta">Ошибка: {{ source.last_error }}</div>{% endif %}
                 {% if source.created_at %}<div class="curation-meta">Добавлен: {{ source.created_at|date:"d.m.Y H:i" }}</div>{% endif %}
             </div>
+            <form method="post" action="{% url 'curation_source_fetch_now' source.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'curation_history_detail' history.pk %}">
+                <button type="submit">скачать сейчас</button>
+            </form>
             <form method="post" action="{% url 'curation_history_source_detach' history.pk source.pk %}" data-confirm="Открепить этот источник от истории?">
                 {% csrf_token %}
-                <button type="submit" title="Открепить источник" aria-label="Открепить источник">{% include "svg/delete.svg" %}</button>
+                <button type="submit">отцепить</button>
             </form>
         </div>
         {% empty %}
         <div class="curation-source curation-meta">Источников нет.</div>
         {% endfor %}
-        <form method="post" action="{% url 'curation_history_source_add' history.pk %}" class="curation-source-add">
+        <div class="curation-source-add-row">
+            <form method="post" action="{% url 'curation_history_source_add' history.pk %}" class="curation-source-add">
+                {% csrf_token %}
+                <select name="type" required>
+                    {% for value, label in source_type_choices %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <input type="url" name="url" placeholder="URL">
+                <button type="submit">Добавить источник</button>
+            </form>
+            <form method="post" action="{% url 'curation_history_source_add' history.pk %}" class="curation-source-add curation-source-add--id">
+                {% csrf_token %}
+                <input type="number" name="source_id" min="1" placeholder="ID источника" required>
+                <button type="submit">Добавить источник по ID</button>
+            </form>
+        </div>
+        <form method="post" action="{% url 'curation_history_sources_fetch_now' history.pk %}" class="curation-source-add">
             {% csrf_token %}
-            <select name="type" required>
-                {% for value, label in source_type_choices %}
-                <option value="{{ value }}">{{ label }}</option>
-                {% endfor %}
-            </select>
-            <input type="url" name="url" placeholder="URL">
-            <button type="submit">Добавить источник</button>
+            <button type="submit">скачать все источники</button>
         </form>
     </div>
 </div>

@@ -1237,6 +1237,88 @@ class SourceViewsTest(TestCase):
         history.refresh_from_db()
         self.assertIsNotNone(history.edit_time)
 
+    def test_history_source_add_reuses_orphan_with_same_type_and_url(self):
+        ts = timezone.now()
+        history = GameHistory.objects.create(game=None, creation_time=ts)
+        orphan = GameSource.objects.create(
+            type=GameSource.SourceType.IFWIKI,
+            url="https://example.com/new",
+        )
+
+        response = self.client.post(
+            f"/curation/{history.pk}/sources/add/",
+            {
+                "type": GameSource.SourceType.IFWIKI,
+                "url": " https://example.com/new ",
+            },
+        )
+
+        self.assertRedirects(response, f"/curation/{history.pk}/")
+        orphan.refresh_from_db()
+        self.assertEqual(orphan.history, history)
+        self.assertEqual(GameSource.objects.count(), 1)
+        self.assertEqual(GameHistoryAuditLog.objects.get().new_id, orphan.pk)
+
+    def test_history_source_add_rejects_attached_duplicate_url(self):
+        ts = timezone.now()
+        history = GameHistory.objects.create(game=None, creation_time=ts)
+        other = GameHistory.objects.create(game=None, creation_time=ts)
+        GameSource.objects.create(
+            history=other,
+            type=GameSource.SourceType.IFWIKI,
+            url="https://example.com/new",
+        )
+
+        response = self.client.post(
+            f"/curation/{history.pk}/sources/add/",
+            {
+                "type": GameSource.SourceType.IFWIKI,
+                "url": "https://example.com/new",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(GameSource.objects.count(), 1)
+        self.assertFalse(GameHistoryAuditLog.objects.exists())
+
+    def test_history_source_add_attaches_orphan_by_id(self):
+        ts = timezone.now()
+        history = GameHistory.objects.create(game=None, creation_time=ts)
+        orphan = GameSource.objects.create(
+            type=GameSource.SourceType.APERO,
+            url="https://example.com/source",
+        )
+
+        response = self.client.post(
+            f"/curation/{history.pk}/sources/add/",
+            {"source_id": str(orphan.pk)},
+        )
+
+        self.assertRedirects(response, f"/curation/{history.pk}/")
+        orphan.refresh_from_db()
+        self.assertEqual(orphan.history, history)
+        self.assertEqual(GameHistoryAuditLog.objects.get().new_id, orphan.pk)
+
+    def test_history_source_add_rejects_attached_source_by_id(self):
+        ts = timezone.now()
+        history = GameHistory.objects.create(game=None, creation_time=ts)
+        other = GameHistory.objects.create(game=None, creation_time=ts)
+        source = GameSource.objects.create(
+            history=other,
+            type=GameSource.SourceType.APERO,
+            url="https://example.com/source",
+        )
+
+        response = self.client.post(
+            f"/curation/{history.pk}/sources/add/",
+            {"source_id": str(source.pk)},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        source.refresh_from_db()
+        self.assertEqual(source.history, other)
+        self.assertFalse(GameHistoryAuditLog.objects.exists())
+
     def test_history_source_add_rejects_unknown_type(self):
         history = GameHistory.objects.create(
             game=None, creation_time=timezone.now()
@@ -1276,6 +1358,56 @@ class SourceViewsTest(TestCase):
         self.assertIn("Apero", audit.old_text)
         history.refresh_from_db()
         self.assertIsNotNone(history.edit_time)
+
+    @patch("curation.views.fetch_sources.delay")
+    def test_source_fetch_now_enqueues_single_source(self, delay):
+        source = GameSource.objects.create(
+            type=GameSource.SourceType.APERO,
+            url="https://example.com/source",
+        )
+
+        response = self.client.post(
+            f"/curation/sources/{source.pk}/fetch/", follow=True
+        )
+
+        self.assertRedirects(response, f"/curation/sources/{source.pk}/")
+        delay.assert_called_once_with(limit=None, source_id=source.pk)
+        self.assertContains(
+            response, f"Источник #{source.pk} поставлен в очередь."
+        )
+
+    @patch("curation.views.fetch_sources.delay")
+    def test_history_sources_fetch_now_enqueues_each_source(self, delay):
+        ts = timezone.now()
+        history = GameHistory.objects.create(game=None, creation_time=ts)
+        first = GameSource.objects.create(
+            history=history,
+            type=GameSource.SourceType.APERO,
+            url="https://example.com/one",
+        )
+        second = GameSource.objects.create(
+            history=history,
+            type=GameSource.SourceType.IFWIKI,
+            url="https://example.com/two",
+        )
+        GameSource.objects.create(
+            type=GameSource.SourceType.QSP,
+            url="https://example.com/orphan",
+        )
+
+        response = self.client.post(
+            f"/curation/{history.pk}/sources/fetch/", follow=True
+        )
+
+        self.assertRedirects(response, f"/curation/{history.pk}/")
+        self.assertEqual(
+            [call.kwargs for call in delay.call_args_list],
+            [
+                {"limit": None, "source_id": first.pk},
+                {"limit": None, "source_id": second.pk},
+            ],
+        )
+        self.assertContains(response, "Источники поставлены в очередь: 2.")
 
 
 class InitCurationCommandTest(TestCase):

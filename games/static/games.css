@@ -2935,6 +2935,15 @@ h6 {
     min-width: 0;
     word-break: break-word;
 }
+.curation-source-add-row {
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    padding: 8px 12px;
+}
+.curation-source-add--id {
+    margin-left: auto;
+}
 .curation-discovery-source {
     align-items: flex-start;
 }
@@ -2983,6 +2992,12 @@ h6 {
     .curation-source-usage {
         flex: 1 1 auto;
         min-width: 0;
+    }
+    .curation-source-add-row {
+        flex-direction: column;
+    }
+    .curation-source-add--id {
+        margin-left: 0;
     }
 }
 

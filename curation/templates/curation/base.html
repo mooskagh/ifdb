@@ -3,8 +3,15 @@
 
 {% block content %}
 <main class="game">
-    <div class="game--content-grid">
+        <div class="game--content-grid">
         <div class="game--content-main">
+            {% if messages %}
+            <div class="card card--green">
+                <div class="card--body">
+                    {% for message in messages %}<div>{{ message }}</div>{% endfor %}
+                </div>
+            </div>
+            {% endif %}
             {% block curation_main %}{% endblock %}
         </div>
         <div class="game--content-sidebar">

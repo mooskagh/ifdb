@@ -530,6 +530,20 @@ def source_detail(request, source_id):
     )
 
 
+def source_fetch_now(request, source_id):
+    request.perm.Ensure(PERM)
+    if request.method != "POST":
+        return HttpResponseBadRequest("Only POST is supported.")
+
+    source = get_object_or_404(GameSource, pk=source_id)
+    fetch_sources.delay(limit=None, source_id=source.pk)
+    messages.success(request, f"Источник #{source.pk} поставлен в очередь.")
+    return redirect(
+        request.POST.get("next") or "curation_source_detail",
+        source_id=source.pk,
+    )
+
+
 def source_fetch_content(request, fetch_id, kind):
     request.perm.Ensure(PERM)
 
@@ -548,26 +562,75 @@ def history_source_add(request, history_id):
         return HttpResponseBadRequest("Only POST is supported.")
 
     history = get_object_or_404(GameHistory, pk=history_id)
+    source_id = (request.POST.get("source_id") or "").strip()
+    if source_id:
+        with transaction.atomic():
+            source = get_object_or_404(
+                GameSource.objects.select_for_update(), pk=source_id
+            )
+            if source.history_id is not None:
+                return HttpResponseBadRequest("Source is already attached.")
+            _attach_source(history, source, request.user)
+        return redirect("curation_history_detail", history_id=history.pk)
+
     source_type = request.POST.get("type")
     if source_type not in GameSource.SourceType.values:
         return HttpResponseBadRequest("Unknown source type.")
+    url = request.POST.get("url", "").strip() or None
 
     with transaction.atomic():
-        source = GameSource.objects.create(
-            history=history,
-            type=source_type,
-            url=request.POST.get("url", "").strip() or None,
-            created_at=now(),
-        )
-        GameHistoryAuditLog.record_source(
-            history,
-            request.user,
-            GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
-            source,
-        )
-        history.edit_time = now()
-        history.save(update_fields=["edit_time"])
+        source = None
+        if url:
+            existing = (
+                GameSource.objects
+                .select_for_update()
+                .filter(type=source_type, url=url)
+                .order_by("history_id", "pk")
+                .first()
+            )
+            if existing and existing.history_id is not None:
+                return HttpResponseBadRequest("Source is already attached.")
+            source = existing
+        if source is None:
+            source = GameSource.objects.create(
+                type=source_type,
+                url=url,
+                created_at=now(),
+            )
+        _attach_source(history, source, request.user)
 
+    return redirect("curation_history_detail", history_id=history.pk)
+
+
+def _attach_source(history, source, user):
+    source.history = history
+    source.save(update_fields=["history"])
+    GameHistoryAuditLog.record_source(
+        history,
+        user,
+        GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
+        source,
+    )
+    history.edit_time = now()
+    history.save(update_fields=["edit_time"])
+
+
+def history_sources_fetch_now(request, history_id):
+    request.perm.Ensure(PERM)
+    if request.method != "POST":
+        return HttpResponseBadRequest("Only POST is supported.")
+
+    history = get_object_or_404(GameHistory, pk=history_id)
+    source_ids = list(
+        GameSource.objects.filter(history=history).values_list(
+            "pk", flat=True
+        )
+    )
+    for source_id in source_ids:
+        fetch_sources.delay(limit=None, source_id=source_id)
+    messages.success(
+        request, f"Источники поставлены в очередь: {len(source_ids)}."
+    )
     return redirect("curation_history_detail", history_id=history.pk)
 
 

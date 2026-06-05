@@ -43,6 +43,12 @@
         </div>
         {% endif %}
     </div>
+    <div class="curation-save">
+        <form method="post" action="{% url 'curation_source_fetch_now' source.pk %}">
+            {% csrf_token %}
+            <button type="submit">скачать сейчас</button>
+        </form>
+    </div>
 </div>
 
 <div class="card card--salad">

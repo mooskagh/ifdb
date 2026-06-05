@@ -33,6 +33,11 @@ urlpatterns = [
         name="curation_source_detail",
     ),
     path(
+        "sources/<int:source_id>/fetch/",
+        views.source_fetch_now,
+        name="curation_source_fetch_now",
+    ),
+    path(
         "sources/fetches/<int:fetch_id>/<str:kind>/",
         views.source_fetch_content,
         name="curation_source_fetch_content",
@@ -41,6 +46,11 @@ urlpatterns = [
         "<int:history_id>/sources/add/",
         views.history_source_add,
         name="curation_history_source_add",
+    ),
+    path(
+        "<int:history_id>/sources/fetch/",
+        views.history_sources_fetch_now,
+        name="curation_history_sources_fetch_now",
     ),
     path(
         "<int:history_id>/sources/<int:source_id>/delete/",

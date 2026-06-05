@@ -16,5 +16,8 @@ def reconcile_sources():
 
 
 @shared_task
-def fetch_sources(limit=5):
-    return [stats.__dict__ for stats in run_fetch(limit=limit)]
+def fetch_sources(limit=5, source_id=None):
+    return [
+        stats.__dict__
+        for stats in run_fetch(limit=limit, source_id=source_id)
+    ]
