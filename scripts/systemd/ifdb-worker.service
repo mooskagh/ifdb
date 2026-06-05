@@ -7,7 +7,7 @@ UMask=0002
 User=ifdb
 Group=ifdb
 WorkingDirectory=/home/ifdb/tmp/
-ExecStart=/home/ifdb/venv/bin/python /home/ifdb/distrib/ifdb/manage.py ifdbworker
+ExecStart=/home/ifdb/distrib/ifdb/.venv/bin/python /home/ifdb/distrib/ifdb/manage.py ifdbworker
 Restart=always
 KillSignal=SIGTERM
 

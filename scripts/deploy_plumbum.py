@@ -429,6 +429,8 @@ class RedCommand(cli.Application):
         p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-uwsgi"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-uwsgi-kontigr"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-uwsgi-zok"))
+        p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-celery-beat"))
+        p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-celery"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-worker"))
         p.Run("red")
 
@@ -463,6 +465,8 @@ class GreenCommand(cli.Application):
         p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-uwsgi-zok"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl reload nginx"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-worker"))
+        p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-celery"))
+        p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-celery-beat"))
         p.Run("green")
 
 
@@ -529,6 +533,8 @@ class DeployCommand(cli.Application):
             )
             p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-uwsgi-zok"))
 
+        p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-celery-beat"))
+        p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-celery"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-worker"))
 
         if not self.hot:
@@ -576,6 +582,8 @@ class DeployCommand(cli.Application):
             )
             p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-uwsgi-zok"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-worker"))
+        p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-celery"))
+        p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-celery-beat"))
 
         if not self.hot:
             p.AddStep(
@@ -639,6 +647,8 @@ class DeployCommand(cli.Application):
         p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-uwsgi"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-uwsgi-kontigr"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-uwsgi-zok"))
+        p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-celery"))
+        p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-celery-beat"))
 
         if self.from_master:
             p.AddStep(RunCmdStep("git fetch . release:master"))

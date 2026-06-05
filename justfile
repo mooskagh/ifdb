@@ -62,3 +62,11 @@ start-db:
     @echo "Press Ctrl+C to stop"
     @echo ""
     docker-compose up
+
+# Start Celery development worker
+celery-worker:
+    uv run celery -A ifdb worker -l INFO
+
+# Start Celery beat development scheduler
+celery-beat:
+    uv run celery -A ifdb beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler

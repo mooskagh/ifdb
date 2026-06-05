@@ -1,0 +1,15 @@
+[Unit]
+Description=Ifdb Celery Beat
+After=syslog.target postgresql.service
+
+[Service]
+UMask=0002
+User=ifdb
+Group=ifdb
+WorkingDirectory=/home/ifdb/distrib/ifdb
+ExecStart=/home/ifdb/distrib/ifdb/.venv/bin/celery -A ifdb beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
+Restart=always
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
