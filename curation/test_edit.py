@@ -21,11 +21,11 @@ from .edit import Approval, GameEditPass, run_edit
 from .gameinfo import Person, Tag
 from .manual import store_manual_edit
 from .models import (
+    EditPipeline,
     GameEdit,
     GameHistory,
     GameSource,
     GameSourceFetch,
-    EditPipeline,
     LLMModel,
     LlmTrajectory,
     LlmWorkflow,
