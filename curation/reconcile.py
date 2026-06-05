@@ -158,11 +158,11 @@ def _record_source_attached(source: GameSource, history: GameHistory) -> None:
 def _mark_needs_attention(history: GameHistory, reason: str) -> None:
     old_state = history.state
     history.state = GameHistory.State.NEEDS_ATTENTION
-    if history.attention_reason:
-        history.attention_reason += f"\n{reason}"
+    if history.note:
+        history.note += f"\n{reason}"
     else:
-        history.attention_reason = reason
-    history.save(update_fields=["state", "attention_reason"])
+        history.note = reason
+    history.save(update_fields=["state", "note"])
     if old_state != history.state:
         GameHistoryAuditLog.record_change(
             history,

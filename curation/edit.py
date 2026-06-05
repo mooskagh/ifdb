@@ -92,7 +92,12 @@ class GameEditState:
     last_applied: GameInfo  # parse(last applied edit canonical) / empty
     sources: list[SourceFetchInfo]
     # passes may also mutate these:
-    attention_reason: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    needs_attention: bool = False
+
+    def add_note(self, note: str | None) -> None:
+        if note and note not in self.notes:
+            self.notes.append(note)
 
 
 @dataclass(frozen=True)
@@ -271,9 +276,11 @@ def _build_state(
     )
     last_edit = _last_applied_edit(history)
     last_applied = parse(last_edit.canonical_text) if last_edit else GameInfo()
-    attention_reason = []
+    notes = history.note.splitlines() if history.note else []
     if history.auto_updates is GameHistory.AutoUpdate.PROPOSE:
-        attention_reason.append("Автообновление отключено")
+        note = "Автообновление отключено"
+        if note not in notes:
+            notes.append(note)
 
     state = GameEditState(
         history=history,
@@ -282,14 +289,14 @@ def _build_state(
         served=served,
         last_applied=last_applied,
         sources=_build_sources(history, last_edit),
-        attention_reason=attention_reason,
+        notes=notes,
     )
     return state
 
 
 def _flush(history: GameHistory, state: GameEditState) -> None:
     """Persist pass-mutable history fields (audited) and settle ``state``."""
-    history.attention_reason = "\n".join(state.attention_reason) or None
+    history.note = "\n".join(state.notes) or None
     history.edit_time = now()
     history.processing_started_at = None
     history.processing_task_id = None
@@ -323,12 +330,17 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
 
     final = state.current.to_canonical()
     base = state.served.to_canonical()
+    done_state = (
+        GameHistory.State.NEEDS_ATTENTION
+        if state.needs_attention
+        else GameHistory.State.SETTLED
+    )
 
     if is_noop_edit(state.current, state.served):
-        history.state = GameHistory.State.SETTLED
+        history.state = done_state
         outcome = "unchanged"
     elif state.approval is Approval.CANCELLED:
-        history.state = GameHistory.State.SETTLED
+        history.state = done_state
         outcome = "cancelled"
     else:
         edit = GameEdit.objects.create(
@@ -361,17 +373,13 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
             )
             if history.game is None:
                 history.game = game
-            history.state = GameHistory.State.SETTLED
+            history.state = done_state
             outcome = "applied"
         elif state.approval is Approval.PROPOSED:
             history.state = GameHistory.State.NEEDS_ATTENTION
             outcome = "proposed"
         else:  # REJECTED
-            history.state = (
-                GameHistory.State.NEEDS_ATTENTION
-                if state.attention_reason
-                else GameHistory.State.SETTLED
-            )
+            history.state = done_state
             outcome = "rejected"
 
     _flush(history, state)

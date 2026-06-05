@@ -26,7 +26,7 @@ class GameHistoryAdmin(admin.ModelAdmin):
         "creation_time",
     ]
     list_filter = ["state", "auto_updates"]
-    search_fields = ["pk", "attention_reason"]
+    search_fields = ["pk", "note"]
     raw_id_fields = ["game"]
 
 

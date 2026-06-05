@@ -143,10 +143,9 @@ class ContentEditorRunner(GameEditStateLlmRunner):
 
     def run(self):
         if not self._current_text().strip():
-            self.state.approval = Approval.PROPOSED
-            reason = "Content editor skipped empty description body."
-            if reason not in self.state.attention_reason:
-                self.state.attention_reason.append(reason)
+            self.state.add_note(
+                "Content editor skipped empty description body."
+            )
             return None
         trajectory = self.run_agent_loop(self.context(), require_tool=True)
         self._mark_attention_if_incomplete(trajectory)
@@ -244,18 +243,11 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         if params.resolution == "abort":
             self.state.current.description = self._original_text
             self.state.approval = Approval.REJECTED
-            if (
-                params.summary
-                and params.summary not in self.state.attention_reason
-            ):
-                self.state.attention_reason.append(params.summary)
+            self.state.add_note(params.summary)
         elif params.resolution == "request_human_review":
             self.state.approval = Approval.PROPOSED
-            if (
-                params.summary
-                and params.summary not in self.state.attention_reason
-            ):
-                self.state.attention_reason.append(params.summary)
+            self.state.needs_attention = True
+            self.state.add_note(params.summary)
         return {
             "status": "finished",
             "resolution": params.resolution,
@@ -265,6 +257,11 @@ class ContentEditorRunner(GameEditStateLlmRunner):
     @llm_tool
     def complain(self, params: ComplainParams) -> dict:
         """Suggest improvements to this editing API."""
+        note = f"Content editor complaint: {params.complaint}"
+        if params.suggestion:
+            note += f" Suggestion: {params.suggestion}"
+        self.state.needs_attention = True
+        self.state.add_note(note)
         return {"status": "complaint_recorded"}
 
     def should_stop(self, message, tool_results, step) -> bool:

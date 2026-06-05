@@ -20,8 +20,8 @@ class HumanReviewRunner(GameEditStateLlmRunner):
     def needs_human_review(self, params: NeedsHumanReviewParams) -> dict:
         """Request human review for this edit."""
         self.state.approval = Approval.PROPOSED
-        if params.reason and params.reason not in self.state.attention_reason:
-            self.state.attention_reason.append(params.reason)
+        self.state.needs_attention = True
+        self.state.add_note(params.reason)
         return {"status": "human_review_requested"}
 
     def should_stop(self, message, tool_results, step) -> bool:

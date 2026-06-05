@@ -39,7 +39,7 @@
                 <th>Игра</th>
                 <th class="curation-history-table-action"></th>
                 <th class="curation-history-table-state">Статус</th>
-                <th>Причина</th>
+                <th>Заметка</th>
                 <th class="curation-history-table-auto">Авто</th>
                 <th class="curation-history-table-date">Созд.</th>
                 <th class="curation-history-table-date">Обновл.</th>
@@ -58,7 +58,7 @@
                     {% endif %}
                 </td>
                 <td>{{ history.state_short }}</td>
-                <td class="curation-truncate" title="{{ history.attention_reason|default:'' }}">{{ history.attention_reason|default:""|linebreaksbr }}</td>
+                <td class="curation-truncate" title="{{ history.note|default:'' }}">{{ history.note|default:""|linebreaksbr }}</td>
                 <td>{{ history.auto_short }}</td>
                 <td>{{ history.creation_time|date:"d.m.Y" }}</td>
                 <td>{{ history.updated|date:"d.m.Y" }}</td>

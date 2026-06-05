@@ -25,6 +25,7 @@ class LlmWorkflowPass(GameEditPass):
             runner_for_workflow(workflow, state).run()
         except Exception as e:
             state.approval = Approval.PROPOSED
-            state.attention_reason.append(
+            state.needs_attention = True
+            state.add_note(
                 f'LLM workflow "{workflow.name}" failed: {e}; review logs.'
             )

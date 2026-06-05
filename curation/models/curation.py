@@ -25,16 +25,6 @@ class GameHistory(models.Model):
     def __str__(self):
         return f"History #{self.pk} ({self.get_state_display()})"
 
-    def save(self, *args, **kwargs):
-        if self.state != self.State.NEEDS_ATTENTION:
-            self.attention_reason = None
-            if kwargs.get("update_fields") is not None:
-                kwargs["update_fields"] = {
-                    *kwargs["update_fields"],
-                    "attention_reason",
-                }
-        super().save(*args, **kwargs)
-
     game = models.OneToOneField(
         "games.Game",
         on_delete=models.SET_NULL,
@@ -53,9 +43,7 @@ class GameHistory(models.Model):
         choices=State,
         default=State.SCHEDULED_FOR_UPDATE,
     )
-    attention_reason = models.TextField(
-        _("Attention reason"), null=True, blank=True
-    )
+    note = models.TextField(_("Note"), null=True, blank=True)
     processing_started_at = models.DateTimeField(
         _("Processing started at"), null=True, blank=True
     )

@@ -47,11 +47,18 @@ class _TagAndApprove(GameEditPass):
         state.approval = self.approval
 
 
-class _AttentionReason(GameEditPass):
-    name = "attention_reason"
+class _Note(GameEditPass):
+    name = "note"
 
     def apply(self, state, params):
-        state.attention_reason.append(params.get("reason", "Needs review"))
+        state.add_note(params.get("note", "Needs review"))
+
+
+class _NeedsAttention(GameEditPass):
+    name = "needs_attention"
+
+    def apply(self, state, params):
+        state.needs_attention = True
 
 
 class _AddNamedPerson(GameEditPass):
@@ -192,22 +199,53 @@ class RunEditTests(TestCase):
         self.assertIn("A Game", edit_row.previous_canonical_text)
         self.assertFalse(self._has_os_win(history.game))
 
-    def test_rejected_with_attention_reason_needs_attention(self):
+    def test_rejected_with_note_settles_and_preserves_note(self):
         history = self._history()
 
         stats = self._run_with(
-            [_AttentionReason(), _TagAndApprove(Approval.REJECTED)], history
+            [_Note(), _TagAndApprove(Approval.REJECTED)], history
         )
 
         self.assertEqual(stats.rejected, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
-        self.assertEqual(history.attention_reason, "Needs review")
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.note, "Needs review")
         self.assertEqual(
             GameEdit.objects.get(history=history).status,
             GameEdit.EditStatus.REJECTED,
         )
         self.assertFalse(self._has_os_win(history.game))
+
+    def test_rejected_with_needs_attention_sets_attention(self):
+        history = self._history()
+
+        stats = self._run_with(
+            [_Note(), _NeedsAttention(), _TagAndApprove(Approval.REJECTED)],
+            history,
+        )
+
+        self.assertEqual(stats.rejected, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(history.note, "Needs review")
+
+    def test_applied_with_needs_attention_commits_and_sets_attention(self):
+        history = self._history()
+
+        stats = self._run_with(
+            [_Note(), _NeedsAttention(), _TagAndApprove(Approval.APPLIED)],
+            history,
+        )
+
+        self.assertEqual(stats.applied, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(history.note, "Needs review")
+        self.assertTrue(self._has_os_win(history.game))
+        self.assertEqual(
+            GameEdit.objects.get(history=history).status,
+            GameEdit.EditStatus.APPLIED,
+        )
 
     def test_cancelled_settles_without_edit(self):
         history = self._history()
@@ -409,7 +447,7 @@ class ManualEditTests(TestCase):
         self.assertEqual(game.title, "Old Title")
         self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
         self.assertEqual(
-            history.attention_reason, "Пользователь предложил правку"
+            history.note, "Пользователь предложил правку"
         )
         self.assertEqual(edit_row.status, GameEdit.EditStatus.PROPOSED)
         self.assertEqual(edit_row.origin, GameEdit.Origin.USER_SUGGESTION)

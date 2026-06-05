@@ -622,8 +622,9 @@ class LlmWorkflowRunnerTests(TestCase):
             trajectory = runner_for_workflow(self.workflow, self.state).run()
 
         self.assertEqual(self.state.approval, Approval.REJECTED)
+        self.assertIs(self.state.needs_attention, True)
         self.assertEqual(
-            self.state.attention_reason,
+            self.state.notes,
             [
                 'LLM workflow "Test workflow" stopped after too many '
                 f"failed tool calls; review trajectory #{trajectory.pk}."
@@ -656,8 +657,9 @@ class LlmWorkflowRunnerTests(TestCase):
             )
 
         self.assertEqual(self.state.approval, Approval.PROPOSED)
+        self.assertIs(self.state.needs_attention, True)
         self.assertEqual(
-            self.state.attention_reason,
+            self.state.notes,
             [
                 'LLM workflow "Test workflow" failed: network down; '
                 "review logs."
@@ -789,7 +791,12 @@ class HumanReviewRunnerTests(TestCase):
         context = game_edit_state_context(self.state)
 
         self.assertEqual(context["history"]["id"], self.history.id)
+        self.assertIn("note", context["history"])
+        self.assertNotIn("attention_reason", context["history"])
         self.assertEqual(context["approval"], "APPLIED")
+        self.assertEqual(context["notes"], [])
+        self.assertIs(context["needs_attention"], False)
+        self.assertNotIn("attention_reason", context)
         self.assertIn("Long text", context["served_canonical_text"])
         self.assertIn("Short", context["current_canonical_text"])
         self.assertIn("Old text", context["last_applied_canonical_text"])
@@ -853,7 +860,8 @@ class HumanReviewRunnerTests(TestCase):
         self.assertIn("Long text", prompt)
         self.assertIn("Short", prompt)
         self.assertEqual(self.state.approval, Approval.PROPOSED)
-        self.assertEqual(self.state.attention_reason, ["Description lost"])
+        self.assertIs(self.state.needs_attention, True)
+        self.assertEqual(self.state.notes, ["Description lost"])
         self.assertEqual(LlmTrajectory.objects.count(), 1)
         self.assertEqual(chat.call_count, 1)
 
@@ -930,7 +938,7 @@ class ContentEditorRunnerTests(TestCase):
             ["abort", "commit", "request_human_review"],
         )
 
-    def test_complain_records_feedback_without_mutating_state(self):
+    def test_complain_records_feedback_and_marks_attention(self):
         result = self._runner().complain(
             ComplainParams(
                 complaint="Need structured URL editing",
@@ -942,6 +950,14 @@ class ContentEditorRunnerTests(TestCase):
         self.assertEqual(
             self.state.current.description,
             "First line\nSecond line\nThird line",
+        )
+        self.assertIs(self.state.needs_attention, True)
+        self.assertEqual(
+            self.state.notes,
+            [
+                "Content editor complaint: Need structured URL editing "
+                "Suggestion: Add add_url/remove_url tools"
+            ],
         )
 
     def test_edit_replaces_text_and_returns_post_edit_line_snippet(self):
@@ -1212,7 +1228,7 @@ class ContentEditorRunnerTests(TestCase):
         self.assertEqual(
             chat.call_args_list[0].kwargs["tool_choice"], "required"
         )
-        self.assertEqual(self.state.attention_reason, [])
+        self.assertEqual(self.state.notes, [])
 
     def test_run_skips_llm_for_empty_content_body(self):
         self.state.current.description = " \n\t "
@@ -1222,9 +1238,10 @@ class ContentEditorRunnerTests(TestCase):
 
         chat.assert_not_called()
         self.assertIsNone(trajectory)
-        self.assertEqual(self.state.approval, Approval.PROPOSED)
+        self.assertEqual(self.state.approval, Approval.APPLIED)
+        self.assertIs(self.state.needs_attention, False)
         self.assertEqual(
-            self.state.attention_reason,
+            self.state.notes,
             ["Content editor skipped empty description body."],
         )
         self.assertEqual(LlmTrajectory.objects.count(), 0)
@@ -1248,8 +1265,9 @@ class ContentEditorRunnerTests(TestCase):
             trajectory = self._runner().run()
 
         self.assertEqual(self.state.approval, Approval.REJECTED)
+        self.assertIs(self.state.needs_attention, True)
         self.assertEqual(
-            self.state.attention_reason,
+            self.state.notes,
             [
                 'LLM workflow "content_editor" stopped without using tools; '
                 f"review trajectory #{trajectory.pk}."
@@ -1380,7 +1398,8 @@ class ContentEditorRunnerTests(TestCase):
 
         self.assertEqual(result["status"], "finished")
         self.assertEqual(self.state.approval, Approval.REJECTED)
-        self.assertEqual(self.state.attention_reason, ["Bad edit"])
+        self.assertIs(self.state.needs_attention, False)
+        self.assertEqual(self.state.notes, ["Bad edit"])
         self.assertEqual(
             self.state.current.description,
             "First line\nSecond line\nThird line",
@@ -1395,7 +1414,8 @@ class ContentEditorRunnerTests(TestCase):
 
         self.assertEqual(result["resolution"], "request_human_review")
         self.assertEqual(self.state.approval, Approval.PROPOSED)
-        self.assertEqual(self.state.attention_reason, ["Needs review"])
+        self.assertIs(self.state.needs_attention, True)
+        self.assertEqual(self.state.notes, ["Needs review"])
 
     def _edit_params(
         self,

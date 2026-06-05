@@ -186,12 +186,12 @@ class RunReconcileTests(TestCase):
         h2.refresh_from_db()
         self.assertEqual(h1.state, GameHistory.State.NEEDS_ATTENTION)
         self.assertEqual(
-            h1.attention_reason,
+            h1.note,
             f"Источник #{source.pk} присоединён неоднозначно",
         )
         self.assertEqual(h2.state, GameHistory.State.NEEDS_ATTENTION)
         self.assertEqual(
-            h2.attention_reason,
+            h2.note,
             f"Источник #{source.pk} похож на эту игру",
         )
         self.assertTrue(
@@ -211,12 +211,12 @@ class RunReconcileTests(TestCase):
             2,
         )
 
-    def test_ambiguous_match_appends_attention_reason(self):
+    def test_ambiguous_match_appends_note(self):
         self._existing("Match This Title", url="http://ifwiki.ru/One")
         h2 = self._existing("Totally Other Name", url="http://ifwiki.ru/Two")
         h2.state = GameHistory.State.NEEDS_ATTENTION
-        h2.attention_reason = "Старая причина"
-        h2.save(update_fields=["state", "attention_reason"])
+        h2.note = "Старая причина"
+        h2.save(update_fields=["state", "note"])
         source = self._orphan(
             "http://apero.ru/orphan-d",
             self._canon(
@@ -232,7 +232,7 @@ class RunReconcileTests(TestCase):
 
         h2.refresh_from_db()
         self.assertEqual(
-            h2.attention_reason,
+            h2.note,
             f"Старая причина\nИсточник #{source.pk} похож на эту игру",
         )
         self.assertFalse(

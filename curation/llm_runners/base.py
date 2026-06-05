@@ -15,13 +15,15 @@ class GameEditStateLlmRunner(LlmWorkflowRunner):
     def _mark_attention_if_incomplete(self, trajectory):
         if self.stop_reason == "max_error_tool_calls":
             self.state.approval = Approval.REJECTED
-            self.state.attention_reason.append(
+            self.state.needs_attention = True
+            self.state.add_note(
                 f'LLM workflow "{self.workflow.name}" stopped after too many '
                 f"failed tool calls; review trajectory #{trajectory.pk}."
             )
         elif self.stop_reason == "missing_tool_calls":
             self.state.approval = Approval.REJECTED
-            self.state.attention_reason.append(
+            self.state.needs_attention = True
+            self.state.add_note(
                 f'LLM workflow "{self.workflow.name}" stopped without using '
                 f"tools; review trajectory #{trajectory.pk}."
             )
@@ -37,10 +39,11 @@ def game_edit_state_context(state: GameEditState) -> dict[str, Any]:
             "game_id": state.history.game_id,
             "state": state.history.state,
             "auto_updates": state.history.auto_updates,
-            "attention_reason": state.history.attention_reason,
+            "note": state.history.note,
         },
         "approval": state.approval.name,
-        "attention_reason": state.attention_reason,
+        "notes": state.notes,
+        "needs_attention": state.needs_attention,
         "served": game_info_context(state.served),
         "served_canonical_text": state.served.to_canonical(),
         "served_content_text": state.served.description or "",

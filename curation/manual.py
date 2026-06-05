@@ -69,12 +69,12 @@ def store_manual_edit(
         edit.canonical_text = after
         edit.save(update_fields=["canonical_text"])
         history.state = GameHistory.State.SETTLED
-        history.attention_reason = None
+        history.note = None
     else:
         history.state = GameHistory.State.NEEDS_ATTENTION
-        history.attention_reason = "Пользователь предложил правку"
+        history.note = "Пользователь предложил правку"
     history.edit_time = now()
-    history.save(update_fields=["state", "attention_reason", "edit_time"])
+    history.save(update_fields=["state", "note", "edit_time"])
     return edit
 
 
@@ -111,15 +111,13 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameEdit:
         edit.save(update_fields=["canonical_text"])
         history.game = game
         history.state = GameHistory.State.SETTLED
-        history.attention_reason = None
+        history.note = None
         PostNewGameToDiscord(game.id)
     else:
         history.state = GameHistory.State.NEEDS_ATTENTION
-        history.attention_reason = "Пользователь предложил новую игру"
+        history.note = "Пользователь предложил новую игру"
     history.edit_time = now()
-    history.save(
-        update_fields=["game", "state", "attention_reason", "edit_time"]
-    )
+    history.save(update_fields=["game", "state", "note", "edit_time"])
     return edit
 
 

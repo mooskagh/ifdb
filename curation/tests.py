@@ -42,31 +42,31 @@ from .models import (
 
 
 class CurationSmokeTest(TestCase):
-    def test_attention_reason_resets_when_state_stops_needing_attention(self):
+    def test_note_survives_non_attention_model_save(self):
         history = GameHistory.objects.create(
             creation_time=timezone.now(),
             state=GameHistory.State.NEEDS_ATTENTION,
-            attention_reason="Needs manual review",
+            note="Needs manual review",
         )
 
         history.state = GameHistory.State.SETTLED
         history.save()
 
         history.refresh_from_db()
-        self.assertIsNone(history.attention_reason)
+        self.assertEqual(history.note, "Needs manual review")
 
-    def test_attention_reason_resets_with_state_update_fields(self):
+    def test_note_survives_non_attention_update_fields_save(self):
         history = GameHistory.objects.create(
             creation_time=timezone.now(),
             state=GameHistory.State.NEEDS_ATTENTION,
-            attention_reason="Needs manual review",
+            note="Needs manual review",
         )
 
         history.state = GameHistory.State.SCHEDULED_FOR_UPDATE
         history.save(update_fields=["state"])
 
         history.refresh_from_db()
-        self.assertIsNone(history.attention_reason)
+        self.assertEqual(history.note, "Needs manual review")
 
     def test_history_lifecycle(self):
         now = timezone.now()
@@ -155,7 +155,7 @@ class HistoryListViewTest(TestCase):
             creation_time=ts,
             state=GameHistory.State.NEEDS_ATTENTION,
             auto_updates=GameHistory.AutoUpdate.PROPOSE,
-            attention_reason="Needs manual review",
+            note="Needs manual review",
         )
 
         response = self.client.get("/curation/")
@@ -170,6 +170,23 @@ class HistoryListViewTest(TestCase):
             "предл.",
         ]:
             self.assertContains(response, text)
+
+    def test_user_settling_history_clears_note(self):
+        history = GameHistory.objects.create(
+            creation_time=timezone.now(),
+            state=GameHistory.State.NEEDS_ATTENTION,
+            note="Needs manual review",
+        )
+
+        response = self.client.post(
+            f"/curation/{history.pk}/edit/",
+            {"state": GameHistory.State.SETTLED},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertIsNone(history.note)
 
     def test_history_list_defaults_to_relevance_sort(self):
         ts = timezone.now()
