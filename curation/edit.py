@@ -2,7 +2,7 @@
 
 For each ``IN_PROGRESS`` history we build a mutable ``GameInfo`` draft seeded
 from the currently served game, run it through the ordered list of
-``GameEditPass`` mutators named in ``settings.CURATION_EDIT_PASSES``, then diff
+``GameEditPass`` mutators from the selected ``EditPipeline``, then diff
 the draft against what is already served. Unchanged drafts settle silently;
 changed drafts become a ``GameEdit`` that is applied / proposed / rejected per
 the history's ``auto_updates`` policy.
@@ -30,6 +30,7 @@ from django.utils.timezone import now
 
 from .gameinfo import GameInfo, parse
 from .models import (
+    EditPipeline,
     GameEdit,
     GameHistory,
     GameSource,
@@ -296,7 +297,7 @@ def is_noop_edit(current: GameInfo, served: GameInfo) -> bool:
     )
 
 
-def _process_history(history: GameHistory) -> str:
+def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
     state = _build_state(history)
     maintenance_user, _ = get_user_model().objects.get_or_create(
         username=settings.MAINTENANCE_USER,
@@ -310,7 +311,7 @@ def _process_history(history: GameHistory) -> str:
         .first()
         or 0
     )
-    pass_specs = normalize_pass_specs(settings.CURATION_EDIT_PASSES)
+    pass_specs = normalize_pass_specs(pipeline.passes)
     for spec in pass_specs:
         PASS_REGISTRY[spec.name].apply(state, spec.params)
         state.current.canonicalize()
@@ -375,8 +376,10 @@ def _process_history(history: GameHistory) -> str:
 def run_edit(
     history_id: int | None = None,
     limit: int | None = None,
+    pipeline_id: int | None = None,
     on_history_done: HistoryDone | None = None,
 ) -> EditStats:
+    pipeline = _resolve_pipeline(pipeline_id)
     histories = GameHistory.objects.filter(
         state=GameHistory.State.IN_PROGRESS
     ).order_by("id")
@@ -390,7 +393,7 @@ def run_edit(
     for history in histories:
         try:
             with transaction.atomic():
-                outcome = _process_history(history)
+                outcome = _process_history(history, pipeline)
         except Exception:
             logger.exception("Edit failed for history #%s", history.pk)
             totals.errors += 1
@@ -414,6 +417,18 @@ def run_edit(
         stats.errors,
     )
     return stats
+
+
+def _resolve_pipeline(pipeline_id: int | None) -> EditPipeline:
+    pipelines = EditPipeline.objects.order_by("id")
+    pipeline = (
+        pipelines.filter(pk=pipeline_id).first()
+        if pipeline_id
+        else pipelines.first()
+    )
+    if pipeline is None:
+        raise ValueError("No curation edit pipeline configured.")
+    return pipeline
 
 
 # Imported for its registration side effects: each pass populates PASS_REGISTRY

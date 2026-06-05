@@ -41,6 +41,7 @@ class Command(BaseCommand):
             help="Minimum seconds between fetch starts per source type.",
         )
         parser.add_argument("--history", type=int, help="Edit one history pk.")
+        parser.add_argument("--pipeline", type=int, help="Edit pipeline pk.")
 
     def handle(self, *args, **options):
         verbose = options["verbose"] or options["verbosity"] > 1
@@ -105,6 +106,7 @@ class Command(BaseCommand):
             stats = run_edit(
                 history_id=options["history"],
                 limit=options["limit"],
+                pipeline_id=options["pipeline"],
                 on_history_done=edit_done if verbose else None,
             )
             if stats.processed == 0 and stats.errors == 0:

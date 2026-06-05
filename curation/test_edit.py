@@ -3,7 +3,7 @@ from unittest import mock
 
 from django.conf import settings
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from django.utils.timezone import now
 
 from games.models import (
@@ -25,6 +25,7 @@ from .models import (
     GameHistory,
     GameSource,
     GameSourceFetch,
+    EditPipeline,
     LLMModel,
     LlmTrajectory,
     LlmWorkflow,
@@ -120,11 +121,9 @@ class RunEditTests(TestCase):
     def _run_with(self, passes, history, specs=None):
         registry = {p.name: p for p in passes}
         specs = specs if specs is not None else [p.name for p in passes]
-        with (
-            mock.patch.object(edit, "PASS_REGISTRY", registry),
-            override_settings(CURATION_EDIT_PASSES=specs),
-        ):
-            return run_edit(history_id=history.pk)
+        pipeline = EditPipeline.objects.create(name="Test", passes=specs)
+        with mock.patch.object(edit, "PASS_REGISTRY", registry):
+            return run_edit(history_id=history.pk, pipeline_id=pipeline.pk)
 
     def _has_os_win(self, game):
         return game.tags.filter(symbolic_id="os_win").exists()

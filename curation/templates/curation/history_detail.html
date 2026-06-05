@@ -56,6 +56,21 @@
     </div>
 </form>
 
+<div class="card card--purple">
+    <div class="card--header">Автоматическая обработка</div>
+    <div class="card--body">
+        <form method="post" action="{% url 'curation_history_run_edit' history.pk %}" class="curation-filter" style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+            {% csrf_token %}
+            <select name="pipeline" required>
+                {% for pipeline in edit_pipelines %}
+                <option value="{{ pipeline.pk }}">{{ pipeline.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">запустить обработку</button>
+        </form>
+    </div>
+</div>
+
 <div class="card card--brown">
     <div class="card--header">Источники</div>
     <div class="card--listbody">

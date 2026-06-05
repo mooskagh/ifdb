@@ -243,6 +243,17 @@ class GameEdit(models.Model):
     canonical_text = models.TextField(_("Canonical text"))
 
 
+class EditPipeline(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    def __str__(self):
+        return self.name
+
+    name = models.CharField(_("Name"), max_length=100, unique=True)
+    passes = models.JSONField(_("Passes"), default=list)
+
+
 class GameHistoryComment(models.Model):
     class Meta:
         default_permissions = ()

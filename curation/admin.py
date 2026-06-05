@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    EditPipeline,
     EnrichmentRule,
     GameEdit,
     GameHistory,
@@ -68,6 +69,7 @@ class GameEditAdmin(admin.ModelAdmin):
         "proposed_by",
         "approver",
     ]
+
     list_filter = ["status", "origin"]
     search_fields = ["pk"]
     raw_id_fields = [
@@ -76,6 +78,12 @@ class GameEditAdmin(admin.ModelAdmin):
         "approver",
         "used_sources",
     ]
+
+
+@admin.register(EditPipeline)
+class EditPipelineAdmin(admin.ModelAdmin):
+    list_display = ["pk", "name"]
+    search_fields = ["name"]
 
 
 @admin.register(GameHistoryComment)

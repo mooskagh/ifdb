@@ -27,6 +27,7 @@ from games.models import (
 from .edit import run_edit
 from .gameinfo import GameInfo
 from .models import (
+    EditPipeline,
     GameEdit,
     GameHistory,
     GameHistoryAuditLog,
@@ -895,6 +896,9 @@ class TasksViewTest(TestCase):
         )
         self.user.groups.add(Group.objects.create(name="moder"))
         self.client.force_login(self.user)
+        self.pipeline, _ = EditPipeline.objects.update_or_create(
+            name="Импорт", defaults={"passes": [{"name": "merge_sources"}]}
+        )
 
     def test_page_shows_ready_and_total_orphan_sources(self):
         ts = timezone.now()
@@ -923,6 +927,8 @@ class TasksViewTest(TestCase):
         self.assertContains(response, "(все сайты)")
         self.assertContains(response, "выкачивать источники")
         self.assertContains(response, "выкачивать всякие там форумы")
+        self.assertContains(response, "автоматическая обработка очереди")
+        self.assertContains(response, "Импорт")
 
     @patch("curation.views.discover_sources.delay")
     def test_discover_button_starts_task_for_all_sites(self, delay):
@@ -961,6 +967,22 @@ class TasksViewTest(TestCase):
 
         self.assertRedirects(response, "/curation/tasks/")
         delay.assert_called_once_with()
+
+    @patch("curation.views.edit_sources.delay")
+    def test_edit_sources_button_starts_task_with_pipeline_and_limit(
+        self, delay
+    ):
+        response = self.client.post(
+            "/curation/tasks/",
+            {
+                "action": "run_edit_sources",
+                "pipeline": self.pipeline.pk,
+                "run_limit": "9",
+            },
+        )
+
+        self.assertRedirects(response, "/curation/tasks/")
+        delay.assert_called_once_with(limit=9, pipeline_id=self.pipeline.pk)
 
     def test_save_discover_sources_periodic_task(self):
         response = self.client.post(
@@ -1050,6 +1072,29 @@ class TasksViewTest(TestCase):
         self.assertEqual(loads(task.kwargs), {})
         self.assertEqual(task.interval.every, 2)
         self.assertEqual(task.interval.period, IntervalSchedule.HOURS)
+
+    def test_save_edit_sources_periodic_task(self):
+        response = self.client.post(
+            "/curation/tasks/",
+            {
+                "action": "save_edit_sources",
+                "enabled": "on",
+                "pipeline": self.pipeline.pk,
+                "periodic_limit": "7",
+                "every": "10",
+                "period": IntervalSchedule.MINUTES,
+            },
+        )
+
+        self.assertRedirects(response, "/curation/tasks/")
+        task = PeriodicTask.objects.get(name="Edit sources")
+        self.assertTrue(task.enabled)
+        self.assertEqual(task.task, "curation.tasks.edit_sources")
+        self.assertEqual(
+            loads(task.kwargs), {"limit": 7, "pipeline_id": self.pipeline.pk}
+        )
+        self.assertEqual(task.interval.every, 10)
+        self.assertEqual(task.interval.period, IntervalSchedule.MINUTES)
 
 
 class SourceViewsTest(TestCase):
@@ -1171,6 +1216,9 @@ class SourceViewsTest(TestCase):
     def test_history_links_sources_to_detail(self):
         ts = timezone.now()
         history = GameHistory.objects.create(game=None, creation_time=ts)
+        pipeline, _ = EditPipeline.objects.update_or_create(
+            name="Импорт", defaults={"passes": [{"name": "merge_sources"}]}
+        )
         source = GameSource.objects.create(
             history=history,
             url="https://example.com/source",
@@ -1210,6 +1258,25 @@ class SourceViewsTest(TestCase):
             f'action="/curation/{history.pk}/sources/{source.pk}/delete/"',
         )
         self.assertContains(response, 'data-confirm="Открепить этот источник')
+        self.assertContains(response, "Автоматическая обработка")
+        self.assertContains(response, pipeline.name)
+
+    @patch("curation.views.edit_sources.delay")
+    def test_history_run_edit_starts_task(self, delay):
+        ts = timezone.now()
+        history = GameHistory.objects.create(game=None, creation_time=ts)
+        pipeline, _ = EditPipeline.objects.update_or_create(
+            name="Импорт", defaults={"passes": [{"name": "merge_sources"}]}
+        )
+
+        response = self.client.post(
+            f"/curation/{history.pk}/run-edit/", {"pipeline": pipeline.pk}
+        )
+
+        self.assertRedirects(response, f"/curation/{history.pk}/")
+        delay.assert_called_once_with(
+            history_id=history.pk, pipeline_id=pipeline.pk
+        )
 
     def test_history_source_add_records_audit(self):
         ts = timezone.now()
@@ -1536,6 +1603,9 @@ class InitCurationCommandTest(TestCase):
 class EditRunnerTest(TestCase):
     def setUp(self):
         self.now = timezone.now()
+        self.pipeline = EditPipeline.objects.create(
+            name="Test", passes=[{"name": "merge_sources"}]
+        )
 
     def _history(self, **kwargs):
         return GameHistory.objects.create(creation_time=self.now, **kwargs)
@@ -1574,6 +1644,10 @@ class EditRunnerTest(TestCase):
             last_fetch=self.now,
         )
 
+    def _set_pipeline(self, passes):
+        self.pipeline.passes = passes
+        self.pipeline.save(update_fields=["passes"])
+
     def test_merge_applies_in_priority_order(self):
         history = self._history(game=None)
         wiki = self._source(
@@ -1583,7 +1657,7 @@ class EditRunnerTest(TestCase):
             history, GameSource.SourceType.APERO, "Apero Title", "Apero desc"
         )
 
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.applied, 1)
         history.refresh_from_db()
@@ -1609,13 +1683,13 @@ class EditRunnerTest(TestCase):
         self._source(
             history, GameSource.SourceType.APERO, "Apero Title", "Apero desc"
         )
-        run_edit()
+        run_edit(pipeline_id=self.pipeline.pk)
 
         history.refresh_from_db()
         GameHistory.objects.filter(pk=history.pk).update(
             state=GameHistory.State.IN_PROGRESS
         )
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.unchanged, 1)
         self.assertEqual(GameEdit.objects.filter(history=history).count(), 1)
@@ -1676,7 +1750,7 @@ class EditRunnerTest(TestCase):
 Source desc"""
         self._canonical_source(history, canonical)
 
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.applied, 1)
         game.refresh_from_db()
@@ -1719,20 +1793,18 @@ Source desc"""
 """
         self._canonical_source(history, canonical)
 
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.applied, 1)
         game.refresh_from_db()
         self.assertEqual(game.title, "Source Title")
         self.assertEqual(game.description, "Old desc")
 
-    @override_settings(
-        CURATION_EDIT_PASSES=[
+    def test_cleanup_text_normalizes_description(self):
+        self._set_pipeline([
             {"name": "merge_sources"},
             {"name": "cleanup_text"},
-        ]
-    )
-    def test_cleanup_text_normalizes_description(self):
+        ])
         history = self._history(game=None)
         canonical = """---
 - name: Source Title
@@ -1750,7 +1822,7 @@ Second    paragraph
 """
         self._canonical_source(history, canonical)
 
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.applied, 1)
         history.refresh_from_db()
@@ -1762,13 +1834,11 @@ Second    paragraph
             edit.passes, [{"name": "merge_sources"}, {"name": "cleanup_text"}]
         )
 
-    @override_settings(
-        CURATION_EDIT_PASSES=[
+    def test_cleanup_text_removes_empty_sections(self):
+        self._set_pipeline([
             {"name": "merge_sources"},
             {"name": "cleanup_text"},
-        ]
-    )
-    def test_cleanup_text_removes_empty_sections(self):
+        ])
         history = self._history(game=None)
         canonical = """---
 - name: Source Title
@@ -1791,7 +1861,7 @@ Text
 ## Empty tail"""
         self._canonical_source(history, canonical)
 
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.applied, 1)
         history.refresh_from_db()
@@ -1805,13 +1875,11 @@ Text
             ),
         )
 
-    @override_settings(
-        CURATION_EDIT_PASSES=[
+    def test_cleanup_text_treats_separator_as_section_end(self):
+        self._set_pipeline([
             {"name": "merge_sources"},
             {"name": "cleanup_text"},
-        ]
-    )
-    def test_cleanup_text_treats_separator_as_section_end(self):
+        ])
         history = self._history(game=None)
         wiki = GameInfo(
             name="Source Title",
@@ -1821,7 +1889,7 @@ Text
         self._canonical_source(history, wiki, GameSource.SourceType.IFWIKI)
         self._canonical_source(history, apero, GameSource.SourceType.APERO)
 
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.applied, 1)
         history.refresh_from_db()
@@ -1855,7 +1923,7 @@ Text
 """
         self._canonical_source(history, canonical)
 
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.unchanged, 1)
         self.assertFalse(GameEdit.objects.filter(history=history).exists())
@@ -1883,17 +1951,13 @@ Text
 """
         self._canonical_source(history, canonical)
 
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.unchanged, 1)
         self.assertFalse(GameEdit.objects.filter(history=history).exists())
 
-    @override_settings(
-        CURATION_EDIT_PASSES=[
-            {"name": "merge_sources", "keep_existing": False}
-        ]
-    )
     def test_merge_can_drop_existing_data(self):
+        self._set_pipeline([{"name": "merge_sources", "keep_existing": False}])
         game = Game.objects.create(
             title="Old Title",
             description="Old desc",
@@ -1906,7 +1970,7 @@ Text
         canonical = "---\n- name: Source Title\n---\nSource desc"
         self._canonical_source(history, canonical)
 
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.applied, 1)
         game.refresh_from_db()
@@ -1923,7 +1987,7 @@ Text
             history, GameSource.SourceType.IFWIKI, "Wiki Title", "Wiki desc"
         )
 
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.proposed, 1)
         history.refresh_from_db()
@@ -1958,7 +2022,7 @@ Text
             last_fetch=self.now,
         )
 
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.proposed, 1)
         edit = GameEdit.objects.get(history=history)
@@ -1967,6 +2031,7 @@ Text
 
     @override_settings(CURATION_EDIT_PASSES=["merge_sources", "enrich"])
     def test_enrichment_replaces_canonicalized_tag_genres(self):
+        self._set_pipeline(["merge_sources", "enrich"])
         call_command("initifdb", stdout=StringIO(), stderr=StringIO())
         call_command("initenrichment", stdout=StringIO())
         history = self._history(
@@ -1984,7 +2049,7 @@ Text
 """
         self._canonical_source(history, canonical)
 
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.proposed, 1)
         edit = GameEdit.objects.get(history=history)
@@ -1992,8 +2057,8 @@ Text
         self.assertEqual(edit.canonical_text.count('"g_kids"'), 1)
         self.assertNotIn('["tag",', edit.canonical_text)
 
-    @override_settings(CURATION_EDIT_PASSES=["merge_sources", "enrich"])
     def test_enrichment_deduplicates_existing_and_mapped_genre_slug(self):
+        self._set_pipeline(["merge_sources", "enrich"])
         call_command("initifdb", stdout=StringIO(), stderr=StringIO())
         call_command("initenrichment", stdout=StringIO())
         game = Game.objects.create(
@@ -2016,7 +2081,7 @@ Text
 Source desc"""
         self._canonical_source(history, canonical)
 
-        stats = run_edit()
+        stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.proposed, 1)
         edit = GameEdit.objects.get(history=history)

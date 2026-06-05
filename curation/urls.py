@@ -68,4 +68,9 @@ urlpatterns = [
         views.history_edit,
         name="curation_history_edit",
     ),
+    path(
+        "<int:history_id>/run-edit/",
+        views.history_run_edit,
+        name="curation_history_run_edit",
+    ),
 ]

@@ -474,12 +474,3 @@ STORAGES = {
         ),
     },
 }
-
-# Ordered list of curation edit passes (curation/edit.py) to run in Phase 4.
-CURATION_EDIT_PASSES = [
-    {"name": "merge_sources"},
-    {"name": "enrich"},
-    {"name": "cleanup_text"},
-    {"name": "dedup_personality_aliases"},
-    {"name": "llm_workflow", "workflow": "deduplicate"},
-]

@@ -30,6 +30,7 @@ from . import openrouter
 from .diff import build_diff
 from .gameinfo import GameInfo, parse
 from .models import (
+    EditPipeline,
     GameEdit,
     GameHistory,
     GameHistoryAuditLog,
@@ -41,7 +42,12 @@ from .models import (
     SourceDiscoveryStatus,
 )
 from .providers import REGISTERED_PROVIDERS
-from .tasks import discover_sources, fetch_sources, reconcile_sources
+from .tasks import (
+    discover_sources,
+    edit_sources,
+    fetch_sources,
+    reconcile_sources,
+)
 
 PERM = "(alias curation_admin)"
 
@@ -55,6 +61,8 @@ RECONCILE_SOURCES_TASK_NAME = "Reconcile sources"
 RECONCILE_SOURCES_TASK = "curation.tasks.reconcile_sources"
 FETCH_FEEDS_TASK_NAME = "Fetch feeds"
 FETCH_FEEDS_TASK = "core.tasks.fetch_feeds"
+EDIT_SOURCES_TASK_NAME = "Edit sources"
+EDIT_SOURCES_TASK = "curation.tasks.edit_sources"
 INTERVAL_PERIODS = [
     (IntervalSchedule.MINUTES, "минут"),
     (IntervalSchedule.HOURS, "часов"),
@@ -239,6 +247,11 @@ def _tasks_post(request):
     elif action == "run_fetch_feeds":
         fetch_feeds.delay()
         messages.success(request, "Задание на выкачивание форумов запущено.")
+    elif action == "run_edit_sources":
+        limit = _positive_int(request.POST.get("run_limit"), default=5)
+        pipeline = _pipeline_from_post(request.POST)
+        edit_sources.delay(limit=limit, pipeline_id=pipeline.pk)
+        messages.success(request, "Задание на обработку очереди запущено.")
     elif action == "save_fetch_sources":
         limit = _positive_int(request.POST.get("periodic_limit"), default=5)
         _save_periodic_task(
@@ -276,6 +289,16 @@ def _tasks_post(request):
             request.POST,
         )
         messages.success(request, "Расписание выкачивания форумов сохранено.")
+    elif action == "save_edit_sources":
+        limit = _positive_int(request.POST.get("periodic_limit"), default=5)
+        pipeline = _pipeline_from_post(request.POST)
+        _save_periodic_task(
+            EDIT_SOURCES_TASK_NAME,
+            EDIT_SOURCES_TASK,
+            request.POST,
+            kwargs={"limit": limit, "pipeline_id": pipeline.pk},
+        )
+        messages.success(request, "Расписание обработки очереди сохранено.")
     else:
         return HttpResponseBadRequest("Unknown action.")
     return redirect("curation_tasks")
@@ -319,8 +342,20 @@ def _render_tasks(request):
                 default_every=1,
                 default_period=IntervalSchedule.HOURS,
             ),
+            "edit_sources": _periodic_task_config(
+                EDIT_SOURCES_TASK_NAME,
+                default_every=5,
+                default_period=IntervalSchedule.MINUTES,
+                default_periodic_limit=5,
+                default_run_limit=5,
+            ),
+            "edit_pipelines": EditPipeline.objects.order_by("id"),
         },
     )
+
+
+def _pipeline_from_post(data):
+    return get_object_or_404(EditPipeline, pk=data.get("pipeline"))
 
 
 def _discoverable_types():
@@ -360,6 +395,7 @@ def _periodic_task_config(
         else default_period,
         "periodic_limit": kwargs.get("limit", default_periodic_limit),
         "run_limit": default_run_limit,
+        "pipeline_id": kwargs.get("pipeline_id"),
     }
 
 
@@ -906,8 +942,20 @@ def history_detail(request, history_id):
             "state_choices": GameHistory.State.choices,
             "source_type_choices": GameSource.SourceType.choices,
             "proposed_edit_status": GameEdit.EditStatus.PROPOSED,
+            "edit_pipelines": EditPipeline.objects.order_by("id"),
         },
     )
+
+
+def history_run_edit(request, history_id):
+    request.perm.Ensure(PERM)
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required.")
+    history = get_object_or_404(GameHistory, pk=history_id)
+    pipeline = _pipeline_from_post(request.POST)
+    edit_sources.delay(history_id=history.pk, pipeline_id=pipeline.pk)
+    messages.success(request, "Задание на обработку истории запущено.")
+    return redirect("curation_history_detail", history_id=history.pk)
 
 
 def edit_diff(request, edit_id):
