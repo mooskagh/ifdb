@@ -1,7 +1,7 @@
 """Phase 4 (edit): turn a history's gathered source canonicals into a GameEdit.
 
-For each ``IN_PROGRESS`` history we build a mutable ``GameInfo`` draft seeded
-from the currently served game, run it through the ordered list of
+For each scheduled history we build a mutable ``GameInfo`` draft seeded from
+the currently served game, run it through the ordered list of
 ``GameEditPass`` mutators from the selected ``EditPipeline``, then diff
 the draft against what is already served. Unchanged drafts settle silently;
 changed drafts become a ``GameEdit`` that is applied / proposed / rejected per
@@ -20,12 +20,14 @@ import enum
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import timedelta
 from logging import getLogger
 from typing import Any, ClassVar
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Q
 from django.utils.timezone import now
 
 from .gameinfo import GameInfo, parse
@@ -39,6 +41,7 @@ from .models import (
 )
 
 logger = getLogger("worker")
+EDIT_LEASE_TIMEOUT = timedelta(minutes=15)
 
 
 class SourceStatus(enum.Enum):
@@ -288,6 +291,8 @@ def _flush(history: GameHistory, state: GameEditState) -> None:
     """Persist pass-mutable history fields (audited) and settle ``state``."""
     history.attention_reason = "\n".join(state.attention_reason) or None
     history.edit_time = now()
+    history.processing_started_at = None
+    history.processing_task_id = None
     history.save()
 
 
@@ -373,29 +378,71 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
     return outcome
 
 
+def _claim_histories(
+    *,
+    history_id: int | None,
+    limit: int | None,
+    task_id: str | None,
+) -> list[GameHistory]:
+    stale_before = now() - EDIT_LEASE_TIMEOUT
+    eligible = Q(state=GameHistory.State.SCHEDULED_FOR_UPDATE) | Q(
+        state=GameHistory.State.PROCESSING,
+        processing_started_at__lt=stale_before,
+    )
+    histories = GameHistory.objects.filter(eligible).order_by("id")
+    if history_id is not None:
+        histories = histories.filter(pk=history_id)
+
+    with transaction.atomic():
+        histories = histories.select_for_update(skip_locked=True)
+        if limit is not None:
+            histories = histories[:limit]
+        claimed = list(histories)
+        ts = now()
+        for history in claimed:
+            history.state = GameHistory.State.PROCESSING
+            history.processing_started_at = ts
+            history.processing_task_id = task_id
+            history.save(
+                update_fields=[
+                    "state",
+                    "processing_started_at",
+                    "processing_task_id",
+                ]
+            )
+    return claimed
+
+
+def _release_failed_claim(history: GameHistory) -> None:
+    GameHistory.objects.filter(
+        pk=history.pk, state=GameHistory.State.PROCESSING
+    ).update(
+        state=GameHistory.State.SCHEDULED_FOR_UPDATE,
+        processing_started_at=None,
+        processing_task_id=None,
+    )
+
+
 def run_edit(
     history_id: int | None = None,
     limit: int | None = None,
     pipeline_id: int | None = None,
+    task_id: str | None = None,
     on_history_done: HistoryDone | None = None,
 ) -> EditStats:
     pipeline = _resolve_pipeline(pipeline_id)
-    histories = GameHistory.objects.filter(
-        state=GameHistory.State.IN_PROGRESS
-    ).order_by("id")
-    if history_id is not None:
-        histories = histories.filter(pk=history_id)
-    if limit is not None:
-        histories = histories[:limit]
+    histories = _claim_histories(
+        history_id=history_id, limit=limit, task_id=task_id
+    )
 
     logger.info("Starting source edit")
     totals = _EditTotals()
     for history in histories:
         try:
-            with transaction.atomic():
-                outcome = _process_history(history, pipeline)
+            outcome = _process_history(history, pipeline)
         except Exception:
             logger.exception("Edit failed for history #%s", history.pk)
+            _release_failed_claim(history)
             totals.errors += 1
             if on_history_done is not None:
                 on_history_done(history, "error")

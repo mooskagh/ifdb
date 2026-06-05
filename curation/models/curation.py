@@ -15,7 +15,11 @@ class GameHistory(models.Model):
 
     class State(models.TextChoices):
         SETTLED = "SETTLED", _("Settled")
-        IN_PROGRESS = "IN_PROGRESS", _("In progress")
+        SCHEDULED_FOR_UPDATE = (
+            "SCHEDULED_FOR_UPDATE",
+            _("Scheduled for automatic update"),
+        )
+        PROCESSING = "PROCESSING", _("Processing")
         NEEDS_ATTENTION = "NEEDS_ATTENTION", _("Needs attention")
 
     def __str__(self):
@@ -45,12 +49,18 @@ class GameHistory(models.Model):
     )
     state = models.CharField(
         _("State"),
-        max_length=16,
+        max_length=32,
         choices=State,
-        default=State.IN_PROGRESS,
+        default=State.SCHEDULED_FOR_UPDATE,
     )
     attention_reason = models.TextField(
         _("Attention reason"), null=True, blank=True
+    )
+    processing_started_at = models.DateTimeField(
+        _("Processing started at"), null=True, blank=True
+    )
+    processing_task_id = models.CharField(
+        _("Processing task id"), max_length=255, null=True, blank=True
     )
     creation_time = models.DateTimeField(_("Created at"))
     edit_time = models.DateTimeField(_("Last edit"), null=True, blank=True)

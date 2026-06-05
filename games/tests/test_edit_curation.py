@@ -9,7 +9,15 @@ from django.urls import reverse
 from django.utils.timezone import now
 
 from curation.models import GameEdit, GameHistory
-from games.models import Game, GameAuthor, GameAuthorRole, PersonalityAlias
+from games.models import (
+    URL,
+    Game,
+    GameAuthor,
+    GameAuthorRole,
+    GameURL,
+    GameURLCategory,
+    PersonalityAlias,
+)
 
 
 class GameEditCurationViewTests(TestCase):
@@ -179,3 +187,36 @@ class GameEditCurationViewTests(TestCase):
         response = self.client.get(reverse("show_game", args=[game.id]))
 
         self.assertContains(response, "Unlinked Author")
+
+    def test_game_page_moder_panel_links_to_curation_history(self):
+        self.user.groups.add(Group.objects.create(name="gardener"))
+        game = Game.objects.create(title="Old Title", creation_time=now())
+        history = GameHistory.objects.create(game=game, creation_time=now())
+
+        response = self.client.get(reverse("show_game", args=[game.id]))
+
+        self.assertContains(response, "Огород")
+        self.assertContains(
+            response, reverse("curation_history_detail", args=[history.pk])
+        )
+
+    def test_game_page_moder_panel_omits_curation_without_history(self):
+        self.user.groups.add(Group.objects.create(name="gardener"))
+        game = Game.objects.create(title="Old Title", creation_time=now())
+
+        response = self.client.get(reverse("show_game", args=[game.id]))
+
+        self.assertNotContains(response, "Огород")
+
+    def test_game_page_renders_media_without_description(self):
+        game = Game.objects.create(title="Old Title", creation_time=now())
+        category = GameURLCategory.objects.get(symbolic_id="poster")
+        url = URL.objects.create(
+            original_url="https://example.com/poster.png",
+            creation_date=now(),
+        )
+        GameURL.objects.create(game=game, category=category, url=url)
+
+        response = self.client.get(reverse("show_game", args=[game.id]))
+
+        self.assertEqual(response.status_code, 200)

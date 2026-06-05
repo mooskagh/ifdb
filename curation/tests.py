@@ -62,7 +62,7 @@ class CurationSmokeTest(TestCase):
             attention_reason="Needs manual review",
         )
 
-        history.state = GameHistory.State.IN_PROGRESS
+        history.state = GameHistory.State.SCHEDULED_FOR_UPDATE
         history.save(update_fields=["state"])
 
         history.refresh_from_db()
@@ -74,7 +74,7 @@ class CurationSmokeTest(TestCase):
         # History may exist before any Game row is created.
         history = GameHistory.objects.create(game=None, creation_time=now)
         self.assertIsNone(history.game)
-        self.assertEqual(history.state, GameHistory.State.IN_PROGRESS)
+        self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
         self.assertEqual(history.auto_updates, GameHistory.AutoUpdate.ACCEPT)
 
         source = GameSource.objects.create(
@@ -181,7 +181,7 @@ class HistoryListViewTest(TestCase):
         recent_progress = self._create_history(
             "Recent progress",
             ts + timezone.timedelta(days=1),
-            state=GameHistory.State.IN_PROGRESS,
+            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
         )
         older_attention = self._create_history(
             "Older attention",
@@ -1537,7 +1537,9 @@ class InitCurationCommandTest(TestCase):
         self.assertEqual(
             bot_history.auto_updates, GameHistory.AutoUpdate.ACCEPT
         )
-        self.assertEqual(bot_history.state, GameHistory.State.IN_PROGRESS)
+        self.assertEqual(
+            bot_history.state, GameHistory.State.SCHEDULED_FOR_UPDATE
+        )
         self.assertEqual(
             list(
                 GameSource.objects
@@ -1687,7 +1689,7 @@ class EditRunnerTest(TestCase):
 
         history.refresh_from_db()
         GameHistory.objects.filter(pk=history.pk).update(
-            state=GameHistory.State.IN_PROGRESS
+            state=GameHistory.State.SCHEDULED_FOR_UPDATE
         )
         stats = run_edit(pipeline_id=self.pipeline.pk)
 

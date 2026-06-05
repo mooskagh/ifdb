@@ -47,7 +47,7 @@ class Command(BaseCommand):
                     game=game,
                     defaults={
                         "auto_updates": self.auto_update_policy(game),
-                        "state": GameHistory.State.IN_PROGRESS,
+                        "state": GameHistory.State.SCHEDULED_FOR_UPDATE,
                         "creation_time": game.creation_time,
                         "edit_time": game.edit_time or game.creation_time,
                     },

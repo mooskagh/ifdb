@@ -279,7 +279,7 @@ class RunReconcileTests(TestCase):
 
         self.assertEqual(stats[0].processed, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.IN_PROGRESS)
+        self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
 
     def test_old_attached_fetch_keeps_history_settled(self):
         edited_at = now()

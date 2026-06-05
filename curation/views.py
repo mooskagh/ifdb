@@ -130,7 +130,8 @@ EDITABLE_FIELDS = {
 
 HISTORY_STATE_SHORT = {
     GameHistory.State.SETTLED: "готово",
-    GameHistory.State.IN_PROGRESS: "в работе",
+    GameHistory.State.SCHEDULED_FOR_UPDATE: "заплан.",
+    GameHistory.State.PROCESSING: "обраб.",
     GameHistory.State.NEEDS_ATTENTION: "внимание",
 }
 HISTORY_AUTO_SHORT = {

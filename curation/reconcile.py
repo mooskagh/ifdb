@@ -261,7 +261,7 @@ def run_reconcile(
 
         if source.history_id is not None:
             if _has_new_version(source, fetch):
-                source.history.state = GameHistory.State.IN_PROGRESS
+                source.history.state = GameHistory.State.SCHEDULED_FOR_UPDATE
                 source.history.save(update_fields=["state"])
                 totals.processed += 1
                 if on_source_done is not None:
@@ -321,7 +321,9 @@ def run_reconcile(
             continue
 
         history = GameHistory.objects.create(
-            game=None, state=GameHistory.State.IN_PROGRESS, creation_time=now()
+            game=None,
+            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
+            creation_time=now(),
         )
         source.history = history
         source.save(update_fields=["history"])

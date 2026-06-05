@@ -105,6 +105,13 @@ class _SetDescription(GameEditPass):
         state.current.description = params["description"]
 
 
+class _Fail(GameEditPass):
+    name = "fail"
+
+    def apply(self, state, params):
+        raise RuntimeError("boom")
+
+
 class RunEditTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -114,7 +121,7 @@ class RunEditTests(TestCase):
         game = Game.objects.create(title="A Game", creation_time=now())
         return GameHistory.objects.create(
             game=game,
-            state=GameHistory.State.IN_PROGRESS,
+            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
             creation_time=now(),
         )
 
@@ -222,6 +229,47 @@ class RunEditTests(TestCase):
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertFalse(GameEdit.objects.filter(history=history).exists())
+
+    def test_processing_history_is_not_claimed_again(self):
+        history = self._history()
+        history.state = GameHistory.State.PROCESSING
+        history.processing_started_at = now()
+        history.processing_task_id = "running-task"
+        history.save()
+
+        stats = self._run_with([_TagAndApprove(Approval.APPLIED)], history)
+
+        self.assertEqual(stats.processed, 0)
+        self.assertFalse(GameEdit.objects.filter(history=history).exists())
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.PROCESSING)
+        self.assertEqual(history.processing_task_id, "running-task")
+
+    def test_stale_processing_history_is_reclaimed(self):
+        history = self._history()
+        history.state = GameHistory.State.PROCESSING
+        history.processing_started_at = now() - edit.EDIT_LEASE_TIMEOUT * 2
+        history.processing_task_id = "dead-task"
+        history.save()
+
+        stats = self._run_with([_TagAndApprove(Approval.APPLIED)], history)
+
+        self.assertEqual(stats.applied, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertIsNone(history.processing_started_at)
+        self.assertIsNone(history.processing_task_id)
+
+    def test_failed_history_returns_to_schedule(self):
+        history = self._history()
+
+        stats = self._run_with([_Fail()], history)
+
+        self.assertEqual(stats.errors, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
+        self.assertIsNone(history.processing_started_at)
+        self.assertIsNone(history.processing_task_id)
 
     def test_final_trailing_newline_only_change_is_noop(self):
         history = self._history()
