@@ -7,7 +7,7 @@ from threading import Lock
 from time import monotonic, sleep
 
 from django.db import close_old_connections
-from django.db.models import F
+from django.db.models import Count, F
 from django.utils.timezone import now
 
 from .models import GameSource, GameSourceFetch
@@ -180,7 +180,12 @@ def run_fetch(
         .filter(type__in=source_types)
         .exclude(url__isnull=True)
         .exclude(url="")
-        .order_by(F("last_attempt").asc(nulls_first=True))
+        .annotate(fetch_count=Count("gamesourcefetch"))
+        .order_by(
+            F("last_attempt").asc(nulls_first=True),
+            "fetch_count",
+            F("history").asc(nulls_first=True),
+        )
     )
     if source_id is not None:
         sources = sources.filter(pk=source_id)

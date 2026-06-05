@@ -10,7 +10,7 @@ from django.utils.timezone import now
 
 from .fetch import FetchStats, _RateLimiter, run_fetch
 from .gameinfo import GameInfo
-from .models import GameSource, GameSourceFetch
+from .models import GameHistory, GameSource, GameSourceFetch
 from .providers import GameSourceProvider
 
 
@@ -205,6 +205,77 @@ class FetchTest(TestCase):
         self.assertEqual(stats, [FetchStats("APERO", 1, 1, 0, 1, 0)])
         self.assertEqual(provider.fetched_urls, [old_source.url])
         self.assertEqual(GameSourceFetch.objects.count(), 1)
+
+    def test_limit_prioritizes_last_attempt_before_fetch_status(self):
+        ts = now()
+        old_with_fetch = self.source(
+            url="http://example.com/old", last_attempt=ts - timedelta(days=1)
+        )
+        GameSourceFetch.objects.create(
+            source=old_with_fetch,
+            raw_content="raw",
+            canonical_text="canonical",
+            canonical_text_hash="hash",
+            first_fetch=ts,
+            last_fetch=ts,
+        )
+        self.source(url="http://example.com/new", last_attempt=ts)
+        provider = FakeProvider(
+            GameSource.SourceType.APERO,
+            fetches=["raw"],
+            infos=[self.info("Old")],
+        )
+
+        self.run_with(provider, limit=1)
+
+        self.assertEqual(provider.fetched_urls, [old_with_fetch.url])
+
+    def test_limit_prefers_unfetched_sources_when_last_attempt_matches(self):
+        ts = now()
+        fetched = self.source(
+            url="http://example.com/fetched", last_attempt=ts
+        )
+        GameSourceFetch.objects.create(
+            source=fetched,
+            raw_content="raw",
+            canonical_text="canonical",
+            canonical_text_hash="hash",
+            first_fetch=ts,
+            last_fetch=ts,
+        )
+        unfetched = self.source(
+            url="http://example.com/unfetched", last_attempt=ts
+        )
+        provider = FakeProvider(
+            GameSource.SourceType.APERO,
+            fetches=["raw"],
+            infos=[self.info("Unfetched")],
+        )
+
+        self.run_with(provider, limit=1)
+
+        self.assertEqual(provider.fetched_urls, [unfetched.url])
+
+    def test_limit_prefers_sources_without_history_when_attempt_matches(self):
+        ts = now()
+        history = GameHistory.objects.create(creation_time=ts)
+        self.source(
+            url="http://example.com/with-history",
+            last_attempt=ts,
+            history=history,
+        )
+        no_history = self.source(
+            url="http://example.com/no-history", last_attempt=ts
+        )
+        provider = FakeProvider(
+            GameSource.SourceType.APERO,
+            fetches=["raw"],
+            infos=[self.info("No History")],
+        )
+
+        self.run_with(provider, limit=1)
+
+        self.assertEqual(provider.fetched_urls, [no_history.url])
 
     def test_source_id_targets_one_source(self):
         self.source(url="http://example.com/skip")
