@@ -18,7 +18,6 @@ import yaml
 from dateutil.parser import parse as parse_date
 from django.utils import timezone
 
-from core.taskqueue import Enqueue
 from games.importer.tools import HashizeUrl
 from games.models import (
     URL,
@@ -34,7 +33,6 @@ from games.models import (
     PersonalityAlias,
     PersonalityAliasRedirect,
 )
-from games.tasks.uploads import RecodeGame
 from games.tools import CreateUrl
 
 
@@ -373,8 +371,6 @@ class GameInfo:
                     description=entry.description or None,
                 )
                 gu.save()
-                if GameURLCategory.IsRecodable(cat.id):
-                    Enqueue(RecodeGame, gu.id, name="RecodeGame(%d)" % gu.id)
         if stale := [v for k, v in existing.items() if k not in desired]:
             GameURL.objects.filter(id__in=stale).delete()
 

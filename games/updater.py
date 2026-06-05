@@ -4,7 +4,6 @@ from logging import getLogger
 from dateutil.parser import parse as parse_date
 from django.utils import timezone
 
-from core.taskqueue import Enqueue
 from games.tools import CreateUrl
 
 from .importer import Importer
@@ -24,7 +23,6 @@ from .models import (
     PersonalityUrl,
     PersonalityURLCategory,
 )
-from .tasks.uploads import RecodeGame
 
 PERM_ADD_GAME = "@auth"  # Also for file upload, game import, vote
 logger = getLogger("web")
@@ -337,7 +335,6 @@ def UpdateGameUrls(request, game, data, update, kill_existing=True):
             obj.description = desc or None
             if GameURLCategory.IsRecodable(cat):
                 obj.save()
-                Enqueue(RecodeGame, obj.id, name="RecodeGame(%d)" % obj.id)
             else:
                 objs.append(obj)
         GameURL.objects.bulk_create(objs)

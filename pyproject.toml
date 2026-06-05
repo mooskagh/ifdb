@@ -15,6 +15,7 @@ dependencies = [
     "django-recaptcha>=4.1.0",
     "django-registration>=5.2.1",
     "dnspython>=2.8.0",
+    "feedparser>=6.0.12",
     "html2text>=2025.4.15",
     "markdown>=3.10.1",
     "markdown-del-ins>=1.0.0",
