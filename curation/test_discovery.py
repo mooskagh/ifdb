@@ -453,9 +453,7 @@ class DiscoverSourcesTaskTest(TestCase):
                 "spawned",
                 orphan_history,
             )
-            return [
-                ReconcileStats(GameSource.SourceType.APERO, 1, 0, 0, 1, 0)
-            ]
+            return [ReconcileStats(GameSource.SourceType.APERO, 1, 0, 0, 1, 0)]
 
         def fake_run_edit(history_id, pipeline_id):
             calls.append(("edit", history_id, pipeline_id))

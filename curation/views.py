@@ -272,8 +272,7 @@ def _tasks_post(request):
             request.POST,
             kwargs={
                 "types": None,
-                "auto_import_new": request.POST.get("auto_import_new")
-                == "on",
+                "auto_import_new": request.POST.get("auto_import_new") == "on",
                 "pipeline_id": pipeline.pk,
             },
         )
