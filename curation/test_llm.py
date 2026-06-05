@@ -30,6 +30,7 @@ from .llm_runners.content_editor import (
     ReplaceParams,
     UndoParams,
 )
+from .llm_runners.status_review import SetStatusParams
 from .models import (
     GameHistory,
     GameSource,
@@ -803,6 +804,12 @@ class HumanReviewRunnerTests(TestCase):
         self.assertEqual(context["served_content_text"], "Long text")
         self.assertEqual(context["current_content_text"], "Short")
         self.assertEqual(context["last_applied_content_text"], "Old text")
+        self.assertIn("--- served", context["content_text_diff"])
+        self.assertIn("+++ edited", context["content_text_diff"])
+        self.assertIn("-Long text", context["content_text_diff"])
+        self.assertIn("+Short", context["content_text_diff"])
+        self.assertIn("--- served", context["canonical_text_diff"])
+        self.assertIn("+++ edited", context["canonical_text_diff"])
         self.assertEqual(context["served"]["name"], "Title")
         self.assertEqual(context["current"]["description"], "Short")
         self.assertEqual(context["sources"][0]["status"], "CHANGED")
@@ -864,6 +871,125 @@ class HumanReviewRunnerTests(TestCase):
         self.assertEqual(self.state.notes, ["Description lost"])
         self.assertEqual(LlmTrajectory.objects.count(), 1)
         self.assertEqual(chat.call_count, 1)
+
+
+class StatusReviewRunnerTests(TestCase):
+    def setUp(self):
+        self.model = LLMModel.objects.create(
+            name="openai/status-test",
+            context_length=1000,
+            input_cost=Decimal("1"),
+            cached_input_cost=Decimal("0"),
+            cache_write_cost=Decimal("0"),
+            output_cost=Decimal("1"),
+        )
+        self.workflow = LlmWorkflow.objects.create(
+            name="status_review",
+            runner="status_review",
+            prompt_template="Diff:\n{{ content_text_diff }}",
+            model=self.model,
+        )
+        self.history = GameHistory.objects.create(creation_time=now())
+        self.state = GameEditState(
+            history=self.history,
+            current=GameInfo(name="Title", description="New"),
+            approval=Approval.PROPOSED,
+            served=GameInfo(name="Title", description="Old"),
+            last_applied=GameInfo(),
+            sources=[],
+        )
+
+    def _runner(self):
+        return runner_for_workflow(self.workflow, self.state)
+
+    def test_runner_is_registered_and_schema_uses_status_enum(self):
+        runner = self._runner()
+
+        tools = runner._tools_schema()
+        self.assertEqual(
+            [tool["function"]["name"] for tool in tools], ["set_status"]
+        )
+        status = tools[0]["function"]["parameters"]["properties"]["status"]
+        self.assertEqual(status["enum"], ["accept", "needs_human_review"])
+
+    def test_run_skips_when_status_is_not_proposed_or_applied(self):
+        for approval in [Approval.REJECTED, Approval.CANCELLED]:
+            with self.subTest(approval=approval):
+                self.state.approval = approval
+                with patch.object(openrouter, "chat_completion") as chat:
+                    trajectory = self._runner().run()
+
+                self.assertIsNone(trajectory)
+                chat.assert_not_called()
+        self.assertEqual(LlmTrajectory.objects.count(), 0)
+
+    def test_set_status_accept_marks_applied_and_clears_attention(self):
+        self.state.needs_attention = True
+
+        result = self._runner().set_status(
+            SetStatusParams(rationale="The diff is safe", status="accept")
+        )
+
+        self.assertEqual(result, {"status": "set", "approval": "APPLIED"})
+        self.assertEqual(self.state.approval, Approval.APPLIED)
+        self.assertIs(self.state.needs_attention, False)
+        self.assertEqual(self.state.notes, [])
+
+    def test_set_status_needs_human_review_marks_attention_and_notes(self):
+        result = self._runner().set_status(
+            SetStatusParams(
+                rationale="Source conflict",
+                status="needs_human_review",
+            )
+        )
+
+        self.assertEqual(result, {"status": "set", "approval": "PROPOSED"})
+        self.assertEqual(self.state.approval, Approval.PROPOSED)
+        self.assertIs(self.state.needs_attention, True)
+        self.assertEqual(self.state.notes, ["Review needed: Source conflict"])
+
+    def test_run_requires_tool_call_and_records_trajectory(self):
+        self.state.approval = Approval.APPLIED
+        responses = [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "set_status",
+                                        "arguments": (
+                                            '{"rationale":"Safe",'
+                                            '"status":"accept"}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 2},
+            }
+        ]
+
+        with patch.object(
+            openrouter, "chat_completion", side_effect=responses
+        ) as chat:
+            trajectory = self._runner().run()
+
+        prompt = chat.call_args.args[1][0]["content"]
+        self.assertIn("--- served", prompt)
+        self.assertIn("+++ edited", prompt)
+        self.assertIn("-Old", prompt)
+        self.assertIn("+New", prompt)
+        self.assertEqual(chat.call_args.kwargs["tool_choice"], "required")
+        self.assertEqual(self.state.approval, Approval.APPLIED)
+        self.assertEqual(LlmTrajectory.objects.get(), trajectory)
 
 
 class ContentEditorRunnerTests(TestCase):

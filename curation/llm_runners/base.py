@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from difflib import unified_diff
 from typing import Any
 
 from curation.edit import Approval, GameEditState, SourceFetchInfo
@@ -33,6 +34,10 @@ class GameEditStateLlmRunner(LlmWorkflowRunner):
 
 
 def game_edit_state_context(state: GameEditState) -> dict[str, Any]:
+    served_canonical_text = state.served.to_canonical()
+    current_canonical_text = state.current.to_canonical()
+    served_content_text = state.served.description or ""
+    current_content_text = state.current.description or ""
     return {
         "history": {
             "id": state.history.id,
@@ -45,16 +50,34 @@ def game_edit_state_context(state: GameEditState) -> dict[str, Any]:
         "notes": state.notes,
         "needs_attention": state.needs_attention,
         "served": game_info_context(state.served),
-        "served_canonical_text": state.served.to_canonical(),
-        "served_content_text": state.served.description or "",
+        "served_canonical_text": served_canonical_text,
+        "served_content_text": served_content_text,
         "current": game_info_context(state.current),
-        "current_canonical_text": state.current.to_canonical(),
-        "current_content_text": state.current.description or "",
+        "current_canonical_text": current_canonical_text,
+        "current_content_text": current_content_text,
+        "canonical_text_diff": _unified_diff(
+            served_canonical_text, current_canonical_text
+        ),
+        "content_text_diff": _unified_diff(
+            served_content_text, current_content_text
+        ),
         "last_applied": game_info_context(state.last_applied),
         "last_applied_canonical_text": state.last_applied.to_canonical(),
         "last_applied_content_text": state.last_applied.description or "",
         "sources": [source_context(source) for source in state.sources],
     }
+
+
+def _unified_diff(before: str, after: str) -> str:
+    return "\n".join(
+        unified_diff(
+            before.splitlines(),
+            after.splitlines(),
+            fromfile="served",
+            tofile="edited",
+            lineterm="",
+        )
+    )
 
 
 def game_info_context(info: GameInfo) -> dict[str, Any]:
