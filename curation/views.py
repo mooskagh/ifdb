@@ -25,10 +25,12 @@ from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
 from core.tasks import fetch_feeds
 from games.importer.discord import PostNewGameToDiscord
+from games.models import Game
 
 from . import openrouter
 from .diff import build_diff
 from .gameinfo import GameInfo, parse
+from .merge import contest_related_usage, merge_game_into_history
 from .models import (
     EditPipeline,
     GameEdit,
@@ -131,6 +133,7 @@ HISTORY_STATE_SHORT = {
     GameHistory.State.SCHEDULED_FOR_UPDATE: "заплан.",
     GameHistory.State.PROCESSING: "обраб.",
     GameHistory.State.NEEDS_ATTENTION: "внимание",
+    GameHistory.State.ABANDONED: "заброш.",
 }
 HISTORY_AUTO_SHORT = {
     GameHistory.AutoUpdate.REJECT: "откл.",
@@ -967,8 +970,13 @@ def history_run_edit(request, history_id):
     if request.method != "POST":
         return HttpResponseBadRequest("POST required.")
     history = get_object_or_404(GameHistory, pk=history_id)
+    if history.state == GameHistory.State.ABANDONED:
+        messages.error(request, "Заброшенную историю нельзя обрабатывать.")
+        return redirect("curation_history_detail", history_id=history.pk)
     pipeline = _pipeline_from_post(request.POST)
-    edit_sources.delay(history_id=history.pk, pipeline_id=pipeline.pk)
+    edit_sources.delay(
+        history_id=history.pk, pipeline_id=pipeline.pk, force=True
+    )
     messages.success(request, "Задание на обработку истории запущено.")
     return redirect("curation_history_detail", history_id=history.pk)
 
@@ -1103,7 +1111,11 @@ def _accept_edit(edit, history, before, user):
         ]
     )
     history.state = GameHistory.State.SETTLED
+    old_note = history.note
     history.note = None
+    GameHistoryAuditLog.record_note_change(
+        history, user, old_note, history.note
+    )
     history.edit_time = now()
     fields = ["auto_updates", "state", "note", "edit_time"]
     if created_game:
@@ -1127,7 +1139,11 @@ def _reject_edit(edit, history, before, user):
         ]
     )
     history.state = GameHistory.State.SETTLED
+    old_note = history.note
     history.note = None
+    GameHistoryAuditLog.record_note_change(
+        history, user, old_note, history.note
+    )
     history.edit_time = now()
     history.save(update_fields=["state", "note", "edit_time"])
 
@@ -1145,10 +1161,57 @@ def history_edit(request, history_id):
                 )
                 setattr(history, field, value)
                 if field == "state" and value == GameHistory.State.SETTLED:
+                    old_note = history.note
                     history.note = None
+                    GameHistoryAuditLog.record_note_change(
+                        history, request.user, old_note, history.note
+                    )
                 changed = True
         if changed:
             history.edit_time = now()
             history.save()
 
+    return redirect("curation_history_detail", history_id=history.pk)
+
+
+def history_merge(request, history_id):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required.")
+    history = get_object_or_404(
+        GameHistory.objects.select_related("game"), pk=history_id
+    )
+    if history.game is None:
+        messages.error(request, "У этой истории нет игры для объединения.")
+        return redirect("curation_history_detail", history_id=history.pk)
+
+    source_game_id = _positive_int(
+        request.POST.get("source_game_id"), default=None
+    )
+    if source_game_id is None:
+        messages.error(request, "Укажите id игры, которую нужно присоединить.")
+        return redirect("curation_history_detail", history_id=history.pk)
+
+    source_game = get_object_or_404(Game, pk=source_game_id)
+    remap_contests = request.POST.get("remap_contests") == "on"
+    usage = contest_related_usage(source_game)
+    if usage and not remap_contests:
+        related = ", ".join(f"{item.label}: {item.count}" for item in usage)
+        messages.error(
+            request,
+            "У присоединяемой игры есть конкурсные ссылки. "
+            f"Подтвердите переназначение чекбоксом: {related}.",
+        )
+        return redirect("curation_history_detail", history_id=history.pk)
+
+    try:
+        merge_game_into_history(
+            target_history=history,
+            source_game=source_game,
+            actor=request.user,
+            remap_contests=remap_contests,
+        )
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, "Игры объединены.")
     return redirect("curation_history_detail", history_id=history.pk)

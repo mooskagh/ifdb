@@ -445,15 +445,28 @@ class ContentEditorRunner(GameEditStateLlmRunner):
 
     def _replacement_text(self, replacement: ReplacementParams) -> str:
         return self._one_text_source(
-            replacement.text, replacement.clipboard_id
+            replacement.text,
+            replacement.clipboard_id,
+            allow_empty_text=True,
         )
 
     def _paste_text(self, params: PasteParams) -> str:
-        return self._one_text_source(params.text, params.clipboard_id)
+        return self._one_text_source(
+            params.text,
+            params.clipboard_id,
+            allow_empty_text=False,
+        )
 
     def _one_text_source(
-        self, text: str | None, clipboard_id: str | None
+        self,
+        text: str | None,
+        clipboard_id: str | None,
+        *,
+        allow_empty_text: bool,
     ) -> str:
+        clipboard_id = clipboard_id or None
+        if not allow_empty_text or clipboard_id is not None:
+            text = text or None
         if (text is None) == (clipboard_id is None):
             raise ValueError("provide exactly one of text or clipboard_id")
         if clipboard_id is None:

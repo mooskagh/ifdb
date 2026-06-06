@@ -1207,6 +1207,70 @@ class ContentEditorRunnerTests(TestCase):
             "First line\nChanged line\nThird line",
         )
 
+    def test_replace_uses_clipboard_when_text_is_empty(self):
+        runner = self._runner()
+        cut = runner.cut(
+            CutParams(
+                rationale="test",
+                match=MatchParams("Second line\n", "Second line\n"),
+            )
+        )
+
+        result = runner.replace(
+            ReplaceParams(
+                rationale="test",
+                match=MatchParams("Third line", "Third line"),
+                replacement=ReplacementParams(
+                    text="",
+                    clipboard_id=cut["clipboard_id"],
+                ),
+            )
+        )
+
+        self.assertEqual(result["status"], "replaced")
+        self.assertEqual(
+            self.state.current.description,
+            "First line\nSecond line\n",
+        )
+
+    def test_replace_empty_clipboard_id_is_unset(self):
+        result = self._runner().replace(
+            ReplaceParams(
+                rationale="test",
+                match=MatchParams("Second line", "Second line"),
+                replacement=ReplacementParams(text="", clipboard_id=""),
+            )
+        )
+
+        self.assertEqual(result["status"], "replaced")
+        self.assertEqual(
+            self.state.current.description,
+            "First line\n\nThird line",
+        )
+
+    def test_replace_still_rejects_two_nonempty_text_sources(self):
+        runner = self._runner()
+        cut = runner.cut(
+            CutParams(
+                rationale="test",
+                match=MatchParams("Second line\n", "Second line\n"),
+            )
+        )
+
+        result = runner.replace(
+            ReplaceParams(
+                rationale="test",
+                match=MatchParams("Third line", "Third line"),
+                replacement=ReplacementParams(
+                    text="Changed line",
+                    clipboard_id=cut["clipboard_id"],
+                ),
+            )
+        )
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("exactly one", result["error"])
+
     def test_delete_exact_removes_unique_text_with_optional_occurrence(self):
         result = self._runner().delete_exact(
             DeleteExactParams(
@@ -1381,10 +1445,58 @@ class ContentEditorRunnerTests(TestCase):
             "First line\nThird lineSecond line\n",
         )
 
+    def test_paste_uses_clipboard_when_text_is_empty(self):
+        runner = self._runner()
+        cut = runner.cut(
+            CutParams(
+                rationale="test",
+                match=MatchParams("Second line\n", "Second line\n"),
+            )
+        )
+
+        result = runner.paste(
+            PasteParams(
+                rationale="test",
+                position="end",
+                text="",
+                clipboard_id=cut["clipboard_id"],
+            )
+        )
+
+        self.assertEqual(result["status"], "pasted")
+        self.assertEqual(
+            self.state.current.description,
+            "First line\nThird lineSecond line\n",
+        )
+
+    def test_paste_empty_clipboard_id_is_unset(self):
+        result = self._runner().paste(
+            PasteParams(
+                rationale="test",
+                position="end",
+                text="\nFourth line",
+                clipboard_id="",
+            )
+        )
+
+        self.assertEqual(result["status"], "pasted")
+        self.assertEqual(
+            self.state.current.description,
+            "First line\nSecond line\nThird line\nFourth line",
+        )
+
     def test_paste_rejects_invalid_text_sources(self):
         runner = self._runner()
 
         missing = runner.paste(PasteParams(rationale="test", position="end"))
+        empty_strings = runner.paste(
+            PasteParams(
+                rationale="test",
+                position="end",
+                text="",
+                clipboard_id="",
+            )
+        )
         both = runner.paste(
             PasteParams(
                 rationale="test",
@@ -1396,6 +1508,8 @@ class ContentEditorRunnerTests(TestCase):
 
         self.assertEqual(missing["status"], "error")
         self.assertIn("exactly one", missing["error"])
+        self.assertEqual(empty_strings["status"], "error")
+        self.assertIn("exactly one", empty_strings["error"])
         self.assertEqual(both["status"], "error")
         self.assertIn("exactly one", both["error"])
 

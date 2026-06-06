@@ -12,6 +12,13 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
+from contest.models import (
+    Competition,
+    CompetitionQuestion,
+    CompetitionVote,
+    GameList,
+    GameListEntry,
+)
 from games.models import (
     URL,
     Game,
@@ -395,6 +402,153 @@ class HistoryListViewTest(TestCase):
         )
 
 
+class HistoryMergeViewTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(
+            username="admin", email="admin@example.com", is_superuser=True
+        )
+        self.client.force_login(self.user)
+        self.now = timezone.now()
+
+    def _history(self, title):
+        game = Game.objects.create(title=title, creation_time=self.now)
+        return GameHistory.objects.create(game=game, creation_time=self.now)
+
+    def test_history_page_shows_merge_form(self):
+        history = self._history("Target")
+
+        response = self.client.get(f"/curation/{history.pk}/")
+
+        self.assertContains(response, "Объединить с другой игрой")
+        self.assertContains(response, 'name="source_game_id"')
+        self.assertContains(response, 'name="remap_contests"')
+
+    def test_history_page_shows_controls_in_sidebar(self):
+        history = self._history("Target")
+        EditPipeline.objects.update_or_create(
+            name="Импорт", defaults={"passes": []}
+        )
+
+        response = self.client.get(f"/curation/{history.pk}/")
+        content = response.content.decode()
+
+        self.assertContains(response, f"Информация ({history.pk})")
+        self.assertContains(
+            response,
+            '<div class="game--info-row"><div class="game--info-row-label">'
+            'Игра</div><div class="game--info-row-value">'
+            f'<a href="/game/{history.game.pk}/">Target</a></div></div>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<div class="game--info-row"><div class="game--info-row-label">'
+            'GameId</div><div class="game--info-row-value">'
+            f"{history.game.pk}</div></div>",
+            html=True,
+        )
+        self.assertNotContains(
+            response,
+            f'<div class="card--header"><a href="/game/{history.game.pk}/">'
+            "Target</a></div>",
+            html=True,
+        )
+        for earlier, later in [
+            (
+                '<div class="card--header">ОГОРОД</div>',
+                f"Информация ({history.pk})",
+            ),
+            (f"Информация ({history.pk})", "Автоматическая обработка"),
+            ("Автоматическая обработка", "Объединить с другой игрой"),
+        ]:
+            self.assertLess(content.index(earlier), content.index(later))
+
+    def test_merge_blocks_contest_references_without_checkbox(self):
+        target = self._history("Target")
+        source = self._history("Source")
+        gamelist = GameList.objects.create(title="Contest games")
+        GameListEntry.objects.create(gamelist=gamelist, game=source.game)
+
+        response = self.client.post(
+            f"/curation/{target.pk}/merge/",
+            {"source_game_id": source.game_id},
+        )
+
+        self.assertRedirects(response, f"/curation/{target.pk}/")
+        self.assertTrue(Game.objects.filter(pk=source.game_id).exists())
+        self.assertEqual(GameListEntry.objects.get().game, source.game)
+
+    def test_merge_with_checkbox_remaps_contests_and_abandons_source_history(
+        self,
+    ):
+        target = self._history("Target")
+        source = self._history("Source")
+        source.game.description = "Source description"
+        source.game.save(update_fields=["description"])
+        GameSource.objects.create(
+            history=source,
+            type=GameSource.SourceType.IFWIKI,
+            url="https://example.com/source",
+        )
+        gamelist = GameList.objects.create(title="Contest games")
+        entry = GameListEntry.objects.create(
+            gamelist=gamelist, game=source.game
+        )
+        competition = Competition.objects.create(
+            title="Contest",
+            slug="contest",
+            end_date=self.now.date(),
+            published=True,
+        )
+        vote = CompetitionVote.objects.create(
+            competition=competition,
+            user=self.user,
+            when=self.now,
+            game=source.game,
+            field="rating",
+        )
+        question = CompetitionQuestion.objects.create(
+            game=source.game,
+            question_id="q1",
+            text="Question?",
+        )
+        source_game_id = source.game_id
+
+        response = self.client.post(
+            f"/curation/{target.pk}/merge/",
+            {"source_game_id": source_game_id, "remap_contests": "on"},
+        )
+
+        self.assertRedirects(response, f"/curation/{target.pk}/")
+        self.assertFalse(Game.objects.filter(pk=source_game_id).exists())
+        target.refresh_from_db()
+        source.refresh_from_db()
+        self.assertEqual(source.state, GameHistory.State.ABANDONED)
+        self.assertIsNone(source.game_id)
+        self.assertEqual(
+            list(target.gamesource_set.values_list("url", flat=True)),
+            ["https://example.com/source"],
+        )
+        for obj in [entry, vote, question]:
+            obj.refresh_from_db()
+            self.assertEqual(obj.game_id, target.game_id)
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=target,
+                kind=GameHistoryAuditLog.AuditKind.GAME_MERGED,
+                old_id=source_game_id,
+                new_id=target.game_id,
+            ).exists()
+        )
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=source,
+                field=GameHistoryAuditLog.AuditField.STATE,
+                new_text=GameHistory.State.ABANDONED,
+            ).exists()
+        )
+
+
 class LlmTrajectoryViewTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(
@@ -763,6 +917,26 @@ class EditDiffViewTest(TestCase):
                 field=GameHistoryAuditLog.AuditField.AUTO_UPDATES,
                 old_text=GameHistory.AutoUpdate.PROPOSE,
                 new_text=GameHistory.AutoUpdate.ACCEPT,
+            ).exists()
+        )
+
+    def test_accept_clears_note_with_audit(self):
+        edit = self._edit()
+        history = edit.history
+        history.note = "Needs manual review"
+        history.save(update_fields=["note"])
+
+        self.client.post(f"/curation/edits/{edit.pk}/", {"action": "accept"})
+
+        history.refresh_from_db()
+        self.assertIsNone(history.note)
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=history,
+                actor=self.user,
+                field=GameHistoryAuditLog.AuditField.NOTE,
+                old_text="Needs manual review",
+                new_text=None,
             ).exists()
         )
 
@@ -1532,7 +1706,7 @@ class SourceViewsTest(TestCase):
 
         self.assertRedirects(response, f"/curation/{history.pk}/")
         delay.assert_called_once_with(
-            history_id=history.pk, pipeline_id=pipeline.pk
+            history_id=history.pk, pipeline_id=pipeline.pk, force=True
         )
 
     def test_history_source_add_records_audit(self):

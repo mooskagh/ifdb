@@ -197,6 +197,7 @@ class GameEditCurationViewTests(TestCase):
         response = self.client.get(reverse("show_game", args=[game.id]))
 
         self.assertContains(response, "Огород")
+        self.assertNotContains(response, "Объединить")
         self.assertContains(
             response, reverse("curation_history_detail", args=[history.pk])
         )

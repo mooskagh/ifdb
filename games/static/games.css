@@ -527,6 +527,31 @@ a.card--subheader:hover {
     flex-direction: column;
 }
 
+.game--content-sidebar .game--info-row {
+    gap: 8px;
+}
+
+.game--content-sidebar .game--info-row-label {
+    flex: 0 0 auto;
+}
+
+.game--content-sidebar .game--info-row-value {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.game--content-sidebar .game--info-row-value select,
+.game--content-sidebar .curation-filter input,
+.game--content-sidebar .curation-filter select {
+    max-width: 100%;
+    min-width: 0;
+}
+
+.game--content-sidebar .game--info-row-value select,
+.game--content-sidebar .curation-filter select {
+    width: 100%;
+}
+
 a {
     color: var(--link-color);
     text-decoration: none;
@@ -2700,6 +2725,11 @@ h6 {
 .curation-table tbody tr.curation-history-state--processing:nth-child(even) {
     background: #e9f8e9;
 }
+.curation-table tbody tr.curation-history-state--abandoned,
+.curation-table tbody tr.curation-history-state--abandoned:nth-child(even) {
+    background: #eee;
+    color: #666;
+}
 
 .curation-table .num {
     text-align: right;
@@ -3004,6 +3034,12 @@ h6 {
 .curation-source-body {
     flex: 1 1 auto;
     min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+.curation-source-body a,
+.curation-event + a {
+    overflow-wrap: anywhere;
     word-break: break-word;
 }
 .curation-source-add-row {

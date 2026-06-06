@@ -24,6 +24,7 @@ from .models import (
     EditPipeline,
     GameEdit,
     GameHistory,
+    GameHistoryAuditLog,
     GameSource,
     GameSourceFetch,
     LLMModel,
@@ -147,12 +148,14 @@ class RunEditTests(TestCase):
             creation_time=now(),
         )
 
-    def _run_with(self, passes, history, specs=None):
+    def _run_with(self, passes, history, specs=None, **kwargs):
         registry = {p.name: p for p in passes}
         specs = specs if specs is not None else [p.name for p in passes]
         pipeline = EditPipeline.objects.create(name="Test", passes=specs)
         with mock.patch.object(edit, "PASS_REGISTRY", registry):
-            return run_edit(history_id=history.pk, pipeline_id=pipeline.pk)
+            return run_edit(
+                history_id=history.pk, pipeline_id=pipeline.pk, **kwargs
+            )
 
     def _has_os_win(self, game):
         return game.tags.filter(symbolic_id="os_win").exists()
@@ -254,6 +257,18 @@ class RunEditTests(TestCase):
         )
         self.assertFalse(self._has_os_win(history.game))
 
+    def test_note_change_records_audit(self):
+        history = self._history()
+
+        self._run_with([_Note(), _TagAndApprove(Approval.REJECTED)], history)
+
+        audit = GameHistoryAuditLog.objects.get(
+            history=history, field=GameHistoryAuditLog.AuditField.NOTE
+        )
+        self.assertEqual(audit.actor.username, settings.MAINTENANCE_USER)
+        self.assertIsNone(audit.old_text)
+        self.assertEqual(audit.new_text, "Needs review")
+
     def test_rejected_with_needs_attention_sets_attention(self):
         history = self._history()
 
@@ -320,6 +335,78 @@ class RunEditTests(TestCase):
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.PROCESSING)
         self.assertEqual(history.processing_task_id, "running-task")
+
+    def test_force_processes_settled_history(self):
+        history = self._history()
+        history.state = GameHistory.State.SETTLED
+        history.save(update_fields=["state"])
+
+        stats = self._run_with(
+            [_TagAndApprove(Approval.APPLIED)], history, force=True
+        )
+
+        self.assertEqual(stats.applied, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertTrue(self._has_os_win(history.game))
+
+    def test_force_processes_needs_attention_history(self):
+        history = self._history()
+        history.state = GameHistory.State.NEEDS_ATTENTION
+        history.save(update_fields=["state"])
+
+        stats = self._run_with(
+            [_TagAndApprove(Approval.APPLIED)], history, force=True
+        )
+
+        self.assertEqual(stats.applied, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertTrue(self._has_os_win(history.game))
+
+    def test_force_does_not_process_abandoned_history(self):
+        history = self._history()
+        history.state = GameHistory.State.ABANDONED
+        history.save(update_fields=["state"])
+
+        stats = self._run_with(
+            [_TagAndApprove(Approval.APPLIED)], history, force=True
+        )
+
+        self.assertEqual(stats.processed, 0)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.ABANDONED)
+        self.assertFalse(self._has_os_win(history.game))
+
+    def test_force_does_not_claim_fresh_processing_history(self):
+        history = self._history()
+        history.state = GameHistory.State.PROCESSING
+        history.processing_started_at = now()
+        history.processing_task_id = "running-task"
+        history.save()
+
+        stats = self._run_with(
+            [_TagAndApprove(Approval.APPLIED)], history, force=True
+        )
+
+        self.assertEqual(stats.processed, 0)
+        self.assertFalse(GameEdit.objects.filter(history=history).exists())
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.PROCESSING)
+        self.assertEqual(history.processing_task_id, "running-task")
+
+    def test_failed_forced_history_restores_original_state(self):
+        history = self._history()
+        history.state = GameHistory.State.NEEDS_ATTENTION
+        history.save(update_fields=["state"])
+
+        stats = self._run_with([_Fail()], history, force=True)
+
+        self.assertEqual(stats.errors, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertIsNone(history.processing_started_at)
+        self.assertIsNone(history.processing_task_id)
 
     def test_stale_processing_history_is_reclaimed(self):
         history = self._history()
@@ -539,3 +626,16 @@ class ManualEditTests(TestCase):
         self.assertEqual(list(edit_row.used_sources.all()), [fetch])
         self.assertIn("New Title", edit_row.canonical_text)
         self.assertIn("manual source", edit_row.canonical_text)
+
+    def test_propose_records_note_audit(self):
+        game = Game.objects.create(title="Old Title", creation_time=now())
+        history, _ = self._history_with_source(game)
+
+        store_manual_edit(game, self._payload(), None, apply=False)
+
+        audit = GameHistoryAuditLog.objects.get(
+            history=history, field=GameHistoryAuditLog.AuditField.NOTE
+        )
+        self.assertIsNone(audit.actor)
+        self.assertIsNone(audit.old_text)
+        self.assertEqual(audit.new_text, "Пользователь предложил правку")
