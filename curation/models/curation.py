@@ -95,6 +95,7 @@ class GameSource(models.Model):
     missing_since = models.DateTimeField(
         _("Missing since"), null=True, blank=True
     )
+    keep_orphan = models.BooleanField(_("Keep orphan"), default=False)
 
 
 class SourceDiscoveryStatus(models.Model):

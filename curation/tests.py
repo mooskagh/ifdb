@@ -1817,6 +1817,26 @@ class SourceViewsTest(TestCase):
         )
         self.assertEqual(canonical_response.content.decode(), "canonical text")
 
+    def test_source_detail_toggles_keep_orphan(self):
+        source = GameSource.objects.create(
+            url="https://example.com/source",
+            type=GameSource.SourceType.IFWIKI,
+        )
+
+        detail_response = self.client.get(f"/curation/sources/{source.pk}/")
+        self.assertContains(detail_response, "оставить сиротой")
+
+        response = self.client.post(
+            f"/curation/sources/{source.pk}/", {"keep_orphan": "on"}
+        )
+        self.assertRedirects(response, f"/curation/sources/{source.pk}/")
+        source.refresh_from_db()
+        self.assertTrue(source.keep_orphan)
+
+        self.client.post(f"/curation/sources/{source.pk}/", {})
+        source.refresh_from_db()
+        self.assertFalse(source.keep_orphan)
+
     def test_source_list_search_filter_and_pagination(self):
         ts = timezone.now()
         wanted_game = Game.objects.create(
