@@ -179,6 +179,29 @@ class RunEditTests(TestCase):
         self.assertEqual(edit_row.approver.username, settings.MAINTENANCE_USER)
         self.assertTrue(self._has_os_win(history.game))
 
+    @mock.patch("curation.edit.PostNewGameToDiscord")
+    def test_applied_existing_game_does_not_post_to_discord(self, post):
+        history = self._history()
+
+        self._run_with([_TagAndApprove(Approval.APPLIED)], history)
+
+        post.assert_not_called()
+
+    @mock.patch("curation.edit.PostNewGameToDiscord")
+    def test_applied_orphan_posts_new_game_to_discord(self, post):
+        history = GameHistory.objects.create(
+            game=None,
+            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
+            creation_time=now(),
+        )
+
+        stats = self._run_with([_TagAndApprove(Approval.APPLIED)], history)
+
+        self.assertEqual(stats.applied, 1)
+        history.refresh_from_db()
+        self.assertIsNotNone(history.game)
+        post.assert_called_once_with(history.game_id)
+
     def test_proposed_needs_attention_game_untouched(self):
         history = self._history()
 
