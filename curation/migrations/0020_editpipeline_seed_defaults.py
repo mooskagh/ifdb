@@ -2,38 +2,59 @@ from decimal import Decimal
 
 from django.db import migrations, models
 
-DEDUPLICATE_PROMPT = "\n".join([
-    "Your task is to produce one final description by removing duplicate or "
-    "near-duplicate imported copies.",
-    "",
-    'Descriptions may be separated by "---". If two sections contain the '
-    "same information, keep only one copy. Do not keep repeated duplicate "
-    "sections.",
-    "",
-    "Do NOT change formatting inside the kept text, do NOT fix spelling "
-    "mistakes, and do NOT delete unique content. Only remove duplicated "
-    "content.",
-    "",
-    "You can do that in multiple steps. After each successful edit tool call, "
-    "inspect the returned result, which is a snippet around the edit "
-    "location.",
-    "",
-    "Once you are happy with the result, call finish with resolution "
-    '"commit".',
-    "If the initial input already contains a single non-duplicated "
-    'description, call finish with resolution "commit" without editing.',
-    "",
-    'If you feel you messed up, call finish with resolution "abort". If '
-    'you are not sure, use resolution "request_human_review".',
-    "",
-    "If you are lost at what's expected, or have a suggestion for better tool "
-    'API, use "complain" function.',
-    "",
-    "<text>",
-    "{{ current_content_text }}",
-    "</text>",
-])
+DEDUPLICATE_PROMPT = """\
+Your task is to produce one final description by removing duplicate or \
+near-duplicate imported copies.
 
+Descriptions may be separated by "---". If two sections contain the same \
+information, keep only one copy. Do not keep repeated duplicate sections.
+
+Do NOT change formatting inside the kept text, do NOT fix spelling mistakes, \
+and do NOT delete unique content. Only remove duplicated content.
+
+You can do that in multiple steps. After each successful edit tool call, \
+inspect the returned result, which is a snippet around the edit location.
+
+Deduplicate whole imported copies or substantial repeated blocks only.
+Do not remove translated dialogue, quotes, examples, or repeated phrases \
+inside a single coherent description. If a duplicate section has unique tail \
+lines, preserve those unique lines.
+
+Once you are happy with the result, call finish with resolution "commit".
+If the initial input already contains no large repeated blocks, call finish \
+with resolution "commit" without editing.
+
+If you feel you messed up, call finish with resolution "abort". If you are \
+not sure, use resolution "request_human_review".
+
+If you are lost at what's expected, or have a suggestion for better tool API, \
+use "complain" function.
+
+<text>
+{{ current_content_text }}
+</text>
+"""
+
+STATUS_REVIEW_PROMPT = """\
+Your task is to confirm that this edit does not delete any useful \
+information. This is an edit of the description of an interactive fiction \
+game in online database.
+
+Removing formatting, non-description information like improperly cleaned up \
+tags, is fine. Removing empty document sections is fine.
+
+<original>
+{{ served_content_text }}
+</original>
+
+<edited>
+{{ current_content_text }}
+</edited>
+
+<diff>
+{{ content_text_diff }}
+</diff>
+"""
 
 IMPORT_PIPELINE_PASSES = [
     {"name": "merge_sources"},
@@ -41,6 +62,7 @@ IMPORT_PIPELINE_PASSES = [
     {"name": "cleanup_text"},
     {"name": "dedup_personality_aliases"},
     {"name": "llm_workflow", "workflow": "deduplicate"},
+    {"name": "llm_workflow", "workflow": "automod"},
 ]
 
 
@@ -64,6 +86,15 @@ def seed_defaults(apps, schema_editor):
         defaults={
             "runner": "content_editor",
             "prompt_template": DEDUPLICATE_PROMPT,
+            "model": model,
+            "runner_params": {},
+        },
+    )
+    LlmWorkflow.objects.update_or_create(
+        name="automod",
+        defaults={
+            "runner": "status_review",
+            "prompt_template": STATUS_REVIEW_PROMPT,
             "model": model,
             "runner_params": {},
         },
