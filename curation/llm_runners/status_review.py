@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import Annotated, Literal
 
 from curation.edit import Approval
-from curation.gameinfo import GameInfo
 from curation.llm import llm_tool, register_llm_runner
 
 from .base import GameEditStateLlmRunner
@@ -25,11 +24,11 @@ class StatusReviewRunner(GameEditStateLlmRunner):
     def run(self):
         if self.state.approval is not Approval.APPLIED:
             return None
-        if self.state.served == GameInfo():
+        served_text = self.state.served.description or ""
+        if not served_text.strip():
             return None
-        if (self.state.current.description or "").rstrip("\n") == (
-            self.state.served.description or ""
-        ).rstrip("\n"):
+        current_text = self.state.current.description or ""
+        if current_text.strip() == served_text.strip():
             return None
         trajectory = self.run_agent_loop(self.context(), require_tool=True)
         self._mark_attention_if_incomplete(trajectory)

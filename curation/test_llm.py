@@ -589,6 +589,7 @@ class LlmWorkflowRunnerTests(TestCase):
         self.workflow.runner_params = {"max_error_tool_calls": 2}
         self.workflow.save(update_fields=["runner", "runner_params"])
         self.state.current.description = "Body"
+        self.state.served.description = "Previous body"
         responses = [
             {
                 "choices": [
@@ -933,6 +934,17 @@ class StatusReviewRunnerTests(TestCase):
     def test_run_skips_when_served_is_empty(self):
         self.state.approval = Approval.APPLIED
         self.state.served = GameInfo()
+
+        with patch.object(openrouter, "chat_completion") as chat:
+            trajectory = self._runner().run()
+
+        self.assertIsNone(trajectory)
+        chat.assert_not_called()
+        self.assertEqual(LlmTrajectory.objects.count(), 0)
+
+    def test_run_skips_when_served_description_is_blank(self):
+        self.state.approval = Approval.APPLIED
+        self.state.served.description = " \n\t "
 
         with patch.object(openrouter, "chat_completion") as chat:
             trajectory = self._runner().run()
@@ -1451,6 +1463,74 @@ class ContentEditorRunnerTests(TestCase):
             ["Content editor skipped empty description body."],
         )
         self.assertEqual(LlmTrajectory.objects.count(), 0)
+
+    def test_run_skips_fresh_single_source_import(self):
+        self.state.served.description = None
+
+        with patch.object(openrouter, "chat_completion") as chat:
+            trajectory = self._runner().run()
+
+        chat.assert_not_called()
+        self.assertIsNone(trajectory)
+        self.assertEqual(
+            self.state.notes,
+            [
+                "Fresh import from a single source, unlikely to have "
+                "duplicates; skipping content editor"
+            ],
+        )
+        self.assertEqual(LlmTrajectory.objects.count(), 0)
+
+    def test_run_keeps_fresh_multi_source_import_review(self):
+        self.state.served.description = None
+        self.state.sources = [
+            SourceFetchInfo(
+                url=None,
+                type="IFWIKI",
+                raw_content=None,
+                canonical_text=None,
+                previous_raw_content=None,
+                previous_canonical_text=None,
+                status=s,
+                fetch=None,
+            )
+            for s in (SourceStatus.NEW, SourceStatus.NEW)
+        ]
+        responses = [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "finish",
+                                        "arguments": (
+                                            '{"summary":"No changes",'
+                                            '"resolution":"commit"}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {},
+            }
+        ]
+
+        with patch.object(
+            openrouter, "chat_completion", side_effect=responses
+        ) as chat:
+            trajectory = self._runner().run()
+
+        self.assertIsNotNone(trajectory)
+        self.assertEqual(chat.call_count, 1)
+        self.assertEqual(LlmTrajectory.objects.count(), 1)
 
     def test_run_marks_attention_after_repeated_missing_tool_calls(self):
         self.workflow.runner_params = {"max_error_tool_calls": 2}
