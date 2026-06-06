@@ -69,10 +69,13 @@ def fetch_sources(limit=5, source_id=None):
 
 
 @shared_task(bind=True)
-def edit_sources(self, limit=5, history_id=None, pipeline_id=None):
+def edit_sources(
+    self, limit=5, history_id=None, pipeline_id=None, force=False
+):
     return run_edit(
         limit=limit,
         history_id=history_id,
         pipeline_id=pipeline_id,
         task_id=self.request.id,
+        force=force,
     ).__dict__

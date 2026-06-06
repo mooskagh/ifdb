@@ -398,12 +398,18 @@ def _claim_history(
     history_id: int | None,
     task_id: str | None,
     attempted_ids: set[int],
-) -> GameHistory | None:
+    force: bool,
+) -> tuple[GameHistory, str] | None:
     stale_before = now() - EDIT_LEASE_TIMEOUT
-    eligible = Q(state=GameHistory.State.SCHEDULED_FOR_UPDATE) | Q(
+    stale_processing = Q(
         state=GameHistory.State.PROCESSING,
         processing_started_at__lt=stale_before,
     )
+    eligible = (
+        Q(state=GameHistory.State.SCHEDULED_FOR_UPDATE) | stale_processing
+    )
+    if force and history_id is not None:
+        eligible |= ~Q(state=GameHistory.State.PROCESSING)
     histories = (
         GameHistory.objects
         .filter(eligible)
@@ -425,6 +431,11 @@ def _claim_history(
         history = histories.select_for_update(skip_locked=True).first()
         if history is None:
             return None
+        restore_state = (
+            history.state
+            if force and history.state != GameHistory.State.PROCESSING
+            else GameHistory.State.SCHEDULED_FOR_UPDATE
+        )
         ts = now()
         history.state = GameHistory.State.PROCESSING
         history.processing_started_at = ts
@@ -436,14 +447,14 @@ def _claim_history(
                 "processing_task_id",
             ]
         )
-    return history
+    return history, restore_state
 
 
-def _release_failed_claim(history: GameHistory) -> None:
+def _release_failed_claim(history: GameHistory, restore_state: str) -> None:
     GameHistory.objects.filter(
         pk=history.pk, state=GameHistory.State.PROCESSING
     ).update(
-        state=GameHistory.State.SCHEDULED_FOR_UPDATE,
+        state=restore_state,
         processing_started_at=None,
         processing_task_id=None,
     )
@@ -454,6 +465,7 @@ def run_edit(
     limit: int | None = None,
     pipeline_id: int | None = None,
     task_id: str | None = None,
+    force: bool = False,
     on_history_done: HistoryDone | None = None,
 ) -> EditStats:
     pipeline = _resolve_pipeline(pipeline_id)
@@ -462,19 +474,21 @@ def run_edit(
     totals = _EditTotals()
     attempted_ids: set[int] = set()
     while limit is None or len(attempted_ids) < limit:
-        history = _claim_history(
+        claim = _claim_history(
             history_id=history_id,
             task_id=task_id,
             attempted_ids=attempted_ids,
+            force=force,
         )
-        if history is None:
+        if claim is None:
             break
+        history, restore_state = claim
         attempted_ids.add(history.pk)
         try:
             outcome = _process_history(history, pipeline)
         except Exception:
             logger.exception("Edit failed for history #%s", history.pk)
-            _release_failed_claim(history)
+            _release_failed_claim(history, restore_state)
             totals.errors += 1
             if on_history_done is not None:
                 on_history_done(history, "error")

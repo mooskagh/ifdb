@@ -1532,7 +1532,7 @@ class SourceViewsTest(TestCase):
 
         self.assertRedirects(response, f"/curation/{history.pk}/")
         delay.assert_called_once_with(
-            history_id=history.pk, pipeline_id=pipeline.pk
+            history_id=history.pk, pipeline_id=pipeline.pk, force=True
         )
 
     def test_history_source_add_records_audit(self):

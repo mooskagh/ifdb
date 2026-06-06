@@ -968,7 +968,9 @@ def history_run_edit(request, history_id):
         return HttpResponseBadRequest("POST required.")
     history = get_object_or_404(GameHistory, pk=history_id)
     pipeline = _pipeline_from_post(request.POST)
-    edit_sources.delay(history_id=history.pk, pipeline_id=pipeline.pk)
+    edit_sources.delay(
+        history_id=history.pk, pipeline_id=pipeline.pk, force=True
+    )
     messages.success(request, "Задание на обработку истории запущено.")
     return redirect("curation_history_detail", history_id=history.pk)
 
