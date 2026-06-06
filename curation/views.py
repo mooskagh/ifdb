@@ -966,6 +966,26 @@ def history_detail(request, history_id):
     )
 
 
+def history_comment_add(request, history_id):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required.")
+    history = get_object_or_404(GameHistory, pk=history_id)
+    text = request.POST.get("text", "").strip()
+    if not text:
+        messages.error(request, "Комментарий не может быть пустым.")
+        return redirect("curation_history_detail", history_id=history.pk)
+
+    GameHistoryComment.objects.create(
+        history=history,
+        user=request.user,
+        type=GameHistoryComment.CommentType.MODS_COMMENT,
+        text=text,
+        creation_time=now(),
+    )
+    messages.success(request, "Комментарий добавлен.")
+    return redirect("curation_history_detail", history_id=history.pk)
+
+
 def history_run_edit(request, history_id):
     if request.method != "POST":
         return HttpResponseBadRequest("POST required.")

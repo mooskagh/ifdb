@@ -133,6 +133,17 @@
     <div class="card--body">В истории пока пусто.</div>
 </div>
 {% endfor %}
+
+<div class="card card--blue">
+    <div class="card--header">Добавить комментарий</div>
+    <div class="card--body">
+        <form method="post" action="{% url 'curation_history_comment_add' history.pk %}" class="comment-input">
+            {% csrf_token %}
+            <textarea name="text" placeholder="Комментарий модератора" required></textarea>
+            <input type="submit" value="Отправить">
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block curation_sidebar %}

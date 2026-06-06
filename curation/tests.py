@@ -402,6 +402,64 @@ class HistoryListViewTest(TestCase):
         )
 
 
+class HistoryDetailViewTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(
+            username="admin", email="admin@example.com", is_superuser=True
+        )
+        self.client.force_login(self.user)
+        self.now = timezone.now()
+        self.game = Game.objects.create(
+            title="Commented Game", creation_time=self.now, added_by=self.user
+        )
+        self.history = GameHistory.objects.create(
+            game=self.game, creation_time=self.now
+        )
+
+    def test_history_page_shows_comments_and_comment_form(self):
+        GameHistoryComment.objects.create(
+            history=self.history,
+            user=self.user,
+            type=GameHistoryComment.CommentType.MODS_COMMENT,
+            text="Existing moderator note.",
+            creation_time=self.now,
+        )
+
+        response = self.client.get(f"/curation/{self.history.pk}/")
+
+        self.assertContains(response, "Moderator comment")
+        self.assertContains(response, "Existing moderator note.")
+        self.assertContains(response, "Добавить комментарий")
+        self.assertContains(
+            response,
+            f'action="/curation/{self.history.pk}/comments/add/"',
+        )
+        self.assertContains(response, 'name="text"')
+
+    def test_post_comment_creates_mods_comment(self):
+        response = self.client.post(
+            f"/curation/{self.history.pk}/comments/add/",
+            {"text": "Please verify the source."},
+        )
+
+        self.assertRedirects(response, f"/curation/{self.history.pk}/")
+        comment = GameHistoryComment.objects.get(history=self.history)
+        self.assertEqual(comment.user, self.user)
+        self.assertEqual(
+            comment.type, GameHistoryComment.CommentType.MODS_COMMENT
+        )
+        self.assertEqual(comment.text, "Please verify the source.")
+
+    def test_blank_comment_is_ignored(self):
+        response = self.client.post(
+            f"/curation/{self.history.pk}/comments/add/",
+            {"text": "  "},
+        )
+
+        self.assertRedirects(response, f"/curation/{self.history.pk}/")
+        self.assertFalse(GameHistoryComment.objects.exists())
+
+
 class HistoryMergeViewTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(
