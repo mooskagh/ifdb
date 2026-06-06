@@ -178,15 +178,15 @@ class ContentEditorRunner(GameEditStateLlmRunner):
     def run(self):
         served_text = self.state.served.description or ""
         if not served_text.strip() and len(self.state.sources) <= 1:
-            self.state.add_note(
-                "Fresh import from a single source, unlikely to have "
-                "duplicates; skipping content editor"
-            )
+            # self.state.add_note(
+            #     "Fresh import from a single source, unlikely to have "
+            #     "duplicates; skipping content editor"
+            # )
             return None
         if not self._current_text().strip():
-            self.state.add_note(
-                "Content editor skipped empty description body."
-            )
+            # self.state.add_note(
+            #     "Content editor skipped empty description body."
+            # )
             return None
         trajectory = self.run_agent_loop(self.context(), require_tool=True)
         self._mark_attention_if_incomplete(trajectory)

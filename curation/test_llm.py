@@ -1484,10 +1484,6 @@ class ContentEditorRunnerTests(TestCase):
         self.assertIsNone(trajectory)
         self.assertEqual(self.state.approval, Approval.APPLIED)
         self.assertIs(self.state.needs_attention, False)
-        self.assertEqual(
-            self.state.notes,
-            ["Content editor skipped empty description body."],
-        )
         self.assertEqual(LlmTrajectory.objects.count(), 0)
 
     def test_run_skips_fresh_single_source_import(self):
@@ -1498,13 +1494,6 @@ class ContentEditorRunnerTests(TestCase):
 
         chat.assert_not_called()
         self.assertIsNone(trajectory)
-        self.assertEqual(
-            self.state.notes,
-            [
-                "Fresh import from a single source, unlikely to have "
-                "duplicates; skipping content editor"
-            ],
-        )
         self.assertEqual(LlmTrajectory.objects.count(), 0)
 
     def test_run_keeps_fresh_multi_source_import_review(self):
