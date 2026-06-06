@@ -157,6 +157,7 @@ def _record_source_attached(source: GameSource, history: GameHistory) -> None:
 
 def _mark_needs_attention(history: GameHistory, reason: str) -> None:
     old_state = history.state
+    old_note = history.note
     history.state = GameHistory.State.NEEDS_ATTENTION
     if history.note:
         history.note += f"\n{reason}"
@@ -171,6 +172,9 @@ def _mark_needs_attention(history: GameHistory, reason: str) -> None:
             old_state,
             history.state,
         )
+    GameHistoryAuditLog.record_note_change(
+        history, None, old_note, history.note
+    )
 
 
 def _build_index() -> _TargetIndex:

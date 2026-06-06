@@ -766,6 +766,26 @@ class EditDiffViewTest(TestCase):
             ).exists()
         )
 
+    def test_accept_clears_note_with_audit(self):
+        edit = self._edit()
+        history = edit.history
+        history.note = "Needs manual review"
+        history.save(update_fields=["note"])
+
+        self.client.post(f"/curation/edits/{edit.pk}/", {"action": "accept"})
+
+        history.refresh_from_db()
+        self.assertIsNone(history.note)
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=history,
+                actor=self.user,
+                field=GameHistoryAuditLog.AuditField.NOTE,
+                old_text="Needs manual review",
+                new_text=None,
+            ).exists()
+        )
+
     def test_auto_accept_hidden_for_reject_policy(self):
         edit = self._edit(auto_updates=GameHistory.AutoUpdate.REJECT)
 

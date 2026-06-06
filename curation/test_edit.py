@@ -24,6 +24,7 @@ from .models import (
     EditPipeline,
     GameEdit,
     GameHistory,
+    GameHistoryAuditLog,
     GameSource,
     GameSourceFetch,
     LLMModel,
@@ -255,6 +256,18 @@ class RunEditTests(TestCase):
             GameEdit.EditStatus.REJECTED,
         )
         self.assertFalse(self._has_os_win(history.game))
+
+    def test_note_change_records_audit(self):
+        history = self._history()
+
+        self._run_with([_Note(), _TagAndApprove(Approval.REJECTED)], history)
+
+        audit = GameHistoryAuditLog.objects.get(
+            history=history, field=GameHistoryAuditLog.AuditField.NOTE
+        )
+        self.assertEqual(audit.actor.username, settings.MAINTENANCE_USER)
+        self.assertIsNone(audit.old_text)
+        self.assertEqual(audit.new_text, "Needs review")
 
     def test_rejected_with_needs_attention_sets_attention(self):
         history = self._history()
@@ -599,3 +612,16 @@ class ManualEditTests(TestCase):
         self.assertEqual(list(edit_row.used_sources.all()), [fetch])
         self.assertIn("New Title", edit_row.canonical_text)
         self.assertIn("manual source", edit_row.canonical_text)
+
+    def test_propose_records_note_audit(self):
+        game = Game.objects.create(title="Old Title", creation_time=now())
+        history, _ = self._history_with_source(game)
+
+        store_manual_edit(game, self._payload(), None, apply=False)
+
+        audit = GameHistoryAuditLog.objects.get(
+            history=history, field=GameHistoryAuditLog.AuditField.NOTE
+        )
+        self.assertIsNone(audit.actor)
+        self.assertIsNone(audit.old_text)
+        self.assertEqual(audit.new_text, "Пользователь предложил правку")

@@ -37,6 +37,7 @@ from .models import (
     EditPipeline,
     GameEdit,
     GameHistory,
+    GameHistoryAuditLog,
     GameSource,
     GameSourceFetch,
     LlmTrajectory,
@@ -296,9 +297,13 @@ def _build_state(
     return state
 
 
-def _flush(history: GameHistory, state: GameEditState) -> None:
+def _flush(history: GameHistory, state: GameEditState, actor) -> None:
     """Persist pass-mutable history fields (audited) and settle ``state``."""
+    old_note = history.note
     history.note = "\n".join(state.notes) or None
+    GameHistoryAuditLog.record_note_change(
+        history, actor, old_note, history.note
+    )
     history.edit_time = now()
     history.processing_started_at = None
     history.processing_task_id = None
@@ -387,7 +392,7 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
             history.state = done_state
             outcome = "rejected"
 
-    _flush(history, state)
+    _flush(history, state, maintenance_user)
     if created_game_id is not None:
         PostNewGameToDiscord(created_game_id)
     return outcome

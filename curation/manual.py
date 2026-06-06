@@ -12,7 +12,7 @@ from games.models import (
 )
 
 from .gameinfo import Attribution, GameInfo, GameUrl, Person, Tag
-from .models import GameEdit, GameHistory
+from .models import GameEdit, GameHistory, GameHistoryAuditLog
 
 
 def editor_payload_to_gameinfo(data: dict) -> GameInfo:
@@ -64,6 +64,7 @@ def store_manual_edit(
     if previous_edit is not None:
         edit.used_sources.set(previous_edit.used_sources.all())
 
+    old_note = history.note
     if apply:
         _, after = info.save(game)
         edit.canonical_text = after
@@ -73,6 +74,9 @@ def store_manual_edit(
     else:
         history.state = GameHistory.State.NEEDS_ATTENTION
         history.note = "Пользователь предложил правку"
+    GameHistoryAuditLog.record_note_change(
+        history, user, old_note, history.note
+    )
     history.edit_time = now()
     history.save(update_fields=["state", "note", "edit_time"])
     return edit
@@ -103,6 +107,7 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameEdit:
         canonical_text=canonical,
     )
 
+    old_note = history.note
     if apply:
         game, after = info.save(None)
         game.added_by = user
@@ -116,6 +121,9 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameEdit:
     else:
         history.state = GameHistory.State.NEEDS_ATTENTION
         history.note = "Пользователь предложил новую игру"
+    GameHistoryAuditLog.record_note_change(
+        history, user, old_note, history.note
+    )
     history.edit_time = now()
     history.save(update_fields=["game", "state", "note", "edit_time"])
     return edit

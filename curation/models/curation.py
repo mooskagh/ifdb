@@ -351,6 +351,7 @@ class GameHistoryAuditLog(models.Model):
     class AuditField(models.TextChoices):
         AUTO_UPDATES = "AUTO_UPDATES", _("Auto-update policy")
         STATE = "STATE", _("State")
+        NOTE = "NOTE", _("Note")
 
     def __str__(self):
         return f"Audit #{self.pk} on history #{self.history_id}"
@@ -367,6 +368,12 @@ class GameHistoryAuditLog(models.Model):
             old_text=old,
             new_text=new,
         )
+
+    @classmethod
+    def record_note_change(cls, history, actor, old, new):
+        if old == new:
+            return None
+        return cls.record_change(history, actor, cls.AuditField.NOTE, old, new)
 
     @classmethod
     def record_source(cls, history, actor, kind, source):

@@ -1105,7 +1105,11 @@ def _accept_edit(edit, history, before, user):
         ]
     )
     history.state = GameHistory.State.SETTLED
+    old_note = history.note
     history.note = None
+    GameHistoryAuditLog.record_note_change(
+        history, user, old_note, history.note
+    )
     history.edit_time = now()
     fields = ["auto_updates", "state", "note", "edit_time"]
     if created_game:
@@ -1129,7 +1133,11 @@ def _reject_edit(edit, history, before, user):
         ]
     )
     history.state = GameHistory.State.SETTLED
+    old_note = history.note
     history.note = None
+    GameHistoryAuditLog.record_note_change(
+        history, user, old_note, history.note
+    )
     history.edit_time = now()
     history.save(update_fields=["state", "note", "edit_time"])
 
@@ -1147,7 +1155,11 @@ def history_edit(request, history_id):
                 )
                 setattr(history, field, value)
                 if field == "state" and value == GameHistory.State.SETTLED:
+                    old_note = history.note
                     history.note = None
+                    GameHistoryAuditLog.record_note_change(
+                        history, request.user, old_note, history.note
+                    )
                 changed = True
         if changed:
             history.edit_time = now()

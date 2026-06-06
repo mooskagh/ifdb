@@ -242,6 +242,17 @@ class RunReconcileTests(TestCase):
                 field=GameHistoryAuditLog.AuditField.STATE,
             ).exists()
         )
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=h2,
+                kind=GameHistoryAuditLog.AuditKind.FIELD_CHANGE,
+                field=GameHistoryAuditLog.AuditField.NOTE,
+                old_text="Старая причина",
+                new_text=(
+                    f"Старая причина\nИсточник #{source.pk} похож на эту игру"
+                ),
+            ).exists()
+        )
 
     def test_orphan_without_fetch_is_skipped(self):
         source = GameSource.objects.create(
