@@ -524,6 +524,8 @@ def source_list(request):
     q = request.GET.get("q", "").strip()
     source_type = request.GET.get("type", "")
     state = request.GET.get("state", "")
+    attached = request.GET.get("attached", "")
+    sort = request.GET.get("sort") or "last_attempt"
     latest_fetch = GameSourceFetch.objects.filter(
         source=OuterRef("pk")
     ).order_by("-last_fetch", "-pk")
@@ -548,8 +550,29 @@ def source_list(request):
         sources = sources.filter(missing_since__isnull=False)
     else:
         state = ""
+    if attached == "orphan":
+        sources = sources.filter(history__isnull=True)
+    elif attached == "attached":
+        sources = sources.filter(history__isnull=False)
+    else:
+        attached = ""
 
-    sources = sources.order_by("type", "url", "pk")
+    match sort:
+        case "last_fetch":
+            sources = sources.order_by(
+                F("latest_fetch_at").desc(nulls_last=True), "-pk"
+            )
+        case "created":
+            sources = sources.order_by(
+                F("created_at").desc(nulls_last=True), "-pk"
+            )
+        case "url":
+            sources = sources.order_by("type", "url", "pk")
+        case _:
+            sort = "last_attempt"
+            sources = sources.order_by(
+                F("last_attempt").desc(nulls_last=True), "-pk"
+            )
     page = Paginator(sources, 100).get_page(request.GET.get("page"))
 
     return render(
@@ -561,6 +584,8 @@ def source_list(request):
             "q": q,
             "source_type": source_type,
             "state": state,
+            "attached": attached,
+            "sort": sort,
             "source_type_choices": GameSource.SourceType.choices,
         },
     )

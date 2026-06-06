@@ -1,3 +1,4 @@
+from datetime import timedelta
 from html import unescape
 from io import StringIO
 from json import loads
@@ -1360,6 +1361,81 @@ class SourceViewsTest(TestCase):
 
         page_response = self.client.get("/curation/sources/")
         self.assertContains(page_response, "Страница 1 из 2")
+        self.assertContains(
+            page_response,
+            "?q=&type=&state=&attached=&sort=last_attempt&page=2",
+        )
+
+    def test_source_list_orphan_filter_and_sorting(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            title="Attached Game", creation_time=ts, added_by=self.user
+        )
+        history = GameHistory.objects.create(game=game, creation_time=ts)
+        older = GameSource.objects.create(
+            history=history,
+            url="https://example.com/older",
+            type=GameSource.SourceType.APERO,
+            created_at=ts - timedelta(days=3),
+            last_attempt=ts - timedelta(days=1),
+        )
+        orphan = GameSource.objects.create(
+            url="https://example.com/orphan",
+            type=GameSource.SourceType.IFWIKI,
+            created_at=ts - timedelta(days=2),
+            last_attempt=ts,
+        )
+        newest_fetch = GameSource.objects.create(
+            url="https://example.com/fetched",
+            type=GameSource.SourceType.QSP,
+            created_at=ts - timedelta(days=1),
+            last_attempt=ts - timedelta(days=2),
+        )
+        GameSourceFetch.objects.create(
+            source=older,
+            raw_content="raw",
+            canonical_text="canonical",
+            canonical_text_hash="old",
+            first_fetch=ts - timedelta(days=3),
+            last_fetch=ts - timedelta(days=3),
+        )
+        GameSourceFetch.objects.create(
+            source=newest_fetch,
+            raw_content="raw",
+            canonical_text="canonical",
+            canonical_text_hash="new",
+            first_fetch=ts - timedelta(hours=1),
+            last_fetch=ts - timedelta(hours=1),
+        )
+
+        response = self.client.get(
+            "/curation/sources/", {"attached": "orphan"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'href="/curation/sources/{orphan.pk}/"')
+        self.assertNotContains(
+            response, f'href="/curation/sources/{older.pk}/"'
+        )
+
+        response = self.client.get("/curation/sources/")
+        self.assertEqual(
+            [source.pk for source in response.context["sources"]],
+            [orphan.pk, older.pk, newest_fetch.pk],
+        )
+
+        response = self.client.get(
+            "/curation/sources/", {"sort": "last_fetch"}
+        )
+        self.assertEqual(
+            [source.pk for source in response.context["sources"]],
+            [newest_fetch.pk, older.pk, orphan.pk],
+        )
+
+        response = self.client.get("/curation/sources/", {"sort": "created"})
+        self.assertEqual(
+            [source.pk for source in response.context["sources"]],
+            [newest_fetch.pk, orphan.pk, older.pk],
+        )
 
     def test_history_links_sources_to_detail(self):
         ts = timezone.now()

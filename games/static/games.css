@@ -2610,12 +2610,18 @@ h6 {
     color: #555;
     gap: 2px;
 }
-.curation-filter--history {
+.curation-filter--history,
+.curation-filter--source {
     display: grid;
-    grid-template-columns: minmax(180px, 1.4fr) repeat(3, minmax(130px, 1fr)) max-content;
     gap: 8px;
     overflow-x: auto;
     width: 100%;
+}
+.curation-filter--history {
+    grid-template-columns: minmax(180px, 1.4fr) repeat(3, minmax(130px, 1fr)) max-content;
+}
+.curation-filter--source {
+    grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(115px, 1fr)) max-content;
 }
 .curation-filter-field {
     display: flex;
@@ -2631,7 +2637,8 @@ h6 {
     box-sizing: border-box;
     width: 100%;
 }
-.curation-filter--history button {
+.curation-filter--history button,
+.curation-filter--source button {
     align-self: end;
     white-space: nowrap;
 }

@@ -7,25 +7,45 @@
 <div class="card card--brown">
     <div class="card--header">Источники</div>
     <div class="card--body">
-        <form class="curation-filter" method="get">
-            <label>Поиск
-                <input type="search" name="q" value="{{ q }}" placeholder="URL или игра">
-            </label>
-            <label>Тип
-                <select name="type">
+        <form class="curation-filter curation-filter--source" method="get">
+            <div class="curation-filter-field">
+                <label for="curation-source-q">Поиск</label>
+                <input id="curation-source-q" type="search" name="q" value="{{ q }}" placeholder="URL или игра">
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-source-type">Тип</label>
+                <select id="curation-source-type" name="type">
                     <option value="">— все —</option>
                     {% for value, label in source_type_choices %}
                     <option value="{{ value }}" {% if value == source_type %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
-            </label>
-            <label>Состояние
-                <select name="state">
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-source-state">Состояние</label>
+                <select id="curation-source-state" name="state">
                     <option value="">— все —</option>
                     <option value="failed" {% if state == "failed" %}selected{% endif %}>С ошибкой</option>
                     <option value="missing" {% if state == "missing" %}selected{% endif %}>Пропавшие</option>
                 </select>
-            </label>
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-source-attached">Связь</label>
+                <select id="curation-source-attached" name="attached">
+                    <option value="">— все —</option>
+                    <option value="orphan" {% if attached == "orphan" %}selected{% endif %}>Сироты</option>
+                    <option value="attached" {% if attached == "attached" %}selected{% endif %}>Привязанные</option>
+                </select>
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-source-sort">Сортировка</label>
+                <select id="curation-source-sort" name="sort">
+                    <option value="last_attempt" {% if sort == "last_attempt" %}selected{% endif %}>По последней попытке</option>
+                    <option value="last_fetch" {% if sort == "last_fetch" %}selected{% endif %}>По успешной загрузке</option>
+                    <option value="created" {% if sort == "created" %}selected{% endif %}>По добавлению</option>
+                    <option value="url" {% if sort == "url" %}selected{% endif %}>По URL</option>
+                </select>
+            </div>
             <button type="submit">Показать</button>
         </form>
     </div>
@@ -36,7 +56,7 @@
                 <th class="curation-source-table-state">Сост.</th>
                 <th>URL</th>
                 <th>Игра</th>
-                <th class="curation-source-table-attempt">Поп.</th>
+                <th class="curation-source-table-attempt">Попытка</th>
                 <th class="curation-source-table-fetch">Загрузка</th>
             </tr>
         </thead>
@@ -65,9 +85,9 @@
     </table>
     {% if page.has_other_pages %}
     <div class="curation-pagination">
-        {% if page.has_previous %}<a href="?q={{ q|urlencode }}&type={{ source_type }}&state={{ state }}&page={{ page.previous_page_number }}">← Назад</a>{% endif %}
+        {% if page.has_previous %}<a href="?q={{ q|urlencode }}&type={{ source_type }}&state={{ state }}&attached={{ attached }}&sort={{ sort }}&page={{ page.previous_page_number }}">← Назад</a>{% endif %}
         <span>Страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
-        {% if page.has_next %}<a href="?q={{ q|urlencode }}&type={{ source_type }}&state={{ state }}&page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
+        {% if page.has_next %}<a href="?q={{ q|urlencode }}&type={{ source_type }}&state={{ state }}&attached={{ attached }}&sort={{ sort }}&page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
     </div>
     {% endif %}
 </div>
