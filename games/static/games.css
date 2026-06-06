@@ -2597,6 +2597,7 @@ h6 {
 /* ---- Curation ("ОГОРОД") ---- */
 .curation-filter {
     display: flex;
+    flex-direction: row;
     flex-wrap: wrap;
     gap: 12px;
     align-items: flex-end;
@@ -2608,6 +2609,31 @@ h6 {
     font-size: 12px;
     color: #555;
     gap: 2px;
+}
+.curation-filter--history {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.4fr) repeat(3, minmax(130px, 1fr)) max-content;
+    gap: 8px;
+    overflow-x: auto;
+    width: 100%;
+}
+.curation-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.curation-filter-field label {
+    font-size: 12px;
+    color: #555;
+}
+.curation-filter-field input,
+.curation-filter-field select {
+    box-sizing: border-box;
+    width: 100%;
+}
+.curation-filter--history button {
+    align-self: end;
+    white-space: nowrap;
 }
 
 .curation-table {
@@ -2641,6 +2667,19 @@ h6 {
 .curation-table tbody tr.warning,
 .curation-table tbody tr.warning:nth-child(even) {
     background: #fff6d8;
+}
+.curation-table tbody tr.curation-history-state--needs_attention,
+.curation-table tbody tr.curation-history-state--needs_attention:nth-child(even) {
+    background: #fdecec;
+    color: #a00;
+}
+.curation-table tbody tr.curation-history-state--scheduled_for_update,
+.curation-table tbody tr.curation-history-state--scheduled_for_update:nth-child(even) {
+    background: #fff6d8;
+}
+.curation-table tbody tr.curation-history-state--processing,
+.curation-table tbody tr.curation-history-state--processing:nth-child(even) {
+    background: #e9f8e9;
 }
 
 .curation-table .num {

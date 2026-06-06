@@ -144,6 +144,7 @@ HISTORY_AUTO_SHORT = {
 def history_list(request):
     request.perm.Ensure(PERM)
 
+    q = request.GET.get("q", "").strip()
     state = request.GET.get("state") or ""
     auto = request.GET.get("auto") or ""
     sort = request.GET.get("sort") or "relevance"
@@ -155,6 +156,8 @@ def history_list(request):
         updated=Coalesce("edit_time", "creation_time"),
         pending_edit_id=Subquery(pending_edits.values("pk")[:1]),
     )
+    if q:
+        histories = histories.filter(game__title__icontains=q)
     if state:
         histories = histories.filter(state=state)
     if auto:
@@ -172,6 +175,9 @@ def history_list(request):
             ),
         ).order_by("attention_rank", "-updated")
 
+    page = Paginator(histories, 500).get_page(request.GET.get("page"))
+    histories = page.object_list
+
     for history in histories:
         history.state_short = HISTORY_STATE_SHORT.get(
             history.state, history.state
@@ -184,7 +190,9 @@ def history_list(request):
         request,
         "curation/history_list.html",
         {
+            "page": page,
             "histories": histories,
+            "q": q,
             "state": state,
             "auto": auto,
             "sort": sort,

@@ -165,7 +165,7 @@ class HistoryListViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         for text in [
             "curation-history-table",
-            '<tr class="warning"',
+            '<tr class="curation-history-state--needs_attention"',
             'class="curation-truncate"',
             'title="Very Long Game Title That Should Be Truncated"',
             "внимание",
@@ -221,6 +221,84 @@ class HistoryListViewTest(TestCase):
             [newer_attention, older_attention, recent_progress, old_settled],
         )
         self.assertContains(response, '<option value="relevance" selected>')
+
+    def test_history_list_filters_by_name(self):
+        ts = timezone.now()
+        self._create_history(
+            "Wanted Game", ts, state=GameHistory.State.SETTLED
+        )
+        self._create_history("Other Game", ts, state=GameHistory.State.SETTLED)
+
+        response = self.client.get("/curation/", {"q": "wanted"})
+
+        self.assertContains(response, "Wanted Game")
+        self.assertContains(response, 'name="q" value="wanted"')
+        self.assertNotContains(response, "Other Game")
+
+    def test_history_list_paginates_and_preserves_filters(self):
+        ts = timezone.now()
+        games = Game.objects.bulk_create([
+            Game(
+                title=f"Paginated Game {i:03}",
+                creation_time=ts,
+                added_by=self.user,
+            )
+            for i in range(501)
+        ])
+        GameHistory.objects.bulk_create([
+            GameHistory(
+                game=game,
+                creation_time=ts,
+                edit_time=ts,
+                state=GameHistory.State.SCHEDULED_FOR_UPDATE,
+                auto_updates=GameHistory.AutoUpdate.PROPOSE,
+            )
+            for game in games
+        ])
+
+        response = self.client.get(
+            "/curation/",
+            {
+                "q": "Paginated",
+                "state": GameHistory.State.SCHEDULED_FOR_UPDATE,
+                "auto": GameHistory.AutoUpdate.PROPOSE,
+                "sort": "updated",
+            },
+        )
+
+        self.assertContains(response, "Страница 1 из 2")
+        self.assertEqual(len(response.context["histories"]), 500)
+        self.assertContains(
+            response,
+            "?q=Paginated&state=SCHEDULED_FOR_UPDATE&auto=PROPOSE&sort=updated&page=2",
+        )
+
+    def test_history_list_marks_state_rows(self):
+        ts = timezone.now()
+        self._create_history(
+            "Needs attention",
+            ts,
+            state=GameHistory.State.NEEDS_ATTENTION,
+        )
+        self._create_history(
+            "Scheduled",
+            ts,
+            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
+        )
+        self._create_history(
+            "Processing",
+            ts,
+            state=GameHistory.State.PROCESSING,
+        )
+
+        response = self.client.get("/curation/")
+
+        for css_class in [
+            "curation-history-state--needs_attention",
+            "curation-history-state--scheduled_for_update",
+            "curation-history-state--processing",
+        ]:
+            self.assertContains(response, css_class)
 
     def test_history_list_links_pending_edit(self):
         ts = timezone.now()
