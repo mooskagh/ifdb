@@ -13,6 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from logging import getLogger
 
+from django.db.models import Q
 from django.utils.timezone import now
 
 from games.importer.tools import ComputeSimilarity, GetBagOfWords, HashizeUrl
@@ -263,6 +264,7 @@ def run_reconcile(
     sources = (
         GameSource.objects
         .filter(type__in=source_types)
+        .filter(Q(history__isnull=False) | Q(keep_orphan=False))
         .select_related("history")
         .order_by("id")
     )

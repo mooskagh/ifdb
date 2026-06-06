@@ -277,6 +277,35 @@ class RunReconcileTests(TestCase):
             ).exists()
         )
 
+    def test_keep_orphan_source_is_not_attached_or_spawned(self):
+        history = self._existing(
+            "Shared Game", url="http://ifwiki.ru/SharedGame"
+        )
+        source = self._orphan(
+            "http://apero.ru/orphan-a",
+            self._canon(
+                "Shared Game", [("game_page", "http://ifwiki.ru/SharedGame")]
+            ),
+        )
+        source.keep_orphan = True
+        source.save(update_fields=["keep_orphan"])
+
+        stats = run_reconcile(source_id=source.pk)
+
+        self.assertEqual(stats, [])
+        source.refresh_from_db()
+        self.assertIsNone(source.history_id)
+        self.assertEqual(
+            GameHistory.objects.filter(game__isnull=True).count(), 0
+        )
+        self.assertFalse(
+            GameHistoryAuditLog.objects.filter(
+                history=history,
+                kind=GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
+                new_id=source.pk,
+            ).exists()
+        )
+
     def test_new_attached_fetch_marks_history_in_progress(self):
         edited_at = now()
         history = self._existing("Existing Game")
