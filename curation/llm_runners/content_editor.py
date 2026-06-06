@@ -21,7 +21,7 @@ class MatchParams:
     ]
     occurrence: Annotated[
         int | None,
-        "1-based occurrence; required only for non-unique text_start",
+        "0-based occurrence; required only for non-unique text_start",
     ] = None
     to_end: Annotated[
         bool,
@@ -39,7 +39,7 @@ class DeleteExactParams:
     ]
     occurrence: Annotated[
         int | None,
-        "1-based occurrence; required for duplicate text; optional for "
+        "0-based occurrence; required for duplicate text; optional for "
         "unique text",
     ] = None
 
@@ -54,7 +54,7 @@ class ReplaceExactParams:
     new: Annotated[str, "Exact replacement text"]
     occurrence: Annotated[
         int | None,
-        "1-based occurrence; required for duplicate old text; optional for "
+        "0-based occurrence; required for duplicate old text; optional for "
         "unique text",
     ] = None
 
@@ -112,6 +112,35 @@ class CutParams:
 
 
 @dataclass
+class DeduplicateParams:
+    rationale: Annotated[
+        str,
+        "Explain why these matching spans are duplicates before deleting any",
+    ]
+    start_text: Annotated[
+        str,
+        "Existing body text at the start of every duplicate span; included in "
+        "each span; must not be empty",
+    ]
+    end_text: Annotated[
+        str,
+        "Existing body text at the end of every duplicate span; included in "
+        "each span; must not be empty",
+    ]
+    occurrence_to_keep: Annotated[
+        int,
+        "0-based occurrence index of the matched span to keep; all other "
+        "matching spans are removed",
+    ]
+    allow_nonexact_match: Annotated[
+        bool,
+        "Set true to deduplicate spans with the same start_text/end_text even "
+        "when the text between them differs; false requires every matched "
+        "span to be identical",
+    ] = False
+
+
+@dataclass
 class PasteParams:
     rationale: Annotated[
         str,
@@ -134,7 +163,7 @@ class PasteParams:
     ] = None
     occurrence: Annotated[
         int | None,
-        "1-based occurrence; required only for non-unique anchor",
+        "0-based occurrence; required only for non-unique anchor",
     ] = None
 
 
@@ -178,15 +207,15 @@ class ContentEditorRunner(GameEditStateLlmRunner):
     def run(self):
         served_text = self.state.served.description or ""
         if not served_text.strip() and len(self.state.sources) <= 1:
-            self.state.add_note(
-                "Fresh import from a single source, unlikely to have "
-                "duplicates; skipping content editor"
-            )
+            # self.state.add_note(
+            #     "Fresh import from a single source, unlikely to have "
+            #     "duplicates; skipping content editor"
+            # )
             return None
         if not self._current_text().strip():
-            self.state.add_note(
-                "Content editor skipped empty description body."
-            )
+            # self.state.add_note(
+            #     "Content editor skipped empty description body."
+            # )
             return None
         trajectory = self.run_agent_loop(self.context(), require_tool=True)
         self._mark_attention_if_incomplete(trajectory)
@@ -288,6 +317,51 @@ class ContentEditorRunner(GameEditStateLlmRunner):
             "clipboard_id": clipboard_id,
             "clipboard_text": clipboard_text,
         })
+        return result
+
+    @llm_tool
+    def deduplicate(self, params: DeduplicateParams) -> dict:
+        """Remove duplicate spans matching start and end text."""
+        text = self._current_text()
+        try:
+            spans = _deduplicate_spans(
+                text, params.start_text, params.end_text
+            )
+            keep = _required_occurrence(
+                len(spans), params.occurrence_to_keep, label="duplicate span"
+            )
+            if len(spans) < 2:
+                return self._error(
+                    "deduplicate requires at least two matching spans"
+                )
+            parts = [text[start:end] for start, end in spans]
+            if not params.allow_nonexact_match:
+                _reject_nonidentical_spans(parts)
+        except ValueError as e:
+            return self._error(e)
+
+        new_text = text
+        removed = 0
+        for index, (start, end) in reversed(list(enumerate(spans))):
+            if index == keep:
+                continue
+            new_text = new_text[:start] + new_text[end:]
+            removed += 1
+        if new_text == text:
+            return self._error("deduplicate produced no change")
+        if not new_text.strip():
+            return self._error(
+                "deduplicate would remove the entire current_text; choose "
+                "narrower start_text/end_text or request human review"
+            )
+
+        kept_start, kept_end = spans[keep]
+        shift = sum(end - start for start, end in spans[:keep])
+        self._apply_text(new_text)
+        result = self._success(
+            "deduplicated", kept_start - shift, kept_end - shift
+        )
+        result["removed_occurrences"] = removed
         return result
 
     @llm_tool
@@ -445,16 +519,14 @@ def _anchor_span(
         raise ValueError("anchor is unique, so occurrence must be unset")
     if len(starts) > 1 and occurrence is None:
         raise ValueError(
-            f"anchor was found {len(starts)} times; set 1-based occurrence"
+            f"anchor was found {len(starts)} times; set 0-based occurrence"
         )
     if occurrence is None:
         start = starts[0]
-    elif not 1 <= occurrence <= len(starts):
-        raise ValueError(
-            f"occurrence must be between 1 and {len(starts)} for this anchor"
-        )
     else:
-        start = starts[occurrence - 1]
+        start = starts[
+            _required_occurrence(len(starts), occurrence, label="anchor")
+        ]
     return start, start + len(anchor)
 
 
@@ -466,17 +538,16 @@ def _match_span(text: str, match: MatchParams) -> tuple[int, int]:
         raise ValueError("text_start is unique, so occurrence must be unset")
     if len(starts) > 1 and match.occurrence is None:
         raise ValueError(
-            f"text_start was found {len(starts)} times; set 1-based occurrence"
+            f"text_start was found {len(starts)} times; set 0-based occurrence"
         )
     if match.occurrence is None:
         start = starts[0]
-    elif not 1 <= match.occurrence <= len(starts):
-        raise ValueError(
-            "occurrence must be between "
-            f"1 and {len(starts)} for this text_start"
-        )
     else:
-        start = starts[match.occurrence - 1]
+        start = starts[
+            _required_occurrence(
+                len(starts), match.occurrence, label="text_start"
+            )
+        ]
 
     if match.to_end:
         if match.text_end:
@@ -505,17 +576,70 @@ def _exact_span(
         raise ValueError(f"{label} was not found")
     if len(starts) > 1 and occurrence is None:
         raise ValueError(
-            f"{label} was found {len(starts)} times; set 1-based occurrence"
+            f"{label} was found {len(starts)} times; set 0-based occurrence"
         )
     if occurrence is None:
         start = starts[0]
-    elif not 1 <= occurrence <= len(starts):
-        raise ValueError(
-            f"occurrence must be between 1 and {len(starts)} for this {label}"
-        )
     else:
-        start = starts[occurrence - 1]
+        start = starts[
+            _required_occurrence(len(starts), occurrence, label=label)
+        ]
     return start, start + len(needle)
+
+
+def _required_occurrence(count: int, occurrence: int, *, label: str) -> int:
+    if not 0 <= occurrence < count:
+        raise ValueError(
+            f"occurrence must be between 0 and {count - 1} for this {label}"
+        )
+    return occurrence
+
+
+def _deduplicate_spans(
+    text: str, start_text: str, end_text: str
+) -> list[tuple[int, int]]:
+    starts = _occurrences(text, start_text, label="start_text")
+    if not starts:
+        raise ValueError("start_text was not found")
+    if not end_text:
+        raise ValueError("end_text must not be empty")
+
+    spans = []
+    for start in starts:
+        end = text.find(end_text, start)
+        if end == -1:
+            raise ValueError("end_text was not found after a start_text")
+        end += len(end_text)
+        repeat = text.find(start_text, start + len(start_text), end)
+        if repeat != -1:
+            raise ValueError(
+                "start_text appears again inside a matched span; choose a "
+                "more specific start_text or a narrower span"
+            )
+        spans.append((start, end))
+    return spans
+
+
+def _reject_nonidentical_spans(parts: list[str]) -> None:
+    first = parts[0]
+    differences = [
+        f"occurrence 0: {_short_repr(first)}",
+    ]
+    for index, part in enumerate(parts[1:], start=1):
+        if part != first:
+            differences.append(f"occurrence {index}: {_short_repr(part)}")
+            raise ValueError(
+                "matched spans are not identical; set "
+                "allow_nonexact_match=true to remove spans that only share "
+                "start_text/end_text. " + " ".join(differences)
+            )
+
+
+def _short_repr(text: str) -> str:
+    text = text.replace("\n", "\\n")
+    if len(text) > 160:
+        text = text[:157] + "..."
+    return repr(text)
 
 
 def _reject_repeated_start_inside_span(
