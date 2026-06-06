@@ -71,7 +71,12 @@
                     {% endif %}
                     {% has_perm "(alias curation_admin)" as can_curate %}
                     {% if can_curate %}
-                        <a class="{% current 'curation_history_list' %}" href="{% url 'curation_history_list' %}">ОГОРОД</a>
+                        {% needs_attention_history_count as needs_attention_count %}
+                        {% if needs_attention_count %}
+                            <a class="top-nav-attention {% current 'curation_history_list' %}" href="{% url 'curation_history_list' %}">ОГОРОД ({{ needs_attention_count }})</a>
+                        {% else %}
+                            <a class="{% current 'curation_history_list' %}" href="{% url 'curation_history_list' %}">ОГОРОД</a>
+                        {% endif %}
                     {% endif %}
                 </nav>
             </header>

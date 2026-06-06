@@ -1281,6 +1281,18 @@ textarea {
     color: #625B61;
 }
 
+.top-nav-drawer a.top-nav-attention {
+    background-color: #d81b60;
+    color: #fff;
+    font-weight: bold;
+    text-align: center;
+}
+
+.top-nav-drawer a.top-nav-attention.current {
+    background-color: #f8f8f8;
+    color: #625B61;
+}
+
 .top-nav-drawer a {
     color: #fff;
     display: inline-block;

@@ -45,17 +45,30 @@ APERO_AUTHOR_URL = re.compile(
     r"https?://apero\.ru/" + quote("Участники") + r"/(.*)"
 )
 APERO_LISTING_TITLE_RE = re.compile(
-    r'<h2><a href="(http://apero.ru/Текстовые-игры/[^"]+)">[^<]*</a></h2>'
+    r'<h2><a href="(https?://apero.ru/Текстовые-игры/[^"]+)">[^<]*</a></h2>'
 )
+APERO_LISTING_PAGE_RE = re.compile(r'data-page="(\d+)"')
+APERO_CATALOG_URL = "https://apero.ru/" + quote("Текстовые-игры") + "/Каталог"
 
 
 def FetchCandidateUrls():
-    html = FetchUrlToString(
-        r"http://apero.ru/" + quote("Текстовые-игры"), use_cache=False
-    )
-    return [
-        QuoteUtf8(m.group(1)) for m in APERO_LISTING_TITLE_RE.finditer(html)
-    ]
+    html = FetchUrlToString(APERO_CATALOG_URL + "/1", use_cache=False)
+    urls = _extract_candidate_urls(html)
+
+    for page in range(2, _catalog_page_count(html) + 1):
+        html = FetchUrlToString(f"{APERO_CATALOG_URL}/{page}", use_cache=False)
+        urls.extend(_extract_candidate_urls(html))
+
+    return [QuoteUtf8(url) for url in dict.fromkeys(urls)]
+
+
+def _extract_candidate_urls(html):
+    return [m.group(1) for m in APERO_LISTING_TITLE_RE.finditer(html)]
+
+
+def _catalog_page_count(html):
+    pages = [int(m.group(1)) for m in APERO_LISTING_PAGE_RE.finditer(html)]
+    return max(pages, default=1)
 
 
 APERO_TITLE = re.compile(
