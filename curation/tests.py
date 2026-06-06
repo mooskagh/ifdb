@@ -444,13 +444,13 @@ class HistoryMergeViewTest(TestCase):
             response,
             '<div class="game--info-row"><div class="game--info-row-label">'
             'GameId</div><div class="game--info-row-value">'
-            f'{history.game.pk}</div></div>',
+            f"{history.game.pk}</div></div>",
             html=True,
         )
         self.assertNotContains(
             response,
             f'<div class="card--header"><a href="/game/{history.game.pk}/">'
-            'Target</a></div>',
+            "Target</a></div>",
             html=True,
         )
         for earlier, later in [
