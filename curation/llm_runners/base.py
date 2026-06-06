@@ -36,6 +36,9 @@ class GameEditStateLlmRunner(LlmWorkflowRunner):
 def game_edit_state_context(state: GameEditState) -> dict[str, Any]:
     served_canonical_text = state.served.to_canonical()
     current_canonical_text = state.current.to_canonical()
+    last_applied_canonical_text = state.last_applied.to_canonical()
+    served_metadata_yaml = _metadata_yaml(served_canonical_text)
+    current_metadata_yaml = _metadata_yaml(current_canonical_text)
     served_content_text = state.served.description or ""
     current_content_text = state.current.description or ""
     return {
@@ -51,18 +54,26 @@ def game_edit_state_context(state: GameEditState) -> dict[str, Any]:
         "needs_attention": state.needs_attention,
         "served": game_info_context(state.served),
         "served_canonical_text": served_canonical_text,
+        "served_metadata_yaml": served_metadata_yaml,
         "served_content_text": served_content_text,
         "current": game_info_context(state.current),
         "current_canonical_text": current_canonical_text,
+        "current_metadata_yaml": current_metadata_yaml,
         "current_content_text": current_content_text,
         "canonical_text_diff": _unified_diff(
             served_canonical_text, current_canonical_text
+        ),
+        "metadata_yaml_diff": _unified_diff(
+            served_metadata_yaml, current_metadata_yaml
         ),
         "content_text_diff": _unified_diff(
             served_content_text, current_content_text
         ),
         "last_applied": game_info_context(state.last_applied),
-        "last_applied_canonical_text": state.last_applied.to_canonical(),
+        "last_applied_canonical_text": last_applied_canonical_text,
+        "last_applied_metadata_yaml": _metadata_yaml(
+            last_applied_canonical_text
+        ),
         "last_applied_content_text": state.last_applied.description or "",
         "sources": [source_context(source) for source in state.sources],
     }
@@ -78,6 +89,10 @@ def _unified_diff(before: str, after: str) -> str:
             lineterm="",
         )
     )
+
+
+def _metadata_yaml(canonical_text: str) -> str:
+    return canonical_text.split("\n---\n", 1)[0].removeprefix("---\n")
 
 
 def game_info_context(info: GameInfo) -> dict[str, Any]:
