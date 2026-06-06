@@ -533,6 +533,8 @@ def convert_wikitext_to_markdown(text, context):
     if not text or not text.strip():
         return ""
 
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+
     # Convert bold markup
     text = re.sub(r"'''(.*?)'''", r"**\1**", text)
 

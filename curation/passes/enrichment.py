@@ -133,7 +133,7 @@ def _tag_identifiers(tag: Tag) -> list[str]:
 
 def _lowercase_tags(info: GameInfo) -> None:
     for tag in info.tags:
-        if tag.category == "tag" and tag.text:
+        if tag.category in {"tag", "language"} and tag.text:
             tag.text = tag.text.lower()
 
 

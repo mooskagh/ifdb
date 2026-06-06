@@ -72,6 +72,12 @@ class DefaultRuleTests(TestCase):
         languages = [t.text for t in info.tags if t.category == "language"]
         self.assertEqual(languages, ["english"])
 
+    def test_language_is_lowercased(self):
+        info = GameInfo(tags=[Tag("language", None, None, "Русский")])
+        _enrich(info)
+        languages = [t.text for t in info.tags if t.category == "language"]
+        self.assertEqual(languages, ["русский"])
+
     def test_rerun_is_idempotent(self):
         info = GameInfo(
             tags=[Tag("platform", None, None, "urqw")],

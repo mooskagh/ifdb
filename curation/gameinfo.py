@@ -154,7 +154,15 @@ class GameInfo:
             if t.get("tag_slug"):
                 info.tags.append(Tag("", t["tag_slug"], None, None))
             else:
-                info.tags.append(Tag(t["cat_slug"], None, None, t["tag"]))
+                category = t["cat_slug"]
+                info.tags.append(
+                    Tag(
+                        category,
+                        None,
+                        None,
+                        _normalize_tag_text(category, t["tag"]),
+                    )
+                )
         for u in d.get("urls", []):
             if not u.get("urlcat_slug"):  # mirrors MergeImport's url filter
                 continue
@@ -448,10 +456,17 @@ def _parse_tag(value) -> Tag:
     if isinstance(ref, int):  # DB tag, possibly with a slug
         tag = GameTag.objects.filter(id=ref).first()
         return Tag(cat, tag.symbolic_id if tag else None, ref, None)
+    ref = _normalize_tag_text(cat, ref)
     tag = GameTag.objects.filter(category__symbolic_id=cat, name=ref).first()
     if tag:
         return Tag(cat, tag.symbolic_id, tag.id, None)
     return Tag(cat, None, None, ref)
+
+
+def _normalize_tag_text(category: str, text: str) -> str:
+    if category in {"tag", "language"}:
+        return text.lower()
+    return text
 
 
 def _parse_url(value) -> GameUrl:
