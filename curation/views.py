@@ -49,8 +49,6 @@ from .tasks import (
     reconcile_sources,
 )
 
-PERM = "(alias curation_admin)"
-
 GROUP_WINDOW = timedelta(minutes=1)
 
 FETCH_SOURCES_TASK_NAME = "Fetch sources"
@@ -142,8 +140,6 @@ HISTORY_AUTO_SHORT = {
 
 
 def history_list(request):
-    request.perm.Ensure(PERM)
-
     q = request.GET.get("q", "").strip()
     state = request.GET.get("state") or ""
     auto = request.GET.get("auto") or ""
@@ -203,8 +199,6 @@ def history_list(request):
 
 
 def discovery_status(request):
-    request.perm.Ensure(PERM)
-
     current = [
         latest
         for provider in REGISTERED_PROVIDERS
@@ -225,8 +219,6 @@ def discovery_status(request):
 
 
 def tasks(request):
-    request.perm.Ensure(PERM)
-
     if request.method == "POST":
         return _tasks_post(request)
 
@@ -453,8 +445,6 @@ def _positive_int(value, *, default):
 
 
 def llm_trajectories(request):
-    request.perm.Ensure(PERM)
-
     aggregates = {
         "count": Count("id"),
         "total_cost": Sum("cost"),
@@ -503,8 +493,6 @@ def llm_trajectories(request):
 
 
 def llm_trajectory_detail(request, trajectory_id):
-    request.perm.Ensure(PERM)
-
     trajectory = get_object_or_404(
         LlmTrajectory.objects.select_related(
             "workflow", "model", "history__game", "edit"
@@ -519,8 +507,6 @@ def llm_trajectory_detail(request, trajectory_id):
 
 
 def source_list(request):
-    request.perm.Ensure(PERM)
-
     q = request.GET.get("q", "").strip()
     source_type = request.GET.get("type", "")
     state = request.GET.get("state", "")
@@ -592,8 +578,6 @@ def source_list(request):
 
 
 def source_detail(request, source_id):
-    request.perm.Ensure(PERM)
-
     source = get_object_or_404(
         GameSource.objects.select_related("history__game"), pk=source_id
     )
@@ -607,7 +591,6 @@ def source_detail(request, source_id):
 
 
 def source_fetch_now(request, source_id):
-    request.perm.Ensure(PERM)
     if request.method != "POST":
         return HttpResponseBadRequest("Only POST is supported.")
 
@@ -621,8 +604,6 @@ def source_fetch_now(request, source_id):
 
 
 def source_fetch_content(request, fetch_id, kind):
-    request.perm.Ensure(PERM)
-
     fetch = get_object_or_404(GameSourceFetch, pk=fetch_id)
     if kind == "raw":
         content = fetch.raw_content
@@ -633,7 +614,6 @@ def source_fetch_content(request, fetch_id, kind):
 
 
 def history_source_add(request, history_id):
-    request.perm.Ensure(PERM)
     if request.method != "POST":
         return HttpResponseBadRequest("Only POST is supported.")
 
@@ -692,7 +672,6 @@ def _attach_source(history, source, user):
 
 
 def history_sources_fetch_now(request, history_id):
-    request.perm.Ensure(PERM)
     if request.method != "POST":
         return HttpResponseBadRequest("Only POST is supported.")
 
@@ -719,8 +698,6 @@ LLM_SYNC_FIELDS = [
 
 
 def llm_models(request):
-    request.perm.Ensure(PERM)
-
     if request.method == "POST":
         return _llm_models_post(request)
 
@@ -776,7 +753,6 @@ def _llm_models_post(request):
 
 
 def history_source_detach(request, history_id, source_id):
-    request.perm.Ensure(PERM)
     if request.method != "POST":
         return HttpResponseBadRequest("Only POST is supported.")
 
@@ -816,8 +792,6 @@ def _source_clusters(clusters):
 
 
 def discovery_detail(request, status_id):
-    request.perm.Ensure(PERM)
-
     status = get_object_or_404(SourceDiscoveryStatus, pk=status_id)
     panels = [
         {
@@ -871,8 +845,6 @@ def discovery_detail(request, status_id):
 
 
 def history_detail(request, history_id):
-    request.perm.Ensure(PERM)
-
     history = get_object_or_404(
         GameHistory.objects.select_related("game"), pk=history_id
     )
@@ -988,7 +960,6 @@ def history_detail(request, history_id):
 
 
 def history_run_edit(request, history_id):
-    request.perm.Ensure(PERM)
     if request.method != "POST":
         return HttpResponseBadRequest("POST required.")
     history = get_object_or_404(GameHistory, pk=history_id)
@@ -999,8 +970,6 @@ def history_run_edit(request, history_id):
 
 
 def edit_diff(request, edit_id):
-    request.perm.Ensure(PERM)
-
     edit = get_object_or_404(
         GameEdit.objects.select_related(
             "history__game", "proposed_by", "approver"
@@ -1160,8 +1129,6 @@ def _reject_edit(edit, history, before, user):
 
 
 def history_edit(request, history_id):
-    request.perm.Ensure(PERM)
-
     history = get_object_or_404(GameHistory, pk=history_id)
     if request.method == "POST":
         changed = False

@@ -4,7 +4,6 @@ from typing import Annotated
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.utils.timezone import now
 
@@ -159,9 +158,8 @@ def _entry(model_id, prompt, completion):
 class UpdateAllViewTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(
-            username="moder", email="moder@example.com"
+            username="admin", email="admin@example.com", is_superuser=True
         )
-        self.user.groups.add(Group.objects.create(name="moder"))
         self.client.force_login(self.user)
 
     def _model(self, name, **kwargs):

@@ -142,7 +142,8 @@ class GameEditCurationViewTests(TestCase):
             reverse("store_game"),
             {"json": json.dumps(self._add_payload())},
         )
-        self.user.groups.add(Group.objects.create(name="moder"))
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
         edit = GameEdit.objects.get()
 
         self.client.post(

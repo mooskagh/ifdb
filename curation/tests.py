@@ -139,12 +139,42 @@ class CurationSmokeTest(TestCase):
         self.assertEqual(history.gamehistoryauditlog_set.count(), 1)
 
 
+class CurationAccessTest(TestCase):
+    def test_regular_user_is_redirected_to_login(self):
+        user = get_user_model().objects.create(
+            username="user", email="user@example.com"
+        )
+        self.client.force_login(user)
+
+        response = self.client.get("/curation/")
+
+        self.assertRedirects(
+            response,
+            f"{settings.LOGIN_URL}?next=/curation/",
+            fetch_redirect_response=False,
+        )
+
+    def test_moderator_is_redirected_to_login(self):
+        user = get_user_model().objects.create(
+            username="moder", email="moder@example.com"
+        )
+        user.groups.add(Group.objects.create(name="moder"))
+        self.client.force_login(user)
+
+        response = self.client.get("/curation/")
+
+        self.assertRedirects(
+            response,
+            f"{settings.LOGIN_URL}?next=/curation/",
+            fetch_redirect_response=False,
+        )
+
+
 class HistoryListViewTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(
-            username="moder", email="moder@example.com"
+            username="admin", email="admin@example.com", is_superuser=True
         )
-        self.user.groups.add(Group.objects.create(name="moder"))
         self.client.force_login(self.user)
 
     def test_history_list_is_compact_and_uses_short_labels(self):
@@ -368,9 +398,8 @@ class HistoryListViewTest(TestCase):
 class LlmTrajectoryViewTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(
-            username="moder", email="moder@example.com"
+            username="admin", email="admin@example.com", is_superuser=True
         )
-        self.user.groups.add(Group.objects.create(name="moder"))
         self.client.force_login(self.user)
 
         now = timezone.now()
@@ -488,9 +517,8 @@ class EditDiffViewTest(TestCase):
     def setUp(self):
         call_command("initifdb", stdout=StringIO(), stderr=StringIO())
         self.user = get_user_model().objects.create(
-            username="moder", email="moder@example.com"
+            username="admin", email="admin@example.com", is_superuser=True
         )
-        self.user.groups.add(Group.objects.create(name="moder"))
         self.client.force_login(self.user)
         self.now = timezone.now()
 
@@ -567,7 +595,7 @@ class EditDiffViewTest(TestCase):
         self.assertContains(response, f'href="/game/{edit.history.game_id}/"')
         self.assertContains(response, "Old Title")
         self.assertContains(response, "Предложил")
-        self.assertContains(response, "moder")
+        self.assertContains(response, self.user.username)
         self.assertContains(response, "Passes")
         self.assertContains(response, "<strong>NormalizeText</strong>")
         self.assertContains(response, "<strong>LlmWorkflowPass</strong>")
@@ -591,7 +619,7 @@ class EditDiffViewTest(TestCase):
         self.assertContains(response, "Одобрил")
         self.assertContains(
             response,
-            f"moder ({edit.approved_at:%d.%m.%Y %H:%M})",
+            f"{self.user.username} ({edit.approved_at:%d.%m.%Y %H:%M})",
         )
 
     def test_edit_redirect_dropdown_hides_game_options_without_game(self):
@@ -774,8 +802,8 @@ class EditDiffViewTest(TestCase):
             f'<a href="/curation/edits/{rejected.pk}/">посмотреть</a>',
             html=True,
         )
-        self.assertContains(response, "Предложил: moder")
-        self.assertContains(response, "Отклонил: moder")
+        self.assertContains(response, f"Предложил: {self.user.username}")
+        self.assertContains(response, f"Отклонил: {self.user.username}")
         self.assertNotContains(
             response,
             '<a class="curation-action-link" '
@@ -804,11 +832,13 @@ class EditDiffViewTest(TestCase):
 
         self.assertContains(
             response,
-            f"Предложил: moder ({proposed.proposed_at:%d.%m.%Y %H:%M})",
+            "Предложил: "
+            f"{self.user.username} ({proposed.proposed_at:%d.%m.%Y %H:%M})",
         )
         self.assertContains(
             response,
-            f"Одобрил: moder ({approved.approved_at:%d.%m.%Y %H:%M})",
+            "Одобрил: "
+            f"{self.user.username} ({approved.approved_at:%d.%m.%Y %H:%M})",
         )
         self.assertLess(
             content.index(f"/curation/edits/{proposed.pk}/"),
@@ -901,9 +931,8 @@ class EditDiffViewTest(TestCase):
 class DiscoveryViewsTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(
-            username="moder", email="moder@example.com"
+            username="admin", email="admin@example.com", is_superuser=True
         )
-        self.user.groups.add(Group.objects.create(name="moder"))
         self.client.force_login(self.user)
 
     def test_discovery_status_links_to_detail_with_source_lists(self):
@@ -1008,9 +1037,8 @@ class DiscoveryViewsTest(TestCase):
 class TasksViewTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(
-            username="moder", email="moder@example.com"
+            username="admin", email="admin@example.com", is_superuser=True
         )
-        self.user.groups.add(Group.objects.create(name="moder"))
         self.client.force_login(self.user)
         self.pipeline, _ = EditPipeline.objects.update_or_create(
             name="Импорт", defaults={"passes": [{"name": "merge_sources"}]}
@@ -1249,9 +1277,8 @@ class TasksViewTest(TestCase):
 class SourceViewsTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(
-            username="moder", email="moder@example.com"
+            username="admin", email="admin@example.com", is_superuser=True
         )
-        self.user.groups.add(Group.objects.create(name="moder"))
         self.client.force_login(self.user)
 
     def test_source_list_detail_and_fetch_content(self):
