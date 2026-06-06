@@ -44,6 +44,7 @@ from .models import (
     SourceDiscoveryStatus,
 )
 from .providers import REGISTERED_PROVIDERS
+from .split import SplitOptions, split_game_from_history
 from .tasks import (
     discover_sources,
     edit_sources,
@@ -966,6 +967,26 @@ def history_detail(request, history_id):
     )
 
 
+def history_comment_add(request, history_id):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required.")
+    history = get_object_or_404(GameHistory, pk=history_id)
+    text = request.POST.get("text", "").strip()
+    if not text:
+        messages.error(request, "Комментарий не может быть пустым.")
+        return redirect("curation_history_detail", history_id=history.pk)
+
+    GameHistoryComment.objects.create(
+        history=history,
+        user=request.user,
+        type=GameHistoryComment.CommentType.MODS_COMMENT,
+        text=text,
+        creation_time=now(),
+    )
+    messages.success(request, "Комментарий добавлен.")
+    return redirect("curation_history_detail", history_id=history.pk)
+
+
 def history_run_edit(request, history_id):
     if request.method != "POST":
         return HttpResponseBadRequest("POST required.")
@@ -1215,3 +1236,43 @@ def history_merge(request, history_id):
     else:
         messages.success(request, "Игры объединены.")
     return redirect("curation_history_detail", history_id=history.pk)
+
+
+def history_split(request, history_id):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required.")
+    history = get_object_or_404(
+        GameHistory.objects.select_related("game"), pk=history_id
+    )
+    split_source_ids = [
+        source.pk
+        for source in GameSource.objects.filter(history=history)
+        if request.POST.get(f"source_{source.pk}") == "split"
+    ]
+    options = SplitOptions(
+        keep_tags="keep_tags" in request.POST,
+        copy_tags="copy_tags" in request.POST,
+        keep_authors="keep_authors" in request.POST,
+        copy_authors="copy_authors" in request.POST,
+        keep_urls="keep_urls" in request.POST,
+        copy_urls="copy_urls" in request.POST,
+        keep_description="keep_description" in request.POST,
+        copy_description="copy_description" in request.POST,
+    )
+    try:
+        split_history = split_game_from_history(
+            base_history=history,
+            split_source_ids=split_source_ids,
+            split_title=request.POST.get("split_title", ""),
+            options=options,
+            actor=request.user,
+        )
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("curation_history_detail", history_id=history.pk)
+
+    messages.success(
+        request,
+        f"Игра разделена. Новая история: #{split_history.pk}.",
+    )
+    return redirect("curation_history_detail", history_id=split_history.pk)

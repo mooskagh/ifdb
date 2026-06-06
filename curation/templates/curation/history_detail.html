@@ -133,6 +133,17 @@
     <div class="card--body">В истории пока пусто.</div>
 </div>
 {% endfor %}
+
+<div class="card card--blue">
+    <div class="card--header">Добавить комментарий</div>
+    <div class="card--body">
+        <form method="post" action="{% url 'curation_history_comment_add' history.pk %}" class="comment-input">
+            {% csrf_token %}
+            <textarea name="text" placeholder="Комментарий модератора" required></textarea>
+            <input type="submit" value="Отправить">
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block curation_sidebar %}
@@ -222,6 +233,71 @@
             <button type="submit" data-confirm="Присоединить указанную игру к этой? Присоединяемая игра будет удалена, её история станет заброшенной.">Объединить</button>
         </form>
         <div class="curation-meta">Если у присоединяемой игры есть записи в конкурсах, без чекбокса объединение будет остановлено и покажет затронутые таблицы.</div>
+    </div>
+</div>
+
+<div class="card card--orange">
+    <div class="card--header">Разделить игру</div>
+    <div class="card--body">
+        <form method="post" action="{% url 'curation_history_split' history.pk %}" class="curation-filter">
+            {% csrf_token %}
+            <label>название новой игры <input type="text" name="split_title" value="{{ game.title }}" required></label>
+            <table class="curation-table">
+                <thead>
+                    <tr>
+                        <th>Данные</th>
+                        <th>Оставить здесь</th>
+                        <th>Скопировать туда</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Теги</td>
+                        <td><input type="checkbox" name="keep_tags" checked></td>
+                        <td><input type="checkbox" name="copy_tags" checked></td>
+                    </tr>
+                    <tr>
+                        <td>Авторы</td>
+                        <td><input type="checkbox" name="keep_authors" checked></td>
+                        <td><input type="checkbox" name="copy_authors" checked></td>
+                    </tr>
+                    <tr>
+                        <td>URL</td>
+                        <td><input type="checkbox" name="keep_urls" checked></td>
+                        <td><input type="checkbox" name="copy_urls" checked></td>
+                    </tr>
+                    <tr>
+                        <td>Описание</td>
+                        <td><input type="checkbox" name="keep_description" checked></td>
+                        <td><input type="checkbox" name="copy_description" checked></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table class="curation-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Источник</th>
+                        <th>Здесь</th>
+                        <th>Туда</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for source in sources %}
+                    <tr>
+                        <td><a href="{% url 'curation_source_detail' source.pk %}">{{ source.pk }}</a></td>
+                        <td>{{ source.get_type_display }}{% if source.url %}<br><span class="curation-meta">{{ source.url }}</span>{% endif %}</td>
+                        <td><input type="radio" name="source_{{ source.pk }}" value="base" checked></td>
+                        <td><input type="radio" name="source_{{ source.pk }}" value="split"></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="curation-meta">Источников нет.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <button type="submit" data-confirm="Создать новую игру и перенести выбранные источники?">Разделить</button>
+        </form>
+        <div class="curation-meta">Снятая галочка в колонке «Оставить здесь» удалит данные из текущей игры. Импорт из источников сможет вернуть нужное.</div>
     </div>
 </div>
 {% endif %}

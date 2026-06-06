@@ -402,6 +402,64 @@ class HistoryListViewTest(TestCase):
         )
 
 
+class HistoryDetailViewTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(
+            username="admin", email="admin@example.com", is_superuser=True
+        )
+        self.client.force_login(self.user)
+        self.now = timezone.now()
+        self.game = Game.objects.create(
+            title="Commented Game", creation_time=self.now, added_by=self.user
+        )
+        self.history = GameHistory.objects.create(
+            game=self.game, creation_time=self.now
+        )
+
+    def test_history_page_shows_comments_and_comment_form(self):
+        GameHistoryComment.objects.create(
+            history=self.history,
+            user=self.user,
+            type=GameHistoryComment.CommentType.MODS_COMMENT,
+            text="Existing moderator note.",
+            creation_time=self.now,
+        )
+
+        response = self.client.get(f"/curation/{self.history.pk}/")
+
+        self.assertContains(response, "Moderator comment")
+        self.assertContains(response, "Existing moderator note.")
+        self.assertContains(response, "Добавить комментарий")
+        self.assertContains(
+            response,
+            f'action="/curation/{self.history.pk}/comments/add/"',
+        )
+        self.assertContains(response, 'name="text"')
+
+    def test_post_comment_creates_mods_comment(self):
+        response = self.client.post(
+            f"/curation/{self.history.pk}/comments/add/",
+            {"text": "Please verify the source."},
+        )
+
+        self.assertRedirects(response, f"/curation/{self.history.pk}/")
+        comment = GameHistoryComment.objects.get(history=self.history)
+        self.assertEqual(comment.user, self.user)
+        self.assertEqual(
+            comment.type, GameHistoryComment.CommentType.MODS_COMMENT
+        )
+        self.assertEqual(comment.text, "Please verify the source.")
+
+    def test_blank_comment_is_ignored(self):
+        response = self.client.post(
+            f"/curation/{self.history.pk}/comments/add/",
+            {"text": "  "},
+        )
+
+        self.assertRedirects(response, f"/curation/{self.history.pk}/")
+        self.assertFalse(GameHistoryComment.objects.exists())
+
+
 class HistoryMergeViewTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(
@@ -547,6 +605,185 @@ class HistoryMergeViewTest(TestCase):
                 new_text=GameHistory.State.ABANDONED,
             ).exists()
         )
+
+
+class HistorySplitViewTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(
+            username="admin", email="admin@example.com", is_superuser=True
+        )
+        self.client.force_login(self.user)
+        self.now = timezone.now()
+
+    def _history(self, title="Base"):
+        game = Game.objects.create(
+            title=title,
+            description="Base description",
+            creation_time=self.now,
+        )
+        return GameHistory.objects.create(game=game, creation_time=self.now)
+
+    def _source(self, history, url):
+        source = GameSource.objects.create(
+            history=history,
+            type=GameSource.SourceType.IFWIKI,
+            url=url,
+            created_at=self.now,
+        )
+        GameSourceFetch.objects.create(
+            source=source,
+            raw_content="raw",
+            canonical_text="canonical",
+            canonical_text_hash=url,
+            first_fetch=self.now,
+            last_fetch=self.now,
+        )
+        return source
+
+    def _metadata(self, game):
+        role = GameAuthorRole.objects.create(
+            symbolic_id="author", title="Author"
+        )
+        alias = PersonalityAlias.objects.create(name="Author")
+        GameAuthor.objects.create(game=game, role=role, author=alias)
+        cat = GameTagCategory.objects.create(symbolic_id="genre", name="Genre")
+        tag = GameTag.objects.create(category=cat, name="Tag")
+        game.tags.add(tag)
+        urlcat = GameURLCategory.objects.create(
+            symbolic_id="game_page", title="Game page"
+        )
+        url = URL.objects.create(
+            original_url="https://example.com/game",
+            creation_date=self.now,
+        )
+        GameURL.objects.create(
+            game=game, category=urlcat, url=url, description="homepage"
+        )
+        attr = GameDescriptionAttribution.objects.create(name="source")
+        game.description_attributions.add(attr)
+
+    def _default_options(self):
+        return {
+            "keep_tags": "on",
+            "copy_tags": "on",
+            "keep_authors": "on",
+            "copy_authors": "on",
+            "keep_urls": "on",
+            "copy_urls": "on",
+            "keep_description": "on",
+            "copy_description": "on",
+        }
+
+    def test_history_page_shows_split_form_with_checked_defaults(self):
+        history = self._history()
+        source = self._source(history, "https://example.com/source")
+
+        response = self.client.get(f"/curation/{history.pk}/")
+
+        self.assertContains(response, "Разделить игру")
+        self.assertContains(
+            response, f'action="/curation/{history.pk}/split/"'
+        )
+        for field in [
+            "keep_tags",
+            "copy_tags",
+            "keep_authors",
+            "copy_authors",
+            "keep_urls",
+            "copy_urls",
+            "keep_description",
+            "copy_description",
+        ]:
+            self.assertContains(
+                response, f'name="{field}" checked', html=False
+            )
+        self.assertContains(response, f'name="source_{source.pk}"')
+        self.assertContains(response, 'value="base" checked')
+        self.assertContains(response, 'value="split"')
+
+    def test_split_moves_selected_source_and_copies_default_metadata(self):
+        history = self._history()
+        self._metadata(history.game)
+        staying = self._source(history, "https://example.com/stay")
+        moving = self._source(history, "https://example.com/move")
+
+        response = self.client.post(
+            f"/curation/{history.pk}/split/",
+            {
+                "split_title": "Split",
+                f"source_{staying.pk}": "base",
+                f"source_{moving.pk}": "split",
+                **self._default_options(),
+            },
+        )
+
+        split = GameHistory.objects.exclude(pk=history.pk).get()
+        self.assertRedirects(response, f"/curation/{split.pk}/")
+        staying.refresh_from_db()
+        moving.refresh_from_db()
+        history.refresh_from_db()
+        self.assertEqual(staying.history, history)
+        self.assertEqual(moving.history, split)
+        self.assertEqual(moving.gamesourcefetch_set.count(), 1)
+        self.assertEqual(split.game.title, "Split")
+        self.assertEqual(split.game.description, "Base description")
+        self.assertEqual(history.game.description, "Base description")
+        self.assertEqual(history.game.tags.count(), 1)
+        self.assertEqual(split.game.tags.count(), 1)
+        self.assertEqual(history.game.gameauthor_set.count(), 1)
+        self.assertEqual(split.game.gameauthor_set.count(), 1)
+        self.assertEqual(history.game.gameurl_set.count(), 1)
+        self.assertEqual(split.game.gameurl_set.count(), 1)
+        self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
+        self.assertEqual(split.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=history,
+                kind=GameHistoryAuditLog.AuditKind.SOURCE_DETACHED,
+                old_id=moving.pk,
+            ).exists()
+        )
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=split,
+                kind=GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
+                new_id=moving.pk,
+            ).exists()
+        )
+
+    def test_split_unchecked_base_options_delete_base_metadata(self):
+        history = self._history()
+        self._metadata(history.game)
+        moving = self._source(history, "https://example.com/move")
+
+        response = self.client.post(
+            f"/curation/{history.pk}/split/",
+            {"split_title": "Split", f"source_{moving.pk}": "split"},
+        )
+
+        split = GameHistory.objects.exclude(pk=history.pk).get()
+        self.assertRedirects(response, f"/curation/{split.pk}/")
+        history.game.refresh_from_db()
+        self.assertIsNone(history.game.description)
+        self.assertEqual(history.game.tags.count(), 0)
+        self.assertEqual(history.game.gameauthor_set.count(), 0)
+        self.assertEqual(history.game.gameurl_set.count(), 0)
+        self.assertIsNone(split.game.description)
+        self.assertEqual(split.game.tags.count(), 0)
+        self.assertEqual(split.game.gameauthor_set.count(), 0)
+        self.assertEqual(split.game.gameurl_set.count(), 0)
+
+    def test_split_requires_a_source_for_new_game(self):
+        history = self._history()
+        self._source(history, "https://example.com/source")
+
+        response = self.client.post(
+            f"/curation/{history.pk}/split/",
+            {"split_title": "Split", **self._default_options()},
+        )
+
+        self.assertRedirects(response, f"/curation/{history.pk}/")
+        self.assertEqual(GameHistory.objects.count(), 1)
 
 
 class LlmTrajectoryViewTest(TestCase):

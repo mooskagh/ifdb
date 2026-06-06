@@ -78,6 +78,11 @@ urlpatterns = [
         name="curation_history_source_detach",
     ),
     path(
+        "<int:history_id>/comments/add/",
+        superuser_required(views.history_comment_add),
+        name="curation_history_comment_add",
+    ),
+    path(
         "edits/<int:edit_id>/",
         superuser_required(views.edit_diff),
         name="curation_edit_diff",
@@ -96,6 +101,11 @@ urlpatterns = [
         "<int:history_id>/merge/",
         superuser_required(views.history_merge),
         name="curation_history_merge",
+    ),
+    path(
+        "<int:history_id>/split/",
+        superuser_required(views.history_split),
+        name="curation_history_split",
     ),
     path(
         "<int:history_id>/run-edit/",
