@@ -2700,6 +2700,11 @@ h6 {
 .curation-table tbody tr.curation-history-state--processing:nth-child(even) {
     background: #e9f8e9;
 }
+.curation-table tbody tr.curation-history-state--abandoned,
+.curation-table tbody tr.curation-history-state--abandoned:nth-child(even) {
+    background: #eee;
+    color: #666;
+}
 
 .curation-table .num {
     text-align: right;

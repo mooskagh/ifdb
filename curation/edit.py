@@ -418,6 +418,7 @@ def _claim_history(
     histories = (
         GameHistory.objects
         .filter(eligible)
+        .exclude(state=GameHistory.State.ABANDONED)
         .alias(
             orphan_order=Case(
                 When(game__isnull=True, then=Value(0)),

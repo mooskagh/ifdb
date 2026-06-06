@@ -56,6 +56,22 @@
     </div>
 </form>
 
+{% if game and history.state != "ABANDONED" %}
+<div class="card card--yellow">
+    <div class="card--header">Объединить с другой игрой</div>
+    <div class="card--body">
+        <form method="post" action="{% url 'curation_history_merge' history.pk %}" class="curation-filter" style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+            {% csrf_token %}
+            <label>id присоединяемой игры <input type="number" name="source_game_id" min="1" required style="width: 7rem;"></label>
+            <label><input type="checkbox" name="remap_contests"> переназначить конкурсные ссылки, голоса и вопросы</label>
+            <button type="submit" data-confirm="Присоединить указанную игру к этой? Присоединяемая игра будет удалена, её история станет заброшенной.">Объединить</button>
+        </form>
+        <div class="curation-meta">Если у присоединяемой игры есть записи в конкурсах, без чекбокса объединение будет остановлено и покажет затронутые таблицы.</div>
+    </div>
+</div>
+
+{% endif %}
+
 <div class="card card--purple">
     <div class="card--header">Автоматическая обработка</div>
     <div class="card--body">
@@ -186,6 +202,8 @@
             <div class="curation-meta">#{{ entry.obj.new_id }}: {{ entry.obj.new_text|default:"—" }}</div>
             {% elif entry.obj.kind == "SOURCE_DETACHED" %}
             <div class="curation-meta">#{{ entry.obj.old_id }}: {{ entry.obj.old_text|default:"—" }}</div>
+            {% elif entry.obj.kind == "GAME_MERGED" %}
+            <div class="curation-meta">#{{ entry.obj.old_id }} {{ entry.obj.old_text|default:"—" }} → #{{ entry.obj.new_id }} {{ entry.obj.new_text|default:"—" }}</div>
             {% elif entry.obj.get_field_display %}
             <div class="curation-meta">{{ entry.obj.get_field_display }}: {{ entry.obj.old_text|default:"—" }} → {{ entry.obj.new_text|default:"—" }}</div>
             {% endif %}

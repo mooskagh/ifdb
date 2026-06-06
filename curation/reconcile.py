@@ -184,6 +184,7 @@ def _build_index() -> _TargetIndex:
     existing = (
         GameHistory.objects
         .filter(game__isnull=False)
+        .exclude(state=GameHistory.State.ABANDONED)
         .select_related("game")
         .prefetch_related(
             "game__gameurl_set__category", "game__gameurl_set__url"
@@ -200,8 +201,11 @@ def _build_index() -> _TargetIndex:
 
     # Earlier-spawned histories: union the signals of their fetched sources so
     # a later-run orphan can still cluster onto a history spawned earlier.
-    spawned = GameHistory.objects.filter(game__isnull=True).prefetch_related(
-        "gamesource_set"
+    spawned = (
+        GameHistory.objects
+        .filter(game__isnull=True)
+        .exclude(state=GameHistory.State.ABANDONED)
+        .prefetch_related("gamesource_set")
     )
     for history in spawned:
         hash_urls: set[str] = set()
@@ -243,7 +247,12 @@ def run_reconcile(
 
     index = _build_index()
 
-    sources = GameSource.objects.filter(type__in=source_types).order_by("id")
+    sources = (
+        GameSource.objects
+        .filter(type__in=source_types)
+        .select_related("history")
+        .order_by("id")
+    )
     if source_id is not None:
         sources = sources.filter(pk=source_id)
     if limit is not None:
@@ -264,6 +273,8 @@ def run_reconcile(
             continue
 
         if source.history_id is not None:
+            if source.history.state == GameHistory.State.ABANDONED:
+                continue
             if _has_new_version(source, fetch):
                 source.history.state = GameHistory.State.SCHEDULED_FOR_UPDATE
                 source.history.save(update_fields=["state"])

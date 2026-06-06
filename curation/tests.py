@@ -12,6 +12,13 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
+from contest.models import (
+    Competition,
+    CompetitionQuestion,
+    CompetitionVote,
+    GameList,
+    GameListEntry,
+)
 from games.models import (
     URL,
     Game,
@@ -392,6 +399,113 @@ class HistoryListViewTest(TestCase):
             origin=GameEdit.Origin.AUTO_IMPORT,
             previous_canonical_text="old",
             canonical_text="new",
+        )
+
+
+class HistoryMergeViewTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(
+            username="admin", email="admin@example.com", is_superuser=True
+        )
+        self.client.force_login(self.user)
+        self.now = timezone.now()
+
+    def _history(self, title):
+        game = Game.objects.create(title=title, creation_time=self.now)
+        return GameHistory.objects.create(game=game, creation_time=self.now)
+
+    def test_history_page_shows_merge_form(self):
+        history = self._history("Target")
+
+        response = self.client.get(f"/curation/{history.pk}/")
+
+        self.assertContains(response, "Объединить с другой игрой")
+        self.assertContains(response, 'name="source_game_id"')
+        self.assertContains(response, 'name="remap_contests"')
+
+    def test_merge_blocks_contest_references_without_checkbox(self):
+        target = self._history("Target")
+        source = self._history("Source")
+        gamelist = GameList.objects.create(title="Contest games")
+        GameListEntry.objects.create(gamelist=gamelist, game=source.game)
+
+        response = self.client.post(
+            f"/curation/{target.pk}/merge/",
+            {"source_game_id": source.game_id},
+        )
+
+        self.assertRedirects(response, f"/curation/{target.pk}/")
+        self.assertTrue(Game.objects.filter(pk=source.game_id).exists())
+        self.assertEqual(GameListEntry.objects.get().game, source.game)
+
+    def test_merge_with_checkbox_remaps_contests_and_abandons_source_history(
+        self,
+    ):
+        target = self._history("Target")
+        source = self._history("Source")
+        source.game.description = "Source description"
+        source.game.save(update_fields=["description"])
+        GameSource.objects.create(
+            history=source,
+            type=GameSource.SourceType.IFWIKI,
+            url="https://example.com/source",
+        )
+        gamelist = GameList.objects.create(title="Contest games")
+        entry = GameListEntry.objects.create(
+            gamelist=gamelist, game=source.game
+        )
+        competition = Competition.objects.create(
+            title="Contest",
+            slug="contest",
+            end_date=self.now.date(),
+            published=True,
+        )
+        vote = CompetitionVote.objects.create(
+            competition=competition,
+            user=self.user,
+            when=self.now,
+            game=source.game,
+            field="rating",
+        )
+        question = CompetitionQuestion.objects.create(
+            game=source.game,
+            question_id="q1",
+            text="Question?",
+        )
+        source_game_id = source.game_id
+
+        response = self.client.post(
+            f"/curation/{target.pk}/merge/",
+            {"source_game_id": source_game_id, "remap_contests": "on"},
+        )
+
+        self.assertRedirects(response, f"/curation/{target.pk}/")
+        self.assertFalse(Game.objects.filter(pk=source_game_id).exists())
+        target.refresh_from_db()
+        source.refresh_from_db()
+        self.assertEqual(source.state, GameHistory.State.ABANDONED)
+        self.assertIsNone(source.game_id)
+        self.assertEqual(
+            list(target.gamesource_set.values_list("url", flat=True)),
+            ["https://example.com/source"],
+        )
+        for obj in [entry, vote, question]:
+            obj.refresh_from_db()
+            self.assertEqual(obj.game_id, target.game_id)
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=target,
+                kind=GameHistoryAuditLog.AuditKind.GAME_MERGED,
+                old_id=source_game_id,
+                new_id=target.game_id,
+            ).exists()
+        )
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=source,
+                field=GameHistoryAuditLog.AuditField.STATE,
+                new_text=GameHistory.State.ABANDONED,
+            ).exists()
         )
 
 

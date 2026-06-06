@@ -1,10 +1,8 @@
 from html import escape
 
-from django import forms
 from django.urls import reverse
 
-from core.models import Package
-from games.models import Game, GameAuthor, GameComment, GameURL, GameVote
+from games.models import Game, GameAuthor, GameURL
 from moder.actions.tools import ModerAction, RegisterAction
 
 
@@ -19,69 +17,6 @@ def GenLinkButton(text, link, new_tab=False):
 class GameAction(ModerAction):
     PERM = "@gardener"
     MODEL = Game
-
-
-@RegisterAction
-class GameCombineAction(GameAction):
-    TITLE = "Объединить"
-
-    class Form(forms.Form):
-        other_game = forms.IntegerField(
-            label="С какой игрой объединять? (id)",
-            min_value=1,
-            help_text=(
-                "Все данные из указанной игры будут скопированы в эту, "
-                "а сама та игра будет удалена"
-            ),
-        )
-
-    def GetForm(self, var):
-        return self.Form(var)
-
-    def DoAction(self, action, form, execute):
-        fro = Game.objects.get(pk=form["other_game"])
-        if execute:
-            to = self.obj
-            if not to.release_date:
-                to.release_date = fro.release_date
-
-            desc = ""
-            for x in [to.description, fro.description]:
-                val = x or ""
-                if desc and val:
-                    desc += "\n\n"
-                desc += val
-            to.description = desc
-            to.save()
-
-            to.tags.add(*fro.tags.all())
-
-            for y in [GameURL, GameAuthor, GameVote, GameComment, Package]:
-                for x in y.objects.filter(game=fro):
-                    x.game = to
-                    x.save()
-
-            fro.delete()
-
-            urls = set()
-            for y in GameURL.objects.filter(game=to):
-                v = (y.url_id, y.category_id)
-                if v in urls:
-                    y.delete()
-                else:
-                    urls.add(v)
-
-            authors = set()
-            for y in GameAuthor.objects.filter(game=to).select_related():
-                v = (y.role_id, y.author.personality_id)
-                if v in authors:
-                    y.delete()
-                else:
-                    authors.add(v)
-
-            return "Done!"
-        else:
-            return "Будем объединять с: %s" % fro
 
 
 @RegisterAction

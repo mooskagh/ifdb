@@ -277,6 +277,22 @@ class FetchTest(TestCase):
 
         self.assertEqual(provider.fetched_urls, [no_history.url])
 
+    def test_abandoned_history_sources_are_not_fetched(self):
+        history = GameHistory.objects.create(
+            creation_time=now(), state=GameHistory.State.ABANDONED
+        )
+        self.source(url="http://example.com/skip", history=history)
+        wanted = self.source(url="http://example.com/wanted")
+        provider = FakeProvider(
+            GameSource.SourceType.APERO,
+            fetches=["raw"],
+            infos=[self.info("Wanted")],
+        )
+
+        self.run_with(provider)
+
+        self.assertEqual(provider.fetched_urls, [wanted.url])
+
     def test_source_id_targets_one_source(self):
         self.source(url="http://example.com/skip")
         wanted = self.source(url="http://example.com/wanted")

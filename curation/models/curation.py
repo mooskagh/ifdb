@@ -21,6 +21,7 @@ class GameHistory(models.Model):
         )
         PROCESSING = "PROCESSING", _("Processing")
         NEEDS_ATTENTION = "NEEDS_ATTENTION", _("Needs attention")
+        ABANDONED = "ABANDONED", _("Abandoned")
 
     def __str__(self):
         return f"History #{self.pk} ({self.get_state_display()})"
@@ -346,6 +347,7 @@ class GameHistoryAuditLog(models.Model):
         )
         SOURCE_ATTACHED = "SOURCE_ATTACHED", _("Source attached")
         SOURCE_DETACHED = "SOURCE_DETACHED", _("Source detached")
+        GAME_MERGED = "GAME_MERGED", _("Game merged")
         FIELD_CHANGE = "FIELD_CHANGE", _("Field changed")
 
     class AuditField(models.TextChoices):
@@ -397,6 +399,19 @@ class GameHistoryAuditLog(models.Model):
             new_text=(
                 source_text if kind == cls.AuditKind.SOURCE_ATTACHED else None
             ),
+        )
+
+    @classmethod
+    def record_game_merge(cls, history, actor, old_game, new_game):
+        return cls.objects.create(
+            history=history,
+            actor=actor,
+            created_at=now(),
+            kind=cls.AuditKind.GAME_MERGED,
+            old_id=old_game.pk,
+            new_id=new_game.pk,
+            old_text=old_game.title,
+            new_text=new_game.title,
         )
 
     history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)

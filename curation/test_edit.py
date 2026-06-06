@@ -364,6 +364,20 @@ class RunEditTests(TestCase):
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertTrue(self._has_os_win(history.game))
 
+    def test_force_does_not_process_abandoned_history(self):
+        history = self._history()
+        history.state = GameHistory.State.ABANDONED
+        history.save(update_fields=["state"])
+
+        stats = self._run_with(
+            [_TagAndApprove(Approval.APPLIED)], history, force=True
+        )
+
+        self.assertEqual(stats.processed, 0)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.ABANDONED)
+        self.assertFalse(self._has_os_win(history.game))
+
     def test_force_does_not_claim_fresh_processing_history(self):
         history = self._history()
         history.state = GameHistory.State.PROCESSING

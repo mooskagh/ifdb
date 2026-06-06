@@ -10,7 +10,7 @@ from django.db import close_old_connections
 from django.db.models import Count, F
 from django.utils.timezone import now
 
-from .models import GameSource, GameSourceFetch
+from .models import GameHistory, GameSource, GameSourceFetch
 from .providers import PROVIDER_BY_TYPE
 
 logger = getLogger("worker")
@@ -178,6 +178,7 @@ def run_fetch(
     sources = (
         GameSource.objects
         .filter(type__in=source_types)
+        .exclude(history__state=GameHistory.State.ABANDONED)
         .exclude(url__isnull=True)
         .exclude(url="")
         .annotate(fetch_count=Count("gamesourcefetch"))
