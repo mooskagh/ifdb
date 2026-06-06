@@ -2717,6 +2717,12 @@ h6 {
     background: #fdecec;
     color: #a00;
 }
+.game--content-sidebar .curation-table {
+    font-size: 12px;
+}
+.game--content-sidebar .curation-table td {
+    overflow-wrap: anywhere;
+}
 .curation-table tbody tr.curation-history-state--scheduled_for_update,
 .curation-table tbody tr.curation-history-state--scheduled_for_update:nth-child(even) {
     background: #fff6d8;
