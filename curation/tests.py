@@ -423,6 +423,46 @@ class HistoryMergeViewTest(TestCase):
         self.assertContains(response, 'name="source_game_id"')
         self.assertContains(response, 'name="remap_contests"')
 
+    def test_history_page_shows_controls_in_sidebar(self):
+        history = self._history("Target")
+        EditPipeline.objects.update_or_create(
+            name="Импорт", defaults={"passes": []}
+        )
+
+        response = self.client.get(f"/curation/{history.pk}/")
+        content = response.content.decode()
+
+        self.assertContains(response, f"Информация ({history.pk})")
+        self.assertContains(
+            response,
+            '<div class="game--info-row"><div class="game--info-row-label">'
+            'Игра</div><div class="game--info-row-value">'
+            f'<a href="/game/{history.game.pk}/">Target</a></div></div>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<div class="game--info-row"><div class="game--info-row-label">'
+            'GameId</div><div class="game--info-row-value">'
+            f'{history.game.pk}</div></div>',
+            html=True,
+        )
+        self.assertNotContains(
+            response,
+            f'<div class="card--header"><a href="/game/{history.game.pk}/">'
+            'Target</a></div>',
+            html=True,
+        )
+        for earlier, later in [
+            (
+                '<div class="card--header">ОГОРОД</div>',
+                f"Информация ({history.pk})",
+            ),
+            (f"Информация ({history.pk})", "Автоматическая обработка"),
+            ("Автоматическая обработка", "Объединить с другой игрой"),
+        ]:
+            self.assertLess(content.index(earlier), content.index(later))
+
     def test_merge_blocks_contest_references_without_checkbox(self):
         target = self._history("Target")
         source = self._history("Source")
