@@ -30,6 +30,8 @@ from django.db import transaction
 from django.db.models import Case, IntegerField, Q, Value, When
 from django.utils.timezone import now
 
+from games.importer.discord import PostNewGameToDiscord
+
 from .gameinfo import GameInfo, parse
 from .models import (
     EditPipeline,
@@ -335,6 +337,7 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
         if state.needs_attention
         else GameHistory.State.SETTLED
     )
+    created_game_id = None
 
     if is_noop_edit(state.current, state.served):
         history.state = done_state
@@ -363,6 +366,7 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
         ).update(edit=edit)
 
         if state.approval is Approval.APPLIED:
+            created_game = history.game is None
             game, after = state.current.save(history.game)
             if after != final:
                 edit.canonical_text = after
@@ -371,8 +375,9 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
             edit.save(
                 update_fields=["canonical_text", "approved_at", "approver"]
             )
-            if history.game is None:
+            if created_game:
                 history.game = game
+                created_game_id = game.id
             history.state = done_state
             outcome = "applied"
         elif state.approval is Approval.PROPOSED:
@@ -383,6 +388,8 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
             outcome = "rejected"
 
     _flush(history, state)
+    if created_game_id is not None:
+        PostNewGameToDiscord(created_game_id)
     return outcome
 
 
