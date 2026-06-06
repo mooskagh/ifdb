@@ -20,6 +20,7 @@ from .llm_runners.base import game_edit_state_context
 from .llm_runners.content_editor import (
     ComplainParams,
     CutParams,
+    DeduplicateParams,
     DeleteExactParams,
     EditParams,
     FinishParams,
@@ -1100,6 +1101,7 @@ class ContentEditorRunnerTests(TestCase):
             {
                 "complain",
                 "cut",
+                "deduplicate",
                 "delete_exact",
                 "edit",
                 "finish",
@@ -1114,6 +1116,11 @@ class ContentEditorRunnerTests(TestCase):
             for tool in runner._tools_schema()
             if tool["function"]["name"] == "edit"
         )
+        deduplicate = next(
+            tool
+            for tool in runner._tools_schema()
+            if tool["function"]["name"] == "deduplicate"
+        )
         finish = next(
             tool
             for tool in runner._tools_schema()
@@ -1124,6 +1131,13 @@ class ContentEditorRunnerTests(TestCase):
         self.assertIn("replace", edit_params["edit"]["required"])
         self.assertNotIn("insert_before", edit_params["edit"]["properties"])
         self.assertNotIn("insert_after", edit_params["edit"]["properties"])
+        deduplicate_params = deduplicate["function"]["parameters"][
+            "properties"
+        ]
+        self.assertIn(
+            "0-based",
+            deduplicate_params["occurrence_to_keep"]["description"],
+        )
         resolution = finish["function"]["parameters"]["properties"][
             "resolution"
         ]
@@ -1198,7 +1212,7 @@ class ContentEditorRunnerTests(TestCase):
             DeleteExactParams(
                 rationale="test",
                 text="Second line\n",
-                occurrence=1,
+                occurrence=0,
             )
         )
 
@@ -1214,7 +1228,7 @@ class ContentEditorRunnerTests(TestCase):
                 rationale="test",
                 old="Second line",
                 new="Changed line",
-                occurrence=1,
+                occurrence=0,
             )
         )
 
@@ -1233,7 +1247,7 @@ class ContentEditorRunnerTests(TestCase):
         )
         second = runner.replace_exact(
             ReplaceExactParams(
-                rationale="test", old="same", new="other", occurrence=2
+                rationale="test", old="same", new="other", occurrence=1
             )
         )
 
@@ -1254,6 +1268,79 @@ class ContentEditorRunnerTests(TestCase):
         self.assertEqual(result["clipboard_id"], "clip_1")
         self.assertEqual(result["clipboard_text"], "Second line\n")
         self.assertEqual(result["current_text"], "First line\nThird line")
+
+    def test_deduplicate_removes_all_but_selected_identical_span(self):
+        self.state.current.description = (
+            "Intro\n"
+            "<section>Duplicate block</section>\n"
+            "Middle\n"
+            "<section>Duplicate block</section>\n"
+            "Outro"
+        )
+
+        result = self._runner().deduplicate(
+            DeduplicateParams(
+                rationale="test",
+                start_text="<section>",
+                end_text="</section>\n",
+                occurrence_to_keep=1,
+            )
+        )
+
+        self.assertEqual(result["status"], "deduplicated")
+        self.assertEqual(result["removed_occurrences"], 1)
+        self.assertEqual(
+            result["current_text"],
+            "Intro\nMiddle\n<section>Duplicate block</section>\nOutro",
+        )
+
+    def test_deduplicate_rejects_nonidentical_spans_by_default(self):
+        self.state.current.description = (
+            "<section>First block</section>\n<section>Second block</section>"
+        )
+
+        result = self._runner().deduplicate(
+            DeduplicateParams(
+                rationale="test",
+                start_text="<section>",
+                end_text="</section>",
+                occurrence_to_keep=0,
+            )
+        )
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("allow_nonexact_match=true", result["error"])
+        self.assertIn("occurrence 0", result["error"])
+        self.assertIn("occurrence 1", result["error"])
+        self.assertEqual(
+            self.state.current.description,
+            "<section>First block</section>\n<section>Second block</section>",
+        )
+
+    def test_deduplicate_allows_nonexact_spans_when_requested(self):
+        self.state.current.description = (
+            "Before\n"
+            "<section>First block</section>\n"
+            "Between\n"
+            "<section>Second block</section>\n"
+            "After"
+        )
+
+        result = self._runner().deduplicate(
+            DeduplicateParams(
+                rationale="test",
+                start_text="<section>",
+                end_text="</section>",
+                occurrence_to_keep=0,
+                allow_nonexact_match=True,
+            )
+        )
+
+        self.assertEqual(result["status"], "deduplicated")
+        self.assertEqual(
+            result["current_text"],
+            "Before\n<section>First block</section>\nBetween\n\nAfter",
+        )
 
     def test_paste_inserts_text_at_end(self):
         result = self._runner().paste(
@@ -1585,7 +1672,7 @@ class ContentEditorRunnerTests(TestCase):
             self._edit_params(
                 "same two",
                 "same two",
-                occurrence=1,
+                occurrence=0,
                 replace="second",
             )
         )
@@ -1603,7 +1690,7 @@ class ContentEditorRunnerTests(TestCase):
             self._edit_params(
                 "same",
                 "two",
-                occurrence=2,
+                occurrence=1,
                 replace="before same two after",
             )
         )
@@ -1621,7 +1708,7 @@ class ContentEditorRunnerTests(TestCase):
         self.state.current.description = "same one\nsame two\nend"
 
         result = self._runner().edit(
-            self._edit_params("same", "end", occurrence=1, replace="")
+            self._edit_params("same", "end", occurrence=0, replace="")
         )
 
         self.assertEqual(result["status"], "error")
