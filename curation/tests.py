@@ -1,7 +1,7 @@
 from datetime import timedelta
 from html import unescape
 from io import StringIO
-from json import loads
+from json import dumps, loads
 from unittest.mock import patch
 
 from django.conf import settings
@@ -607,7 +607,7 @@ class HistoryMergeViewTest(TestCase):
         )
 
 
-class HistorySplitViewTest(TestCase):
+class HistoryReconcileViewTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(
             username="admin", email="admin@example.com", is_superuser=True
@@ -662,63 +662,89 @@ class HistorySplitViewTest(TestCase):
         attr = GameDescriptionAttribution.objects.create(name="source")
         game.description_attributions.add(attr)
 
-    def _default_options(self):
+    def _column(self, history, *, client_id="base", sources=()):
+        game = history.game
         return {
-            "keep_tags": "on",
-            "copy_tags": "on",
-            "keep_authors": "on",
-            "copy_authors": "on",
-            "keep_urls": "on",
-            "copy_urls": "on",
-            "keep_description": "on",
-            "copy_description": "on",
+            "client_id": client_id,
+            "history_id": history.pk,
+            "game_id": game.pk if game else None,
+            "title": game.title if game else "",
+            "release_date": "",
+            "tags": [
+                [tag.category_id, tag.id]
+                for tag in (game.tags.all() if game else [])
+            ],
+            "authors": [
+                [row.role_id, row.author_id]
+                for row in (game.gameauthor_set.all() if game else [])
+            ],
+            "links": [
+                [row.category_id, row.description or "", row.url.original_url]
+                for row in (
+                    game.gameurl_set.select_related("url") if game else []
+                )
+            ],
+            "description_attributions": [
+                row.name
+                for row in (
+                    game.description_attributions.all() if game else []
+                )
+            ],
+            "description": game.description if game else "",
+            "delete": False,
+            "sources": [{"id": source.pk} for source in sources],
         }
 
-    def test_history_page_shows_split_form_with_checked_defaults(self):
+    def _post(self, history, columns, *, orphan_source_ids=()):
+        return self.client.post(
+            f"/curation/{history.pk}/reconcile/",
+            data=dumps({
+                "columns": columns,
+                "orphan_source_ids": list(orphan_source_ids),
+            }),
+            content_type="application/json",
+        )
+
+    def test_history_page_links_to_reconcile_editor(self):
         history = self._history()
-        source = self._source(history, "https://example.com/source")
 
         response = self.client.get(f"/curation/{history.pk}/")
 
-        self.assertContains(response, "Разделить игру")
+        self.assertContains(response, "Сверить игры")
         self.assertContains(
-            response, f'action="/curation/{history.pk}/split/"'
+            response, f'href="/curation/{history.pk}/reconcile/"'
         )
-        for field in [
-            "keep_tags",
-            "copy_tags",
-            "keep_authors",
-            "copy_authors",
-            "keep_urls",
-            "copy_urls",
-            "keep_description",
-            "copy_description",
-        ]:
-            self.assertContains(
-                response, f'name="{field}" checked', html=False
-            )
-        self.assertContains(response, f'name="source_{source.pk}"')
-        self.assertContains(response, 'value="base" checked')
-        self.assertContains(response, 'value="split"')
+        self.assertNotContains(response, "/split/")
 
-    def test_split_moves_selected_source_and_copies_default_metadata(self):
+    def test_reconcile_page_renders_editor_shell(self):
+        history = self._history()
+
+        response = self.client.get(f"/curation/{history.pk}/reconcile/")
+
+        self.assertContains(response, "Сверка игр")
+        self.assertContains(response, "reconcile.js")
+        self.assertContains(response, "reconcile-data")
+
+    def test_reconcile_moves_source_to_new_game_and_copies_metadata(self):
         history = self._history()
         self._metadata(history.game)
         staying = self._source(history, "https://example.com/stay")
         moving = self._source(history, "https://example.com/move")
+        new_col = self._column(history, client_id="new-1", sources=[moving])
+        new_col.update({
+            "history_id": None,
+            "game_id": None,
+            "title": "Split",
+        })
 
-        response = self.client.post(
-            f"/curation/{history.pk}/split/",
-            {
-                "split_title": "Split",
-                f"source_{staying.pk}": "base",
-                f"source_{moving.pk}": "split",
-                **self._default_options(),
-            },
+        response = self._post(
+            history,
+            [self._column(history, sources=[staying]), new_col],
         )
 
         split = GameHistory.objects.exclude(pk=history.pk).get()
-        self.assertRedirects(response, f"/curation/{split.pk}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("redirect", response.json())
         staying.refresh_from_db()
         moving.refresh_from_db()
         history.refresh_from_db()
@@ -751,39 +777,61 @@ class HistorySplitViewTest(TestCase):
             ).exists()
         )
 
-    def test_split_unchecked_base_options_delete_base_metadata(self):
+    def test_reconcile_blocks_deleting_game_with_contest_references(self):
         history = self._history()
-        self._metadata(history.game)
-        moving = self._source(history, "https://example.com/move")
+        gamelist = GameList.objects.create(title="Contest games")
+        GameListEntry.objects.create(gamelist=gamelist, game=history.game)
+        col = self._column(history)
+        col["delete"] = True
 
-        response = self.client.post(
-            f"/curation/{history.pk}/split/",
-            {"split_title": "Split", f"source_{moving.pk}": "split"},
-        )
+        response = self._post(history, [col])
 
-        split = GameHistory.objects.exclude(pk=history.pk).get()
-        self.assertRedirects(response, f"/curation/{split.pk}/")
-        history.game.refresh_from_db()
-        self.assertIsNone(history.game.description)
-        self.assertEqual(history.game.tags.count(), 0)
-        self.assertEqual(history.game.gameauthor_set.count(), 0)
-        self.assertEqual(history.game.gameurl_set.count(), 0)
-        self.assertIsNone(split.game.description)
-        self.assertEqual(split.game.tags.count(), 0)
-        self.assertEqual(split.game.gameauthor_set.count(), 0)
-        self.assertEqual(split.game.gameurl_set.count(), 0)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("конкурсные ссылки", response.json()["error"])
+        self.assertTrue(Game.objects.filter(pk=history.game_id).exists())
 
-    def test_split_requires_a_source_for_new_game(self):
+    def test_reconcile_blocks_deleting_game_with_sources(
+        self,
+    ):
         history = self._history()
-        self._source(history, "https://example.com/source")
+        source = self._source(history, "https://example.com/source")
+        game_id = history.game_id
+        col = self._column(history, sources=[source])
+        col["delete"] = True
 
-        response = self.client.post(
-            f"/curation/{history.pk}/split/",
-            {"split_title": "Split", **self._default_options()},
+        response = self._post(history, [col])
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("источниками", response.json()["error"])
+        self.assertTrue(Game.objects.filter(pk=game_id).exists())
+        source.refresh_from_db()
+        history.refresh_from_db()
+        self.assertEqual(source.history_id, history.pk)
+        self.assertEqual(history.game_id, game_id)
+
+    def test_reconcile_orphan_source_then_deletes_game(self):
+        history = self._history()
+        source = self._source(history, "https://example.com/source")
+        game_id = history.game_id
+        col = self._column(history)
+        col["delete"] = True
+
+        response = self._post(history, [col], orphan_source_ids=[source.pk])
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Game.objects.filter(pk=game_id).exists())
+        source.refresh_from_db()
+        history.refresh_from_db()
+        self.assertIsNone(source.history_id)
+        self.assertIsNone(history.game_id)
+        self.assertEqual(history.state, GameHistory.State.ABANDONED)
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=history,
+                kind=GameHistoryAuditLog.AuditKind.SOURCE_DETACHED,
+                old_id=source.pk,
+            ).exists()
         )
-
-        self.assertRedirects(response, f"/curation/{history.pk}/")
-        self.assertEqual(GameHistory.objects.count(), 1)
 
 
 class LlmTrajectoryViewTest(TestCase):

@@ -348,7 +348,10 @@ class GameInfo:
 
     def _save_urls(self, game: Game) -> None:
         existing = {
-            (gu.category_id, gu.url.original_url): gu.id
+            (gu.category_id, gu.url.original_url): (
+                gu.id,
+                gu.description or "",
+            )
             for gu in game.gameurl_set.select_related("url").all()
         }
         desired = set()
@@ -363,15 +366,22 @@ class GameInfo:
             if key in desired:
                 continue
             desired.add(key)
-            if key not in existing:
+            description = entry.description or ""
+            if key in existing:
+                game_url_id, old_description = existing[key]
+                if description != old_description:
+                    GameURL.objects.filter(pk=game_url_id).update(
+                        description=description or None
+                    )
+            else:
                 gu = GameURL(
                     game=game,
                     url_id=url.id,
                     category_id=cat.id,
-                    description=entry.description or None,
+                    description=description or None,
                 )
                 gu.save()
-        if stale := [v for k, v in existing.items() if k not in desired]:
+        if stale := [v[0] for k, v in existing.items() if k not in desired]:
             GameURL.objects.filter(id__in=stale).delete()
 
     def _save_attributions(self, game: Game) -> None:
