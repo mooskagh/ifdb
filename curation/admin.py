@@ -39,8 +39,9 @@ class GameSourceAdmin(admin.ModelAdmin):
         "url",
         "failing_since",
         "last_attempt",
+        "keep_orphan",
     ]
-    list_filter = ["type"]
+    list_filter = ["type", "keep_orphan"]
     search_fields = ["pk", "url"]
     raw_id_fields = ["history"]
 

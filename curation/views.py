@@ -320,10 +320,16 @@ def _tasks_post(request):
 
 
 def _render_tasks(request):
-    orphan_total = GameSource.objects.filter(history__isnull=True).count()
+    orphan_total = GameSource.objects.filter(
+        history__isnull=True, keep_orphan=False
+    ).count()
     orphan_ready = (
         GameSource.objects
-        .filter(history__isnull=True, gamesourcefetch__isnull=False)
+        .filter(
+            history__isnull=True,
+            keep_orphan=False,
+            gamesourcefetch__isnull=False,
+        )
         .distinct()
         .count()
     )
@@ -594,6 +600,12 @@ def source_detail(request, source_id):
     source = get_object_or_404(
         GameSource.objects.select_related("history__game"), pk=source_id
     )
+    if request.method == "POST":
+        source.keep_orphan = request.POST.get("keep_orphan") == "on"
+        source.save(update_fields=["keep_orphan"])
+        messages.success(request, "Настройки источника сохранены.")
+        return redirect("curation_source_detail", source_id=source.pk)
+
     fetches = source.gamesourcefetch_set.order_by("-last_fetch", "-pk")
 
     return render(

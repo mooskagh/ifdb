@@ -42,6 +42,16 @@
             <div class="curation-source-detail-value">{{ source.missing_since|date:"d.m.Y H:i" }}</div>
         </div>
         {% endif %}
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Сирота</div>
+            <div class="curation-source-detail-value">
+                <form method="post">
+                    {% csrf_token %}
+                    <label><input type="checkbox" name="keep_orphan" {% if source.keep_orphan %}checked{% endif %}> оставить сиротой</label>
+                    <button type="submit">сохранить</button>
+                </form>
+            </div>
+        </div>
     </div>
     <div class="curation-save">
         <form method="post" action="{% url 'curation_source_fetch_now' source.pk %}">
