@@ -209,6 +209,61 @@ class GameEditCurationViewTests(TestCase):
 
         self.assertNotContains(response, "Огород")
 
+    def test_superuser_nav_shows_needs_attention_count(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        GameHistory.objects.create(
+            creation_time=now(), state=GameHistory.State.NEEDS_ATTENTION
+        )
+        GameHistory.objects.create(creation_time=now())
+
+        response = self.client.get(reverse("list_games"))
+
+        self.assertContains(
+            response,
+            (
+                f'<a class="top-nav-attention " '
+                f'href="{reverse("curation_history_list")}">ОГОРОД (1)</a>'
+            ),
+        )
+
+    def test_selected_superuser_nav_keeps_normal_style_with_count(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        GameHistory.objects.create(
+            creation_time=now(), state=GameHistory.State.NEEDS_ATTENTION
+        )
+
+        response = self.client.get(reverse("curation_history_list"))
+
+        self.assertContains(
+            response,
+            (
+                f'<a class="top-nav-attention current" '
+                f'href="{reverse("curation_history_list")}">ОГОРОД (1)</a>'
+            ),
+        )
+
+    def test_superuser_nav_omits_needs_attention_count_when_zero(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        GameHistory.objects.create(creation_time=now())
+
+        response = self.client.get(reverse("list_games"))
+
+        self.assertNotContains(response, "top-nav-attention")
+        self.assertContains(response, ">ОГОРОД</a>")
+
+    def test_non_superuser_nav_omits_needs_attention_count(self):
+        self.user.groups.add(Group.objects.create(name="gardener"))
+        GameHistory.objects.create(
+            creation_time=now(), state=GameHistory.State.NEEDS_ATTENTION
+        )
+
+        response = self.client.get(reverse("list_games"))
+
+        self.assertNotContains(response, "top-nav-attention")
+
     def test_game_page_renders_media_without_description(self):
         game = Game.objects.create(title="Old Title", creation_time=now())
         category = GameURLCategory.objects.get(symbolic_id="poster")

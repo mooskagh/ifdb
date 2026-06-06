@@ -96,6 +96,18 @@ def has_perm(context, expr):
     return context["request"].perm(expr)
 
 
+@register.simple_tag(takes_context=True)
+def needs_attention_history_count(context):
+    user = context["request"].user
+    if not user.is_superuser:
+        return 0
+    from curation.models import GameHistory
+
+    return GameHistory.objects.filter(
+        state=GameHistory.State.NEEDS_ATTENTION
+    ).count()
+
+
 @register.simple_tag(takes_context=False)
 def version():
     return settings.VERSION
