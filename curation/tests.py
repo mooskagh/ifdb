@@ -1062,6 +1062,12 @@ class TasksViewTest(TestCase):
             type=GameSource.SourceType.IFWIKI,
             url="https://example.com/unfetched",
         )
+        GameHistory.objects.create(
+            creation_time=ts, state=GameHistory.State.SCHEDULED_FOR_UPDATE
+        )
+        GameHistory.objects.create(
+            creation_time=ts, state=GameHistory.State.NEEDS_ATTENTION
+        )
 
         response = self.client.get("/curation/tasks/")
 
@@ -1072,7 +1078,7 @@ class TasksViewTest(TestCase):
         self.assertContains(response, "автоимпорт нового")
         self.assertContains(response, "выкачивать источники")
         self.assertContains(response, "выкачивать всякие там форумы")
-        self.assertContains(response, "автоматическая обработка очереди")
+        self.assertContains(response, "автоматическая обработка очереди (1)")
         self.assertContains(response, "Импорт")
 
     @patch("curation.views.discover_sources.delay")

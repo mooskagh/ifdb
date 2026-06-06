@@ -771,10 +771,16 @@ class HumanReviewRunnerTests(TestCase):
         )
         self.state = GameEditState(
             history=self.history,
-            current=GameInfo(name="Title", description="Short"),
+            current=GameInfo(
+                name="Title", date="2025-01-02", description="Short"
+            ),
             approval=Approval.APPLIED,
-            served=GameInfo(name="Title", description="Long text"),
-            last_applied=GameInfo(name="Old", description="Old text"),
+            served=GameInfo(
+                name="Title", date="2024-01-02", description="Long text"
+            ),
+            last_applied=GameInfo(
+                name="Old", date="2023-01-02", description="Old text"
+            ),
             sources=[
                 SourceFetchInfo(
                     url=self.source.url,
@@ -802,9 +808,31 @@ class HumanReviewRunnerTests(TestCase):
         self.assertIn("Long text", context["served_canonical_text"])
         self.assertIn("Short", context["current_canonical_text"])
         self.assertIn("Old text", context["last_applied_canonical_text"])
+        self.assertEqual(
+            context["served_metadata_yaml"],
+            '- name: "Title"\n- release_date: "2024-01-02"',
+        )
+        self.assertEqual(
+            context["current_metadata_yaml"],
+            '- name: "Title"\n- release_date: "2025-01-02"',
+        )
+        self.assertEqual(
+            context["last_applied_metadata_yaml"],
+            '- name: "Old"\n- release_date: "2023-01-02"',
+        )
+        self.assertNotIn("Long text", context["served_metadata_yaml"])
+        self.assertNotIn("Short", context["current_metadata_yaml"])
         self.assertEqual(context["served_content_text"], "Long text")
         self.assertEqual(context["current_content_text"], "Short")
         self.assertEqual(context["last_applied_content_text"], "Old text")
+        self.assertIn("--- served", context["metadata_yaml_diff"])
+        self.assertIn("+++ edited", context["metadata_yaml_diff"])
+        self.assertIn(
+            '-- release_date: "2024-01-02"', context["metadata_yaml_diff"]
+        )
+        self.assertIn(
+            '+- release_date: "2025-01-02"', context["metadata_yaml_diff"]
+        )
         self.assertIn("--- served", context["content_text_diff"])
         self.assertIn("+++ edited", context["content_text_diff"])
         self.assertIn("-Long text", context["content_text_diff"])

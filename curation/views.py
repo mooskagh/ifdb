@@ -318,6 +318,9 @@ def _render_tasks(request):
         .distinct()
         .count()
     )
+    scheduled_histories = GameHistory.objects.filter(
+        state=GameHistory.State.SCHEDULED_FOR_UPDATE
+    ).count()
     return render(
         request,
         "curation/tasks.html",
@@ -325,6 +328,7 @@ def _render_tasks(request):
             "discoverable_types": _discoverable_type_choices(),
             "orphan_ready": orphan_ready,
             "orphan_total": orphan_total,
+            "scheduled_histories": scheduled_histories,
             "periods": INTERVAL_PERIODS,
             "discover_sources": _periodic_task_config(
                 DISCOVER_SOURCES_TASK_NAME,
