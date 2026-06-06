@@ -4,6 +4,13 @@
 default:
     @just --list
 
+# Build TypeScript frontend bundle
+build-frontend:
+    @echo "Building frontend..."
+    esbuild frontend/main.ts --bundle --outfile=core/static/bundle.js
+    esbuild frontend/editor.ts --bundle --outfile=core/static/editor.js
+    esbuild frontend/llmModels.ts --bundle --outfile=core/static/llm_models.js
+
 # Django system checks
 check-django:
     @echo "Running Django system checks..."
@@ -55,3 +62,11 @@ start-db:
     @echo "Press Ctrl+C to stop"
     @echo ""
     docker-compose up
+
+# Start Celery development worker
+celery-worker:
+    uv run python manage.py celeryworker
+
+# Start Celery beat development scheduler
+celery-beat:
+    uv run celery -A ifdb beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler

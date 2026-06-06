@@ -1,0 +1,95 @@
+{% extends "curation/base.html" %}
+{% load tags %}
+
+{% block titlesection %}Правка #{{ edit.pk }} - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--green">
+    <div class="card--header">Правка #{{ edit.pk }}</div>
+    <div class="curation-source-detail">
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Статус</div>
+            <div class="curation-source-detail-value">{{ edit.get_status_display }}</div>
+        </div>
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Источник</div>
+            <div class="curation-source-detail-value">{{ edit.get_origin_display }}</div>
+        </div>
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Предложена</div>
+            <div class="curation-source-detail-value">{{ edit.proposed_at|date:"d.m.Y H:i" }}</div>
+        </div>
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Предложил</div>
+            <div class="curation-source-detail-value">{{ edit.proposed_by|default:"—" }}</div>
+        </div>
+        {% if edit.approved_at %}
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">{% if edit.status == "REJECTED" %}Отклонил{% else %}Одобрил{% endif %}</div>
+            <div class="curation-source-detail-value">{{ edit.approver|default:"—" }} ({{ edit.approved_at|date:"d.m.Y H:i" }})</div>
+        </div>
+        {% endif %}
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Игра</div>
+            <div class="curation-source-detail-value">
+                {% if game %}
+                <a href="{% url 'show_game' game.pk %}">{{ game.title }}</a>
+                {% else %}
+                —
+                {% endif %}
+            </div>
+        </div>
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">История</div>
+            <div class="curation-source-detail-value"><a href="{% url 'curation_history_detail' history.pk %}">вернуться к истории</a></div>
+        </div>
+        {% if edit.display_passes %}
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Passes</div>
+            <div class="curation-source-detail-value curation-edit-passes">
+                {% for pass in edit.display_passes %}
+                <span class="curation-edit-pass"><strong>{{ pass.name }}</strong>{% if pass.params %} {{ pass.params|prettyjson }}{% endif %}</span>{% if not forloop.last %}, {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% if edit.llm_trajectories %}
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">LLM</div>
+            <div class="curation-source-detail-value curation-llm-workflows">
+                {% for trajectory in edit.llm_trajectories %}
+                <a href="{% url 'curation_llm_trajectory_detail' trajectory.pk %}">{{ trajectory.workflow.name|default:"—" }}</a>{% if trajectory.model %} ({{ trajectory.model.name }}){% endif %}{% if not forloop.last %}, {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% if show_actions %}
+    <form class="curation-save" method="post">
+        {% csrf_token %}
+        {% if show_auto_accept %}
+        <label class="curation-save__checkbox">
+            <input type="checkbox" name="auto_accept"{% if auto_accept_checked %} checked{% endif %}>
+            В дальнейшем автоматически принимать
+        </label>
+        {% endif %}
+        <label>
+            и перейти
+            <select name="next">
+                <option value="list" selected>к списку игр</option>
+                {% if game %}
+                <option value="edit_game">к редактированию игры</option>
+                <option value="game">к игре</option>
+                {% endif %}
+                <option value="history">к истории игры</option>
+                <option value="stay">остаться тут</option>
+            </select>
+        </label>
+        <button type="submit" name="action" value="accept">Принять</button>
+        <button type="submit" name="action" value="reject">Отклонить</button>
+    </form>
+    {% endif %}
+</div>
+
+{% include "curation/_diff.html" %}
+{% endblock %}

@@ -9,7 +9,6 @@ from .models import (
     PackageVersion,
     Snippet,
     SnippetPin,
-    TaskQueueElement,
     User,
 )
 
@@ -20,24 +19,6 @@ class SessionAdmin(admin.ModelAdmin):
         return obj.get_decoded()
 
     list_display = ["session_key", "_session_data", "expire_date"]
-
-
-@admin.register(TaskQueueElement)
-class TaskQueueElementAdmin(admin.ModelAdmin):
-    list_display = [
-        "pk",
-        "name",
-        "command_json",
-        "retries_left",
-        "start_time",
-        "scheduled_time",
-        "pending",
-        "success",
-        "fail",
-    ]
-    list_filter = ["scheduled_time", "pending", "success", "fail"]
-    search_fields = ["pk", "name"]
-    raw_id_fields = ["dependency"]
 
 
 @admin.register(User)

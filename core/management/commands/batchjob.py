@@ -6,9 +6,7 @@ import subprocess
 from logging import getLogger
 
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
-from core.models import TaskQueueElement
 from games.models import (
     URL,
     Game,
@@ -21,8 +19,6 @@ from games.models import (
 )
 
 logger = getLogger("worker")
-
-#  {"module": "games.tasks.uploads", "name": "MarkBroken"}
 
 
 def IfwikiCapitalizeFile():
@@ -57,19 +53,6 @@ def RenameRecodes():
         if not m:
             raise x
         x.recoded_url = "/f/recodes/" + m.group(1)
-        x.save()
-
-
-def UpdateTaskQueues():
-    for x in TaskQueueElement.objects.all():
-        if "CloneGame" not in x.name:
-            continue
-        if x.fail:
-            x.fail = False
-            x.pending = True
-        x.onfail_json = (
-            '{"module": "games.tasks.uploads", "name": "MarkBroken"}'
-        )
         x.save()
 
 
@@ -264,31 +247,6 @@ def PopulateAliasRedirects():
         x.delete()
 
 
-def TaskQueueCleanup():
-    now = timezone.now()
-    for x in TaskQueueElement.objects.all():
-        if not x.success:
-            continue
-        age = (now - x.finish_time).total_seconds() / (24 * 60 * 60)
-        if age < 14:
-            continue
-        if TaskQueueElement.objects.filter(dependency=x):
-            continue
-        logger.info("Killing old TaskQueueElement [%s], age %.1f" % (x, age))
-        x.delete()
-
-
-def RetryFailedJobs():
-    now = timezone.now()
-    for x in TaskQueueElement.objects.filter(fail=True):
-        logger.info("Retrying [%s]" % x)
-        x.enqueue_time = now
-        x.fail = False
-        x.pending = True
-        x.retries_left = 2
-        x.save()
-
-
 class Command(BaseCommand):
     help = "Does some batch processing."
 
@@ -300,8 +258,6 @@ class Command(BaseCommand):
             "fixgameauthors": FixGameAuthors,
             "fixurldups": FixDuplicateUrls,
             "resetperms": ResetPermissions,
-            "cleanupqueue": TaskQueueCleanup,
-            "retryfailedjobs": RetryFailedJobs,
         }
         if cmd in options:
             options[cmd]()

@@ -1,0 +1,223 @@
+import json
+from io import StringIO
+
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.core.management import call_command
+from django.test import TestCase
+from django.urls import reverse
+from django.utils.timezone import now
+
+from curation.models import GameEdit, GameHistory
+from games.models import (
+    URL,
+    Game,
+    GameAuthor,
+    GameAuthorRole,
+    GameURL,
+    GameURLCategory,
+    PersonalityAlias,
+)
+
+
+class GameEditCurationViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("initifdb", stdout=StringIO(), stderr=StringIO())
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="user", email="user@example.com", password="pw"
+        )
+        self.client.force_login(self.user)
+
+    def _payload(self, game, title="New Title"):
+        return {
+            "game_id": game.id,
+            "title": title,
+            "desc": "New description",
+            "release_date": "",
+            "authors": [],
+            "tags": [],
+            "links": [],
+            "description_attributions": [],
+        }
+
+    def _add_payload(self, title="New Game"):
+        data = self._payload(Game(title="", creation_time=now()), title)
+        del data["game_id"]
+        return data
+
+    def test_edit_page_button_says_propose_without_edit_perm(self):
+        game = Game.objects.create(
+            title="Old Title",
+            creation_time=now(),
+            edit_perm="@admin",
+        )
+
+        response = self.client.get(reverse("edit_game", args=[game.id]))
+
+        self.assertContains(response, "Предложить")
+        self.assertNotContains(response, ">Сохранить</button>")
+
+    def test_edit_page_button_says_save_with_edit_perm(self):
+        game = Game.objects.create(title="Old Title", creation_time=now())
+
+        response = self.client.get(reverse("edit_game", args=[game.id]))
+
+        self.assertContains(response, "Сохранить")
+
+    def test_store_proposes_without_edit_perm(self):
+        game = Game.objects.create(
+            title="Old Title",
+            creation_time=now(),
+            edit_perm="@admin",
+        )
+
+        self.client.post(
+            reverse("store_game"),
+            {"json": json.dumps(self._payload(game))},
+        )
+
+        game.refresh_from_db()
+        history = GameHistory.objects.get(game=game)
+        edit = GameEdit.objects.get(history=history)
+        self.assertEqual(game.title, "Old Title")
+        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
+        self.assertEqual(edit.origin, GameEdit.Origin.USER_SUGGESTION)
+        self.assertEqual(edit.proposed_by, self.user)
+        self.assertIsNone(edit.approver)
+
+    def test_store_saves_with_edit_perm(self):
+        game = Game.objects.create(title="Old Title", creation_time=now())
+
+        self.client.post(
+            reverse("store_game"),
+            {"json": json.dumps(self._payload(game))},
+        )
+
+        game.refresh_from_db()
+        history = GameHistory.objects.get(game=game)
+        edit = GameEdit.objects.get(history=history)
+        self.assertEqual(game.title, "New Title")
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
+        self.assertEqual(edit.origin, GameEdit.Origin.MANUAL_EDIT)
+        self.assertEqual(edit.proposed_by, self.user)
+        self.assertEqual(edit.approver, self.user)
+
+    def test_add_page_button_says_propose_without_moder_perm(self):
+        response = self.client.get(reverse("add_game"))
+
+        self.assertContains(response, "Предложить")
+        self.assertNotContains(response, ">Сохранить</button>")
+
+    def test_add_page_button_says_save_with_moder_perm(self):
+        self.user.groups.add(Group.objects.create(name="moder"))
+
+        response = self.client.get(reverse("add_game"))
+
+        self.assertContains(response, "Сохранить")
+
+    def test_add_proposes_unlinked_history_without_moder_perm(self):
+        response = self.client.post(
+            reverse("store_game"),
+            {"json": json.dumps(self._add_payload())},
+        )
+
+        history = GameHistory.objects.get()
+        edit = GameEdit.objects.get(history=history)
+        self.assertRedirects(response, reverse("list_games"))
+        self.assertIsNone(history.game)
+        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
+        self.assertEqual(edit.origin, GameEdit.Origin.USER_SUGGESTION)
+        self.assertEqual(edit.proposed_by, self.user)
+        self.assertIsNone(edit.approver)
+        self.assertEqual(Game.objects.count(), 0)
+
+    def test_accepting_proposed_add_creates_game(self):
+        self.client.post(
+            reverse("store_game"),
+            {"json": json.dumps(self._add_payload())},
+        )
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        edit = GameEdit.objects.get()
+
+        self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]), {"action": "accept"}
+        )
+
+        edit.refresh_from_db()
+        history = edit.history
+        history.refresh_from_db()
+        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertIsNotNone(history.game)
+        self.assertEqual(history.game.title, "New Game")
+        self.assertEqual(history.game.added_by, self.user)
+
+    def test_add_saves_with_moder_perm(self):
+        self.user.groups.add(Group.objects.create(name="moder"))
+
+        response = self.client.post(
+            reverse("store_game"),
+            {"json": json.dumps(self._add_payload())},
+        )
+
+        game = Game.objects.get()
+        history = GameHistory.objects.get(game=game)
+        edit = GameEdit.objects.get(history=history)
+        self.assertRedirects(response, reverse("show_game", args=[game.id]))
+        self.assertEqual(game.title, "New Game")
+        self.assertEqual(game.added_by, self.user)
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
+        self.assertEqual(edit.origin, GameEdit.Origin.MANUAL_EDIT)
+        self.assertEqual(edit.proposed_by, self.user)
+        self.assertEqual(edit.approver, self.user)
+
+    def test_game_page_renders_unlinked_author_alias(self):
+        game = Game.objects.create(title="Old Title", creation_time=now())
+        role = GameAuthorRole.objects.get(symbolic_id="author")
+        alias = PersonalityAlias.objects.create(name="Unlinked Author")
+        GameAuthor.objects.create(game=game, role=role, author=alias)
+
+        response = self.client.get(reverse("show_game", args=[game.id]))
+
+        self.assertContains(response, "Unlinked Author")
+
+    def test_game_page_moder_panel_links_to_curation_history(self):
+        self.user.groups.add(Group.objects.create(name="gardener"))
+        game = Game.objects.create(title="Old Title", creation_time=now())
+        history = GameHistory.objects.create(game=game, creation_time=now())
+
+        response = self.client.get(reverse("show_game", args=[game.id]))
+
+        self.assertContains(response, "Огород")
+        self.assertContains(
+            response, reverse("curation_history_detail", args=[history.pk])
+        )
+
+    def test_game_page_moder_panel_omits_curation_without_history(self):
+        self.user.groups.add(Group.objects.create(name="gardener"))
+        game = Game.objects.create(title="Old Title", creation_time=now())
+
+        response = self.client.get(reverse("show_game", args=[game.id]))
+
+        self.assertNotContains(response, "Огород")
+
+    def test_game_page_renders_media_without_description(self):
+        game = Game.objects.create(title="Old Title", creation_time=now())
+        category = GameURLCategory.objects.get(symbolic_id="poster")
+        url = URL.objects.create(
+            original_url="https://example.com/poster.png",
+            creation_date=now(),
+        )
+        GameURL.objects.create(game=game, category=category, url=url)
+
+        response = self.client.get(reverse("show_game", args=[game.id]))
+
+        self.assertEqual(response.status_code, 200)

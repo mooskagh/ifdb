@@ -3,8 +3,15 @@ from django.core.management.base import BaseCommand
 from games.importer.ifwiki import WikiQuote
 from games.importer.tools import Importer
 from games.models import Personality, PersonalityAlias, PersonalityURLCategory
-from games.tasks.game_importer import USER, FakeRequest
 from games.updater import UpdatePersonalityUrls
+
+
+class FakeRequest:
+    def __init__(self, user):
+        self.user = user
+
+
+USER = "worker"
 
 
 class Command(BaseCommand):

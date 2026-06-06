@@ -7,6 +7,13 @@ RE_WORD = re.compile(r"\w+")
 MIN_SIMILARITY = 0.67
 REGISTERED_IMPORTERS = []
 
+
+def AddDescriptionAttribution(res, name):
+    attributions = res.setdefault("description_attributions", [])
+    if name not in attributions:
+        attributions.append(name)
+
+
 URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ("qsp.su", "^/?$", "^$", None, None),
     ("urq.plut.info", "^/?$", "^$", None, None),
@@ -81,6 +88,7 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ("instead-games.ru", "/instead-em/.*", "", "play_online", "Играть онлайн"),
     ("instead-games.ru", "/forum/.*", "", "forum", "Форум на инстеде"),
     ("instead-games.ru", "", "", "game_page", "Страница на инстеде"),
+    ("gamin.me", "/posts/.*", "", "forum", "Обсуждение на gamin.me"),
     ("instead.syscall.ru", ".*/forum/.*", "", "forum", "Форум на инстеде"),
     ("youtube.com", "", "", "video", "Видео игры"),
     ("youtu.be", "", "", "video", "Видео игры"),
@@ -108,6 +116,13 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
         "",
         "download_direct",
         "Скачать с hyperbook.ru",
+    ),
+    (
+        "hyperbook.ru",
+        "/comments.php",
+        "",
+        "forum",
+        "Обсуждение на hyperbook.ru",
     ),
     (
         "",
@@ -160,10 +175,13 @@ def CategorizeUrl(url, desc="", category=None, base=None):
         break
 
     if cat_slug == "unknown":
-        if desc.lower() == "играть онлайн":
+        desc_lower = desc.lower()
+        if desc_lower == "играть онлайн":
             cat_slug = "play_online"
-        elif "скачать" in desc.lower():
+        elif "скачать" in desc_lower:
             cat_slug = "download_landing"
+        elif "обсуждение" in desc_lower:
+            cat_slug = "forum"
 
     if not desc:
         desc = url
@@ -397,6 +415,7 @@ class Importer:
 # Schema:
 # title: title
 # desc: description, markdown-formatted
+# description_attributions[]: source site names for game description
 # release_date: release-date
 # authors[]:
 #   role_slug:

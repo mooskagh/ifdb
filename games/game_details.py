@@ -30,7 +30,7 @@ logger = getLogger("web")
 def AnnotateMedia(media):
     res = []
     media.sort(
-        key=lambda x: (x.category.symbolic_id == "video", x.description)
+        key=lambda x: (x.category.symbolic_id == "video", x.description or "")
     )
     for y in media:
         val = {}
@@ -99,6 +99,7 @@ class GameDetailsBuilder:
                 "gameauthor_set__author",
                 "gameurl_set__category",
                 "gameurl_set__url",
+                "description_attributions",
                 "tags__category",
             )
             .select_related()
@@ -126,6 +127,9 @@ class GameDetailsBuilder:
             ],
         )
         media = AnnotateMedia(media)
+        attributions = list(
+            self.game.description_attributions.order_by("name")
+        )
         md = RenderMarkdown(self.game.description)
         metadata = self.GetTagsForDetails()
         votes = self.GetGameScore()
@@ -157,6 +161,7 @@ class GameDetailsBuilder:
             "moder_actions": GetModerActions(self.request, "Game", self.game),
             "last_edit_date": last_edit_date,
             "markdown": md,
+            "description_attributions": attributions,
             "release_date": release_date,
             "metadata": metadata,
             "links": links,

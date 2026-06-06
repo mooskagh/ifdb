@@ -11,8 +11,7 @@ from markdown.blockprocessors import BlockProcessor
 from markdown.extensions import Extension
 from markdown.util import AtomicString
 
-from core.taskqueue import Enqueue
-from games.tasks.uploads import CloneFile, MarkBroken
+from games.tasks import clone_file
 
 from .models import URL, GameURL, GameVote
 
@@ -327,7 +326,7 @@ def CreateUrl(url, *, ok_to_clone, creator=None):
     if ok_to_clone and not u.ok_to_clone:
         u.ok_to_clone = ok_to_clone
         u.save()
-        Enqueue(CloneFile, u.id, name="CloneUrl(%d)" % u.id, onfail=MarkBroken)
+        clone_file.delay(u.id)
     return u
 
 

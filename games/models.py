@@ -14,6 +14,9 @@ class Game(models.Model):
 
     title = models.CharField(_("Title"), max_length=255)
     description = models.TextField(_("Description"), null=True, blank=True)
+    description_attributions = models.ManyToManyField(
+        "GameDescriptionAttribution", blank=True
+    )
     release_date = models.DateField(
         _("Release date"), null=True, blank=True, db_index=True
     )
@@ -45,6 +48,16 @@ class Game(models.Model):
     # -(GameContestEntry)
     # (LoadLog) // For computing popularity
     # -(GamePopularity)
+
+
+class GameDescriptionAttribution(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    def __str__(self):
+        return self.name
+
+    name = models.CharField(max_length=255, unique=True, db_index=True)
 
 
 class URL(models.Model):

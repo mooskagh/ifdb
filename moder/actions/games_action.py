@@ -130,6 +130,20 @@ class GameCloneAction(GameAction):
 
 
 @RegisterAction
+class GameCurationAction(GameAction):
+    TITLE = "Огород"
+
+    @classmethod
+    def IsAllowed(cls, request, obj):
+        return super().IsAllowed(request, obj) and hasattr(obj, "gamehistory")
+
+    def GetUrl(self):
+        return reverse(
+            "curation_history_detail", args=(self.obj.gamehistory.pk,)
+        )
+
+
+@RegisterAction
 class GameAdminzAction(GameAction):
     PERM = "@admin"
     TITLE = "Админка"

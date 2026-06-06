@@ -143,9 +143,10 @@ class TestIfwikiImporter(unittest.TestCase):
         # Check priority
         self.assertEqual(result.get("priority"), 100)
 
-        # Verify that description contains ifwiki.ru attribution
+        # Verify that game description attribution is returned separately.
         desc = result.get("desc", "")
-        self.assertIn("ifwiki.ru", desc.lower())
+        self.assertNotIn("описание взято", desc.lower())
+        self.assertEqual(result.get("description_attributions"), ["ifwiki.ru"])
 
     def test_template_parsing(self):
         """Test parsing of various MediaWiki templates."""
@@ -165,6 +166,231 @@ class TestIfwikiImporter(unittest.TestCase):
             ]
             self.assertTrue(len(competition_tags) > 0)
             self.assertEqual(competition_tags[0]["tag"], "ЛОК-2020")
+
+    def test_media_link_with_leading_colon_becomes_download_url(self):
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = """
+== Версии ==
+* [[:Медиа:Three_birds.zip|ZIP-архив]] - содержит PDF со сканом игры
+"""
+
+            result = ImportFromIfwiki(self.test_url)
+
+        self.assertIn("## Версии", result["desc"])
+        self.assertNotIn("ZIP-архив", result["desc"])
+        self.assertNotIn("содержит PDF", result["desc"])
+        urls = result.get("urls", [])
+        self.assertIn(
+            {
+                "urlcat_slug": "download_direct",
+                "description": "ZIP-архив - содержит PDF со сканом игры",
+                "url": "https://ifwiki.ru/files/Three_birds.zip",
+            },
+            urls,
+        )
+
+    def test_image_link_bullet_becomes_screenshot_url(self):
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = """
+== Скриншоты ==
+* [[Изображение:screen.png|Скриншот]] - финальная сцена
+"""
+
+            result = ImportFromIfwiki(self.test_url)
+
+        self.assertNotIn("финальная сцена", result["desc"])
+        self.assertIn(
+            {
+                "urlcat_slug": "screenshot",
+                "description": "Скриншот - финальная сцена",
+                "url": "https://ifwiki.ru/files/Screen.png",
+            },
+            result.get("urls", []),
+        )
+
+    def test_markdown_links_are_extracted_as_urls(self):
+        review_url = "https://ifhub.club/2017/12/21/review.html"
+        video_url = "https://ifhub.club/2017/12/22/video.html"
+        walkthrough_url = "https://ifhub.club/2018/01/09/walkthrough.html"
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = f"""
+== Ссылки ==
+* [Страница игры в репозитории INSTEAD](http://instead-games.ru/game.php?ID=287)
+* [Обсуждение на форуме](http://instead-games.ru/forum/index.php?p=/discussion/560)
+* [Обзор]({review_url})
+* [Видеообзор]({video_url})
+* [Видеопрохождение]({walkthrough_url})
+"""
+
+            result = ImportFromIfwiki(self.test_url)
+
+        urls = result.get("urls", [])
+        self.assertIn(
+            {
+                "urlcat_slug": "game_page",
+                "description": "Страница игры в репозитории INSTEAD",
+                "url": "http://instead-games.ru/game.php?ID=287",
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "forum",
+                "description": "Обсуждение на форуме",
+                "url": "http://instead-games.ru/forum/index.php?p=/discussion/560",
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "review",
+                "description": "Обзор",
+                "url": review_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "review",
+                "description": "Видеообзор",
+                "url": video_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "review",
+                "description": "Видеопрохождение",
+                "url": walkthrough_url,
+            },
+            urls,
+        )
+        self.assertIn("## Ссылки", result["desc"])
+        self.assertNotIn("Страница игры в репозитории INSTEAD", result["desc"])
+        self.assertNotIn("Обсуждение на форуме", result["desc"])
+
+    def test_short_single_link_bullets_are_extracted(self):
+        review_url = "https://ifhub.club/review.html"
+        video_url = "https://ifhub.club/video.html"
+        walkthrough_url = "https://ifhub.club/walkthrough.html"
+        forum_url = "https://ifwiki.ru/forum"
+        play_url = "http://apero.ru/Текстовые-игры/Подпольный-военный"
+        itch_url = "https://klockwerk-kat.itch.io/go-ask-alice"
+        long_apero_url = (
+            "http://apero.ru/%D0%A2%D0%B5%D0%BA%D1%81%D1%82%D0%BE"
+            "%D0%B2%D1%8B%D0%B5-%D0%B8%D0%B3%D1%80%D1%8B/%D0%A1"
+            "%D0%BC%D0%B5%D1%88%D0%B0%D1%80%D0%B8%D0%BA%D0%B8-%D0%9C"
+            "%D0%BE%D1%80%D0%B4%D0%BE%D0%B1%D0%BE%D0%B9"
+        )
+        formatted_url = "https://ifhub.club/formatted.html"
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = f"""
+== Ссылки ==
+* [Обзор]({review_url})
+* [Видеообзор]({video_url}) от **Wol4ik**.
+* [{walkthrough_url} Видеопрохождение] от **drag**'а.
+* обсуждение на [ifwiki]({forum_url}).
+* [Играть онлайн]({play_url})
+* [{itch_url} Играть онлайн]
+* [{long_apero_url} Играть онлайн]
+* [Об__зор]({formatted_url}) те__кст.
+Полезный текст.
+"""
+
+            result = ImportFromIfwiki(self.test_url)
+
+        desc = result["desc"]
+        self.assertIn("## Ссылки", desc)
+        self.assertNotIn(f"[Обзор]({review_url})", desc)
+        self.assertNotIn("Видеообзор", desc)
+        self.assertNotIn("Видеопрохождение", desc)
+        self.assertNotIn("обсуждение на ifwiki", desc)
+        self.assertIn("Полезный текст.", desc)
+
+        urls = result["urls"]
+        self.assertIn(
+            {
+                "urlcat_slug": "review",
+                "description": "Обзор",
+                "url": review_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "review",
+                "description": "Видеообзор от Wol4ik",
+                "url": video_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "game_page",
+                "description": "обсуждение на ifwiki",
+                "url": forum_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "review",
+                "description": "Видеопрохождение от drag'а",
+                "url": walkthrough_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "play_online",
+                "description": "Играть онлайн",
+                "url": play_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "play_online",
+                "description": "Играть онлайн",
+                "url": itch_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "play_online",
+                "description": "Играть онлайн",
+                "url": long_apero_url,
+            },
+            urls,
+        )
+        self.assertIn(
+            {
+                "urlcat_slug": "review",
+                "description": "Об__зор те кст",
+                "url": formatted_url,
+            },
+            urls,
+        )
+
+    def test_short_link_simplification_ignores_complex_text(self):
+        review_url = "https://ifhub.club/review.html"
+        long_prefix_url = "https://ifhub.club/long.html"
+        video_url = "https://ifhub.club/video.html"
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = f"""
+Paragraph with [Обзор]({review_url}) от **Wol4ik**.
+* Это достаточно длинный текст перед ссылкой на [обзор]({long_prefix_url})
+* [Обзор]({review_url}) и [видео]({video_url})
+"""
+
+            result = ImportFromIfwiki(self.test_url)
+
+        desc = result["desc"]
+        self.assertIn(f"Paragraph with [Обзор]({review_url})", desc)
+        self.assertIn("* Это достаточно длинный текст перед", desc)
+        self.assertIn(f"[обзор]({long_prefix_url})", desc)
+        self.assertIn(f"* [Обзор]({review_url}) и [видео]({video_url})", desc)
 
     def test_redirect_handling(self):
         """Test handling of redirect pages."""
@@ -317,6 +543,68 @@ Test game content.
         self.assertIn(("tag", "фантастика"), tag_data)
         self.assertIn(("tag", "приключения"), tag_data)
         self.assertIn(("ifid", "12345-ABCDE"), tag_data)
+
+    def test_whitespace_only_link_display_falls_back_to_target(self):
+        test_url = "https://ifwiki.ru/TestGame"
+
+        wikitext = """{{game info
+|название=Test Game
+}}
+
+[[Персонаж::Алиса| ]]
+"""
+
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            result = ImportFromIfwiki(test_url)
+
+        self.assertIn(
+            ("character", "Алиса"),
+            [(a["role_slug"], a["name"]) for a in result["authors"]],
+        )
+        self.assertNotIn("Персонаж", result["desc"])
+        self.assertNotIn("Алиса", result["desc"])
+
+    def test_role_link_display_text_is_kept_in_description(self):
+        test_url = "https://ifwiki.ru/TestGame"
+
+        wikitext = """{{game info
+|название=Test Game
+}}
+
+Героиня: [[Персонаж::Алиса|Алиса Лидделл]]
+"""
+
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            result = ImportFromIfwiki(test_url)
+
+        self.assertIn(
+            ("character", "Алиса Лидделл"),
+            [(a["role_slug"], a["name"]) for a in result["authors"]],
+        )
+        self.assertIn("Героиня: **Алиса Лидделл**", result["desc"])
+
+    def test_role_link_without_display_is_removed_from_description(self):
+        test_url = "https://ifwiki.ru/TestGame"
+
+        wikitext = """{{game info
+|название=Test Game
+}}
+
+[[Персонаж::Алиса]]
+"""
+
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            result = ImportFromIfwiki(test_url)
+
+        self.assertIn(
+            ("character", "Алиса"),
+            [(a["role_slug"], a["name"]) for a in result["authors"]],
+        )
+        self.assertNotIn("Персонаж", result["desc"])
+        self.assertNotIn("Алиса", result["desc"])
 
     def test_competition_template_processing(self):
         """Test competition template processing."""

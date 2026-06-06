@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 import logging.config
 import os
 import os.path
+import sys
+from urllib.parse import quote_plus
 
 import environ
 from django.core.files.storage import FileSystemStorage
@@ -27,6 +29,8 @@ environ.Env.read_env(
 )
 
 DEBUG = env("DEBUG")
+MAINTENANCE_USER = env("MAINTENANCE_USER", default="бездушный робот")
+OPENROUTER_API_KEY = env("OPENROUTER_API_KEY", default=None)
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -261,11 +265,14 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sites",
+    "django_celery_beat",
+    "django_celery_results",
     "games",
     "django_recaptcha",
     "core",
     "moder",
     "contest",
+    "curation",
     "django.contrib.admin",
 ]
 
@@ -395,6 +402,29 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_L10N = True
 USE_TZ = False
+
+DB = DATABASES["default"]
+DB_HOST = DB.get("HOST") or "localhost"
+DB_PORT = f":{DB['PORT']}" if DB.get("PORT") else ""
+DB_USER = quote_plus(DB["USER"])
+DB_PASSWORD = quote_plus(DB["PASSWORD"])
+DB_NAME = quote_plus(DB["NAME"])
+
+CELERY_BROKER_URL = (
+    f"sqla+postgresql+psycopg://{DB_USER}:{DB_PASSWORD}"
+    f"@{DB_HOST}{DB_PORT}/{DB_NAME}"
+)
+CELERY_RESULT_BACKEND = "django-db"
+CELERY_CACHE_BACKEND = "default"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_IMPORTS = ["core.tasks", "curation.tasks", "games.tasks"]
+
+if "test" in sys.argv:
+    CELERY_BROKER_URL = "memory://"
+    CELERY_RESULT_BACKEND = "cache+memory://"
 
 AUTH_USER_MODEL = "core.User"
 FILE_UPLOAD_PERMISSIONS = 0o644

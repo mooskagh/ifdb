@@ -22,6 +22,7 @@
     <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/jqueryui-touch-punch/0.2.3/jquery.ui.touch-punch.min.js"></script>
     <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">    
     <link rel="stylesheet" type="text/css" media="screen" href="{% static 'games.css' %}" />
+    <script src="{% static 'bundle.js' %}" defer></script>
     {% block scripts %}{% endblock %}
         <title>{% block titlesection %}{% endblock %}db.crem.xyz</title>
     </head>
@@ -67,6 +68,10 @@
                     <a class="{% current 'list_competitions' %}" href="{% url 'list_competitions' %}">События</a>
                     {% if user.is_staff %}
                         <a href="/adminz/">Админка</a>
+                    {% endif %}
+                    {% has_perm "(alias curation_admin)" as can_curate %}
+                    {% if can_curate %}
+                        <a class="{% current 'curation_history_list' %}" href="{% url 'curation_history_list' %}">ОГОРОД</a>
                     {% endif %}
                 </nav>
             </header>

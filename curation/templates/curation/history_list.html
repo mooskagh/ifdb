@@ -1,0 +1,86 @@
+{% extends "curation/base.html" %}
+{% load tags %}
+
+{% block titlesection %}ОГОРОД - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--green">
+    <div class="card--header">Игры</div>
+    <div class="card--body">
+        <form class="curation-filter curation-filter--history" method="get">
+            <div class="curation-filter-field">
+                <label for="curation-history-q">Название</label>
+                <input id="curation-history-q" type="search" name="q" value="{{ q }}" placeholder="Игра">
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-history-state">Состояние</label>
+                <select id="curation-history-state" name="state">
+                    <option value="">— все —</option>
+                    {% for value, label in state_choices %}
+                    <option value="{{ value }}" {% if value == state %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-history-auto">Автообновление</label>
+                <select id="curation-history-auto" name="auto">
+                    <option value="">— все —</option>
+                    {% for value, label in auto_choices %}
+                    <option value="{{ value }}" {% if value == auto %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-history-sort">Сортировка</label>
+                <select id="curation-history-sort" name="sort">
+                    <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>По актуальности</option>
+                    <option value="updated" {% if sort == "updated" %}selected{% endif %}>По обновлению</option>
+                </select>
+            </div>
+            <button type="submit">Показать</button>
+        </form>
+    </div>
+    <table class="curation-table curation-table--compact curation-history-table">
+        <thead>
+            <tr>
+                <th>Игра</th>
+                <th class="curation-history-table-action"></th>
+                <th class="curation-history-table-state">Статус</th>
+                <th>Заметка</th>
+                <th class="curation-history-table-auto">Авто</th>
+                <th class="curation-history-table-date">Созд.</th>
+                <th class="curation-history-table-date">Обновл.</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for history in histories %}
+            <tr class="curation-history-state--{{ history.state|lower }}"
+                data-href="{% url 'curation_history_detail' history.pk %}">
+                <td class="curation-truncate">
+                    <a href="{% url 'curation_history_detail' history.pk %}" title="{{ history.game.title|default:'(не назначена)' }}">{{ history.game.title|default:"(не назначена)" }}</a>
+                </td>
+                <td class="curation-history-table-action">
+                    {% if history.pending_edit_id %}
+                    <a class="curation-action-link curation-action-link--compact" href="{% url 'curation_edit_diff' history.pending_edit_id %}">правка ждёт</a>
+                    {% endif %}
+                </td>
+                <td>{{ history.state_short }}</td>
+                <td class="curation-truncate" title="{{ history.note|default:'' }}">{{ history.note|default:""|linebreaksbr }}</td>
+                <td>{{ history.auto_short }}</td>
+                <td>{{ history.creation_time|date:"d.m.Y" }}</td>
+                <td>{{ history.updated|date:"d.m.Y" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7">Игр нет.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if page.has_other_pages %}
+    <div class="curation-pagination">
+        {% if page.has_previous %}<a href="?q={{ q|urlencode }}&state={{ state }}&auto={{ auto }}&sort={{ sort }}&page={{ page.previous_page_number }}">← Назад</a>{% endif %}
+        <span>Страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a href="?q={{ q|urlencode }}&state={{ state }}&auto={{ auto }}&sort={{ sort }}&page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

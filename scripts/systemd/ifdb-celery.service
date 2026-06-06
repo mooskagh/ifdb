@@ -1,0 +1,15 @@
+[Unit]
+Description=Ifdb Celery Worker
+After=syslog.target postgresql.service
+
+[Service]
+UMask=0002
+User=ifdb
+Group=ifdb
+WorkingDirectory=/home/ifdb/distrib/ifdb
+ExecStart=/home/ifdb/distrib/ifdb/.venv/bin/celery -A ifdb worker -l INFO
+Restart=always
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

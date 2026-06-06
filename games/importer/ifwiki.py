@@ -9,7 +9,11 @@ import mwparserfromhell
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeAuthorUrl, CategorizeUrl
+from .tools import (
+    AddDescriptionAttribution,
+    CategorizeAuthorUrl,
+    CategorizeUrl,
+)
 
 logger = getLogger("crawler")
 
@@ -135,27 +139,31 @@ REDIRECT_RE = re.compile(r"#(?:REDIRECT|ПЕРЕНАПРАВЛЕНИЕ)\s*\[\[(.
 
 
 def ImportAuthorFromIfwiki(url, res=None):
-    if not res:
-        res = {}
-    m = IFWIKI_URL.match(url)
-
     try:
-        fetch_url = f"{m.group(1)}/index.php?title={m.group(2)}&action=raw"
-        name = unquote(m.group(2)).replace("_", " ")
-        cont = FetchUrlToString(fetch_url) + "\n"
+        cont = FetchIfwikiRaw(url)
     except Exception:
         logger.info(
             f"Error while importing [{url}] from Ifwiki", exc_info=True
         )
         return {}
+    return ParseAuthorFromIfwiki(cont, url, res)
+
+
+def ParseAuthorFromIfwiki(cont, url, res=None):
+    if not res:
+        res = {}
 
     m = REDIRECT_RE.match(cont)
     if m:
         res["canonical"] = m.group(1)
         url_to_fetch = f"http://ifwiki.ru/{WikiQuote(res['canonical'])}"
         res["canonical_url"] = url_to_fetch
+        # Redirect chase re-fetches mid-parse (the documented canonicalize
+        # exception, like ifiction's ResolveRedirect).
         return ImportAuthorFromIfwiki(url_to_fetch, res)
 
+    m = IFWIKI_URL.match(url)
+    name = unquote(m.group(2)).replace("_", " ")
     context = WikiAuthorParsingContext(name, url)
     parsed_wikitext = mwparserfromhell.parse(cont)
 
@@ -169,16 +177,23 @@ def ImportAuthorFromIfwiki(url, res=None):
     return res
 
 
-def ImportFromIfwiki(url):
+def FetchIfwikiRaw(url, use_cache=True):
     m = IFWIKI_URL.match(url)
+    fetch_url = f"{m.group(1)}/index.php?title={m.group(2)}&action=raw"
+    return FetchUrlToString(fetch_url, use_cache=use_cache) + "\n"
 
+
+def ImportFromIfwiki(url):
     try:
-        fetch_url = f"{m.group(1)}/index.php?title={m.group(2)}&action=raw"
-        cont = FetchUrlToString(fetch_url) + "\n"
+        cont = FetchIfwikiRaw(url)
     except Exception:
         logger.exception(f"Error while importing [{url}] from Ifwiki")
         return {"error": "Не открывается что-то этот URL."}
+    return ParseIfwiki(cont, url)
 
+
+def ParseIfwiki(cont, url):
+    m = IFWIKI_URL.match(url)
     res = {"priority": 100}
 
     context = WikiParsingContext(unquote(m.group(2)).replace("_", " "), url)
@@ -191,7 +206,8 @@ def ImportFromIfwiki(url):
         return {"error": "Какая-то ошибка при парсинге. Надо сказать админам."}
 
     res["title"] = context.title
-    res["desc"] = output + "\n\n_(описание взято с сайта ifwiki.ru)_"
+    res["desc"] = output
+    AddDescriptionAttribution(res, "ifwiki.ru")
     if context.release_date:
         res["release_date"] = context.release_date
     res["authors"] = context.authors
@@ -203,9 +219,25 @@ def ImportFromIfwiki(url):
 
 IFWIKI_URL = re.compile(r"(https?://ifwiki.ru)/([^?]+)")
 IFWIKI_LINK_PARSE = re.compile(r"\[\[(.*?)\]\]")
-IFWIKI_LINK_INTERNALS_PARSE = re.compile(
-    r"^(?:([^:\]|]*)::?)?([^:\]|]+)(?:\|([^\]|]+))?(?:\|([^\]]+))?$"
-)
+
+
+def ParseIfwikiLink(text):
+    text = text.removeprefix(":")
+    parts = text.split("|")
+    if len(parts) > 3:
+        return None
+    separator = "::" if "::" in parts[0] else ":"
+    role, _, name = parts[0].partition(separator)
+    if not name:
+        role, name = None, role
+    typ = None
+    display_name = None
+    if len(parts) == 2 and role:
+        display_name = parts[1].strip() or None
+    elif len(parts) == 3:
+        typ, display_name = parts[1], parts[2].strip() or None
+    return role, name, typ, display_name
+
 
 IFWIKI_ROLES = {
     "автор": "author",
@@ -234,6 +266,11 @@ IFWIKI_IGNORE = {"ЗаглушкаТекста", "ЗаглушкаСсылок"}
 
 GAMEINFO_IGNORE = {"ширинаобложки", "высотаобложки"}
 
+IFWIKI_SHORT_LINK_LIST_MAX_LABEL = 80
+IFWIKI_SHORT_LINK_LIST_MAX_URL = 2048
+IFWIKI_SHORT_LINK_LIST_MAX_PREFIX = 40
+IFWIKI_SHORT_LINK_LIST_MAX_SUFFIX = 80
+
 
 class WikiAuthorParsingContext:
     def __init__(self, name, url):
@@ -246,13 +283,10 @@ class WikiAuthorParsingContext:
         self.urls.append(CategorizeAuthorUrl(url, desc, category, base))
 
     def ProcessLink(self, text):
-        m = IFWIKI_LINK_INTERNALS_PARSE.match(text)
-        if not m:
+        parsed = ParseIfwikiLink(text)
+        if not parsed:
             return text  # Internal link without a category.
-        role = m.group(1)
-        name = m.group(2)
-        typ = m.group(3)
-        display_name = m.group(4)
+        role, name, typ, display_name = parsed
 
         if role in ["Медиа", "Media", "Изображение", "Image"]:
             self.AddUrl(
@@ -284,13 +318,10 @@ class WikiParsingContext:
         self.urls.append(CategorizeUrl(url, desc, category, base))
 
     def ProcessLink(self, text, default_role=None):
-        m = IFWIKI_LINK_INTERNALS_PARSE.match(text)
-        if not m:
+        parsed = ParseIfwikiLink(text)
+        if not parsed:
             return text  # Internal link without a category.
-        role = m.group(1)
-        name = m.group(2)
-        # typ = m.group(3)
-        display_name = m.group(4)
+        role, name, _typ, display_name = parsed
 
         if role in IFWIKI_IGNORE_ROLES:
             return ""
@@ -303,6 +334,7 @@ class WikiParsingContext:
                 "url": f"http://ifwiki.ru/{WikiQuote(name)}",
                 "urldesc": "Страница автора на ifwiki",
             })
+            return display_name or ""
         else:
             if role in {"Медиа", "Media", "Image"}:
                 self.AddUrl(
@@ -525,11 +557,15 @@ def convert_wikitext_to_markdown(text, context):
     text = re.sub(r"^\*\s+", r"* ", text, flags=re.MULTILINE)
     text = re.sub(r"^#\s+", r"1. ", text, flags=re.MULTILINE)
 
+    text = extract_short_internal_link_list_items(text, context)
+
     # Convert internal links FIRST
     def replace_internal_link(match):
         link_content = match.group(1)
         # Process the link through context
         processed = context.ProcessLink(link_content)
+        if not processed:
+            return ""
         return f"**{processed}**"
 
     text = re.sub(r"\[\[(.*?)\]\]", replace_internal_link, text)
@@ -545,11 +581,28 @@ def convert_wikitext_to_markdown(text, context):
             context.AddUrl(url)
             return f"[{url}]({url})"
 
+    def extract_markdown_link(match):
+        desc = match.group(1).strip()
+        url = match.group(2)
+        context.AddUrl(url, desc)
+        return match.group(0)
+
     # Convert external links
+    text = extract_short_link_list_items(text, context)
+    # Pattern: [description](url) -> keep markdown, but extract the URL.
+    text = re.sub(
+        r"\[([^\]]+)\]\((https?://[^\s)]+)\)",
+        extract_markdown_link,
+        text,
+    )
     # Pattern: [url description] -> [description](url)
-    text = re.sub(r"\[([^\s\]]+)\s+([^\]]+)\]", replace_external_link, text)
+    text = re.sub(
+        r"\[(https?://[^\s\]]+)\s+([^\]]+)\]", replace_external_link, text
+    )
     # Pattern: [url] -> [url](url) for consistency (but not markdown links)
-    text = re.sub(r"\[([^\s\]]+)\](?!\()", replace_external_link, text)
+    text = re.sub(
+        r"\[(https?://[^\s\]]+)\](?!\()", replace_external_link, text
+    )
 
     # Remove category links
     text = re.sub(r"\[\[Категория:.*?\]\]", "", text)
@@ -569,3 +622,155 @@ def convert_wikitext_to_markdown(text, context):
     text = text.strip()
 
     return text
+
+
+SHORT_LIST_ITEM_MARKDOWN_LINK_RE = re.compile(
+    rf"\[([^\]\n]{{1,{IFWIKI_SHORT_LINK_LIST_MAX_LABEL}}})\]"
+    r"\((https?://[^\s)]+)\)"
+)
+SHORT_LIST_ITEM_WIKI_EXTERNAL_LINK_RE = re.compile(
+    rf"\[(https?://[^\s\]]+)\s+"
+    rf"([^\]\n]{{1,{IFWIKI_SHORT_LINK_LIST_MAX_LABEL}}})\]"
+)
+SHORT_LIST_ITEM_INTERNAL_LINK_RE = re.compile(r"\[\[([^\]\n]+)\]\]")
+
+
+def extract_short_link_list_items(text, context):
+    lines = text.splitlines()
+    result = []
+    for line in lines:
+        bullet = re.match(r"^(\s*\*\s+)(.*)$", line)
+        if not bullet:
+            result.append(line)
+            continue
+
+        marker, content = bullet.groups()
+        links = short_list_item_links(content)
+        if len(links) != 1:
+            result.append(line)
+            continue
+
+        link = links[0]
+        if len(link["url"]) > IFWIKI_SHORT_LINK_LIST_MAX_URL:
+            result.append(line)
+            continue
+
+        prefix = content[: link["start"]]
+        suffix = content[link["end"] :]
+        surroundings = prefix + suffix
+
+        if (
+            len(prefix) > IFWIKI_SHORT_LINK_LIST_MAX_PREFIX
+            or len(suffix) > IFWIKI_SHORT_LINK_LIST_MAX_SUFFIX
+        ):
+            result.append(line)
+            continue
+        if "http://" in surroundings or "https://" in surroundings:
+            result.append(line)
+            continue
+        if "[" in surroundings or "](" in surroundings:
+            result.append(line)
+            continue
+
+        context.AddUrl(
+            link["url"],
+            build_short_link_description(prefix, link["label"], suffix),
+        )
+
+    return "\n".join(result)
+
+
+def extract_short_internal_link_list_items(text, context):
+    lines = text.splitlines()
+    result = []
+    for line in lines:
+        bullet = re.match(r"^(\s*\*\s+)(.*)$", line)
+        if not bullet:
+            result.append(line)
+            continue
+
+        _marker, content = bullet.groups()
+        links = list(SHORT_LIST_ITEM_INTERNAL_LINK_RE.finditer(content))
+        if len(links) != 1:
+            result.append(line)
+            continue
+
+        link = links[0]
+        parsed = ParseIfwikiLink(link.group(1))
+        if not parsed:
+            result.append(line)
+            continue
+        role, name, typ, display_name = parsed
+        if role not in {"Медиа", "Media", "Image", "Изображение"}:
+            result.append(line)
+            continue
+
+        if len(name) > IFWIKI_SHORT_LINK_LIST_MAX_URL:
+            result.append(line)
+            continue
+
+        prefix = content[: link.start()]
+        suffix = content[link.end() :]
+        surroundings = prefix + suffix
+        label = display_name or name
+        if len(label) > IFWIKI_SHORT_LINK_LIST_MAX_LABEL:
+            result.append(line)
+            continue
+        if (
+            len(prefix) > IFWIKI_SHORT_LINK_LIST_MAX_PREFIX
+            or len(suffix) > IFWIKI_SHORT_LINK_LIST_MAX_SUFFIX
+        ):
+            result.append(line)
+            continue
+        if "http://" in surroundings or "https://" in surroundings:
+            result.append(line)
+            continue
+        if "[" in surroundings or "](" in surroundings:
+            result.append(line)
+            continue
+
+        context.AddUrl(
+            "/files/" + WikiQuote(name),
+            build_short_link_description(prefix, label, suffix),
+            "screenshot" if role == "Изображение" else None,
+            context.url,
+        )
+
+    return "\n".join(result)
+
+
+def short_list_item_links(content):
+    links = [
+        {
+            "start": m.start(),
+            "end": m.end(),
+            "label": m.group(1),
+            "url": m.group(2),
+        }
+        for m in SHORT_LIST_ITEM_MARKDOWN_LINK_RE.finditer(content)
+    ]
+    links += [
+        {
+            "start": m.start(),
+            "end": m.end(),
+            "label": m.group(2),
+            "url": m.group(1),
+        }
+        for m in SHORT_LIST_ITEM_WIKI_EXTERNAL_LINK_RE.finditer(content)
+    ]
+    return sorted(links, key=lambda link: link["start"])
+
+
+def build_short_link_description(prefix, label, suffix):
+    description = (
+        f"{clean_short_link_side_text(prefix)}"
+        f"{label}"
+        f"{clean_short_link_side_text(suffix)}"
+    )
+    description = re.sub(r"\s+", " ", description).strip()
+    description = re.sub(r"\s+'", "'", description)
+    return description.rstrip(".。 ").strip()
+
+
+def clean_short_link_side_text(text):
+    return re.sub(r"\s+", " ", text.replace("**", " ").replace("__", " "))

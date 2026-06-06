@@ -1,0 +1,94 @@
+{% extends "curation/base.html" %}
+{% load tags %}
+
+{% block titlesection %}Источники - ОГОРОД - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--brown">
+    <div class="card--header">Источники</div>
+    <div class="card--body">
+        <form class="curation-filter curation-filter--source" method="get">
+            <div class="curation-filter-field">
+                <label for="curation-source-q">Поиск</label>
+                <input id="curation-source-q" type="search" name="q" value="{{ q }}" placeholder="URL или игра">
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-source-type">Тип</label>
+                <select id="curation-source-type" name="type">
+                    <option value="">— все —</option>
+                    {% for value, label in source_type_choices %}
+                    <option value="{{ value }}" {% if value == source_type %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-source-state">Состояние</label>
+                <select id="curation-source-state" name="state">
+                    <option value="">— все —</option>
+                    <option value="failed" {% if state == "failed" %}selected{% endif %}>С ошибкой</option>
+                    <option value="missing" {% if state == "missing" %}selected{% endif %}>Пропавшие</option>
+                </select>
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-source-attached">Связь</label>
+                <select id="curation-source-attached" name="attached">
+                    <option value="">— все —</option>
+                    <option value="orphan" {% if attached == "orphan" %}selected{% endif %}>Сироты</option>
+                    <option value="attached" {% if attached == "attached" %}selected{% endif %}>Привязанные</option>
+                </select>
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-source-sort">Сортировка</label>
+                <select id="curation-source-sort" name="sort">
+                    <option value="last_attempt" {% if sort == "last_attempt" %}selected{% endif %}>По последней попытке</option>
+                    <option value="last_fetch" {% if sort == "last_fetch" %}selected{% endif %}>По успешной загрузке</option>
+                    <option value="created" {% if sort == "created" %}selected{% endif %}>По добавлению</option>
+                    <option value="url" {% if sort == "url" %}selected{% endif %}>По URL</option>
+                </select>
+            </div>
+            <button type="submit">Показать</button>
+        </form>
+    </div>
+    <table class="curation-table curation-table--compact curation-source-table">
+        <thead>
+            <tr>
+                <th class="curation-source-table-type">Тип</th>
+                <th class="curation-source-table-state">Сост.</th>
+                <th>URL</th>
+                <th>Игра</th>
+                <th class="curation-source-table-attempt">Попытка</th>
+                <th class="curation-source-table-fetch">Загрузка</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for source in sources %}
+            <tr class="{% if source.failing_since or source.last_error %}error{% elif source.missing_since %}warning{% endif %}"
+                data-href="{% url 'curation_source_detail' source.pk %}">
+                <td><a href="{% url 'curation_source_detail' source.pk %}">{{ source.get_type_display }}</a></td>
+                <td>
+                    {% if source.failing_since or source.last_error %}ошибка{% elif source.missing_since %}пропал{% else %}ok{% endif %}
+                </td>
+                <td class="curation-truncate">{% if source.url %}<a href="{{ source.url }}" title="{{ source.url }}">{{ source.url }}</a>{% endif %}</td>
+                <td class="curation-truncate">{% include "curation/_source_game.html" with source=source %}</td>
+                <td class="curation-nowrap">{{ source.last_attempt|date:"Y-m-d H:i"|default:"—" }}</td>
+                <td class="curation-nowrap">
+                    {% if source.latest_fetch_id %}
+                    {{ source.latest_fetch_at|date:"Y-m-d H:i" }}:
+                    <a href="{% url 'curation_source_fetch_content' source.latest_fetch_id 'raw' %}">raw</a>/<a href="{% url 'curation_source_fetch_content' source.latest_fetch_id 'canonical' %}">canonical</a>
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6">Источников нет.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if page.has_other_pages %}
+    <div class="curation-pagination">
+        {% if page.has_previous %}<a href="?q={{ q|urlencode }}&type={{ source_type }}&state={{ state }}&attached={{ attached }}&sort={{ sort }}&page={{ page.previous_page_number }}">← Назад</a>{% endif %}
+        <span>Страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a href="?q={{ q|urlencode }}&type={{ source_type }}&state={{ state }}&attached={{ attached }}&sort={{ sort }}&page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

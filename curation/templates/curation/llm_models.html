@@ -1,0 +1,97 @@
+{% extends "curation/base.html" %}
+{% load static l10n tags %}
+
+{% block titlesection %}Модели LLM - ОГОРОД - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--green">
+    <div class="card--header">Установленные модели</div>
+    <table class="curation-table curation-table--compact curation-table--auto">
+        <thead>
+            <tr>
+                <th class="name-col">Модель</th>
+                <th class="num">Контекст</th>
+                <th class="num">Вход</th>
+                <th class="num">Кэш чт.</th>
+                <th class="num">Кэш зап.</th>
+                <th class="num">Выход</th>
+                <th class="num">¢/игра</th>
+                <th>Обновлено</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for model in installed %}
+            <tr>
+                <td class="name-col"><a href="https://openrouter.ai/{{ model.name }}" target="_blank" rel="noopener">{{ model.name }}</a></td>
+                <td class="num">{{ model.context_length }}</td>
+                <td class="num">{{ model.input_cost|costcell }}</td>
+                <td class="num">{{ model.cached_input_cost|costcell }}</td>
+                <td class="num">{{ model.cache_write_cost|costcell }}</td>
+                <td class="num">{{ model.output_cost|costcell }}</td>
+                <td class="num">{{ model.typical_cents|costcell }}</td>
+                <td class="curation-nowrap">{{ model.updated_at|date:"Y-m-d H:i"|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8">Моделей нет.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="card--body">
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" name="action" value="update_all">Обновить все</button>
+        </form>
+    </div>
+</div>
+
+<div class="card card--brown">
+    <div class="card--header">Модели OpenRouter</div>
+    <div class="card--body">
+        <input type="search" id="llm-search" placeholder="Поиск модели">
+    </div>
+    <table class="curation-table curation-table--compact curation-table--auto" id="llm-available">
+        <thead>
+            <tr>
+                <th class="name-col" data-sort-type="string">Модель</th>
+                <th class="num" data-sort-type="number">Контекст</th>
+                <th class="num" data-sort-type="number">Вход</th>
+                <th class="num" data-sort-type="number">Кэш чт.</th>
+                <th class="num" data-sort-type="number">Кэш зап.</th>
+                <th class="num" data-sort-type="number">Выход</th>
+                <th class="num" data-sort-type="number" data-default-sort>¢/игра</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for model in available %}
+            <tr data-name="{{ model.name }}">
+                <td class="name-col" data-sort="{{ model.name }}"><a href="https://openrouter.ai/{{ model.name }}" target="_blank" rel="noopener">{{ model.name }}</a></td>
+                <td class="num" data-sort="{{ model.context_length|unlocalize }}">{{ model.context_length }}</td>
+                <td class="num" data-sort="{{ model.input_cost|unlocalize }}">{{ model.input_cost|costcell }}</td>
+                <td class="num" data-sort="{{ model.cached_input_cost|unlocalize }}">{{ model.cached_input_cost|costcell }}</td>
+                <td class="num" data-sort="{{ model.cache_write_cost|unlocalize }}">{{ model.cache_write_cost|costcell }}</td>
+                <td class="num" data-sort="{{ model.output_cost|unlocalize }}">{{ model.output_cost|costcell }}</td>
+                <td class="num" data-sort="{{ model.typical_cents|default_if_none:""|unlocalize }}">{{ model.typical_cents|costcell }}</td>
+                <td class="curation-nowrap">
+                    {% if model.name in installed_names %}
+                    ✓ добавлено
+                    {% else %}
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="name" value="{{ model.name }}">
+                        <button type="submit" name="action" value="add">Добавить</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8">Моделей нет.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'llm_models.js' %}" defer></script>
+{% endblock %}

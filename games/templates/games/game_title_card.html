@@ -11,7 +11,7 @@
                 {% if authors %}
                     <div class="game--authors">
                     {% for x in authors %}
-                        <a href="{% url 'show_author' author_id=x.personality.id %}">{{ x.name }}</a>{% if not forloop.last %}, {% endif %}
+                        {% if x.personality_id %}<a href="{% url 'show_author' author_id=x.personality_id %}">{{ x.name }}</a>{% else %}{{ x.name }}{% endif %}{% if not forloop.last %}, {% endif %}
                     {% endfor %}
                     </div>
                 {% endif %}

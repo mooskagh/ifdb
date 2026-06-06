@@ -19,28 +19,32 @@ The central model representing queued tasks with the following key fields:
 
 ```python
 class TaskQueueElement(models.Model):
-    name = models.CharField(max_length=255)           # Human-readable task identifier
-    command_json = models.CharField(max_length=512)   # JSON: {module, function, argv, kwarg}
-    priority = models.IntegerField(default=100)       # Lower = higher priority
-    onfail_json = models.CharField(max_length=512)    # Failure handler function
-    retries_left = models.IntegerField(default=3)     # Remaining retry attempts
-    retry_minutes = models.IntegerField(default=2000) # Delay between retries
-    cron = models.CharField(max_length=32)            # Cron expression for recurring tasks
-    
+    name = models.CharField(max_length=255)  # Human-readable task identifier
+    command_json = models.CharField(
+        max_length=512
+    )  # JSON: {module, function, argv, kwarg}
+    priority = models.IntegerField(default=100)  # Lower = higher priority
+    onfail_json = models.CharField(max_length=512)  # Failure handler function
+    retries_left = models.IntegerField(default=3)  # Remaining retry attempts
+    retry_minutes = models.IntegerField(default=2000)  # Delay between retries
+    cron = models.CharField(
+        max_length=32
+    )  # Cron expression for recurring tasks
+
     # Timing fields
     enqueue_time = models.DateTimeField()
-    scheduled_time = models.DateTimeField()           # For delayed execution
+    scheduled_time = models.DateTimeField()  # For delayed execution
     start_time = models.DateTimeField()
     finish_time = models.DateTimeField()
-    
+
     # Dependencies
-    dependency = models.ForeignKey("self")            # Wait for this task to complete
-    
+    dependency = models.ForeignKey("self")  # Wait for this task to complete
+
     # Status tracking
     pending = models.BooleanField(default=True)
     success = models.BooleanField(default=False)
     fail = models.BooleanField(default=False)
-    log = models.TextField()                          # Execution logs
+    log = models.TextField()  # Execution logs
 ```
 
 ## Task Queue Manager (`core/taskqueue.py`)
@@ -217,22 +221,16 @@ from games.tasks.uploads import CloneFile, MarkBroken
 Enqueue(CloneFile, url_id)
 
 # With failure handler
-Enqueue(CloneFile, url_id, 
-        name=f"CloneUrl({url_id})", 
-        onfail=MarkBroken)
+Enqueue(CloneFile, url_id, name=f"CloneUrl({url_id})", onfail=MarkBroken)
 
 # High priority with custom retries
-Enqueue(ImportGames, 
-        priority=50, 
-        retries=5, 
-        name="ImportGames")
+Enqueue(ImportGames, priority=50, retries=5, name="ImportGames")
 ```
 
 ### Preventing Duplicates
 ```python
 # Only enqueue if not already pending
-task = EnqueueOrGet(RecodeGame, game_url_id,
-                   name=f"RecodeGame({game_url_id})")
+task = EnqueueOrGet(RecodeGame, game_url_id, name=f"RecodeGame({game_url_id})")
 ```
 
 ## Performance Characteristics
@@ -410,193 +408,232 @@ from croniter import croniter
 
 logger = logging.getLogger(__name__)
 
+
 class RedisTaskQueue:
     def __init__(self):
         self.redis_client = redis.from_url(
-            getattr(settings, 'REDIS_URL', 'redis://localhost:6379/0')
+            getattr(settings, "REDIS_URL", "redis://localhost:6379/0")
         )
-        self.task_queue_key = 'ifdb:task_queue'
-        self.task_data_key = 'ifdb:task_data'
+        self.task_queue_key = "ifdb:task_queue"
+        self.task_data_key = "ifdb:task_data"
         self.running = False
-        
-    def enqueue(self, func: Callable, *args, priority: int = 100, 
-                retries: int = 3, onfail: Optional[Callable] = None,
-                dependency: Optional[str] = None, scheduled_time: Optional[datetime] = None,
-                name: Optional[str] = None, cron: Optional[str] = None, **kwargs):
+
+    def enqueue(
+        self,
+        func: Callable,
+        *args,
+        priority: int = 100,
+        retries: int = 3,
+        onfail: Optional[Callable] = None,
+        dependency: Optional[str] = None,
+        scheduled_time: Optional[datetime] = None,
+        name: Optional[str] = None,
+        cron: Optional[str] = None,
+        **kwargs,
+    ):
         """Enqueue a task for execution"""
-        
-        task_id = f"{func.__module__}.{func.__name__}:{int(time.time()*1000000)}"
+
+        task_id = (
+            f"{func.__module__}.{func.__name__}:{int(time.time() * 1000000)}"
+        )
         if name:
             task_id = f"{name}:{task_id}"
-            
+
         task_data = {
-            'id': task_id,
-            'name': name or f"{func.__module__}.{func.__name__}",
-            'module': func.__module__,
-            'function': func.__name__,
-            'args': args,
-            'kwargs': kwargs,
-            'priority': priority,
-            'retries_left': retries,
-            'retry_minutes': 2000,
-            'cron': cron,
-            'enqueue_time': timezone.now().isoformat(),
-            'scheduled_time': scheduled_time.isoformat() if scheduled_time else None,
-            'dependency': dependency,
-            'onfail_module': onfail.__module__ if onfail else None,
-            'onfail_function': onfail.__name__ if onfail else None,
-            'pending': True,
-            'success': False,
-            'fail': False,
-            'log': ''
+            "id": task_id,
+            "name": name or f"{func.__module__}.{func.__name__}",
+            "module": func.__module__,
+            "function": func.__name__,
+            "args": args,
+            "kwargs": kwargs,
+            "priority": priority,
+            "retries_left": retries,
+            "retry_minutes": 2000,
+            "cron": cron,
+            "enqueue_time": timezone.now().isoformat(),
+            "scheduled_time": scheduled_time.isoformat()
+            if scheduled_time
+            else None,
+            "dependency": dependency,
+            "onfail_module": onfail.__module__ if onfail else None,
+            "onfail_function": onfail.__name__ if onfail else None,
+            "pending": True,
+            "success": False,
+            "fail": False,
+            "log": "",
         }
-        
+
         # Store task data
-        self.redis_client.hset(self.task_data_key, task_id, json.dumps(task_data))
-        
+        self.redis_client.hset(
+            self.task_data_key, task_id, json.dumps(task_data)
+        )
+
         # Add to priority queue (score is priority, then timestamp for FIFO within priority)
         score = priority * 1000000 + int(time.time())
         self.redis_client.zadd(self.task_queue_key, {task_id: score})
-        
+
         return task_id
-        
-    def enqueue_or_get(self, func: Callable, *args, name: Optional[str] = None, **kwargs):
+
+    def enqueue_or_get(
+        self, func: Callable, *args, name: Optional[str] = None, **kwargs
+    ):
         """Enqueue task only if not already pending with same name"""
         if name:
             # Check for existing task with same name
             existing_tasks = self.redis_client.hgetall(self.task_data_key)
             for task_id, task_json in existing_tasks.items():
                 task_data = json.loads(task_json)
-                if task_data.get('name') == name and task_data.get('pending'):
+                if task_data.get("name") == name and task_data.get("pending"):
                     return task_id.decode()
-                    
+
         return self.enqueue(func, *args, name=name, **kwargs)
-        
+
     def get_next_task(self) -> Optional[Dict[str, Any]]:
         """Get the next task ready for execution"""
-        
+
         # Get all pending tasks ordered by priority
         task_ids = self.redis_client.zrange(self.task_queue_key, 0, -1)
-        
+
         for task_id in task_ids:
             task_json = self.redis_client.hget(self.task_data_key, task_id)
             if not task_json:
                 # Clean up orphaned queue entry
                 self.redis_client.zrem(self.task_queue_key, task_id)
                 continue
-                
+
             task_data = json.loads(task_json)
-            
+
             # Skip non-pending tasks
-            if not task_data.get('pending'):
+            if not task_data.get("pending"):
                 self.redis_client.zrem(self.task_queue_key, task_id)
                 continue
-                
+
             # Check if scheduled time has passed
-            if task_data.get('scheduled_time'):
-                scheduled = datetime.fromisoformat(task_data['scheduled_time'])
+            if task_data.get("scheduled_time"):
+                scheduled = datetime.fromisoformat(task_data["scheduled_time"])
                 if timezone.now() < scheduled:
                     continue
-                    
+
             # Check dependencies
-            if task_data.get('dependency'):
-                dep_json = self.redis_client.hget(self.task_data_key, task_data['dependency'])
+            if task_data.get("dependency"):
+                dep_json = self.redis_client.hget(
+                    self.task_data_key, task_data["dependency"]
+                )
                 if dep_json:
                     dep_data = json.loads(dep_json)
-                    if not dep_data.get('success'):
+                    if not dep_data.get("success"):
                         continue  # Dependency not completed
-                        
+
             return task_data
-            
+
         return None
-        
+
     def execute_task(self, task_data: Dict[str, Any]) -> bool:
         """Execute a single task"""
-        task_id = task_data['id']
-        
+        task_id = task_data["id"]
+
         try:
             # Import and execute function
-            module = __import__(task_data['module'], fromlist=[task_data['function']])
-            func = getattr(module, task_data['function'])
-            
+            module = __import__(
+                task_data["module"], fromlist=[task_data["function"]]
+            )
+            func = getattr(module, task_data["function"])
+
             # Update task as started
-            task_data['start_time'] = timezone.now().isoformat()
-            task_data['log'] += f"Started at {task_data['start_time']}\n"
-            self.redis_client.hset(self.task_data_key, task_id, json.dumps(task_data))
-            
+            task_data["start_time"] = timezone.now().isoformat()
+            task_data["log"] += f"Started at {task_data['start_time']}\n"
+            self.redis_client.hset(
+                self.task_data_key, task_id, json.dumps(task_data)
+            )
+
             # Execute function
-            result = func(*task_data['args'], **task_data['kwargs'])
-            
+            result = func(*task_data["args"], **task_data["kwargs"])
+
             # Mark as successful
-            task_data['success'] = True
-            task_data['pending'] = False
-            task_data['finish_time'] = timezone.now().isoformat()
-            task_data['log'] += f"Completed successfully at {task_data['finish_time']}\n"
-            
+            task_data["success"] = True
+            task_data["pending"] = False
+            task_data["finish_time"] = timezone.now().isoformat()
+            task_data["log"] += (
+                f"Completed successfully at {task_data['finish_time']}\n"
+            )
+
             # Handle cron tasks
-            if task_data.get('cron'):
-                cron = croniter(task_data['cron'], timezone.now())
+            if task_data.get("cron"):
+                cron = croniter(task_data["cron"], timezone.now())
                 next_run = cron.get_next(datetime)
                 self.enqueue(
-                    func, *task_data['args'],
-                    name=task_data['name'],
-                    cron=task_data['cron'],
+                    func,
+                    *task_data["args"],
+                    name=task_data["name"],
+                    cron=task_data["cron"],
                     scheduled_time=next_run,
-                    **task_data['kwargs']
+                    **task_data["kwargs"],
                 )
-                
+
             return True
-            
+
         except Exception as e:
             logger.exception(f"Task {task_id} failed: {e}")
-            
-            task_data['retries_left'] -= 1
-            task_data['log'] += f"Failed: {str(e)}\n"
-            
-            if task_data['retries_left'] > 0:
+
+            task_data["retries_left"] -= 1
+            task_data["log"] += f"Failed: {str(e)}\n"
+
+            if task_data["retries_left"] > 0:
                 # Schedule retry
-                retry_time = timezone.now() + timedelta(minutes=task_data['retry_minutes'])
-                task_data['scheduled_time'] = retry_time.isoformat()
-                task_data['log'] += f"Retrying at {task_data['scheduled_time']}\n"
+                retry_time = timezone.now() + timedelta(
+                    minutes=task_data["retry_minutes"]
+                )
+                task_data["scheduled_time"] = retry_time.isoformat()
+                task_data["log"] += (
+                    f"Retrying at {task_data['scheduled_time']}\n"
+                )
             else:
                 # Mark as failed
-                task_data['fail'] = True
-                task_data['pending'] = False
-                task_data['finish_time'] = timezone.now().isoformat()
-                
+                task_data["fail"] = True
+                task_data["pending"] = False
+                task_data["finish_time"] = timezone.now().isoformat()
+
                 # Execute failure handler
-                if task_data.get('onfail_module') and task_data.get('onfail_function'):
+                if task_data.get("onfail_module") and task_data.get(
+                    "onfail_function"
+                ):
                     try:
-                        onfail_module = __import__(task_data['onfail_module'], 
-                                                 fromlist=[task_data['onfail_function']])
-                        onfail_func = getattr(onfail_module, task_data['onfail_function'])
-                        onfail_func(None, {'error': str(e), **task_data})
+                        onfail_module = __import__(
+                            task_data["onfail_module"],
+                            fromlist=[task_data["onfail_function"]],
+                        )
+                        onfail_func = getattr(
+                            onfail_module, task_data["onfail_function"]
+                        )
+                        onfail_func(None, {"error": str(e), **task_data})
                     except Exception as onfail_e:
                         logger.exception(f"Failure handler failed: {onfail_e}")
-                        
+
             return False
-            
+
         finally:
             # Update task data
-            self.redis_client.hset(self.task_data_key, task_id, json.dumps(task_data))
-            
+            self.redis_client.hset(
+                self.task_data_key, task_id, json.dumps(task_data)
+            )
+
             # Remove from queue if no longer pending
-            if not task_data.get('pending'):
+            if not task_data.get("pending"):
                 self.redis_client.zrem(self.task_queue_key, task_id)
-                
+
     def worker(self):
         """Main worker loop"""
         self.running = True
-        
+
         def signal_handler(signum, frame):
             logger.info("Received shutdown signal")
             self.running = False
-            
+
         signal.signal(signal.SIGTERM, signal_handler)
         signal.signal(signal.SIGINT, signal_handler)
-        
+
         logger.info("Redis task worker started")
-        
+
         while self.running:
             try:
                 task_data = self.get_next_task()
@@ -606,23 +643,27 @@ class RedisTaskQueue:
                 else:
                     # No tasks available, sleep briefly
                     time.sleep(1)
-                    
+
             except Exception as e:
                 logger.exception(f"Worker error: {e}")
                 time.sleep(5)
-                
+
         logger.info("Redis task worker stopped")
+
 
 # Global instance
 task_queue = RedisTaskQueue()
 
+
 # Convenience functions matching original API
 def Enqueue(func, *args, **kwargs):
     return task_queue.enqueue(func, *args, **kwargs)
-    
+
+
 def EnqueueOrGet(func, *args, **kwargs):
     return task_queue.enqueue_or_get(func, *args, **kwargs)
-    
+
+
 def Worker():
     return task_queue.worker()
 ```
@@ -635,7 +676,7 @@ def Worker():
 import os
 
 # Redis Configuration
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 ```
 
 ### 2.4 Update Existing Task Queue
@@ -646,7 +687,7 @@ REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 from .redis_taskqueue import Enqueue, EnqueueOrGet, Worker
 
 # Re-export for backward compatibility
-__all__ = ['Enqueue', 'EnqueueOrGet', 'Worker']
+__all__ = ["Enqueue", "EnqueueOrGet", "Worker"]
 ```
 
 **No changes needed to existing task functions** - they will continue to work as-is since we're maintaining the same API.
@@ -664,26 +705,21 @@ from core.redis_taskqueue import task_queue
 from games.tasks.game_importer import ImportGames
 from core.feedfetcher import FetchFeeds
 
+
 class Command(BaseCommand):
-    help = 'Set up periodic tasks in Redis task queue'
-    
+    help = "Set up periodic tasks in Redis task queue"
+
     def handle(self, *args, **options):
         # Set up ImportGames periodic task (every 6 hours)
         task_queue.enqueue(
-            ImportGames,
-            name='ImportGames',
-            cron='0 */6 * * *',
-            priority=50
+            ImportGames, name="ImportGames", cron="0 */6 * * *", priority=50
         )
-        
+
         # Set up FetchFeeds periodic task (every 30 minutes)
         task_queue.enqueue(
-            FetchFeeds,
-            name='FetchFeeds', 
-            cron='*/30 * * * *',
-            priority=75
+            FetchFeeds, name="FetchFeeds", cron="*/30 * * * *", priority=75
         )
-        
+
         self.stdout.write("Periodic tasks set up successfully")
 ```
 
@@ -695,23 +731,26 @@ from django.core.management.base import BaseCommand
 from core.redis_taskqueue import task_queue
 import json
 
+
 class Command(BaseCommand):
-    help = 'Check Redis task queue status and information'
-    
+    help = "Check Redis task queue status and information"
+
     def handle(self, *args, **options):
         try:
             # Check Redis connection
             task_queue.redis_client.ping()
             self.stdout.write("✓ Redis connection: OK")
-            
+
             # Get queue information
-            queue_size = task_queue.redis_client.zcard(task_queue.task_queue_key)
+            queue_size = task_queue.redis_client.zcard(
+                task_queue.task_queue_key
+            )
             self.stdout.write(f"✓ Tasks in queue: {queue_size}")
-            
+
             # Get task data count
             data_size = task_queue.redis_client.hlen(task_queue.task_data_key)
             self.stdout.write(f"✓ Task data entries: {data_size}")
-            
+
             # Show recent tasks
             if queue_size > 0:
                 recent_tasks = task_queue.redis_client.zrange(
@@ -727,7 +766,7 @@ class Command(BaseCommand):
                         self.stdout.write(
                             f"  - {task_data['name']} (priority: {task_data['priority']})"
                         )
-                        
+
         except Exception as e:
             self.stdout.write(f"✗ Redis queue status check failed: {e}")
 ```
@@ -963,44 +1002,56 @@ import json
 from datetime import datetime, timedelta
 from django.utils import timezone
 
+
 class Command(BaseCommand):
-    help = 'Clean up old completed task data from Redis'
-    
+    help = "Clean up old completed task data from Redis"
+
     def add_arguments(self, parser):
-        parser.add_argument('--days', type=int, default=7,
-                          help='Remove task data older than N days (default: 7)')
-        parser.add_argument('--dry-run', action='store_true',
-                          help='Show what would be cleaned up without actually doing it')
-    
+        parser.add_argument(
+            "--days",
+            type=int,
+            default=7,
+            help="Remove task data older than N days (default: 7)",
+        )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Show what would be cleaned up without actually doing it",
+        )
+
     def handle(self, *args, **options):
-        cutoff_date = timezone.now() - timedelta(days=options['days'])
-        
+        cutoff_date = timezone.now() - timedelta(days=options["days"])
+
         # Get all task data
         all_tasks = task_queue.redis_client.hgetall(task_queue.task_data_key)
-        
+
         cleanup_count = 0
         for task_id, task_json in all_tasks.items():
             try:
                 task_data = json.loads(task_json)
-                
+
                 # Skip pending tasks
-                if task_data.get('pending'):
+                if task_data.get("pending"):
                     continue
-                    
+
                 # Check if task is old enough to clean up
-                finish_time_str = task_data.get('finish_time')
+                finish_time_str = task_data.get("finish_time")
                 if finish_time_str:
                     finish_time = datetime.fromisoformat(finish_time_str)
                     if finish_time < cutoff_date:
-                        if not options['dry_run']:
-                            task_queue.redis_client.hdel(task_queue.task_data_key, task_id)
+                        if not options["dry_run"]:
+                            task_queue.redis_client.hdel(
+                                task_queue.task_data_key, task_id
+                            )
                         cleanup_count += 1
-                        
+
             except Exception as e:
                 self.stdout.write(f"Error processing task {task_id}: {e}")
-                
-        if options['dry_run']:
-            self.stdout.write(f"Would clean up {cleanup_count} old task records")
+
+        if options["dry_run"]:
+            self.stdout.write(
+                f"Would clean up {cleanup_count} old task records"
+            )
         else:
             self.stdout.write(f"Cleaned up {cleanup_count} old task records")
 ```
@@ -1034,21 +1085,23 @@ def StartRedisContainer(ctx):
     """Start Redis Docker container"""
     return RunCmdStep(
         f"cd {ROOT_DIR} && sudo docker-compose -f docker-compose.redis.yml up -d",
-        "Start Redis container"
+        "Start Redis container",
     )(ctx)
+
 
 def StopRedisContainer(ctx):
     """Stop Redis Docker container"""
     return RunCmdStep(
         f"cd {ROOT_DIR} && sudo docker-compose -f docker-compose.redis.yml down",
-        "Stop Redis container"
+        "Stop Redis container",
     )(ctx)
+
 
 def CheckRedisContainer(ctx):
     """Check if Redis container is running"""
     return RunCmdStep(
         'docker ps --filter "name=ifdb-redis" --filter "status=running" --format "{{.Names}}" | grep -q "ifdb-redis"',
-        "Check Redis container status"
+        "Check Redis container status",
     )(ctx)
 ```
 
@@ -1098,9 +1151,9 @@ def ValidateServices(ctx):
         ("ifdb-redis", "Redis container"),
         ("ifdb-worker", "Task queue worker"),
         ("ifdb-uwsgi", "Main application"),
-        ("nginx", "Web server")
+        ("nginx", "Web server"),
     ]
-    
+
     for service, description in services:
         if service == "ifdb-redis":
             # Check Docker container
@@ -1110,11 +1163,11 @@ def ValidateServices(ctx):
         else:
             # Check systemd service
             result = RunCmdStep(f"systemctl is-active {service}")(ctx)
-        
+
         if not result:
             print(f"❌ {description} is not running")
             return False
-    
+
     print("✅ All services are running")
     return True
 ```

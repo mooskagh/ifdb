@@ -7,7 +7,12 @@ from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeAuthorUrl, CategorizeUrl, QuoteUtf8
+from .tools import (
+    AddDescriptionAttribution,
+    CategorizeAuthorUrl,
+    CategorizeUrl,
+    QuoteUtf8,
+)
 
 
 class AperoImporter:
@@ -66,12 +71,19 @@ APERO_DESC = re.compile(
 APERO_IMAGE = re.compile(r'<img src="([^"]+)" [^>]* itemprop="image" />')
 
 
+def FetchApero(url, use_cache=True):
+    return FetchUrlToString(url, use_cache=use_cache)
+
+
 def ImportFromApero(url):
     try:
-        html = FetchUrlToString(url)
+        html = FetchApero(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParseApero(html, url)
 
+
+def ParseApero(html, url):
     res = {"priority": 49}
     m = APERO_TITLE.search(html)
     if not m:
@@ -82,9 +94,8 @@ def ImportFromApero(url):
     if m:
         tt = HTML2Text()
         tt.body_width = 0
-        res["desc"] = (
-            tt.handle(m.group(1)) + "\n\n_(описание взято с сайта apero.ru)_"
-        )
+        res["desc"] = tt.handle(m.group(1))
+        AddDescriptionAttribution(res, "apero.ru")
 
     m = APERO_RELEASE.search(html)
     if m:
@@ -120,13 +131,19 @@ APERO_AUTHOR_AVATAR = re.compile(r'<img src="([^"]+)" class="img-circle" />')
 
 
 def ImportAuthorFromApero(url):
-    m = APERO_AUTHOR_URL.match(url)
-    if not m:
+    if not APERO_AUTHOR_URL.match(url):
         return {"error": "Не похож URL на автора."}
     try:
         html = FetchUrlToString(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParseAuthorApero(html, url)
+
+
+def ParseAuthorApero(html, url):
+    m = APERO_AUTHOR_URL.match(url)
+    if not m:
+        return {"error": "Не похож URL на автора."}
 
     res = {}
     res["name"] = unquote(m.group(1))
