@@ -119,6 +119,21 @@ class _Fail(GameEditPass):
         raise RuntimeError("boom")
 
 
+class _AssertPeerScheduled(GameEditPass):
+    name = "assert_peer_scheduled"
+
+    def __init__(self, first_id, peer_id):
+        self.first_id = first_id
+        self.peer_id = peer_id
+
+    def apply(self, state, params):
+        if state.history.pk == self.first_id:
+            peer = GameHistory.objects.get(pk=self.peer_id)
+            assert peer.state == GameHistory.State.SCHEDULED_FOR_UPDATE
+        state.current.tags.append(Tag("os", "os_win", None, None))
+        state.approval = Approval.CANCELLED
+
+
 class RunEditTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -333,6 +348,29 @@ class RunEditTests(TestCase):
             attached.state, GameHistory.State.SCHEDULED_FOR_UPDATE
         )
         self.assertEqual(orphan.state, GameHistory.State.SETTLED)
+
+    def test_histories_are_claimed_one_at_a_time(self):
+        first = self._history()
+        second = self._history()
+        pipeline = EditPipeline.objects.create(
+            name="Test", passes=["assert_peer_scheduled"]
+        )
+        with mock.patch.object(
+            edit,
+            "PASS_REGISTRY",
+            {
+                "assert_peer_scheduled": _AssertPeerScheduled(
+                    first.pk, second.pk
+                )
+            },
+        ):
+            stats = run_edit(limit=2, pipeline_id=pipeline.pk)
+
+        self.assertEqual(stats.cancelled, 2)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.state, GameHistory.State.SETTLED)
+        self.assertEqual(second.state, GameHistory.State.SETTLED)
 
     def test_final_trailing_newline_only_change_is_noop(self):
         history = self._history()

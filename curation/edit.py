@@ -386,12 +386,12 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
     return outcome
 
 
-def _claim_histories(
+def _claim_history(
     *,
     history_id: int | None,
-    limit: int | None,
     task_id: str | None,
-) -> list[GameHistory]:
+    attempted_ids: set[int],
+) -> GameHistory | None:
     stale_before = now() - EDIT_LEASE_TIMEOUT
     eligible = Q(state=GameHistory.State.SCHEDULED_FOR_UPDATE) | Q(
         state=GameHistory.State.PROCESSING,
@@ -411,25 +411,25 @@ def _claim_histories(
     )
     if history_id is not None:
         histories = histories.filter(pk=history_id)
+    if attempted_ids:
+        histories = histories.exclude(pk__in=attempted_ids)
 
     with transaction.atomic():
-        histories = histories.select_for_update(skip_locked=True)
-        if limit is not None:
-            histories = histories[:limit]
-        claimed = list(histories)
+        history = histories.select_for_update(skip_locked=True).first()
+        if history is None:
+            return None
         ts = now()
-        for history in claimed:
-            history.state = GameHistory.State.PROCESSING
-            history.processing_started_at = ts
-            history.processing_task_id = task_id
-            history.save(
-                update_fields=[
-                    "state",
-                    "processing_started_at",
-                    "processing_task_id",
-                ]
-            )
-    return claimed
+        history.state = GameHistory.State.PROCESSING
+        history.processing_started_at = ts
+        history.processing_task_id = task_id
+        history.save(
+            update_fields=[
+                "state",
+                "processing_started_at",
+                "processing_task_id",
+            ]
+        )
+    return history
 
 
 def _release_failed_claim(history: GameHistory) -> None:
@@ -450,13 +450,19 @@ def run_edit(
     on_history_done: HistoryDone | None = None,
 ) -> EditStats:
     pipeline = _resolve_pipeline(pipeline_id)
-    histories = _claim_histories(
-        history_id=history_id, limit=limit, task_id=task_id
-    )
 
     logger.info("Starting source edit")
     totals = _EditTotals()
-    for history in histories:
+    attempted_ids: set[int] = set()
+    while limit is None or len(attempted_ids) < limit:
+        history = _claim_history(
+            history_id=history_id,
+            task_id=task_id,
+            attempted_ids=attempted_ids,
+        )
+        if history is None:
+            break
+        attempted_ids.add(history.pk)
         try:
             outcome = _process_history(history, pipeline)
         except Exception:
