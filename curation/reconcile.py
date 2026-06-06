@@ -177,6 +177,19 @@ def _mark_needs_attention(history: GameHistory, reason: str) -> None:
     )
 
 
+def _ambiguous_reason(
+    source: GameSource, target: _Target, candidates: set[_Target], action: str
+) -> str:
+    other_game_ids = sorted(
+        candidate.history.game_id
+        for candidate in candidates - {target}
+        if candidate.history.game_id is not None
+    )
+    other_games_text = ", ".join(f"g/{game_id}" for game_id in other_game_ids)
+    other_games_text = other_games_text or "-"
+    return f"Источник s/{source.pk} {action}; другие игры: {other_games_text}"
+
+
 def _build_index() -> _TargetIndex:
     """Load the full corpus into a matchable index, once per run."""
     index = _TargetIndex()
@@ -300,12 +313,16 @@ def run_reconcile(
             _record_source_attached(source, target.history)
             _mark_needs_attention(
                 target.history,
-                f"Источник #{source.pk} присоединён неоднозначно",
+                _ambiguous_reason(
+                    source, target, candidates, "присоединён неоднозначно"
+                ),
             )
             for candidate in candidates - {target}:
                 _mark_needs_attention(
                     candidate.history,
-                    f"Источник #{source.pk} похож на эту игру",
+                    _ambiguous_reason(
+                        source, candidate, candidates, "похож на эту игру"
+                    ),
                 )
             if target.is_new:  # grow so later same-run orphans cluster onto it
                 index.register_urls(target, hash_urls)

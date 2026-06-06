@@ -2632,6 +2632,175 @@ h6 {
 */
 
 /* ---- Curation ("ОГОРОД") ---- */
+.reconcile-page {
+    padding: 16px;
+}
+
+.reconcile-header,
+.reconcile-toolbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.reconcile-header h1 {
+    margin: 0;
+}
+
+.reconcile-toolbar {
+    justify-content: flex-start;
+    padding: 12px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+}
+
+.reconcile-toolbar label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+    color: #555;
+}
+
+.reconcile-add-game-id {
+    width: 8rem;
+}
+
+.reconcile-save-button {
+    margin-left: auto;
+    padding: 8px 14px;
+}
+
+.reconcile-grid {
+    --reconcile-columns: 1;
+    display: grid;
+    grid-template-columns: 160px repeat(var(--reconcile-columns), minmax(330px, 1fr));
+    align-items: stretch;
+    overflow-x: auto;
+    border-top: 1px solid #ddd;
+    border-left: 1px solid #ddd;
+}
+
+.reconcile-row-label,
+.reconcile-cell {
+    border-right: 1px solid #ddd;
+    border-bottom: 1px solid #ddd;
+    padding: 8px;
+    background: #fff;
+}
+
+.reconcile-row-label {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    font-weight: 600;
+    color: #555;
+    background: #f7f7f7;
+}
+
+.reconcile-cell--top {
+    position: sticky;
+    top: 64px;
+    z-index: 9;
+    background: #f7fbff;
+}
+
+.reconcile-row-label.reconcile-cell--top {
+    z-index: 11;
+}
+
+.reconcile-cell--deleted {
+    background: #f5eeee;
+}
+
+.reconcile-column-title {
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.reconcile-cell input,
+.reconcile-cell select,
+.reconcile-cell textarea {
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.reconcile-check-label {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.reconcile-check-label input {
+    width: auto;
+}
+
+.reconcile-editable-list,
+.reconcile-source-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.reconcile-item-row,
+.reconcile-source-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    padding: 6px;
+    border: 1px solid #eee;
+    border-radius: 3px;
+    background: #fafafa;
+}
+
+.reconcile-source-row {
+    grid-template-columns: auto minmax(0, 1fr);
+}
+
+.reconcile-item-actions {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.reconcile-item-actions button,
+.reconcile-secondary-button,
+.reconcile-add-item-button {
+    padding: 2px 5px;
+    font-size: 12px;
+}
+
+.reconcile-danger-button {
+    background: #9f2c2c;
+}
+
+.reconcile-break {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.reconcile-description {
+    min-height: 260px;
+    resize: vertical;
+}
+
+@media (max-width: 700px) {
+    .reconcile-page {
+        padding: 8px;
+    }
+
+    .reconcile-grid {
+        grid-template-columns: 110px repeat(var(--reconcile-columns), minmax(280px, 1fr));
+    }
+}
+
 .curation-filter {
     display: flex;
     flex-direction: row;

@@ -181,6 +181,22 @@ class LooseParseTest(GameInfoTestBase):
 
         self.assertEqual(info.personalities["author"][0], Person(alias.id, ""))
 
+    def test_text_tag_and_language_are_lowercased(self):
+        info = parse(
+            '---\n- tags:\n  - ["tag", "Детектив"]\n'
+            '  - ["language", "Русский"]\n'
+            '  - ["platform", "INSTEAD"]\n---\n'
+        )
+
+        self.assertEqual(
+            info.tags,
+            [
+                Tag("tag", None, None, "детектив"),
+                Tag("language", None, None, "русский"),
+                Tag("platform", None, None, "INSTEAD"),
+            ],
+        )
+
 
 class CanonicalizeTest(GameInfoTestBase):
     def test_resolves_existing_references_without_creating_new_ones(self):
@@ -307,6 +323,28 @@ class FromImporterDictTest(GameInfoTestBase):
         self.assertEqual(info.tags[0], Tag("", "released", None, None))
         self.assertEqual(info.tags[1], Tag("platform", None, None, "INSTEAD"))
         self.assertEqual(info.tags[2], Tag("", "ifwiki_featured", None, None))
+
+    def test_imported_tags_lowercase_only_tag_and_language(self):
+        info = GameInfo.from_importer_dict({
+            "tags": [
+                {"cat_slug": "tag", "tag": "Детектив"},
+                {"cat_slug": "language", "tag": "Русский"},
+                {"cat_slug": "platform", "tag": "INSTEAD"},
+                {"cat_slug": "competition", "tag": "ЛОК-2020"},
+                {"cat_slug": "ifid", "tag": "12345-ABCDE"},
+            ]
+        })
+
+        self.assertEqual(
+            info.tags,
+            [
+                Tag("tag", None, None, "детектив"),
+                Tag("language", None, None, "русский"),
+                Tag("platform", None, None, "INSTEAD"),
+                Tag("competition", None, None, "ЛОК-2020"),
+                Tag("ifid", None, None, "12345-ABCDE"),
+            ],
+        )
 
     def test_urls_and_falsy_urlcat_skipped(self):
         info = GameInfo.from_importer_dict({

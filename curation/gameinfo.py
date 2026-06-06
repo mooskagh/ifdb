@@ -154,7 +154,15 @@ class GameInfo:
             if t.get("tag_slug"):
                 info.tags.append(Tag("", t["tag_slug"], None, None))
             else:
-                info.tags.append(Tag(t["cat_slug"], None, None, t["tag"]))
+                category = t["cat_slug"]
+                info.tags.append(
+                    Tag(
+                        category,
+                        None,
+                        None,
+                        _normalize_tag_text(category, t["tag"]),
+                    )
+                )
         for u in d.get("urls", []):
             if not u.get("urlcat_slug"):  # mirrors MergeImport's url filter
                 continue
@@ -348,7 +356,10 @@ class GameInfo:
 
     def _save_urls(self, game: Game) -> None:
         existing = {
-            (gu.category_id, gu.url.original_url): gu.id
+            (gu.category_id, gu.url.original_url): (
+                gu.id,
+                gu.description or "",
+            )
             for gu in game.gameurl_set.select_related("url").all()
         }
         desired = set()
@@ -363,15 +374,22 @@ class GameInfo:
             if key in desired:
                 continue
             desired.add(key)
-            if key not in existing:
+            description = entry.description or ""
+            if key in existing:
+                game_url_id, old_description = existing[key]
+                if description != old_description:
+                    GameURL.objects.filter(pk=game_url_id).update(
+                        description=description or None
+                    )
+            else:
                 gu = GameURL(
                     game=game,
                     url_id=url.id,
                     category_id=cat.id,
-                    description=entry.description or None,
+                    description=description or None,
                 )
                 gu.save()
-        if stale := [v for k, v in existing.items() if k not in desired]:
+        if stale := [v[0] for k, v in existing.items() if k not in desired]:
             GameURL.objects.filter(id__in=stale).delete()
 
     def _save_attributions(self, game: Game) -> None:
@@ -438,10 +456,17 @@ def _parse_tag(value) -> Tag:
     if isinstance(ref, int):  # DB tag, possibly with a slug
         tag = GameTag.objects.filter(id=ref).first()
         return Tag(cat, tag.symbolic_id if tag else None, ref, None)
+    ref = _normalize_tag_text(cat, ref)
     tag = GameTag.objects.filter(category__symbolic_id=cat, name=ref).first()
     if tag:
         return Tag(cat, tag.symbolic_id, tag.id, None)
     return Tag(cat, None, None, ref)
+
+
+def _normalize_tag_text(category: str, text: str) -> str:
+    if category in {"tag", "language"}:
+        return text.lower()
+    return text
 
 
 def _parse_url(value) -> GameUrl:

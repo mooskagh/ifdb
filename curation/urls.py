@@ -93,6 +93,11 @@ urlpatterns = [
         name="curation_history_detail",
     ),
     path(
+        "<int:history_id>/reconcile/",
+        superuser_required(views.history_reconcile),
+        name="curation_history_reconcile",
+    ),
+    path(
         "<int:history_id>/edit/",
         superuser_required(views.history_edit),
         name="curation_history_edit",
@@ -103,13 +108,13 @@ urlpatterns = [
         name="curation_history_merge",
     ),
     path(
-        "<int:history_id>/split/",
-        superuser_required(views.history_split),
-        name="curation_history_split",
-    ),
-    path(
         "<int:history_id>/run-edit/",
         superuser_required(views.history_run_edit),
         name="curation_history_run_edit",
+    ),
+    path(
+        "reconcile/game/<int:game_id>/json/",
+        superuser_required(views.reconcile_game_json),
+        name="curation_reconcile_game_json",
     ),
 ]

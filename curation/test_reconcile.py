@@ -187,12 +187,14 @@ class RunReconcileTests(TestCase):
         self.assertEqual(h1.state, GameHistory.State.NEEDS_ATTENTION)
         self.assertEqual(
             h1.note,
-            f"Источник #{source.pk} присоединён неоднозначно",
+            f"Источник s/{source.pk} присоединён неоднозначно; "
+            f"другие игры: g/{h2.game_id}",
         )
         self.assertEqual(h2.state, GameHistory.State.NEEDS_ATTENTION)
         self.assertEqual(
             h2.note,
-            f"Источник #{source.pk} похож на эту игру",
+            f"Источник s/{source.pk} похож на эту игру; "
+            f"другие игры: g/{h1.game_id}",
         )
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
@@ -212,7 +214,7 @@ class RunReconcileTests(TestCase):
         )
 
     def test_ambiguous_match_appends_note(self):
-        self._existing("Match This Title", url="http://ifwiki.ru/One")
+        h1 = self._existing("Match This Title", url="http://ifwiki.ru/One")
         h2 = self._existing("Totally Other Name", url="http://ifwiki.ru/Two")
         h2.state = GameHistory.State.NEEDS_ATTENTION
         h2.note = "Старая причина"
@@ -233,7 +235,8 @@ class RunReconcileTests(TestCase):
         h2.refresh_from_db()
         self.assertEqual(
             h2.note,
-            f"Старая причина\nИсточник #{source.pk} похож на эту игру",
+            f"Старая причина\nИсточник s/{source.pk} похож на эту игру; "
+            f"другие игры: g/{h1.game_id}",
         )
         self.assertFalse(
             GameHistoryAuditLog.objects.filter(
@@ -249,7 +252,9 @@ class RunReconcileTests(TestCase):
                 field=GameHistoryAuditLog.AuditField.NOTE,
                 old_text="Старая причина",
                 new_text=(
-                    f"Старая причина\nИсточник #{source.pk} похож на эту игру"
+                    f"Старая причина\nИсточник s/{source.pk} похож "
+                    "на эту игру; "
+                    f"другие игры: g/{h1.game_id}"
                 ),
             ).exists()
         )

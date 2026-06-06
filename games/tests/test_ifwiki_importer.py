@@ -749,6 +749,24 @@ This is a horror game.
         # Internal links become bold (without display text processing)
         self.assertIn("**Internal Link**", desc)
 
+    def test_html_br_is_converted_to_newline(self):
+        test_url = "https://ifwiki.ru/TestGame"
+
+        wikitext = """{{game info
+|название=Test Game
+}}
+
+Первая строка<br>Вторая строка<br />Третья строка
+"""
+
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            result = ImportFromIfwiki(test_url)
+
+        desc = result["desc"]
+        self.assertNotIn("<br", desc.lower())
+        self.assertIn("Первая строка\nВторая строка\nТретья строка", desc)
+
 
 if __name__ == "__main__":
     unittest.main()

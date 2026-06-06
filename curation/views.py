@@ -18,8 +18,9 @@ from django.db.models import (
     When,
 )
 from django.db.models.functions import Coalesce, TruncMonth
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.timezone import now
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
@@ -30,6 +31,11 @@ from games.models import Game
 from . import openrouter
 from .diff import build_diff
 from .gameinfo import GameInfo, parse
+from .manual_reconcile import (
+    column_for_game,
+    initial_payload,
+    save_reconcile_payload,
+)
 from .merge import contest_related_usage, merge_game_into_history
 from .models import (
     EditPipeline,
@@ -44,7 +50,6 @@ from .models import (
     SourceDiscoveryStatus,
 )
 from .providers import REGISTERED_PROVIDERS
-from .split import SplitOptions, split_game_from_history
 from .tasks import (
     discover_sources,
     edit_sources,
@@ -1238,41 +1243,31 @@ def history_merge(request, history_id):
     return redirect("curation_history_detail", history_id=history.pk)
 
 
-def history_split(request, history_id):
-    if request.method != "POST":
-        return HttpResponseBadRequest("POST required.")
+def history_reconcile(request, history_id):
     history = get_object_or_404(
         GameHistory.objects.select_related("game"), pk=history_id
     )
-    split_source_ids = [
-        source.pk
-        for source in GameSource.objects.filter(history=history)
-        if request.POST.get(f"source_{source.pk}") == "split"
-    ]
-    options = SplitOptions(
-        keep_tags="keep_tags" in request.POST,
-        copy_tags="copy_tags" in request.POST,
-        keep_authors="keep_authors" in request.POST,
-        copy_authors="copy_authors" in request.POST,
-        keep_urls="keep_urls" in request.POST,
-        copy_urls="copy_urls" in request.POST,
-        keep_description="keep_description" in request.POST,
-        copy_description="copy_description" in request.POST,
-    )
-    try:
-        split_history = split_game_from_history(
-            base_history=history,
-            split_source_ids=split_source_ids,
-            split_title=request.POST.get("split_title", ""),
-            options=options,
-            actor=request.user,
-        )
-    except ValueError as exc:
-        messages.error(request, str(exc))
-        return redirect("curation_history_detail", history_id=history.pk)
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body.decode() or "{}")
+            target = save_reconcile_payload(data, request.user)
+        except ValueError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+        messages.success(request, "Игры сверены.")
+        return JsonResponse({
+            "redirect": reverse("curation_history_detail", args=[target.pk])
+        })
 
-    messages.success(
+    return render(
         request,
-        f"Игра разделена. Новая история: #{split_history.pk}.",
+        "curation/history_reconcile.html",
+        {
+            "history": history,
+            "payload": initial_payload(history),
+        },
     )
-    return redirect("curation_history_detail", history_id=split_history.pk)
+
+
+def reconcile_game_json(request, game_id):
+    game = get_object_or_404(Game, pk=game_id)
+    return JsonResponse(column_for_game(game))
