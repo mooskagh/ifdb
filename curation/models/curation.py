@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 
@@ -201,6 +201,13 @@ class GameSourceFetch(models.Model):
 class GameEdit(models.Model):
     class Meta:
         default_permissions = ()
+        constraints = [
+            models.UniqueConstraint(
+                fields=["history"],
+                condition=models.Q(status="PROPOSED"),
+                name="curation_gameedit_one_proposed_per_history",
+            )
+        ]
 
     class EditStatus(models.TextChoices):
         PROPOSED = "PROPOSED", _("Proposed")
@@ -214,6 +221,20 @@ class GameEdit(models.Model):
 
     def __str__(self):
         return f"Edit #{self.pk} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        if self.status != self.EditStatus.PROPOSED:
+            return super().save(*args, **kwargs)
+
+        with transaction.atomic():
+            GameHistory.objects.select_for_update().get(pk=self.history_id)
+            pending_edits = GameEdit.objects.filter(
+                history_id=self.history_id, status=self.EditStatus.PROPOSED
+            )
+            if self.pk:
+                pending_edits = pending_edits.exclude(pk=self.pk)
+            pending_edits.update(status=self.EditStatus.REJECTED)
+            return super().save(*args, **kwargs)
 
     history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)
     proposed_at = models.DateTimeField(_("Proposed at"))

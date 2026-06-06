@@ -109,6 +109,9 @@ class CurationSmokeTest(TestCase):
             passes=["ManualPass"],
             canonical_text="Updated game text",
         )
+        edit.refresh_from_db()
+        self.assertEqual(edit.status, GameEdit.EditStatus.REJECTED)
+        self.assertEqual(other_edit.status, GameEdit.EditStatus.PROPOSED)
         self.assertEqual(other_edit.passes, ["ManualPass"])
 
         parent_comment = GameHistoryComment.objects.create(
@@ -219,7 +222,7 @@ class HistoryListViewTest(TestCase):
         )
         self.assertContains(response, '<option value="relevance" selected>')
 
-    def test_history_list_links_latest_pending_edit(self):
+    def test_history_list_links_pending_edit(self):
         ts = timezone.now()
         pending_history = self._create_history(
             "Pending", ts, state=GameHistory.State.SETTLED
@@ -234,6 +237,8 @@ class HistoryListViewTest(TestCase):
             ts + timezone.timedelta(minutes=1),
             status=GameEdit.EditStatus.PROPOSED,
         )
+        old_pending.refresh_from_db()
+        self.assertEqual(old_pending.status, GameEdit.EditStatus.REJECTED)
         done_history = self._create_history(
             "Done", ts, state=GameHistory.State.SETTLED
         )
