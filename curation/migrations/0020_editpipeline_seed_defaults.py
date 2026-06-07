@@ -20,12 +20,12 @@ Do not remove translated dialogue, quotes, examples, or repeated phrases \
 inside a single coherent description. If a duplicate section has unique tail \
 lines, preserve those unique lines.
 
-Once you are happy with the result, call finish with resolution "commit".
-If the initial input already contains no large repeated blocks, call finish \
-with resolution "commit" without editing.
+Once you are happy with the result, call commit_edited_result.
+If the initial input already contains no large repeated blocks, call \
+no_duplicates_found without editing.
 
-If you feel you messed up, call finish with resolution "abort". If you are \
-not sure, use resolution "request_human_review".
+If you feel you messed up, call abort. If you are not sure, call \
+request_human_review.
 
 If you are lost at what's expected, or have a suggestion for better tool API, \
 use "complain" function.

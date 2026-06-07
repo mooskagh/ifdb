@@ -115,7 +115,9 @@ class CutParams:
 class DeduplicateParams:
     rationale: Annotated[
         str,
-        "Explain why these matching spans are duplicates before deleting any",
+        "State the two or more occurrence indexes that are duplicates and why "
+        "one should be removed. Do not use this tool if there are fewer than "
+        "two matching spans",
     ]
     start_text: Annotated[
         str,
@@ -129,14 +131,14 @@ class DeduplicateParams:
     ]
     occurrence_to_keep: Annotated[
         int,
-        "0-based occurrence index of the matched span to keep; all other "
-        "matching spans are removed",
+        "0-based occurrence index to keep. Valid only when at least two spans "
+        "match start_text/end_text.",
     ]
     allow_nonexact_match: Annotated[
         bool,
-        "Set true to deduplicate spans with the same start_text/end_text even "
-        "when the text between them differs; false requires every matched "
-        "span to be identical",
+        "Set true to remove spans with the same start_text/end_text even when "
+        "the text between them differs; false requires every matched span to "
+        "be identical",
     ] = False
 
 
@@ -173,9 +175,8 @@ class UndoParams:
 
 
 @dataclass
-class FinishParams:
+class SummaryParams:
     summary: Annotated[str, "Brief summary of the editing outcome"]
-    resolution: Literal["abort", "commit", "request_human_review"]
 
 
 @dataclass
@@ -320,8 +321,13 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         return result
 
     @llm_tool
-    def deduplicate(self, params: DeduplicateParams) -> dict:
-        """Remove duplicate spans matching start and end text."""
+    def remove_duplicate_spans(self, params: DeduplicateParams) -> dict:
+        """Delete all but one occurrence of two or more matching spans.
+
+        Use only when start_text/end_text match at least two spans in
+        current_text.
+        This tool is invalid for reporting that no duplicates exist.
+        """
         text = self._current_text()
         try:
             spans = _deduplicate_spans(
@@ -332,7 +338,8 @@ class ContentEditorRunner(GameEditStateLlmRunner):
             )
             if len(spans) < 2:
                 return self._error(
-                    "deduplicate requires at least two matching spans"
+                    "remove_duplicate_spans requires at least two matching "
+                    "spans"
                 )
             parts = [text[start:end] for start, end in spans]
             if not params.allow_nonexact_match:
@@ -348,11 +355,11 @@ class ContentEditorRunner(GameEditStateLlmRunner):
             new_text = new_text[:start] + new_text[end:]
             removed += 1
         if new_text == text:
-            return self._error("deduplicate produced no change")
+            return self._error("remove_duplicate_spans produced no change")
         if not new_text.strip():
             return self._error(
-                "deduplicate would remove the entire current_text; choose "
-                "narrower start_text/end_text or request human review"
+                "remove_duplicate_spans would remove the entire current_text; "
+                "choose narrower start_text/end_text or request human review"
             )
 
         kept_start, kept_end = spans[keep]
@@ -390,42 +397,45 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         return self._success("undone", 0, 0)
 
     @llm_tool
-    def finish(self, params: FinishParams) -> dict:
-        """Finish editing with the selected resolution."""
-        self._finished = True
-        if params.resolution == "abort":
-            self.state.current.description = self._original_text
-            self.state.approval = Approval.REJECTED
-            self.state.add_note(params.summary)
-        elif (
-            params.resolution == "commit"
-            and self._failed_mutations
-            and not self._successful_mutations
-        ):
+    def no_duplicates_found(self, params: SummaryParams) -> dict:
+        """Finish when current_text has no duplicate spans to remove."""
+        return self._finish("no_duplicates_found", params.summary)
+
+    @llm_tool
+    def commit_edited_result(self, params: SummaryParams) -> dict:
+        """Finish editing and commit the current edited description."""
+        if self._failed_mutations and not self._successful_mutations:
             self.state.approval = Approval.PROPOSED
             self.state.needs_attention = True
             self.state.add_note(
                 "Content editor had failed edit attempts and made no changes: "
                 f"{params.summary}"
             )
-            return {
-                "status": "finished",
-                "resolution": "request_human_review",
-                "summary": params.summary,
-                "error": (
+            return self._finish(
+                "request_human_review",
+                params.summary,
+                error=(
                     "commit rejected after failed edit attempts with no "
                     "successful mutation"
                 ),
-            }
-        elif params.resolution == "request_human_review":
-            self.state.approval = Approval.PROPOSED
-            self.state.needs_attention = True
-            self.state.add_note(params.summary)
-        return {
-            "status": "finished",
-            "resolution": params.resolution,
-            "summary": params.summary,
-        }
+            )
+        return self._finish("commit", params.summary)
+
+    @llm_tool
+    def request_human_review(self, params: SummaryParams) -> dict:
+        """Finish editing and flag the description for human review."""
+        self.state.approval = Approval.PROPOSED
+        self.state.needs_attention = True
+        self.state.add_note(params.summary)
+        return self._finish("request_human_review", params.summary)
+
+    @llm_tool
+    def abort(self, params: SummaryParams) -> dict:
+        """Abort editing and restore the original description."""
+        self.state.current.description = self._original_text
+        self.state.approval = Approval.REJECTED
+        self.state.add_note(params.summary)
+        return self._finish("abort", params.summary)
 
     @llm_tool
     def complain(self, params: ComplainParams) -> dict:
@@ -486,13 +496,26 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         self._next_clipboard_id += 1
         return clipboard_id
 
+    def _finish(
+        self, resolution: str, summary: str, *, error: str | None = None
+    ) -> dict:
+        self._finished = True
+        result = {
+            "status": "finished",
+            "resolution": resolution,
+            "summary": summary,
+        }
+        if error:
+            result["error"] = error
+        return result
+
     def _success(self, status: str, start: int, end: int) -> dict:
         text = self._current_text()
         return {
             "status": status,
             "message": (
                 "Operation applied to current_text. Inspect current_text; "
-                "if it satisfies the task, call finish."
+                "if it satisfies the task, call commit_edited_result."
             ),
             "current_text": text,
             "snippet": _snippet(text, start, end),
