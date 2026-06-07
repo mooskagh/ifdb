@@ -23,13 +23,13 @@ from .llm_runners.content_editor import (
     DeduplicateParams,
     DeleteExactParams,
     EditParams,
-    FinishParams,
     MatchParams,
     PasteParams,
     PatchParams,
     ReplaceExactParams,
     ReplacementParams,
     ReplaceParams,
+    SummaryParams,
     UndoParams,
 )
 from .llm_runners.status_review import SetStatusParams
@@ -1101,13 +1101,16 @@ class ContentEditorRunnerTests(TestCase):
             {
                 "complain",
                 "cut",
-                "deduplicate",
+                "abort",
+                "commit_edited_result",
                 "delete_exact",
                 "edit",
-                "finish",
+                "no_duplicates_found",
                 "paste",
                 "replace",
                 "replace_exact",
+                "remove_duplicate_spans",
+                "request_human_review",
                 "undo",
             },
         )
@@ -1116,35 +1119,26 @@ class ContentEditorRunnerTests(TestCase):
             for tool in runner._tools_schema()
             if tool["function"]["name"] == "edit"
         )
-        deduplicate = next(
+        remove_duplicate_spans = next(
             tool
             for tool in runner._tools_schema()
-            if tool["function"]["name"] == "deduplicate"
-        )
-        finish = next(
-            tool
-            for tool in runner._tools_schema()
-            if tool["function"]["name"] == "finish"
+            if tool["function"]["name"] == "remove_duplicate_spans"
         )
 
         edit_params = edit["function"]["parameters"]["properties"]
         self.assertIn("replace", edit_params["edit"]["required"])
         self.assertNotIn("insert_before", edit_params["edit"]["properties"])
         self.assertNotIn("insert_after", edit_params["edit"]["properties"])
-        deduplicate_params = deduplicate["function"]["parameters"][
-            "properties"
-        ]
+        remove_duplicate_spans_params = remove_duplicate_spans["function"][
+            "parameters"
+        ]["properties"]
         self.assertIn(
             "0-based",
-            deduplicate_params["occurrence_to_keep"]["description"],
+            remove_duplicate_spans_params["occurrence_to_keep"]["description"],
         )
-        resolution = finish["function"]["parameters"]["properties"][
-            "resolution"
-        ]
-        self.assertEqual(resolution["type"], "string")
         self.assertEqual(
-            resolution["enum"],
-            ["abort", "commit", "request_human_review"],
+            runner.no_duplicates_found.__doc__,
+            "Finish when current_text has no duplicate spans to remove.",
         )
 
     def test_complain_records_feedback_and_marks_attention(self):
@@ -1179,7 +1173,7 @@ class ContentEditorRunnerTests(TestCase):
         )
 
         self.assertEqual(result["status"], "edited")
-        self.assertIn("call finish", result["message"])
+        self.assertIn("call commit_edited_result", result["message"])
         self.assertEqual(
             result["current_text"],
             "First line\nChanged line\nThird line",
@@ -1333,7 +1327,7 @@ class ContentEditorRunnerTests(TestCase):
         self.assertEqual(result["clipboard_text"], "Second line\n")
         self.assertEqual(result["current_text"], "First line\nThird line")
 
-    def test_deduplicate_removes_all_but_selected_identical_span(self):
+    def test_remove_duplicate_spans_removes_all_but_selected_span(self):
         self.state.current.description = (
             "Intro\n"
             "<section>Duplicate block</section>\n"
@@ -1342,7 +1336,7 @@ class ContentEditorRunnerTests(TestCase):
             "Outro"
         )
 
-        result = self._runner().deduplicate(
+        result = self._runner().remove_duplicate_spans(
             DeduplicateParams(
                 rationale="test",
                 start_text="<section>",
@@ -1358,12 +1352,12 @@ class ContentEditorRunnerTests(TestCase):
             "Intro\nMiddle\n<section>Duplicate block</section>\nOutro",
         )
 
-    def test_deduplicate_rejects_nonidentical_spans_by_default(self):
+    def test_remove_duplicate_spans_rejects_nonidentical_spans(self):
         self.state.current.description = (
             "<section>First block</section>\n<section>Second block</section>"
         )
 
-        result = self._runner().deduplicate(
+        result = self._runner().remove_duplicate_spans(
             DeduplicateParams(
                 rationale="test",
                 start_text="<section>",
@@ -1381,7 +1375,7 @@ class ContentEditorRunnerTests(TestCase):
             "<section>First block</section>\n<section>Second block</section>",
         )
 
-    def test_deduplicate_allows_nonexact_spans_when_requested(self):
+    def test_remove_duplicate_spans_allows_nonexact_spans_when_requested(self):
         self.state.current.description = (
             "Before\n"
             "<section>First block</section>\n"
@@ -1390,7 +1384,7 @@ class ContentEditorRunnerTests(TestCase):
             "After"
         )
 
-        result = self._runner().deduplicate(
+        result = self._runner().remove_duplicate_spans(
             DeduplicateParams(
                 rationale="test",
                 start_text="<section>",
@@ -1605,10 +1599,9 @@ class ContentEditorRunnerTests(TestCase):
                                     "id": "call_2",
                                     "type": "function",
                                     "function": {
-                                        "name": "finish",
+                                        "name": "commit_edited_result",
                                         "arguments": (
-                                            '{"summary":"Changed line",'
-                                            '"resolution":"commit"}'
+                                            '{"summary":"Changed line"}'
                                         ),
                                     },
                                 }
@@ -1649,10 +1642,9 @@ class ContentEditorRunnerTests(TestCase):
                                     "id": "call_1",
                                     "type": "function",
                                     "function": {
-                                        "name": "finish",
+                                        "name": "commit_edited_result",
                                         "arguments": (
-                                            '{"summary":"No changes",'
-                                            '"resolution":"commit"}'
+                                            '{"summary":"No changes"}'
                                         ),
                                     },
                                 }
@@ -1724,10 +1716,9 @@ class ContentEditorRunnerTests(TestCase):
                                     "id": "call_1",
                                     "type": "function",
                                     "function": {
-                                        "name": "finish",
+                                        "name": "commit_edited_result",
                                         "arguments": (
-                                            '{"summary":"No changes",'
-                                            '"resolution":"commit"}'
+                                            '{"summary":"No changes"}'
                                         ),
                                     },
                                 }
@@ -1905,15 +1896,13 @@ class ContentEditorRunnerTests(TestCase):
             "First line\nSecond line\nThird line",
         )
 
-    def test_finish_abort_restores_original_and_rejects(self):
+    def test_abort_restores_original_and_rejects(self):
         runner = self._runner()
         runner.edit(
             self._edit_params("Second line", "Second line", replace="Changed")
         )
 
-        result = runner.finish(
-            FinishParams(summary="Bad edit", resolution="abort")
-        )
+        result = runner.abort(SummaryParams(summary="Bad edit"))
 
         self.assertEqual(result["status"], "finished")
         self.assertEqual(self.state.approval, Approval.REJECTED)
@@ -1924,11 +1913,9 @@ class ContentEditorRunnerTests(TestCase):
             "First line\nSecond line\nThird line",
         )
 
-    def test_finish_human_review_marks_proposed(self):
-        result = self._runner().finish(
-            FinishParams(
-                summary="Needs review", resolution="request_human_review"
-            )
+    def test_request_human_review_marks_proposed(self):
+        result = self._runner().request_human_review(
+            SummaryParams(summary="Needs review")
         )
 
         self.assertEqual(result["resolution"], "request_human_review")
@@ -1936,7 +1923,7 @@ class ContentEditorRunnerTests(TestCase):
         self.assertIs(self.state.needs_attention, True)
         self.assertEqual(self.state.notes, ["Needs review"])
 
-    def test_finish_commit_after_failed_mutation_without_success_needs_review(
+    def test_commit_after_failed_mutation_without_success_needs_review(
         self,
     ):
         runner = self._runner()
@@ -1944,9 +1931,7 @@ class ContentEditorRunnerTests(TestCase):
             DeleteExactParams(rationale="test", text="Missing line")
         )
 
-        result = runner.finish(
-            FinishParams(summary="Done", resolution="commit")
-        )
+        result = runner.commit_edited_result(SummaryParams(summary="Done"))
 
         self.assertEqual(result["status"], "finished")
         self.assertEqual(result["resolution"], "request_human_review")
@@ -1961,7 +1946,7 @@ class ContentEditorRunnerTests(TestCase):
             ],
         )
 
-    def test_finish_commit_after_failed_then_successful_mutation_is_allowed(
+    def test_commit_after_failed_then_successful_mutation_is_allowed(
         self,
     ):
         runner = self._runner()
@@ -1972,9 +1957,7 @@ class ContentEditorRunnerTests(TestCase):
             DeleteExactParams(rationale="test", text="Second line\n")
         )
 
-        result = runner.finish(
-            FinishParams(summary="Done", resolution="commit")
-        )
+        result = runner.commit_edited_result(SummaryParams(summary="Done"))
 
         self.assertEqual(result["resolution"], "commit")
         self.assertEqual(self.state.approval, Approval.APPLIED)
