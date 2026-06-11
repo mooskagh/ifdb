@@ -30,6 +30,16 @@
                 {% endif %}
             </div>
         </div>
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Состояние</div>
+            <div class="curation-source-detail-value">{{ trajectory.history.get_state_display }}</div>
+        </div>
+        {% if trajectory.history.note %}
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Заметка</div>
+            <div class="curation-source-detail-value">{{ trajectory.history.note|linebreaksbr }}</div>
+        </div>
+        {% endif %}
         {% if trajectory.edit %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Правка</div>

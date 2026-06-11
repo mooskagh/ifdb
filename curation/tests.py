@@ -976,6 +976,20 @@ class LlmTrajectoryViewTest(TestCase):
         ]:
             self.assertIn(text, content)
 
+    def test_detail_shows_current_history_status_and_note(self):
+        self.history.state = GameHistory.State.NEEDS_ATTENTION
+        self.history.note = "Current note\nSecond line"
+        self.history.save(update_fields=["state", "note"])
+
+        response = self.client.get(
+            f"/curation/trajectories/{self.trajectory.pk}/"
+        )
+
+        self.assertContains(response, "Состояние")
+        self.assertContains(response, self.history.get_state_display())
+        self.assertContains(response, "Заметка")
+        self.assertContains(response, "Current note<br>Second line")
+
     def test_detail_marks_error_tool_results(self):
         self.trajectory.messages.append({
             "role": "tool",
@@ -1039,6 +1053,9 @@ class EditDiffViewTest(TestCase):
 
     def test_edit_page_shows_game_users_passes_and_llm_links(self):
         edit = self._edit()
+        edit.history.state = GameHistory.State.NEEDS_ATTENTION
+        edit.history.note = "Current note\nSecond line"
+        edit.history.save(update_fields=["state", "note"])
         edit.passes = [
             "NormalizeText",
             {"name": "LlmWorkflowPass", "workflow": "test_workflow"},
@@ -1075,6 +1092,10 @@ class EditDiffViewTest(TestCase):
         self.assertContains(response, "Old Title")
         self.assertContains(response, "Предложил")
         self.assertContains(response, self.user.username)
+        self.assertContains(response, "Состояние")
+        self.assertContains(response, edit.history.get_state_display())
+        self.assertContains(response, "Заметка")
+        self.assertContains(response, "Current note<br>Second line")
         self.assertContains(response, "Passes")
         self.assertContains(response, "<strong>NormalizeText</strong>")
         self.assertContains(response, "<strong>LlmWorkflowPass</strong>")
