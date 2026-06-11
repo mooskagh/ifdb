@@ -63,6 +63,7 @@ const payload = JSON.parse(
 let columns = payload.columns;
 let nextNewColumn = 1;
 const orphanSourceIds = new Set<number>();
+const keepOrphanSourceIds = new Set<number>();
 
 const roleById = new Map(payload.choices.authors.roles.map(r => [r.id, r.title]));
 const roleIdByName = new Map(payload.choices.authors.roles.map(r => [r.title, r.id]));
@@ -342,17 +343,59 @@ function itemActions(
 function sourceActions(colIndex: number, itemIndex: number): HTMLElement {
   const root = itemActions('sources', colIndex, itemIndex, false);
   root.append(
-    button('открепить', () => orphanSource(colIndex, itemIndex), 'reconcile-danger-button'),
+    button(
+      'открепить',
+      () => void orphanSource(colIndex, itemIndex),
+      'reconcile-danger-button',
+    ),
   );
   return root;
 }
 
-function orphanSource(colIndex: number, itemIndex: number): void {
+async function orphanSource(colIndex: number, itemIndex: number): Promise<void> {
   const source = columns[colIndex].sources[itemIndex];
-  if (!window.confirm(`Открепить источник #${source.id} от истории?`)) return;
+  const keepOrphan = await confirmOrphanSource(source);
+  if (keepOrphan === null) return;
   columns[colIndex].sources.splice(itemIndex, 1);
   orphanSourceIds.add(source.id);
+  if (keepOrphan) keepOrphanSourceIds.add(source.id);
+  else keepOrphanSourceIds.delete(source.id);
   render();
+}
+
+function confirmOrphanSource(source: SourceData): Promise<boolean | null> {
+  return new Promise(resolve => {
+    const keepOrphan = el('input', {type: 'checkbox'}) as HTMLInputElement;
+    const dialog = el(
+      'dialog',
+      {class: 'reconcile-source-dialog'},
+      el('p', {text: `Открепить источник #${source.id} от истории?`}),
+      el(
+        'label',
+        {class: 'reconcile-check-label'},
+        keepOrphan,
+        el('span', {text: 'оставить сиротой'}),
+      ),
+      el(
+        'div',
+        {class: 'reconcile-dialog-actions'},
+        button('Отмена', () => dialog.close('cancel'), 'reconcile-secondary-button'),
+        button('Открепить', () => dialog.close('detach'), 'reconcile-danger-button'),
+      ),
+    ) as HTMLDialogElement;
+
+    dialog.addEventListener(
+      'close',
+      () => {
+        const result = dialog.returnValue === 'detach' ? keepOrphan.checked : null;
+        dialog.remove();
+        resolve(result);
+      },
+      {once: true},
+    );
+    document.body.append(dialog);
+    dialog.showModal();
+  });
 }
 
 function moveButton(
@@ -385,7 +428,10 @@ function moveItem(field: ListField, from: number, itemIndex: number, to: number)
   if (to < 0 || to >= columns.length) return;
   const fromList = asList(columns[from], field);
   const [item] = fromList.splice(itemIndex, 1);
-  if (field === 'sources') orphanSourceIds.delete((item as SourceData).id);
+  if (field === 'sources') {
+    orphanSourceIds.delete((item as SourceData).id);
+    keepOrphanSourceIds.delete((item as SourceData).id);
+  }
   asList(columns[to], field).push(item);
   render();
 }
@@ -513,6 +559,7 @@ async function saveReconcile(): Promise<void> {
     body: JSON.stringify({
       columns,
       orphan_source_ids: Array.from(orphanSourceIds),
+      keep_orphan_source_ids: Array.from(keepOrphanSourceIds),
     }),
   });
   const result = await response.json();

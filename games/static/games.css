@@ -2781,6 +2781,24 @@ h6 {
     background: #9f2c2c;
 }
 
+.reconcile-source-dialog {
+    max-width: min(420px, calc(100vw - 32px));
+    border: 1px solid #aaa;
+    border-radius: 4px;
+    padding: 16px;
+}
+
+.reconcile-source-dialog::backdrop {
+    background: rgb(0 0 0 / 35%);
+}
+
+.reconcile-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
 .reconcile-break {
     overflow-wrap: anywhere;
     word-break: break-word;
