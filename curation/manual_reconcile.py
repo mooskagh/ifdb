@@ -134,8 +134,12 @@ def save_reconcile_payload(data: dict, actor) -> GameHistory:
     columns = [_normalized_column(col) for col in data.get("columns") or []]
     columns = [col for col in columns if not _is_empty_new_column(col)]
     orphan_source_ids = _clean_source_ids(data.get("orphan_source_ids") or [])
+    keep_orphan_source_ids = _clean_source_ids(
+        data.get("keep_orphan_source_ids") or []
+    )
     if not columns:
         raise ValueError("Нет колонок для сохранения.")
+    _validate_keep_orphan_ids(orphan_source_ids, keep_orphan_source_ids)
 
     histories = _lock_histories(columns)
     games = _lock_games(columns, histories)
@@ -147,7 +151,14 @@ def save_reconcile_payload(data: dict, actor) -> GameHistory:
     for col in columns:
         targets[col["client_id"]] = _save_column(col, histories, games, actor)
 
-    _move_sources(columns, sources, targets, orphan_source_ids, actor)
+    _move_sources(
+        columns,
+        sources,
+        targets,
+        orphan_source_ids,
+        keep_orphan_source_ids,
+        actor,
+    )
     _delete_marked_columns(columns, histories, games, actor)
 
     for history in {h for h in targets.values() if h is not None}:
@@ -226,6 +237,17 @@ def _clean_sources(rows: list) -> list[dict]:
 
 def _clean_source_ids(rows: list) -> list[int]:
     return list(dict.fromkeys(int(row) for row in rows if row))
+
+
+def _validate_keep_orphan_ids(
+    orphan_source_ids: list[int], keep_orphan_source_ids: list[int]
+):
+    invalid = set(keep_orphan_source_ids) - set(orphan_source_ids)
+    if invalid:
+        ids = ", ".join(f"#{source_id}" for source_id in sorted(invalid))
+        raise ValueError(
+            f"Источник нельзя оставить сиротой без открепления: {ids}."
+        )
 
 
 def _filled(value) -> bool:
@@ -475,10 +497,17 @@ def _move_sources(
     sources: dict[int, GameSource],
     targets: dict[str, GameHistory | None],
     orphan_source_ids: list[int],
+    keep_orphan_source_ids: list[int],
     actor,
 ):
+    keep_orphan_ids = set(keep_orphan_source_ids)
     for source_id in orphan_source_ids:
-        _move_source(sources[source_id], None, actor)
+        _move_source(
+            sources[source_id],
+            None,
+            actor,
+            keep_orphan=source_id in keep_orphan_ids,
+        )
 
     history_by_source = {
         source["id"]: targets[col["client_id"]]
@@ -490,9 +519,16 @@ def _move_sources(
 
 
 def _move_source(
-    source: GameSource, target_history: GameHistory | None, actor
+    source: GameSource,
+    target_history: GameHistory | None,
+    actor,
+    *,
+    keep_orphan=False,
 ):
-    if source.history_id == (target_history.id if target_history else None):
+    if (
+        source.history_id == (target_history.id if target_history else None)
+        and (target_history is not None or source.keep_orphan == keep_orphan)
+    ):
         return
     old_history = source.history
     if old_history is not None:
@@ -503,7 +539,11 @@ def _move_source(
             source,
         )
     source.history = target_history
-    source.save(update_fields=["history"])
+    fields = ["history"]
+    if target_history is None and source.keep_orphan != keep_orphan:
+        source.keep_orphan = keep_orphan
+        fields.append("keep_orphan")
+    source.save(update_fields=fields)
     if target_history is not None:
         GameHistoryAuditLog.record_source(
             target_history,

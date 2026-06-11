@@ -695,12 +695,20 @@ class HistoryReconcileViewTest(TestCase):
             "sources": [{"id": source.pk} for source in sources],
         }
 
-    def _post(self, history, columns, *, orphan_source_ids=()):
+    def _post(
+        self,
+        history,
+        columns,
+        *,
+        orphan_source_ids=(),
+        keep_orphan_source_ids=(),
+    ):
         return self.client.post(
             f"/curation/{history.pk}/reconcile/",
             data=dumps({
                 "columns": columns,
                 "orphan_source_ids": list(orphan_source_ids),
+                "keep_orphan_source_ids": list(keep_orphan_source_ids),
             }),
             content_type="application/json",
         )
@@ -832,6 +840,38 @@ class HistoryReconcileViewTest(TestCase):
                 old_id=source.pk,
             ).exists()
         )
+
+    def test_reconcile_orphan_source_can_keep_it_orphan(self):
+        history = self._history()
+        source = self._source(history, "https://example.com/source")
+        col = self._column(history)
+
+        response = self._post(
+            history,
+            [col],
+            orphan_source_ids=[source.pk],
+            keep_orphan_source_ids=[source.pk],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        source.refresh_from_db()
+        self.assertIsNone(source.history_id)
+        self.assertTrue(source.keep_orphan)
+
+    def test_reconcile_keep_orphan_requires_detaching_source(self):
+        history = self._history()
+        source = self._source(history, "https://example.com/source")
+        col = self._column(history, sources=[source])
+
+        response = self._post(
+            history, [col], keep_orphan_source_ids=[source.pk]
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("без открепления", response.json()["error"])
+        source.refresh_from_db()
+        self.assertEqual(source.history_id, history.pk)
+        self.assertFalse(source.keep_orphan)
 
 
 class LlmTrajectoryViewTest(TestCase):
