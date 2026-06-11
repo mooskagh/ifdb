@@ -43,6 +43,16 @@
             <div class="curation-source-detail-label">История</div>
             <div class="curation-source-detail-value"><a href="{% url 'curation_history_detail' history.pk %}">вернуться к истории</a></div>
         </div>
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Состояние</div>
+            <div class="curation-source-detail-value">{{ history.get_state_display }}</div>
+        </div>
+        {% if history.note %}
+        <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Заметка</div>
+            <div class="curation-source-detail-value">{{ history.note|linebreaksbr }}</div>
+        </div>
+        {% endif %}
         {% if edit.display_passes %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Passes</div>
