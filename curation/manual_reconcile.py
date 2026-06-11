@@ -525,10 +525,9 @@ def _move_source(
     *,
     keep_orphan=False,
 ):
-    if (
-        source.history_id == (target_history.id if target_history else None)
-        and (target_history is not None or source.keep_orphan == keep_orphan)
-    ):
+    if source.history_id == (
+        target_history.id if target_history else None
+    ) and (target_history is not None or source.keep_orphan == keep_orphan):
         return
     old_history = source.history
     if old_history is not None:
