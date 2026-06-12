@@ -471,6 +471,9 @@ def _normalize_tag_text(category: str, text: str) -> str:
 
 def _parse_url(value) -> GameUrl:
     cat, *rest = value
+    if len(rest) == 2 and isinstance(rest[1], int):  # [cat, desc, DB url]
+        desc, url_id = rest
+        return GameUrl(cat, url_id, desc or None, None)
     if len(rest) == 1 and isinstance(rest[0], int):  # DB url; desc/url dropped
         game_url = GameURL.objects.filter(url_id=rest[0]).first()
         return GameUrl(
@@ -694,6 +697,13 @@ class _References:
         by_cat: dict[str, list[GameUrl]] = defaultdict(list)
         for u in urls:
             by_cat[u.category].append(u)
+        current_descriptions = {
+            (gu.category.symbolic_id, gu.url_id): gu.description
+            for gu in GameURL.objects.filter(
+                url_id__in={u.url_id for u in urls if u.url_id is not None},
+                description__gt="",
+            ).select_related("category")
+        }
         lines = []
         for cat in sorted(
             by_cat, key=lambda c: (self.urlcat_order.get(c, 0), c)
@@ -704,7 +714,11 @@ class _References:
                 if u.url_id is not None:
                     original = self.url[u.url_id]
                     label = f"{_dump(u.description)} " if u.description else ""
-                    item = _dump([cat, u.url_id])
+                    description = (
+                        current_descriptions.get((cat, u.url_id))
+                        or u.description
+                    )
+                    item = _dump([cat, description or "", u.url_id])
                     lines.append(f"  - {item}  # {label}{_dump(original)}")
                 else:
                     lines.append(

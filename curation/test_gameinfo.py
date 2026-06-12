@@ -7,11 +7,13 @@ from django.utils import timezone
 
 from games.models import (
     URL,
+    Game,
     GameAuthor,
     GameDescriptionAttribution,
     GameTag,
     GameTagCategory,
     GameURL,
+    GameURLCategory,
     Personality,
     PersonalityAlias,
     PersonalityAliasRedirect,
@@ -83,9 +85,56 @@ class CanonicalRoundTripTest(GameInfoTestBase):
         self.assertIn('  - "os_win"\n', canonical)
         self.assertRegex(
             canonical,
-            r'  - \["download_direct", \d+\]  # "Скачать" "http://example\.com/game\.zip"\n',
+            r'  - \["download_direct", "Скачать", \d+\]  # "Скачать" "http://example\.com/game\.zip"\n',
         )
         self.assertTrue(canonical.endswith("---\nA *markdown* body."))
+
+    def test_url_id_description_is_parseable_yaml_data(self):
+        url = URL.objects.create(
+            original_url="http://example.com/video",
+            creation_date=timezone.now(),
+        )
+        info = GameInfo(urls=[GameUrl("video", url.id, "Proposed", None)])
+
+        reparsed = parse(info.to_canonical())
+
+        self.assertEqual(
+            reparsed.urls, [GameUrl("video", url.id, "Proposed", None)]
+        )
+
+    def test_url_id_yaml_uses_current_description_when_present(self):
+        game = Game.objects.create(title="Game", creation_time=timezone.now())
+        category = GameURLCategory.objects.get(symbolic_id="video")
+        url = URL.objects.create(
+            original_url="http://example.com/video",
+            creation_date=timezone.now(),
+        )
+        GameURL.objects.create(
+            game=game, category=category, url=url, description="Current"
+        )
+        info = GameInfo(urls=[GameUrl("video", url.id, "Proposed", None)])
+
+        canonical = info.to_canonical()
+
+        self.assertIn(
+            f'  - ["video", "Current", {url.id}]  # "Proposed" '
+            f'"{url.original_url}"\n',
+            canonical,
+        )
+
+    def test_url_id_yaml_uses_proposed_description_when_current_empty(self):
+        game = Game.objects.create(title="Game", creation_time=timezone.now())
+        category = GameURLCategory.objects.get(symbolic_id="video")
+        url = URL.objects.create(
+            original_url="http://example.com/video",
+            creation_date=timezone.now(),
+        )
+        GameURL.objects.create(game=game, category=category, url=url)
+        info = GameInfo(urls=[GameUrl("video", url.id, "Proposed", None)])
+
+        canonical = info.to_canonical()
+
+        self.assertIn(f'["video", "Proposed", {url.id}]', canonical)
 
     def test_from_game_round_trips(self):
         game, canonical = self._seeded_info().save()

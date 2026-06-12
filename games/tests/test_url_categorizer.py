@@ -20,3 +20,8 @@ class TestUrlCategorizer(unittest.TestCase):
         )
 
         self.assertEqual(result["urlcat_slug"], "forum")
+
+    def test_vkvideo_is_video_link(self):
+        result = CategorizeUrl("https://vkvideo.ru/video-1_456")
+
+        self.assertEqual(result["urlcat_slug"], "video")
