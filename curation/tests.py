@@ -50,6 +50,15 @@ from .models import (
 
 
 class CurationSmokeTest(TestCase):
+    def _proposed_edit(self, history):
+        return GameEdit.objects.create(
+            history=history,
+            proposed_at=timezone.now(),
+            status=GameEdit.EditStatus.PROPOSED,
+            origin=GameEdit.Origin.AUTO_IMPORT,
+            canonical_text="# Game\n---\ntitle: Game",
+        )
+
     def test_note_survives_non_attention_model_save(self):
         history = GameHistory.objects.create(
             creation_time=timezone.now(),
@@ -75,6 +84,64 @@ class CurationSmokeTest(TestCase):
 
         history.refresh_from_db()
         self.assertEqual(history.note, "Needs manual review")
+
+    def test_leaving_needs_attention_rejects_pending_edit(self):
+        history = GameHistory.objects.create(
+            creation_time=timezone.now(),
+            state=GameHistory.State.NEEDS_ATTENTION,
+        )
+        edit = self._proposed_edit(history)
+
+        history.state = GameHistory.State.SETTLED
+        history.save()
+
+        edit.refresh_from_db()
+        self.assertEqual(edit.status, GameEdit.EditStatus.REJECTED)
+
+    def test_leaving_needs_attention_with_update_fields_rejects_pending_edit(
+        self,
+    ):
+        history = GameHistory.objects.create(
+            creation_time=timezone.now(),
+            state=GameHistory.State.NEEDS_ATTENTION,
+        )
+        edit = self._proposed_edit(history)
+
+        history.state = GameHistory.State.SCHEDULED_FOR_UPDATE
+        history.save(update_fields=["state"])
+
+        edit.refresh_from_db()
+        self.assertEqual(edit.status, GameEdit.EditStatus.REJECTED)
+
+    def test_needs_attention_save_without_state_change_keeps_pending_edit(self):
+        history = GameHistory.objects.create(
+            creation_time=timezone.now(),
+            state=GameHistory.State.NEEDS_ATTENTION,
+            note="Needs manual review",
+        )
+        edit = self._proposed_edit(history)
+
+        history.note = "Still needs manual review"
+        history.save(update_fields=["note"])
+
+        edit.refresh_from_db()
+        self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
+
+    def test_applied_edit_survives_history_state_change(self):
+        history = GameHistory.objects.create(
+            creation_time=timezone.now(),
+            state=GameHistory.State.NEEDS_ATTENTION,
+        )
+        edit = self._proposed_edit(history)
+
+        edit.status = GameEdit.EditStatus.APPLIED
+        edit.approved_at = timezone.now()
+        edit.save(update_fields=["status", "approved_at"])
+        history.state = GameHistory.State.SETTLED
+        history.save(update_fields=["state"])
+
+        edit.refresh_from_db()
+        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
 
     def test_history_lifecycle(self):
         now = timezone.now()

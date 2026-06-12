@@ -26,6 +26,33 @@ class GameHistory(models.Model):
     def __str__(self):
         return f"History #{self.pk} ({self.get_state_display()})"
 
+    def save(self, *args, **kwargs):
+        update_fields = kwargs.get("update_fields")
+        changes_state = update_fields is None or "state" in update_fields
+        reject_pending_edits = False
+
+        if not self._state.adding and changes_state:
+            with transaction.atomic():
+                old_state = (
+                    GameHistory.objects
+                    .select_for_update()
+                    .values_list("state", flat=True)
+                    .get(pk=self.pk)
+                )
+                reject_pending_edits = (
+                    old_state == self.State.NEEDS_ATTENTION
+                    and self.state != old_state
+                )
+                result = super().save(*args, **kwargs)
+                if reject_pending_edits:
+                    GameEdit.objects.filter(
+                        history=self,
+                        status=GameEdit.EditStatus.PROPOSED,
+                    ).update(status=GameEdit.EditStatus.REJECTED)
+                return result
+
+        return super().save(*args, **kwargs)
+
     game = models.OneToOneField(
         "games.Game",
         on_delete=models.SET_NULL,
