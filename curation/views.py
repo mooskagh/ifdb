@@ -1,3 +1,4 @@
+import copy
 import json
 from datetime import timedelta
 
@@ -1039,13 +1040,27 @@ def edit_diff(request, edit_id):
     edit.display_passes = _display_passes(edit.passes)
 
     if request.method == "POST":
+        action = request.POST.get("action")
+        if action in {"rollback", "clone"}:
+            with transaction.atomic():
+                edit = GameEdit.objects.select_for_update().get(pk=edit.pk)
+                edit = GameEdit.objects.select_related("history__game").get(
+                    pk=edit.pk
+                )
+                try:
+                    new_edit = _propose_from_settled_edit(
+                        edit, request.user, request.POST
+                    )
+                except ValueError as e:
+                    return HttpResponseBadRequest(str(e))
+            return redirect("curation_edit_diff", edit_id=new_edit.pk)
+
+        if action not in {"accept", "reject"}:
+            return HttpResponseBadRequest("Unknown edit action.")
         if edit.status != GameEdit.EditStatus.PROPOSED:
             return HttpResponseBadRequest(
                 "Only proposed edits can be settled."
             )
-        action = request.POST.get("action")
-        if action not in {"accept", "reject"}:
-            return HttpResponseBadRequest("Unknown edit action.")
         with transaction.atomic():
             edit = GameEdit.objects.select_for_update().get(pk=edit.pk)
             edit = GameEdit.objects.select_related("history__game").get(
@@ -1072,6 +1087,7 @@ def edit_diff(request, edit_id):
             "game": history.game,
             "history": history,
             "show_actions": edit.status == GameEdit.EditStatus.PROPOSED,
+            "settled_action": _settled_edit_action(edit, history),
             "show_auto_accept": (
                 history.auto_updates != GameHistory.AutoUpdate.REJECT
             ),
@@ -1086,6 +1102,149 @@ def edit_diff(request, edit_id):
             ),
         },
     )
+
+
+EDIT_FIELD_LABELS = {
+    "title": "название",
+    "release_date": "дата релиза",
+    "authors": "авторы",
+    "links": "ссылки",
+    "tags": "свойства",
+    "description": "описания",
+    "sources": "источники",
+}
+
+
+def _settled_edit_action(edit, history):
+    if edit.status == GameEdit.EditStatus.APPLIED:
+        if edit.previous_canonical_text is None:
+            return None
+        action = "rollback"
+        button = "откатить"
+        title = "Откатить правку"
+        target = parse(edit.previous_canonical_text)
+        source_edit = _previous_applied_edit(edit)
+    elif edit.status == GameEdit.EditStatus.REJECTED:
+        action = "clone"
+        button = "применить эту правку"
+        title = "Применить эту правку"
+        target = parse(edit.canonical_text)
+        source_edit = edit
+    else:
+        return None
+
+    base = _served_gameinfo(history)
+    changed = _changed_edit_fields(base, target, source_edit)
+    return {
+        "action": action,
+        "button": button,
+        "title": title,
+        "fields": [
+            {"name": name, "label": label, "changed": name in changed}
+            for name, label in EDIT_FIELD_LABELS.items()
+        ],
+    }
+
+
+def _propose_from_settled_edit(edit, user, post):
+    history = edit.history
+    base = _served_gameinfo(history)
+    if edit.status == GameEdit.EditStatus.APPLIED:
+        if post.get("action") != "rollback":
+            raise ValueError("Applied edits can only be rolled back.")
+        if edit.previous_canonical_text is None:
+            raise ValueError("This edit cannot be rolled back.")
+        target = parse(edit.previous_canonical_text)
+        source_edit = _previous_applied_edit(edit)
+    elif edit.status == GameEdit.EditStatus.REJECTED:
+        if post.get("action") != "clone":
+            raise ValueError("Rejected edits can only be cloned.")
+        target = parse(edit.canonical_text)
+        source_edit = edit
+    else:
+        raise ValueError("Only applied or rejected edits can be reused.")
+
+    changed = _changed_edit_fields(base, target, source_edit)
+    fields = {
+        field
+        for field in EDIT_FIELD_LABELS
+        if post.get(f"include_{field}") == "on" and field in changed
+    }
+    if not fields:
+        raise ValueError("No changed fields selected.")
+
+    info = _mix_gameinfo(base, target, fields)
+    new_edit = GameEdit.objects.create(
+        history=history,
+        proposed_at=now(),
+        proposed_by=user,
+        origin=GameEdit.Origin.USER_SUGGESTION,
+        status=GameEdit.EditStatus.PROPOSED,
+        canonical_text=info.to_canonical(),
+    )
+    if "sources" in fields and source_edit is not None:
+        new_edit.used_sources.set(source_edit.used_sources.all())
+    history.state = GameHistory.State.NEEDS_ATTENTION
+    history.edit_time = now()
+    history.save(update_fields=["state", "edit_time"])
+    return new_edit
+
+
+def _served_gameinfo(history):
+    if history.game is None:
+        return GameInfo()
+    return GameInfo.from_game(history.game)
+
+
+def _mix_gameinfo(base, target, fields):
+    result = copy.deepcopy(base)
+    if "title" in fields:
+        result.name = target.name
+    if "release_date" in fields:
+        result.date = target.date
+    if "authors" in fields:
+        result.personalities = copy.deepcopy(target.personalities)
+    if "links" in fields:
+        result.urls = copy.deepcopy(target.urls)
+    if "tags" in fields:
+        result.tags = copy.deepcopy(target.tags)
+    if "description" in fields:
+        result.description = target.description
+        result.attributions = copy.deepcopy(target.attributions)
+    return result
+
+
+def _changed_edit_fields(base, target, source_edit):
+    changed = set()
+    if base.name != target.name:
+        changed.add("title")
+    if base.date != target.date:
+        changed.add("release_date")
+    if base.personalities != target.personalities:
+        changed.add("authors")
+    if base.urls != target.urls:
+        changed.add("links")
+    if base.tags != target.tags:
+        changed.add("tags")
+    if (
+        base.description != target.description
+        or base.attributions != target.attributions
+    ):
+        changed.add("description")
+    if source_edit is not None and source_edit.used_sources.exists():
+        changed.add("sources")
+    return changed
+
+
+def _previous_applied_edit(edit):
+    previous = None
+    for candidate in edit.history.gameedit_set.filter(
+        status=GameEdit.EditStatus.APPLIED
+    ).order_by("approved_at", "proposed_at", "id"):
+        if candidate.pk == edit.pk:
+            return previous
+        previous = candidate
+    return previous
 
 
 def _redirect_after_edit(next_page, edit, history):

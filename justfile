@@ -9,6 +9,7 @@ build-frontend:
     @echo "Building frontend..."
     esbuild frontend/main.ts --bundle --outfile=core/static/bundle.js
     esbuild frontend/editor.ts --bundle --outfile=core/static/editor.js
+    esbuild frontend/editDiff.ts --bundle --outfile=core/static/edit_diff.js
     esbuild frontend/llmModels.ts --bundle --outfile=core/static/llm_models.js
     esbuild frontend/reconcile.ts --bundle --outfile=core/static/reconcile.js
 

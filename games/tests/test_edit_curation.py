@@ -8,7 +8,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils.timezone import now
 
-from curation.models import GameEdit, GameHistory
+from curation.models import GameEdit, GameHistory, GameSource, GameSourceFetch
 from games.models import (
     URL,
     Game,
@@ -159,6 +159,123 @@ class GameEditCurationViewTests(TestCase):
         self.assertEqual(history.game.title, "New Game")
         self.assertEqual(history.game.added_by, self.user)
 
+    def test_applied_edit_can_be_rolled_back_to_selected_fields(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        game = Game.objects.create(
+            title="New Title",
+            description="New description",
+            creation_time=now(),
+        )
+        history = GameHistory.objects.create(
+            game=game,
+            creation_time=now(),
+            state=GameHistory.State.SETTLED,
+        )
+        previous = GameEdit.objects.create(
+            history=history,
+            proposed_at=now(),
+            approved_at=now(),
+            status=GameEdit.EditStatus.APPLIED,
+            origin=GameEdit.Origin.MANUAL_EDIT,
+            canonical_text=(
+                "---\n- name: Earlier Title\n---\nEarlier description"
+            ),
+        )
+        fetch = self._source_fetch(history)
+        previous.used_sources.add(fetch)
+        edit = GameEdit.objects.create(
+            history=history,
+            proposed_at=now(),
+            approved_at=now(),
+            status=GameEdit.EditStatus.APPLIED,
+            origin=GameEdit.Origin.MANUAL_EDIT,
+            previous_canonical_text=(
+                "---\n- name: Old Title\n---\nOld description"
+            ),
+            canonical_text="---\n- name: New Title\n---\nNew description",
+        )
+
+        response = self.client.get(
+            reverse("curation_edit_diff", args=[edit.pk])
+        )
+
+        self.assertContains(response, "откатить")
+        self.assertContains(response, "edit_diff.js")
+        self.assertContains(response, 'name="include_title" checked')
+        self.assertContains(response, 'name="include_release_date" disabled')
+
+        response = self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]),
+            {
+                "action": "rollback",
+                "include_title": "on",
+                "include_sources": "on",
+            },
+        )
+
+        new_edit = GameEdit.objects.latest("pk")
+        self.assertRedirects(
+            response, reverse("curation_edit_diff", args=[new_edit.pk])
+        )
+        self.assertEqual(new_edit.status, GameEdit.EditStatus.PROPOSED)
+        self.assertEqual(new_edit.proposed_by, self.user)
+        self.assertIn("Old Title", new_edit.canonical_text)
+        self.assertIn("New description", new_edit.canonical_text)
+        self.assertNotIn("Old description", new_edit.canonical_text)
+        self.assertEqual(list(new_edit.used_sources.all()), [fetch])
+
+    def test_rejected_edit_can_be_cloned_to_selected_fields(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        game = Game.objects.create(
+            title="Current Title",
+            description="Current description",
+            creation_time=now(),
+        )
+        history = GameHistory.objects.create(
+            game=game,
+            creation_time=now(),
+            state=GameHistory.State.SETTLED,
+        )
+        edit = GameEdit.objects.create(
+            history=history,
+            proposed_at=now(),
+            approved_at=now(),
+            status=GameEdit.EditStatus.REJECTED,
+            origin=GameEdit.Origin.USER_SUGGESTION,
+            canonical_text=(
+                "---\n- name: Rejected Title\n---\nRejected description"
+            ),
+        )
+        fetch = self._source_fetch(history)
+        edit.used_sources.add(fetch)
+
+        response = self.client.get(
+            reverse("curation_edit_diff", args=[edit.pk])
+        )
+
+        self.assertContains(response, "применить эту правку")
+        self.assertContains(response, 'name="include_description" checked')
+
+        response = self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]),
+            {
+                "action": "clone",
+                "include_description": "on",
+            },
+        )
+
+        new_edit = GameEdit.objects.latest("pk")
+        self.assertRedirects(
+            response, reverse("curation_edit_diff", args=[new_edit.pk])
+        )
+        self.assertEqual(new_edit.status, GameEdit.EditStatus.PROPOSED)
+        self.assertIn("Current Title", new_edit.canonical_text)
+        self.assertIn("Rejected description", new_edit.canonical_text)
+        self.assertNotIn("Rejected Title", new_edit.canonical_text)
+        self.assertEqual(list(new_edit.used_sources.all()), [])
+
     def test_add_saves_with_moder_perm(self):
         self.user.groups.add(Group.objects.create(name="moder"))
 
@@ -178,6 +295,22 @@ class GameEditCurationViewTests(TestCase):
         self.assertEqual(edit.origin, GameEdit.Origin.MANUAL_EDIT)
         self.assertEqual(edit.proposed_by, self.user)
         self.assertEqual(edit.approver, self.user)
+
+    def _source_fetch(self, history):
+        source = GameSource.objects.create(
+            history=history,
+            type=GameSource.SourceType.IFWIKI,
+            url="https://example.com/game",
+            created_at=now(),
+        )
+        return GameSourceFetch.objects.create(
+            source=source,
+            raw_content="raw",
+            canonical_text="canonical",
+            canonical_text_hash="hash",
+            first_fetch=now(),
+            last_fetch=now(),
+        )
 
     def test_game_page_renders_unlinked_author_alias(self):
         game = Game.objects.create(title="Old Title", creation_time=now())
