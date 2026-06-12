@@ -33,7 +33,7 @@ from games.models import (
 )
 
 from .edit import run_edit
-from .gameinfo import GameInfo
+from .gameinfo import GameInfo, GameUrl
 from .models import (
     EditPipeline,
     GameEdit,
@@ -1253,6 +1253,54 @@ class EditDiffViewTest(TestCase):
         self.assertIn("Old Title", edit.previous_canonical_text)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertEqual(history.game.title, "New Title")
+
+    def test_accept_preserves_proposed_description_for_bare_url_id(self):
+        edit = self._edit()
+        category = GameURLCategory.objects.get(symbolic_id="video")
+        url = URL.objects.create(
+            original_url="https://vkvideo.ru/video-1_2",
+            creation_date=self.now,
+        )
+        info = GameInfo(
+            name="New Title",
+            urls=[
+                GameUrl(category.symbolic_id, url.id, "Proposed video", None)
+            ],
+        )
+        edit.canonical_text = info.to_canonical()
+        edit.save(update_fields=["canonical_text"])
+
+        self.client.post(f"/curation/edits/{edit.pk}/", {"action": "accept"})
+
+        game_url = GameURL.objects.get(game=edit.history.game, url=url)
+        self.assertEqual(game_url.description, "Proposed video")
+
+    def test_accept_keeps_current_description_for_existing_game_url(self):
+        edit = self._edit()
+        category = GameURLCategory.objects.get(symbolic_id="video")
+        url = URL.objects.create(
+            original_url="https://vkvideo.ru/video-1_2",
+            creation_date=self.now,
+        )
+        GameURL.objects.create(
+            game=edit.history.game,
+            category=category,
+            url=url,
+            description="Current video",
+        )
+        info = GameInfo(
+            name="New Title",
+            urls=[
+                GameUrl(category.symbolic_id, url.id, "Proposed video", None)
+            ],
+        )
+        edit.canonical_text = info.to_canonical()
+        edit.save(update_fields=["canonical_text"])
+
+        self.client.post(f"/curation/edits/{edit.pk}/", {"action": "accept"})
+
+        game_url = GameURL.objects.get(game=edit.history.game, url=url)
+        self.assertEqual(game_url.description, "Current video")
 
     def test_accept_redirects_to_game_edit_when_requested(self):
         edit = self._edit()
