@@ -14,6 +14,7 @@ from games.models import (
     Game,
     GameAuthor,
     GameAuthorRole,
+    GameDescriptionAttribution,
     GameURL,
     GameURLCategory,
     PersonalityAlias,
@@ -225,6 +226,59 @@ class GameEditCurationViewTests(TestCase):
         self.assertNotIn("Old description", new_edit.canonical_text)
         self.assertEqual(list(new_edit.used_sources.all()), [fetch])
 
+    def test_rollback_description_does_not_rollback_attributions(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        attribution = GameDescriptionAttribution.objects.create(
+            name="Current source"
+        )
+        game = Game.objects.create(
+            title="Title",
+            description="New description",
+            creation_time=now(),
+        )
+        game.description_attributions.add(attribution)
+        history = GameHistory.objects.create(
+            game=game,
+            creation_time=now(),
+            state=GameHistory.State.SETTLED,
+        )
+        edit = GameEdit.objects.create(
+            history=history,
+            proposed_at=now(),
+            approved_at=now(),
+            status=GameEdit.EditStatus.APPLIED,
+            origin=GameEdit.Origin.MANUAL_EDIT,
+            previous_canonical_text="---\n- name: Title\n---\nOld description",
+            canonical_text=(
+                "---\n- name: Title\n- attributions:\n"
+                f"  - {attribution.pk}\n---\nNew description"
+            ),
+        )
+
+        response = self.client.get(
+            reverse("curation_edit_diff", args=[edit.pk])
+        )
+
+        self.assertContains(response, 'name="include_description" checked')
+        self.assertContains(response, 'name="include_sources" checked')
+
+        response = self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]),
+            {
+                "action": "rollback",
+                "include_description": "on",
+            },
+        )
+
+        new_edit = GameEdit.objects.latest("pk")
+        self.assertRedirects(
+            response, reverse("curation_edit_diff", args=[new_edit.pk])
+        )
+        self.assertIn("Old description", new_edit.canonical_text)
+        self.assertIn("attributions", new_edit.canonical_text)
+        self.assertIn(str(attribution.pk), new_edit.canonical_text)
+
     def test_rejected_edit_can_be_cloned_to_selected_fields(self):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
@@ -274,7 +328,7 @@ class GameEditCurationViewTests(TestCase):
         self.assertIn("Current Title", new_edit.canonical_text)
         self.assertIn("Rejected description", new_edit.canonical_text)
         self.assertNotIn("Rejected Title", new_edit.canonical_text)
-        self.assertEqual(list(new_edit.used_sources.all()), [])
+        self.assertEqual(list(new_edit.used_sources.all()), [fetch])
 
     def test_add_saves_with_moder_perm(self):
         self.user.groups.add(Group.objects.create(name="moder"))
