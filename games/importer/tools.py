@@ -93,6 +93,7 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ("youtube.com", "", "", "video", "Видео игры"),
     ("youtu.be", "", "", "video", "Видео игры"),
     ("www.youtube.com", "", "", "video", "Видео игры"),
+    ("vkvideo.ru", "", "", "video", "Видео игры"),
     (
         "forum.ifiction.ru",
         "/file.php",
