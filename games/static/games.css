@@ -3355,6 +3355,25 @@ h6 {
 .curation-save__checkbox {
     margin-right: auto;
 }
+.curation-edit-action-dialog {
+    border: 0;
+    box-shadow: var(--card-box-shadow);
+    max-width: 420px;
+    padding: 18px;
+}
+.curation-edit-action-fields {
+    display: grid;
+    gap: 8px;
+    margin: 14px 0;
+}
+.curation-edit-action-field--noop {
+    color: #777;
+}
+.curation-edit-action-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
 
 .diff {
     background: var(--card-bg-color);

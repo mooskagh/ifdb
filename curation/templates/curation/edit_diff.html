@@ -1,7 +1,13 @@
 {% extends "curation/base.html" %}
+{% load static %}
 {% load tags %}
 
 {% block titlesection %}Правка #{{ edit.pk }} - {% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="{% static 'edit_diff.js' %}" defer></script>
+{% endblock %}
 
 {% block curation_main %}
 <div class="card card--green">
@@ -98,6 +104,31 @@
         <button type="submit" name="action" value="accept">Принять</button>
         <button type="submit" name="action" value="reject">Отклонить</button>
     </form>
+    {% endif %}
+    {% if settled_action %}
+    <div class="curation-save">
+        <button type="button" data-edit-action-dialog="edit-action-dialog">{{ settled_action.button }}</button>
+    </div>
+    <dialog id="edit-action-dialog" class="curation-edit-action-dialog">
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="{{ settled_action.action }}">
+            <h3>{{ settled_action.title }}</h3>
+            <p class="curation-meta">Что включить в новую предложенную правку?</p>
+            <div class="curation-edit-action-fields">
+                {% for field in settled_action.fields %}
+                <label class="curation-save__checkbox{% if not field.changed %} curation-edit-action-field--noop{% endif %}">
+                    <input type="checkbox" name="include_{{ field.name }}"{% if field.changed %} checked{% else %} disabled{% endif %}>
+                    {{ field.label }}{% if not field.changed %} <span class="curation-meta">(без изменений)</span>{% endif %}
+                </label>
+                {% endfor %}
+            </div>
+            <div class="curation-edit-action-buttons">
+                <button type="button" data-edit-action-cancel>Отмена</button>
+                <button type="submit">Создать правку</button>
+            </div>
+        </form>
+    </dialog>
     {% endif %}
 </div>
 
