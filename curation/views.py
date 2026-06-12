@@ -1123,18 +1123,16 @@ def _settled_edit_action(edit, history):
         button = "откатить"
         title = "Откатить правку"
         target = parse(edit.previous_canonical_text)
-        source_edit = _previous_applied_edit(edit)
     elif edit.status == GameEdit.EditStatus.REJECTED:
         action = "clone"
         button = "применить эту правку"
         title = "Применить эту правку"
         target = parse(edit.canonical_text)
-        source_edit = edit
     else:
         return None
 
     base = _served_gameinfo(history)
-    changed = _changed_edit_fields(base, target, source_edit)
+    changed = _changed_edit_fields(base, target)
     return {
         "action": action,
         "button": button,
@@ -1164,7 +1162,7 @@ def _propose_from_settled_edit(edit, user, post):
     else:
         raise ValueError("Only applied or rejected edits can be reused.")
 
-    changed = _changed_edit_fields(base, target, source_edit)
+    changed = _changed_edit_fields(base, target)
     fields = {
         field
         for field in EDIT_FIELD_LABELS
@@ -1182,7 +1180,7 @@ def _propose_from_settled_edit(edit, user, post):
         status=GameEdit.EditStatus.PROPOSED,
         canonical_text=info.to_canonical(),
     )
-    if "sources" in fields and source_edit is not None:
+    if source_edit is not None:
         new_edit.used_sources.set(source_edit.used_sources.all())
     history.state = GameHistory.State.NEEDS_ATTENTION
     history.edit_time = now()
@@ -1210,11 +1208,12 @@ def _mix_gameinfo(base, target, fields):
         result.tags = copy.deepcopy(target.tags)
     if "description" in fields:
         result.description = target.description
+    if "sources" in fields:
         result.attributions = copy.deepcopy(target.attributions)
     return result
 
 
-def _changed_edit_fields(base, target, source_edit):
+def _changed_edit_fields(base, target):
     changed = set()
     if base.name != target.name:
         changed.add("title")
@@ -1226,12 +1225,9 @@ def _changed_edit_fields(base, target, source_edit):
         changed.add("links")
     if base.tags != target.tags:
         changed.add("tags")
-    if (
-        base.description != target.description
-        or base.attributions != target.attributions
-    ):
+    if base.description != target.description:
         changed.add("description")
-    if source_edit is not None and source_edit.used_sources.exists():
+    if base.attributions != target.attributions:
         changed.add("sources")
     return changed
 
