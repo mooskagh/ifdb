@@ -56,6 +56,7 @@ class GameUrl:
     url_id: int | None
     description: str | None
     url: str | None
+    proposed_description: str | None = None
 
 
 @dataclass
@@ -121,7 +122,7 @@ class GameInfo:
                 id__in={u.url_id for u in self.urls if u.url_id is not None}
             )
         }
-        self.urls = _dedup(self.urls, lambda u: _url_key(u, url_by_id))
+        self.urls = _dedup_urls(self.urls, lambda u: _url_key(u, url_by_id))
         self.attributions = _dedup(self.attributions, _attribution_key)
 
     # -- Construction -----------------------------------------------------
@@ -541,7 +542,7 @@ def merge(base: GameInfo, incoming: GameInfo) -> GameInfo:
         if people:
             result.personalities[role] = people
     result.tags = _dedup(base.tags + incoming.tags, _tag_key)
-    result.urls = _dedup(
+    result.urls = _dedup_urls(
         base.urls + incoming.urls, lambda u: _url_key(u, url_by_id)
     )
     result.attributions = _dedup(
@@ -583,6 +584,24 @@ def _dedup(items, key):
         if k not in seen:
             seen.add(k)
             out.append(item)
+    return out
+
+
+def _dedup_urls(items, key):
+    seen = {}
+    out = []
+    for item in items:
+        k = key(item)
+        kept = seen.get(k)
+        if kept is None:
+            seen[k] = item
+            out.append(item)
+            continue
+        proposed = item.proposed_description or item.description
+        if not kept.description and proposed:
+            kept.description = proposed
+        elif proposed and proposed != kept.description:
+            kept.proposed_description = proposed
     return out
 
 
@@ -697,13 +716,6 @@ class _References:
         by_cat: dict[str, list[GameUrl]] = defaultdict(list)
         for u in urls:
             by_cat[u.category].append(u)
-        current_descriptions = {
-            (gu.category.symbolic_id, gu.url_id): gu.description
-            for gu in GameURL.objects.filter(
-                url_id__in={u.url_id for u in urls if u.url_id is not None},
-                description__gt="",
-            ).select_related("category")
-        }
         lines = []
         for cat in sorted(
             by_cat, key=lambda c: (self.urlcat_order.get(c, 0), c)
@@ -713,12 +725,15 @@ class _References:
             ):
                 if u.url_id is not None:
                     original = self.url[u.url_id]
-                    label = f"{_dump(u.description)} " if u.description else ""
-                    description = (
-                        current_descriptions.get((cat, u.url_id))
-                        or u.description
+                    comment_description = (
+                        u.proposed_description or u.description
                     )
-                    item = _dump([cat, description or "", u.url_id])
+                    label = (
+                        f"{_dump(comment_description)} "
+                        if comment_description
+                        else ""
+                    )
+                    item = _dump([cat, u.description or "", u.url_id])
                     lines.append(f"  - {item}  # {label}{_dump(original)}")
                 else:
                     lines.append(

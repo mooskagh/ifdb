@@ -1291,7 +1291,7 @@ class EditDiffViewTest(TestCase):
         info = GameInfo(
             name="New Title",
             urls=[
-                GameUrl(category.symbolic_id, url.id, "Proposed video", None)
+                GameUrl(category.symbolic_id, url.id, "Current video", None)
             ],
         )
         edit.canonical_text = info.to_canonical()
@@ -2692,6 +2692,74 @@ Source desc"""
             {"old source", "wiki"},
         )
 
+    def test_merge_fills_empty_current_url_description_from_source(self):
+        game = Game.objects.create(title="Old Title", creation_time=self.now)
+        history = self._history(
+            game=game, auto_updates=GameHistory.AutoUpdate.PROPOSE
+        )
+        category = GameURLCategory.objects.create(
+            symbolic_id="download_landing", title="Download"
+        )
+        url = URL.objects.create(
+            original_url="https://disk.yandex.ru/d/nWeL7Vv4CrhGdA",
+            creation_date=self.now,
+        )
+        GameURL.objects.create(
+            game=game, category=category, url=url, description=""
+        )
+        canonical = f"""---
+- name: Old Title
+- urls:
+  - ["download_landing", "Скачать игру", "{url.original_url}"]
+---
+"""
+        self._canonical_source(history, canonical)
+
+        stats = run_edit(pipeline_id=self.pipeline.pk)
+
+        self.assertEqual(stats.proposed, 1)
+        edit = GameEdit.objects.get(history=history)
+        self.assertIn(
+            f'["download_landing", "Скачать игру", {url.id}]',
+            edit.canonical_text,
+        )
+
+    def test_merge_keeps_non_empty_current_url_description(self):
+        game = Game.objects.create(title="Old Title", creation_time=self.now)
+        history = self._history(
+            game=game, auto_updates=GameHistory.AutoUpdate.PROPOSE
+        )
+        category = GameURLCategory.objects.create(
+            symbolic_id="download_landing", title="Download"
+        )
+        url = URL.objects.create(
+            original_url="https://disk.yandex.ru/d/nWeL7Vv4CrhGdA",
+            creation_date=self.now,
+        )
+        GameURL.objects.create(
+            game=game,
+            category=category,
+            url=url,
+            description="Текущее описание",
+        )
+        canonical = f"""---
+- name: Old Title
+- urls:
+  - ["download_landing", "Скачать игру", "{url.original_url}"]
+---
+"""
+        self._canonical_source(history, canonical)
+
+        stats = run_edit(pipeline_id=self.pipeline.pk)
+
+        self.assertEqual(stats.proposed, 1)
+        edit = GameEdit.objects.get(history=history)
+        self.assertIn(
+            f'["download_landing", "Текущее описание", {url.id}]'
+            f'  # "Скачать игру" "{url.original_url}"',
+            edit.canonical_text,
+        )
+
     def test_merge_keeps_served_description_when_source_empty(self):
         game = Game.objects.create(
             title="Old Title",
@@ -2841,8 +2909,9 @@ Text
 
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
-        self.assertEqual(stats.unchanged, 1)
-        self.assertFalse(GameEdit.objects.filter(history=history).exists())
+        self.assertEqual(stats.applied, 1)
+        game_url = GameURL.objects.get(game=game, url=url)
+        self.assertEqual(game_url.description, "Играть онлайн")
 
     def test_merge_deduplicates_existing_exact_url(self):
         game = Game.objects.create(title="Tell", creation_time=self.now)
