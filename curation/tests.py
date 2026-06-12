@@ -113,7 +113,9 @@ class CurationSmokeTest(TestCase):
         edit.refresh_from_db()
         self.assertEqual(edit.status, GameEdit.EditStatus.REJECTED)
 
-    def test_needs_attention_save_without_state_change_keeps_pending_edit(self):
+    def test_needs_attention_save_without_state_change_keeps_pending_edit(
+        self,
+    ):
         history = GameHistory.objects.create(
             creation_time=timezone.now(),
             state=GameHistory.State.NEEDS_ATTENTION,
