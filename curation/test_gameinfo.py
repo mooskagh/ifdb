@@ -136,6 +136,58 @@ class CanonicalRoundTripTest(GameInfoTestBase):
 
         self.assertIn(f'["video", "Proposed", {url.id}]', canonical)
 
+    def test_merge_uses_known_url_category_when_current_unknown(self):
+        url = URL.objects.create(
+            original_url="http://example.com/video",
+            creation_date=timezone.now(),
+        )
+        current = GameInfo(
+            urls=[GameUrl("unknown", url.id, "", url.original_url)]
+        )
+        incoming = GameInfo(
+            urls=[GameUrl("video", None, "Proposed", url.original_url)]
+        )
+
+        canonical = merge(current, incoming).to_canonical()
+
+        self.assertIn(f'["video", "Proposed", {url.id}]', canonical)
+        self.assertNotIn('["unknown"', canonical)
+
+    def test_merge_keeps_known_url_category_when_incoming_unknown(self):
+        url = URL.objects.create(
+            original_url="http://example.com/video",
+            creation_date=timezone.now(),
+        )
+        current = GameInfo(
+            urls=[GameUrl("video", url.id, "Current", url.original_url)]
+        )
+        incoming = GameInfo(
+            urls=[GameUrl("unknown", None, "Proposed", url.original_url)]
+        )
+
+        canonical = merge(current, incoming).to_canonical()
+
+        self.assertIn(f'["video", "Current", {url.id}]', canonical)
+        self.assertIn('"Proposed"', canonical)
+        self.assertNotIn('["unknown"', canonical)
+
+    def test_merge_keeps_same_url_in_different_known_categories(self):
+        url = URL.objects.create(
+            original_url="http://example.com/video",
+            creation_date=timezone.now(),
+        )
+        current = GameInfo(
+            urls=[GameUrl("game_page", url.id, "Page", url.original_url)]
+        )
+        incoming = GameInfo(
+            urls=[GameUrl("video", None, "Video", url.original_url)]
+        )
+
+        canonical = merge(current, incoming).to_canonical()
+
+        self.assertIn(f'["game_page", "Page", {url.id}]', canonical)
+        self.assertIn(f'["video", "Video", "{url.original_url}"]', canonical)
+
     def test_from_game_round_trips(self):
         game, canonical = self._seeded_info().save()
         rebuilt = GameInfo.from_game(game)
