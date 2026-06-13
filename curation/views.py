@@ -10,6 +10,7 @@ from django.db.models import (
     Case,
     Count,
     F,
+    Func,
     IntegerField,
     OuterRef,
     Prefetch,
@@ -497,7 +498,14 @@ def llm_trajectories(request):
     trajectories = (
         LlmTrajectory.objects
         .select_related("workflow", "history__game")
-        .annotate(cost_cents=F("cost") * 100)
+        .annotate(
+            cost_cents=F("cost") * 100,
+            messages_count=Func(
+                F("messages"),
+                function="jsonb_array_length",
+                output_field=IntegerField(),
+            ),
+        )
         .order_by("-created_at", "-pk")
     )
     page = Paginator(trajectories, 100).get_page(request.GET.get("page"))
