@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import MISSING, fields, is_dataclass
 from decimal import Decimal
+from logging import getLogger
 from types import UnionType
 from typing import (
     Annotated,
@@ -26,6 +27,7 @@ from .models import LlmTrajectory, LlmWorkflow
 LLM_RUNNERS: dict[str, type["LlmWorkflowRunner"]] = {}
 DEFAULT_MAX_STEPS = 100
 DEFAULT_MAX_ERROR_TOOL_CALLS = 20
+logger = getLogger("worker")
 
 
 def register_llm_runner(cls: type["LlmWorkflowRunner"]):
@@ -206,7 +208,7 @@ class LlmWorkflowRunner(ABC):
                 tool_choice="required" if require_tool and tools else None,
             )
             self._add_usage(usage, response.get("usage") or {})
-            message = response["choices"][0]["message"]
+            message = self._message_from_response(response)
             messages.append(message)
 
             tool_calls = message.get("tool_calls") or []
@@ -308,6 +310,44 @@ class LlmWorkflowRunner(ABC):
             "content": json.dumps(result, ensure_ascii=False),
         }
 
+    def _message_from_response(
+        self, response: dict[str, Any]
+    ) -> dict[str, Any]:
+        choices = response.get("choices")
+        if not choices:
+            logger.error(
+                "LLM response for workflow %r, history #%s, model %r has no "
+                "choices: %s",
+                self.workflow.name,
+                self.state.history.pk,
+                self.model.name,
+                _short_json(response),
+            )
+            raise ValueError("LLM response missing choices")
+        try:
+            message = choices[0]["message"]
+        except (KeyError, TypeError, IndexError) as e:
+            logger.error(
+                "LLM response for workflow %r, history #%s, model %r has "
+                "malformed choices: %s",
+                self.workflow.name,
+                self.state.history.pk,
+                self.model.name,
+                _short_json(response),
+            )
+            raise ValueError("LLM response malformed choices") from e
+        if not isinstance(message, dict):
+            logger.error(
+                "LLM response for workflow %r, history #%s, model %r has "
+                "non-object message: %s",
+                self.workflow.name,
+                self.state.history.pk,
+                self.model.name,
+                _short_json(response),
+            )
+            raise ValueError("LLM response message is not an object")
+        return message
+
     def should_stop(
         self,
         message: dict[str, Any],
@@ -332,6 +372,13 @@ def _is_error_tool_result(message: dict[str, Any]) -> bool:
     except json.JSONDecodeError:
         return False
     return content.get("status") == "error"
+
+
+def _short_json(value: Any) -> str:
+    text = json.dumps(value, ensure_ascii=False, default=str)
+    if len(text) > 1000:
+        text = text[:997] + "..."
+    return text
 
 
 # Imported for registration side effects: each runner populates LLM_RUNNERS via
