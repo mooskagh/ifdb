@@ -1147,11 +1147,13 @@ def _propose_from_settled_edit(edit, user, post):
             raise ValueError("This edit cannot be rolled back.")
         target = parse(edit.previous_canonical_text)
         source_edit = _previous_applied_edit(edit)
+        origin = GameEdit.Origin.ROLLBACK
     elif edit.status == GameEdit.EditStatus.REJECTED:
         if post.get("action") != "clone":
             raise ValueError("Rejected edits can only be cloned.")
         target = parse(edit.canonical_text)
         source_edit = edit
+        origin = GameEdit.Origin.REAPPLICATION
     else:
         raise ValueError("Only applied or rejected edits can be reused.")
 
@@ -1169,7 +1171,7 @@ def _propose_from_settled_edit(edit, user, post):
         history=history,
         proposed_at=now(),
         proposed_by=user,
-        origin=GameEdit.Origin.USER_SUGGESTION,
+        origin=origin,
         status=GameEdit.EditStatus.PROPOSED,
         canonical_text=info.to_canonical(),
     )
