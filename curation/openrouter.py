@@ -1,12 +1,14 @@
 """Minimal OpenRouter catalog client for populating LLMModel rows."""
 
 from decimal import Decimal
+from logging import getLogger
 
 import requests
 from django.conf import settings
 
 MODELS_URL = "https://openrouter.ai/api/v1/models"
 CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
+logger = getLogger("worker")
 
 _MTOK = Decimal(1_000_000)
 
@@ -43,8 +45,26 @@ def chat_completion(
     if tool_choice:
         payload["tool_choice"] = tool_choice
     response = requests.post(CHAT_URL, json=payload, headers=_headers())
-    response.raise_for_status()
-    return response.json()
+    try:
+        response.raise_for_status()
+    except requests.HTTPError:
+        logger.exception(
+            "OpenRouter chat completion HTTP error for model %r: status=%s "
+            "body=%s",
+            model,
+            response.status_code,
+            _short_text(response.text),
+        )
+        raise
+    data = response.json()
+    if isinstance(data, dict) and data.get("error"):
+        logger.error(
+            "OpenRouter chat completion error for model %r: %s",
+            model,
+            _short_text(data["error"]),
+        )
+        raise ValueError(f"OpenRouter error: {_short_text(data['error'])}")
+    return data
 
 
 def model_fields(entry: dict) -> dict:
@@ -82,3 +102,10 @@ def typical_cents(input_cost, output_cost):
         + output_cost * TYPICAL_COMPLETION_TOKENS
     ) / _MTOK
     return dollars * 100
+
+
+def _short_text(value) -> str:
+    text = str(value)
+    if len(text) > 1000:
+        text = text[:997] + "..."
+    return text

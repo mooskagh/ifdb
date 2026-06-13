@@ -26,7 +26,7 @@ class MatchParams:
     to_end: Annotated[
         bool,
         "Set true only when the span must continue through the end of "
-        "current_text; text_end may be empty or match the stripped end",
+        "current_text; text_end must then be empty",
     ] = False
 
 

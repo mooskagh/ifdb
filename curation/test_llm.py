@@ -133,6 +133,20 @@ class ChatCompletionTests(TestCase):
         payload = post.call_args.kwargs["json"]
         self.assertEqual(payload["tool_choice"], "required")
 
+    def test_openrouter_error_payload_is_logged_and_raised(self):
+        with patch.object(openrouter.requests, "post") as post:
+            post.return_value.json.return_value = {
+                "error": {"message": "tools are not supported"}
+            }
+
+            with (
+                self.assertLogs("worker", level="ERROR") as logs,
+                self.assertRaisesRegex(ValueError, "OpenRouter error"),
+            ):
+                openrouter.chat_completion("model", [])
+
+        self.assertIn("tools are not supported", logs.output[0])
+
 
 class TypicalCentsTests(TestCase):
     def test_uses_input_and_output_rates_in_cents(self):
@@ -583,6 +597,23 @@ class LlmWorkflowRunnerTests(TestCase):
         self.assertEqual(runner.stop_reason, "missing_tool_calls")
         self.assertEqual(len(trajectory.messages), 3)
 
+    def test_agent_loop_logs_response_without_choices(self):
+        with patch.object(
+            openrouter,
+            "chat_completion",
+            return_value={"error": {"message": "bad request"}},
+        ):
+            with (
+                self.assertLogs("worker", level="ERROR") as logs,
+                self.assertRaisesRegex(ValueError, "missing choices"),
+            ):
+                runner_for_workflow(
+                    self.workflow, self.state
+                ).run_agent_loop({})
+
+        self.assertIn("has no choices", logs.output[0])
+        self.assertIn("bad request", logs.output[0])
+
     def test_game_edit_runner_marks_attention_when_error_limit_hit(self):
         self.workflow.runner = "content_editor"
         self.workflow.runner_params = {"max_error_tool_calls": 2}
@@ -655,12 +686,15 @@ class LlmWorkflowRunnerTests(TestCase):
 
         with patch.object(openrouter, "chat_completion") as chat:
             chat.side_effect = RuntimeError("network down")
-            LlmWorkflowPass().apply(
-                self.state, {"workflow": self.workflow.name}
-            )
+            with self.assertLogs("worker", level="ERROR") as logs:
+                LlmWorkflowPass().apply(
+                    self.state, {"workflow": self.workflow.name}
+                )
 
         self.assertEqual(self.state.approval, Approval.PROPOSED)
         self.assertIs(self.state.needs_attention, True)
+        self.assertIn("LLM workflow 'Test workflow' failed", logs.output[0])
+        self.assertIn("network down", logs.output[0])
         self.assertEqual(
             self.state.notes,
             [
