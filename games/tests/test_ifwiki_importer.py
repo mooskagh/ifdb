@@ -606,6 +606,23 @@ Test game content.
         self.assertNotIn("Персонаж", result["desc"])
         self.assertNotIn("Алиса", result["desc"])
 
+    def test_plain_internal_link_uses_display_text(self):
+        test_url = "https://ifwiki.ru/TestGame"
+
+        wikitext = """{{game info
+|название=Test Game
+}}
+
+Город [[Трион|Триона]] находится далеко.
+"""
+
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            result = ImportFromIfwiki(test_url)
+
+        self.assertIn("Город **Триона** находится далеко.", result["desc"])
+        self.assertNotIn("**Трион**", result["desc"])
+
     def test_competition_template_processing(self):
         """Test competition template processing."""
         test_url = "https://ifwiki.ru/TestGame"
@@ -746,8 +763,8 @@ This is a horror game.
         self.assertIn("_italic text_", desc)
         self.assertIn("## Section Header", desc)
         self.assertIn("* List item", desc)
-        # Internal links become bold (without display text processing)
-        self.assertIn("**Internal Link**", desc)
+        # Internal links become bold with display text.
+        self.assertIn("**Display Text**", desc)
 
     def test_html_br_is_converted_to_newline(self):
         test_url = "https://ifwiki.ru/TestGame"
