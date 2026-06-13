@@ -1021,6 +1021,15 @@ class LlmTrajectoryViewTest(TestCase):
             f'data-href="/curation/trajectories/{self.trajectory.pk}/"',
         )
 
+    def test_list_shows_message_count(self):
+        self.trajectory.messages = [{"role": "user", "content": "Hi"}] * 7
+        self.trajectory.save(update_fields=["messages"])
+
+        response = self.client.get("/curation/trajectories/")
+
+        self.assertContains(response, "Msgs")
+        self.assertContains(response, '<td class="num">7</td>', html=True)
+
     def test_list_shows_average_cents_per_game(self):
         LlmTrajectory.objects.create(
             history=self.history,

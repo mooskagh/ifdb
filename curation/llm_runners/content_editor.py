@@ -26,7 +26,7 @@ class MatchParams:
     to_end: Annotated[
         bool,
         "Set true only when the span must continue through the end of "
-        "current_text; text_end must then be empty",
+        "current_text; text_end may be empty or match the stripped end",
     ] = False
 
 
@@ -582,8 +582,13 @@ def _match_span(text: str, match: MatchParams) -> tuple[int, int]:
         ]
 
     if match.to_end:
-        if match.text_end:
-            raise ValueError("text_end must be empty when to_end is true")
+        if match.text_end and not text.rstrip().endswith(
+            match.text_end.rstrip()
+        ):
+            raise ValueError(
+                "text_end must be empty or match the stripped end when "
+                "to_end is true"
+            )
         end = len(text)
         _reject_repeated_start_inside_span(text, match, start, end)
         return start, end

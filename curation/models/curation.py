@@ -248,7 +248,9 @@ class GameEdit(models.Model):
         MANUAL_EDIT = "MANUAL_EDIT", _("Manual edit")
         USER_SUGGESTION = "USER_SUGGESTION", _("User suggestion")
         ROLLBACK = "ROLLBACK", _("Rollback")
+        PARTIAL_ROLLBACK = "PARTIAL_ROLLBACK", _("Partial rollback")
         REAPPLICATION = "REAPPLICATION", _("Reapplication")
+        PARTIAL_REAPPLY = "PARTIAL_REAPPLY", _("Partial reapplication")
 
     def __str__(self):
         return f"Edit #{self.pk} ({self.get_status_display()})"

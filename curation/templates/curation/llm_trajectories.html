@@ -64,6 +64,7 @@
                 <th>Дата</th>
                 <th>Workflow</th>
                 <th>Игра</th>
+                <th class="num">Msgs</th>
                 <th class="num">Prompt</th>
                 <th class="num">Cached</th>
                 <th class="num">Write</th>
@@ -84,6 +85,7 @@
                     <a href="{% url 'curation_history_detail' trajectory.history.pk %}">История #{{ trajectory.history.pk }}</a>
                     {% endif %}
                 </td>
+                <td class="num">{{ trajectory.messages_count }}</td>
                 <td class="num">{{ trajectory.prompt_tokens }}</td>
                 <td class="num">{{ trajectory.cached_input_tokens }}</td>
                 <td class="num">{{ trajectory.cache_write_tokens }}</td>
@@ -91,7 +93,7 @@
                 <td class="num">{{ trajectory.cost_cents|costcell:4 }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="8">Траекторий нет.</td></tr>
+            <tr><td colspan="9">Траекторий нет.</td></tr>
             {% endfor %}
         </tbody>
     </table>

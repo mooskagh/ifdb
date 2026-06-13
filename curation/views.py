@@ -10,6 +10,7 @@ from django.db.models import (
     Case,
     Count,
     F,
+    Func,
     IntegerField,
     OuterRef,
     Prefetch,
@@ -497,7 +498,14 @@ def llm_trajectories(request):
     trajectories = (
         LlmTrajectory.objects
         .select_related("workflow", "history__game")
-        .annotate(cost_cents=F("cost") * 100)
+        .annotate(
+            cost_cents=F("cost") * 100,
+            messages_count=Func(
+                F("messages"),
+                function="jsonb_array_length",
+                output_field=IntegerField(),
+            ),
+        )
         .order_by("-created_at", "-pk")
     )
     page = Paginator(trajectories, 100).get_page(request.GET.get("page"))
@@ -1146,14 +1154,10 @@ def _propose_from_settled_edit(edit, user, post):
         if edit.previous_canonical_text is None:
             raise ValueError("This edit cannot be rolled back.")
         target = parse(edit.previous_canonical_text)
-        source_edit = _previous_applied_edit(edit)
-        origin = GameEdit.Origin.ROLLBACK
     elif edit.status == GameEdit.EditStatus.REJECTED:
         if post.get("action") != "clone":
             raise ValueError("Rejected edits can only be cloned.")
         target = parse(edit.canonical_text)
-        source_edit = edit
-        origin = GameEdit.Origin.REAPPLICATION
     else:
         raise ValueError("Only applied or rejected edits can be reused.")
 
@@ -1165,6 +1169,22 @@ def _propose_from_settled_edit(edit, user, post):
     }
     if not fields:
         raise ValueError("No changed fields selected.")
+
+    is_partial = fields != changed
+    if edit.status == GameEdit.EditStatus.APPLIED:
+        origin = (
+            GameEdit.Origin.PARTIAL_ROLLBACK
+            if is_partial
+            else GameEdit.Origin.ROLLBACK
+        )
+        source_edit = edit if is_partial else _previous_applied_edit(edit)
+    else:
+        origin = (
+            GameEdit.Origin.PARTIAL_REAPPLY
+            if is_partial
+            else GameEdit.Origin.REAPPLICATION
+        )
+        source_edit = edit
 
     info = _mix_gameinfo(base, target, fields)
     new_edit = GameEdit.objects.create(
