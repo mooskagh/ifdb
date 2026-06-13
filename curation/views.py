@@ -468,6 +468,7 @@ def llm_trajectories(request):
     aggregates = {
         "count": Count("id"),
         "total_cost": Sum("cost"),
+        "avg_cost_cents": Avg("cost") * 100,
         "avg_prompt_tokens": Avg("prompt_tokens"),
         "avg_cached_input_tokens": Avg("cached_input_tokens"),
         "avg_cache_write_tokens": Avg("cache_write_tokens"),

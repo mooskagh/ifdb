@@ -1021,6 +1021,25 @@ class LlmTrajectoryViewTest(TestCase):
             f'data-href="/curation/trajectories/{self.trajectory.pk}/"',
         )
 
+    def test_list_shows_average_cents_per_game(self):
+        LlmTrajectory.objects.create(
+            history=self.history,
+            workflow=self.workflow,
+            model=self.model,
+            created_at=timezone.now(),
+            messages=[],
+            prompt_tokens=20,
+            cached_input_tokens=4,
+            cache_write_tokens=6,
+            completion_tokens=8,
+            cost="0.000026",
+        )
+
+        response = self.client.get("/curation/trajectories/")
+
+        self.assertContains(response, "¢/game")
+        self.assertContains(response, '0,002<span class="zeros">0</span>')
+
     def test_detail_renders_messages_readably(self):
         response = self.client.get(
             f"/curation/trajectories/{self.trajectory.pk}/"
