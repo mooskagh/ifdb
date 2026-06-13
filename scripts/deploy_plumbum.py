@@ -560,9 +560,13 @@ class DeployCommand(cli.Application):
         p.AddStep(RunCmdStep("just build-frontend"))
 
         if self.hot:
-            p.AddStep(RunCmdStep("uv run ./manage.py collectstatic"))
+            p.AddStep(RunCmdStep("uv run ./manage.py collectstatic --noinput"))
         else:
-            p.AddStep(RunCmdStep("uv run ./manage.py collectstatic --clear"))
+            p.AddStep(
+                RunCmdStep(
+                    "uv run ./manage.py collectstatic --clear --noinput"
+                )
+            )
         if not self.hot:
             p.AddStep(RunCmdStep("uv run ./manage.py initifdb"))
 

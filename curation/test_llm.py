@@ -1522,6 +1522,23 @@ class ContentEditorRunnerTests(TestCase):
         self.assertEqual(result["status"], "error")
         self.assertIn("anchor was found 2 times", result["error"])
 
+    def test_paste_accepts_optional_occurrence_for_unique_anchor(self):
+        result = self._runner().paste(
+            PasteParams(
+                rationale="test",
+                position="after",
+                text=" changed",
+                anchor="Second line",
+                occurrence=0,
+            )
+        )
+
+        self.assertEqual(result["status"], "pasted")
+        self.assertEqual(
+            self.state.current.description,
+            "First line\nSecond line changed\nThird line",
+        )
+
     def test_undo_restores_previous_successful_mutation(self):
         runner = self._runner()
         runner.cut(
@@ -1784,8 +1801,8 @@ class ContentEditorRunnerTests(TestCase):
 
         self.assertEqual(duplicate["status"], "error")
         self.assertIn("found 2 times", duplicate["error"])
-        self.assertEqual(unique["status"], "error")
-        self.assertIn("unique", unique["error"])
+        self.assertEqual(unique["status"], "edited")
+        self.assertEqual(self.state.current.description, "same one\nsecond")
 
     def test_edit_uses_occurrence_and_can_delete(self):
         self.state.current.description = "same one\nsame two"

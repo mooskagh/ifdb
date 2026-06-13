@@ -589,12 +589,27 @@ def _dedup(items, key):
 
 def _dedup_urls(items, key):
     seen = {}
+    seen_by_url = {}
     out = []
     for item in items:
         k = key(item)
         kept = seen.get(k)
         if kept is None:
+            url_key = k[1]
+            same_url = seen_by_url.get(url_key)
+            if (
+                same_url is not None
+                and same_url.category != item.category
+                and "unknown" in {same_url.category, item.category}
+            ):
+                kept = same_url
+                if same_url.category == "unknown":
+                    seen.pop((same_url.category, url_key))
+                    same_url.category = item.category
+                    seen[k] = same_url
+        if kept is None:
             seen[k] = item
+            seen_by_url[k[1]] = item
             out.append(item)
             continue
         proposed = item.proposed_description or item.description

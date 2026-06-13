@@ -209,7 +209,7 @@ function sourceCell(col: ColumnData, index: number): HTMLElement {
           link(source.detail_url, `#${source.id}`),
           el('span', {text: ` ${source.type}`}),
           source.url
-            ? el('div', {class: 'curation-meta reconcile-break', text: source.url})
+            ? el('div', {class: 'curation-meta reconcile-break'}, link(source.url, source.url))
             : el('div', {class: 'curation-meta', text: '(no url)'}),
         ),
       ),

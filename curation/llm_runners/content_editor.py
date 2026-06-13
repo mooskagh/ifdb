@@ -551,8 +551,6 @@ def _anchor_span(
     starts = _occurrences(text, anchor, label="anchor")
     if not starts:
         raise ValueError("anchor was not found")
-    if len(starts) == 1 and occurrence is not None:
-        raise ValueError("anchor is unique, so occurrence must be unset")
     if len(starts) > 1 and occurrence is None:
         raise ValueError(
             f"anchor was found {len(starts)} times; set 0-based occurrence"
@@ -570,8 +568,6 @@ def _match_span(text: str, match: MatchParams) -> tuple[int, int]:
     starts = _occurrences(text, match.text_start, label="text_start")
     if not starts:
         raise ValueError("text_start was not found")
-    if len(starts) == 1 and match.occurrence is not None:
-        raise ValueError("text_start is unique, so occurrence must be unset")
     if len(starts) > 1 and match.occurrence is None:
         raise ValueError(
             f"text_start was found {len(starts)} times; set 0-based occurrence"
