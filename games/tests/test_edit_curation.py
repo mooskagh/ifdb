@@ -183,8 +183,8 @@ class GameEditCurationViewTests(TestCase):
                 "---\n- name: Earlier Title\n---\nEarlier description"
             ),
         )
-        fetch = self._source_fetch(history)
-        previous.used_sources.add(fetch)
+        previous_fetch = self._source_fetch(history)
+        previous.used_sources.add(previous_fetch)
         edit = GameEdit.objects.create(
             history=history,
             proposed_at=now(),
@@ -196,6 +196,8 @@ class GameEditCurationViewTests(TestCase):
             ),
             canonical_text="---\n- name: New Title\n---\nNew description",
         )
+        rollback_fetch = self._source_fetch(history)
+        edit.used_sources.add(rollback_fetch)
 
         response = self.client.get(
             reverse("curation_edit_diff", args=[edit.pk])
@@ -220,12 +222,30 @@ class GameEditCurationViewTests(TestCase):
             response, reverse("curation_edit_diff", args=[new_edit.pk])
         )
         self.assertEqual(new_edit.status, GameEdit.EditStatus.PROPOSED)
-        self.assertEqual(new_edit.origin, GameEdit.Origin.ROLLBACK)
+        self.assertEqual(new_edit.origin, GameEdit.Origin.PARTIAL_ROLLBACK)
         self.assertEqual(new_edit.proposed_by, self.user)
         self.assertIn("Old Title", new_edit.canonical_text)
         self.assertIn("New description", new_edit.canonical_text)
         self.assertNotIn("Old description", new_edit.canonical_text)
-        self.assertEqual(list(new_edit.used_sources.all()), [fetch])
+        self.assertEqual(list(new_edit.used_sources.all()), [rollback_fetch])
+
+        response = self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]),
+            {
+                "action": "rollback",
+                "include_title": "on",
+                "include_description": "on",
+            },
+        )
+
+        new_edit = GameEdit.objects.latest("pk")
+        self.assertRedirects(
+            response, reverse("curation_edit_diff", args=[new_edit.pk])
+        )
+        self.assertEqual(new_edit.origin, GameEdit.Origin.ROLLBACK)
+        self.assertIn("Old Title", new_edit.canonical_text)
+        self.assertIn("Old description", new_edit.canonical_text)
+        self.assertEqual(list(new_edit.used_sources.all()), [previous_fetch])
 
     def test_rollback_description_does_not_rollback_attributions(self):
         self.user.is_superuser = True
@@ -326,10 +346,28 @@ class GameEditCurationViewTests(TestCase):
             response, reverse("curation_edit_diff", args=[new_edit.pk])
         )
         self.assertEqual(new_edit.status, GameEdit.EditStatus.PROPOSED)
-        self.assertEqual(new_edit.origin, GameEdit.Origin.REAPPLICATION)
+        self.assertEqual(new_edit.origin, GameEdit.Origin.PARTIAL_REAPPLY)
         self.assertIn("Current Title", new_edit.canonical_text)
         self.assertIn("Rejected description", new_edit.canonical_text)
         self.assertNotIn("Rejected Title", new_edit.canonical_text)
+        self.assertEqual(list(new_edit.used_sources.all()), [fetch])
+
+        response = self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]),
+            {
+                "action": "clone",
+                "include_title": "on",
+                "include_description": "on",
+            },
+        )
+
+        new_edit = GameEdit.objects.latest("pk")
+        self.assertRedirects(
+            response, reverse("curation_edit_diff", args=[new_edit.pk])
+        )
+        self.assertEqual(new_edit.origin, GameEdit.Origin.REAPPLICATION)
+        self.assertIn("Rejected Title", new_edit.canonical_text)
+        self.assertIn("Rejected description", new_edit.canonical_text)
         self.assertEqual(list(new_edit.used_sources.all()), [fetch])
 
     def test_add_saves_with_moder_perm(self):
