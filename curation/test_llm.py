@@ -1870,7 +1870,9 @@ class ContentEditorRunnerTests(TestCase):
         self.assertEqual(self.state.current.description, "First line")
 
     def test_edit_to_end_allows_text_end_matching_stripped_end(self):
-        self.state.current.description = "First line\nSecond line\nThird line\n"
+        self.state.current.description = (
+            "First line\nSecond line\nThird line\n"
+        )
 
         result = self._runner().edit(
             self._edit_params(
