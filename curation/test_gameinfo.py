@@ -7,13 +7,11 @@ from django.utils import timezone
 
 from games.models import (
     URL,
-    Game,
     GameAuthor,
     GameDescriptionAttribution,
     GameTag,
     GameTagCategory,
     GameURL,
-    GameURLCategory,
     Personality,
     PersonalityAlias,
     PersonalityAliasRedirect,
@@ -102,19 +100,19 @@ class CanonicalRoundTripTest(GameInfoTestBase):
             reparsed.urls, [GameUrl("video", url.id, "Proposed", None)]
         )
 
-    def test_url_id_yaml_uses_current_description_when_present(self):
-        game = Game.objects.create(title="Game", creation_time=timezone.now())
-        category = GameURLCategory.objects.get(symbolic_id="video")
+    def test_merge_keeps_current_url_description_when_present(self):
         url = URL.objects.create(
             original_url="http://example.com/video",
             creation_date=timezone.now(),
         )
-        GameURL.objects.create(
-            game=game, category=category, url=url, description="Current"
+        current = GameInfo(
+            urls=[GameUrl("video", url.id, "Current", url.original_url)]
         )
-        info = GameInfo(urls=[GameUrl("video", url.id, "Proposed", None)])
+        incoming = GameInfo(
+            urls=[GameUrl("video", None, "Proposed", url.original_url)]
+        )
 
-        canonical = info.to_canonical()
+        canonical = merge(current, incoming).to_canonical()
 
         self.assertIn(
             f'  - ["video", "Current", {url.id}]  # "Proposed" '
@@ -122,17 +120,19 @@ class CanonicalRoundTripTest(GameInfoTestBase):
             canonical,
         )
 
-    def test_url_id_yaml_uses_proposed_description_when_current_empty(self):
-        game = Game.objects.create(title="Game", creation_time=timezone.now())
-        category = GameURLCategory.objects.get(symbolic_id="video")
+    def test_merge_uses_proposed_url_description_when_current_empty(self):
         url = URL.objects.create(
             original_url="http://example.com/video",
             creation_date=timezone.now(),
         )
-        GameURL.objects.create(game=game, category=category, url=url)
-        info = GameInfo(urls=[GameUrl("video", url.id, "Proposed", None)])
+        current = GameInfo(
+            urls=[GameUrl("video", url.id, "", url.original_url)]
+        )
+        incoming = GameInfo(
+            urls=[GameUrl("video", None, "Proposed", url.original_url)]
+        )
 
-        canonical = info.to_canonical()
+        canonical = merge(current, incoming).to_canonical()
 
         self.assertIn(f'["video", "Proposed", {url.id}]', canonical)
 
