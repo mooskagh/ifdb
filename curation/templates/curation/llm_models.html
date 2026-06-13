@@ -21,14 +21,14 @@
         </thead>
         <tbody>
             {% for model in installed %}
-            <tr>
+            <tr data-input-cost="{{ model.input_cost|unlocalize }}" data-cached-input-cost="{{ model.cached_input_cost|unlocalize }}" data-cache-write-cost="{{ model.cache_write_cost|unlocalize }}" data-output-cost="{{ model.output_cost|unlocalize }}">
                 <td class="name-col"><a href="https://openrouter.ai/{{ model.name }}" target="_blank" rel="noopener">{{ model.name }}</a></td>
                 <td class="num">{{ model.context_length }}</td>
                 <td class="num">{{ model.input_cost|costcell }}</td>
                 <td class="num">{{ model.cached_input_cost|costcell }}</td>
                 <td class="num">{{ model.cache_write_cost|costcell }}</td>
                 <td class="num">{{ model.output_cost|costcell }}</td>
-                <td class="num">{{ model.typical_cents|costcell }}</td>
+                <td class="num" data-sort="" data-cost-cell>—</td>
                 <td class="curation-nowrap">{{ model.updated_at|date:"Y-m-d H:i"|default:"—" }}</td>
             </tr>
             {% empty %}
@@ -46,7 +46,13 @@
 
 <div class="card card--brown">
     <div class="card--header">Модели OpenRouter</div>
-    <div class="card--body">
+    <div class="card--body llm-model-controls">
+        <form id="llm-cost-form" class="curation-inline-form llm-cost-form">
+            <label>prompt <input type="number" min="0" step="1" name="prompt" value="4000"></label>
+            <label>cached <input type="number" min="0" step="1" name="cached" value="2000"></label>
+            <label>write <input type="number" min="0" step="1" name="write" value="0"></label>
+            <label>completion <input type="number" min="0" step="1" name="completion" value="1800"></label>
+        </form>
         <input type="search" id="llm-search" placeholder="Поиск модели">
     </div>
     <table class="curation-table curation-table--compact curation-table--auto" id="llm-available">
@@ -58,20 +64,20 @@
                 <th class="num" data-sort-type="number">Кэш чт.</th>
                 <th class="num" data-sort-type="number">Кэш зап.</th>
                 <th class="num" data-sort-type="number">Выход</th>
-                <th class="num" data-sort-type="number" data-default-sort>¢/игра</th>
+                <th class="num" data-sort-type="number" data-default-sort data-cost-column>¢/игра</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
             {% for model in available %}
-            <tr data-name="{{ model.name }}">
+            <tr data-name="{{ model.name }}" data-input-cost="{{ model.input_cost|unlocalize }}" data-cached-input-cost="{{ model.cached_input_cost|unlocalize }}" data-cache-write-cost="{{ model.cache_write_cost|unlocalize }}" data-output-cost="{{ model.output_cost|unlocalize }}">
                 <td class="name-col" data-sort="{{ model.name }}"><a href="https://openrouter.ai/{{ model.name }}" target="_blank" rel="noopener">{{ model.name }}</a></td>
                 <td class="num" data-sort="{{ model.context_length|unlocalize }}">{{ model.context_length }}</td>
                 <td class="num" data-sort="{{ model.input_cost|unlocalize }}">{{ model.input_cost|costcell }}</td>
                 <td class="num" data-sort="{{ model.cached_input_cost|unlocalize }}">{{ model.cached_input_cost|costcell }}</td>
                 <td class="num" data-sort="{{ model.cache_write_cost|unlocalize }}">{{ model.cache_write_cost|costcell }}</td>
                 <td class="num" data-sort="{{ model.output_cost|unlocalize }}">{{ model.output_cost|costcell }}</td>
-                <td class="num" data-sort="{{ model.typical_cents|default_if_none:""|unlocalize }}">{{ model.typical_cents|costcell }}</td>
+                <td class="num" data-sort="" data-cost-cell>—</td>
                 <td class="curation-nowrap">
                     {% if model.name in installed_names %}
                     ✓ добавлено

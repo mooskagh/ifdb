@@ -729,15 +729,7 @@ def llm_models(request):
         return _llm_models_post(request)
 
     available = [openrouter.model_fields(e) for e in openrouter.fetch_models()]
-    for fields in available:
-        fields["typical_cents"] = openrouter.typical_cents(
-            fields["input_cost"], fields["output_cost"]
-        )
     installed = list(LLMModel.objects.order_by("name"))
-    for model in installed:
-        model.typical_cents = openrouter.typical_cents(
-            model.input_cost, model.output_cost
-        )
     installed_names = {model.name for model in installed}
 
     return render(

@@ -3211,6 +3211,25 @@ h6 {
     color: #555;
 }
 
+.llm-model-controls {
+    display: grid;
+    gap: 10px;
+    justify-items: start;
+}
+
+.llm-cost-form {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+
+.llm-cost-form input[type="number"] {
+    width: 5.5em;
+}
+
+#llm-search {
+    width: min(28em, 100%);
+}
+
 .curation-source {
     display: flex;
     gap: 12px;

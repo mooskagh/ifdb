@@ -23,10 +23,15 @@ function cellValue(row: HTMLTableRowElement, index: number, numeric: boolean) {
   return Number.isNaN(n) ? Infinity : n;
 }
 
-function initSort(table: HTMLTableElement): void {
+type SortController = {
+  resortIfCostColumn: () => void;
+};
+
+function initSort(table: HTMLTableElement): SortController {
   const body = table.tBodies[0];
   const headers = Array.from(table.tHead!.rows[0].cells);
   const strip = (s: string) => s.replace(/[ ▲▼]+$/, '');
+  let current: { th: HTMLTableCellElement; ascending: boolean } | null = null;
 
   const sortBy = (th: HTMLTableCellElement, ascending: boolean) => {
     const index = headers.indexOf(th);
@@ -42,6 +47,7 @@ function initSort(table: HTMLTableElement): void {
 
     for (const other of headers) other.textContent = strip(other.textContent!);
     th.textContent = strip(th.textContent!) + (ascending ? ' ▲' : ' ▼');
+    current = { th, ascending };
   };
 
   for (const th of headers) {
@@ -55,11 +61,84 @@ function initSort(table: HTMLTableElement): void {
 
   const initial = headers.find(th => 'defaultSort' in th.dataset);
   if (initial) sortBy(initial, true);
+
+  return {
+    resortIfCostColumn: () => {
+      if (current?.th.dataset.costColumn !== undefined) {
+        sortBy(current.th, current.ascending);
+      }
+    },
+  };
+}
+
+function parseInput(form: HTMLFormElement, name: string): number {
+  const input = form.elements.namedItem(name);
+  if (!(input instanceof HTMLInputElement)) return 0;
+  const value = Number(input.value);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function cost(
+  row: HTMLTableRowElement,
+  prompt: number,
+  cached: number,
+  write: number,
+  completion: number,
+): number | null {
+  const inputCost = Number(row.dataset.inputCost);
+  const cachedCost = Number(row.dataset.cachedInputCost);
+  const writeCost = Number(row.dataset.cacheWriteCost);
+  const outputCost = Number(row.dataset.outputCost);
+  if (
+    [inputCost, cachedCost, writeCost, outputCost].some(n => Number.isNaN(n)) ||
+    (prompt && inputCost < 0) ||
+    (cached && cachedCost < 0) ||
+    (write && writeCost < 0) ||
+    (completion && outputCost < 0)
+  ) {
+    return null;
+  }
+  const dollars =
+    (inputCost * prompt + cachedCost * cached + writeCost * write + outputCost * completion) / 1_000_000;
+  return dollars * 100;
+}
+
+function formatCost(value: number | null): string {
+  if (value === null) return '—';
+  const text = value.toFixed(4).replace('.', ',');
+  const head = text.replace(/,?0+$/, '');
+  const tail = text.slice(head.length);
+  return tail ? `${head}<span class="zeros">${tail}</span>` : head;
+}
+
+function initCostForm(sort: SortController): void {
+  const form = document.querySelector<HTMLFormElement>('#llm-cost-form');
+  if (!form) return;
+
+  const update = () => {
+    const prompt = parseInput(form, 'prompt');
+    const cached = parseInput(form, 'cached');
+    const write = parseInput(form, 'write');
+    const completion = parseInput(form, 'completion');
+    for (const cell of document.querySelectorAll<HTMLTableCellElement>('[data-cost-cell]')) {
+      const row = cell.closest('tr');
+      if (!(row instanceof HTMLTableRowElement)) continue;
+      const value = cost(row, prompt, cached, write, completion);
+      cell.dataset.sort = value === null ? '' : String(value);
+      cell.innerHTML = formatCost(value);
+    }
+    sort.resortIfCostColumn();
+  };
+
+  form.addEventListener('input', update);
+  form.addEventListener('submit', event => event.preventDefault());
+  update();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   const table = document.querySelector<HTMLTableElement>('#llm-available');
   if (!table) return;
   initSearch(table);
-  initSort(table);
+  const sort = initSort(table);
+  initCostForm(sort);
 });
