@@ -547,7 +547,7 @@ class DeployCommand(cli.Application):
 
         if self.from_master:
             p.AddStep(RunCmdStep("git fetch origin master:master"))
-            p.AddStep(RunCmdStep("git merge --no-ff master"))
+            p.AddStep(RunCmdStep("git merge --no-ff --no-edit master"))
             p.AddStep(GetNextVersion)
 
         if not self.hot:

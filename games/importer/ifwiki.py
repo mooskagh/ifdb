@@ -232,7 +232,7 @@ def ParseIfwikiLink(text):
         role, name = None, role
     typ = None
     display_name = None
-    if len(parts) == 2 and role:
+    if len(parts) == 2:
         display_name = parts[1].strip() or None
     elif len(parts) == 3:
         typ, display_name = parts[1], parts[2].strip() or None

@@ -468,6 +468,7 @@ def llm_trajectories(request):
     aggregates = {
         "count": Count("id"),
         "total_cost": Sum("cost"),
+        "avg_cost_cents": Avg("cost") * 100,
         "avg_prompt_tokens": Avg("prompt_tokens"),
         "avg_cached_input_tokens": Avg("cached_input_tokens"),
         "avg_cache_write_tokens": Avg("cache_write_tokens"),
@@ -728,15 +729,7 @@ def llm_models(request):
         return _llm_models_post(request)
 
     available = [openrouter.model_fields(e) for e in openrouter.fetch_models()]
-    for fields in available:
-        fields["typical_cents"] = openrouter.typical_cents(
-            fields["input_cost"], fields["output_cost"]
-        )
     installed = list(LLMModel.objects.order_by("name"))
-    for model in installed:
-        model.typical_cents = openrouter.typical_cents(
-            model.input_cost, model.output_cost
-        )
     installed_names = {model.name for model in installed}
 
     return render(
@@ -1154,11 +1147,13 @@ def _propose_from_settled_edit(edit, user, post):
             raise ValueError("This edit cannot be rolled back.")
         target = parse(edit.previous_canonical_text)
         source_edit = _previous_applied_edit(edit)
+        origin = GameEdit.Origin.ROLLBACK
     elif edit.status == GameEdit.EditStatus.REJECTED:
         if post.get("action") != "clone":
             raise ValueError("Rejected edits can only be cloned.")
         target = parse(edit.canonical_text)
         source_edit = edit
+        origin = GameEdit.Origin.REAPPLICATION
     else:
         raise ValueError("Only applied or rejected edits can be reused.")
 
@@ -1176,7 +1171,7 @@ def _propose_from_settled_edit(edit, user, post):
         history=history,
         proposed_at=now(),
         proposed_by=user,
-        origin=GameEdit.Origin.USER_SUGGESTION,
+        origin=origin,
         status=GameEdit.EditStatus.PROPOSED,
         canonical_text=info.to_canonical(),
     )

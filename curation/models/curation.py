@@ -247,6 +247,8 @@ class GameEdit(models.Model):
         AUTO_IMPORT = "AUTO_IMPORT", _("Automatic import")
         MANUAL_EDIT = "MANUAL_EDIT", _("Manual edit")
         USER_SUGGESTION = "USER_SUGGESTION", _("User suggestion")
+        ROLLBACK = "ROLLBACK", _("Rollback")
+        REAPPLICATION = "REAPPLICATION", _("Reapplication")
 
     def __str__(self):
         return f"Edit #{self.pk} ({self.get_status_display()})"
