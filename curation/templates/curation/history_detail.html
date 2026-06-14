@@ -189,7 +189,7 @@
             {% if history.note %}
             <div class="game--info-row">
                 <div class="game--info-row-label">Заметка</div>
-                <div class="game--info-row-value">{{ history.note }}</div>
+                <div class="game--info-row-value">{{ history.note|object_refs }}</div>
             </div>
             {% endif %}
             <div class="game--info-row">

@@ -56,7 +56,7 @@
         {% if history.note %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Заметка</div>
-            <div class="curation-source-detail-value">{{ history.note|linebreaksbr }}</div>
+            <div class="curation-source-detail-value">{{ history.note|object_refs }}</div>
         </div>
         {% endif %}
         {% if edit.display_passes %}

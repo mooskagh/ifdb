@@ -281,6 +281,40 @@ class HistoryListViewTest(TestCase):
         ]:
             self.assertContains(response, text)
 
+    def test_history_list_links_note_object_refs(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            title="Linked Game",
+            creation_time=ts,
+            added_by=self.user,
+        )
+        history = GameHistory.objects.create(
+            game=game,
+            creation_time=ts,
+            state=GameHistory.State.NEEDS_ATTENTION,
+            note="",
+        )
+        source = GameSource.objects.create(
+            history=history,
+            type=GameSource.SourceType.QSP,
+            url="https://example.com/game",
+        )
+        history.note = f"See g/{game.pk} and s/{source.pk}"
+        history.save(update_fields=["note"])
+
+        response = self.client.get("/curation/")
+
+        self.assertContains(
+            response,
+            f'<a href="/game/{game.pk}/">g/{game.pk}</a>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            f'<a href="/curation/sources/{source.pk}/">s/{source.pk}</a>',
+            html=True,
+        )
+
     def test_user_settling_history_clears_note(self):
         history = GameHistory.objects.create(
             creation_time=timezone.now(),
@@ -504,6 +538,32 @@ class HistoryDetailViewTest(TestCase):
             f'action="/curation/{self.history.pk}/comments/add/"',
         )
         self.assertContains(response, 'name="text"')
+
+    def test_history_page_links_note_object_refs_and_escapes_text(self):
+        source = GameSource.objects.create(
+            history=self.history,
+            type=GameSource.SourceType.QSP,
+            url="https://example.com/game",
+        )
+        self.history.note = (
+            f"See g/{self.game.pk} and s/{source.pk}\n<script>x</script>"
+        )
+        self.history.save(update_fields=["note"])
+
+        response = self.client.get(f"/curation/{self.history.pk}/")
+
+        self.assertContains(
+            response,
+            f'<a href="/game/{self.game.pk}/">g/{self.game.pk}</a>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            f'<a href="/curation/sources/{source.pk}/">s/{source.pk}</a>',
+            html=True,
+        )
+        self.assertContains(response, "<br>&lt;script&gt;x&lt;/script&gt;")
+        self.assertNotContains(response, "<script>x</script>")
 
     def test_post_comment_creates_mods_comment(self):
         response = self.client.post(

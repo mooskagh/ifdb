@@ -10,8 +10,40 @@ from django.template.defaultfilters import stringfilter
 from django.urls import NoReverseMatch, reverse
 from django.utils.html import conditional_escape, format_html
 from django.utils.safestring import mark_safe
+from django.utils.text import normalize_newlines
 
 register = template.Library()
+
+OBJECT_REF_RE = re.compile(r"(?<![\w/])(?P<kind>[gs])/(?P<id>\d+)\b")
+OBJECT_REF_ROUTES = {
+    "g": "show_game",
+    "s": "curation_source_detail",
+}
+
+
+@register.filter(needs_autoescape=True)
+def object_refs(value, autoescape=True):
+    if value is None:
+        return ""
+
+    text = normalize_newlines(str(value))
+    escape = conditional_escape if autoescape else lambda x: x
+    parts = []
+    pos = 0
+    for match in OBJECT_REF_RE.finditer(text):
+        parts.append(escape(text[pos : match.start()]))
+        ref = match.group(0)
+        try:
+            url = reverse(
+                OBJECT_REF_ROUTES[match["kind"]], args=[match["id"]]
+            )
+        except (KeyError, NoReverseMatch):
+            parts.append(escape(ref))
+        else:
+            parts.append(format_html('<a href="{}">{}</a>', url, ref))
+        pos = match.end()
+    parts.append(escape(text[pos:]))
+    return mark_safe("".join(parts).replace("\n", "<br>"))
 
 
 @register.filter
