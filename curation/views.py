@@ -385,6 +385,33 @@ def _pipeline_from_post(data):
     return get_object_or_404(EditPipeline, pk=data.get("pipeline"))
 
 
+def _pipelines_from_reconcile_payload(data):
+    raw = data.get("pipeline_by_client_id") or {}
+    if not isinstance(raw, dict):
+        raise ValueError("Некорректный список обработок.")
+
+    pipeline_ids_by_client_id = {}
+    for client_id, pipeline_id in raw.items():
+        if pipeline_id in (None, ""):
+            continue
+        try:
+            pipeline_ids_by_client_id[str(client_id)] = int(pipeline_id)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Некорректная обработка.") from exc
+
+    pipeline_ids = set(pipeline_ids_by_client_id.values())
+    pipelines = {
+        pipeline.pk: pipeline
+        for pipeline in EditPipeline.objects.filter(pk__in=pipeline_ids)
+    }
+    if missing := pipeline_ids - set(pipelines):
+        raise ValueError(f"Обработки не найдены: {sorted(missing)}.")
+    return {
+        client_id: pipelines[pipeline_id]
+        for client_id, pipeline_id in pipeline_ids_by_client_id.items()
+    }
+
+
 def _discoverable_types():
     return {provider.source_type for provider in REGISTERED_PROVIDERS}
 
@@ -1432,20 +1459,42 @@ def history_reconcile(request, history_id):
     if request.method == "POST":
         try:
             data = json.loads(request.body.decode() or "{}")
-            target = save_reconcile_payload(data, request.user)
+            pipelines_by_client_id = _pipelines_from_reconcile_payload(data)
+            result = save_reconcile_payload(data, request.user)
         except ValueError as exc:
             return JsonResponse({"error": str(exc)}, status=400)
-        messages.success(request, "Игры сверены.")
+        started = 0
+        for client_id, pipeline in pipelines_by_client_id.items():
+            target = result.histories_by_client_id.get(client_id)
+            if target is None or target.state == GameHistory.State.ABANDONED:
+                continue
+            edit_sources.delay(
+                history_id=target.pk, pipeline_id=pipeline.pk, force=True
+            )
+            started += 1
+        if started:
+            messages.success(
+                request, f"Игры сверены, обработок запущено: {started}."
+            )
+        else:
+            messages.success(request, "Игры сверены.")
         return JsonResponse({
-            "redirect": reverse("curation_history_detail", args=[target.pk])
+            "redirect": reverse(
+                "curation_history_detail", args=[result.redirect_history.pk]
+            )
         })
 
+    payload = initial_payload(history)
+    payload["edit_pipelines"] = [
+        {"id": pipeline.pk, "name": pipeline.name}
+        for pipeline in EditPipeline.objects.order_by("id")
+    ]
     return render(
         request,
         "curation/history_reconcile.html",
         {
             "history": history,
-            "payload": initial_payload(history),
+            "payload": payload,
         },
     )
 
