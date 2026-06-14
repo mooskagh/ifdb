@@ -34,9 +34,7 @@ def object_refs(value, autoescape=True):
         parts.append(escape(text[pos : match.start()]))
         ref = match.group(0)
         try:
-            url = reverse(
-                OBJECT_REF_ROUTES[match["kind"]], args=[match["id"]]
-            )
+            url = reverse(OBJECT_REF_ROUTES[match["kind"]], args=[match["id"]])
         except (KeyError, NoReverseMatch):
             parts.append(escape(ref))
         else:
