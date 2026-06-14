@@ -16,11 +16,15 @@ resolve redirects** (ifiction's ``ResolveRedirect``, ifwiki's
 ``#REDIRECT``-chase).  No nicer design exists; this is intended behavior.
 """
 
+import json
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from html2text import HTML2Text
+
+from core.crawler import FetchUrlToString
 from games.importer.apero import (
     APERO_URL,
     FetchApero,
@@ -53,12 +57,6 @@ from games.importer.plut import (
     ParsePlut,
 )
 from games.importer.plut import GetCandidates as GetPlutCandidates
-from games.importer.qspsu import (
-    QSP_RE,
-    FetchQsp,
-    ParseQsp,
-)
-from games.importer.qspsu import GetCandidates as GetQspSuCandidates
 from games.importer.questbook import (
     QUESTBOOK_GAMEDETAIL_URL,
     FetchQuestBook,
@@ -67,7 +65,7 @@ from games.importer.questbook import (
 from games.importer.questbook import GetCandidates as GetQuestBookCandidates
 from games.importer.tools import QuoteUtf8
 
-from .gameinfo import GameInfo, GameUrl
+from .gameinfo import Attribution, GameInfo, GameUrl, Person, Tag
 from .models import GameSource
 
 
@@ -244,26 +242,122 @@ class IfictionProvider(GameSourceProvider):
         return re.sub(r"&lid=\d+", "", _base_source_key(url))
 
 
+QSP_API_BASE = "https://qsp.org/api/v1"
+QSP_PUBLIC_GAME_RE = re.compile(
+    r"https?://qsp\.org/games/([^/?#]+)/?(?:[?#].*)?$"
+)
+QSP_API_GAME_RE = re.compile(
+    r"https?://qsp\.org/api/v1/games/([^/?#]+)/?(?:[?#].*)?$"
+)
+
+
+def _qsp_game_ref(url: str) -> str:
+    if m := QSP_PUBLIC_GAME_RE.match(url):
+        return m.group(1)
+    if m := QSP_API_GAME_RE.match(url):
+        return m.group(1)
+    raise ValueError(f"Unsupported QSP source URL: {url}")
+
+
+def _qsp_game_id(ref: str) -> str | None:
+    m = re.match(r"(\d+)(?:-|$)", ref)
+    return m.group(1) if m else None
+
+
+def _qsp_public_url(slug: str) -> str:
+    return f"https://qsp.org/games/{slug}"
+
+
+def FetchQspApi(url: str, use_cache=True) -> str:
+    return FetchUrlToString(
+        f"{QSP_API_BASE}/games/{_qsp_game_ref(url)}", use_cache=use_cache
+    )
+
+
+def FetchQspApiGameList(page: int, use_cache=True) -> str:
+    return FetchUrlToString(
+        f"{QSP_API_BASE}/games?per-page=100&page={page}",
+        use_cache=use_cache,
+    )
+
+
+def _qsp_names(value: str | None) -> list[str]:
+    return [name.strip() for name in (value or "").split(",") if name.strip()]
+
+
+def _qsp_description(html: str) -> str | None:
+    if not html:
+        return None
+    tt = HTML2Text()
+    tt.body_width = 0
+    return tt.handle(html)
+
+
+def _qsp_language(lang: str | None) -> str | None:
+    return {"ru": "русский", "en": "english"}.get(lang or "")
+
+
+def _qsp_game_info(game: dict) -> GameInfo:
+    slug = game["slug"]
+    info = GameInfo(
+        name=game.get("name"),
+        date=(game.get("created_at") or "").split("T", 1)[0] or None,
+        description=_qsp_description(game.get("description_html") or ""),
+        attributions=[Attribution(None, "qsp.org")],
+    )
+    info.personalities["author"] = [
+        Person(None, name) for name in _qsp_names(game.get("authors"))
+    ]
+    translators = _qsp_names(game.get("translators"))
+    if translators:
+        info.personalities["translator"] = [
+            Person(None, name) for name in translators
+        ]
+    info.tags.append(Tag("platform", None, None, "QSP"))
+    if version := game.get("ver"):
+        info.tags.append(Tag("version", None, None, version))
+    if language := _qsp_language(game.get("lang")):
+        info.tags.append(Tag("language", None, None, language))
+    info.urls.append(GameUrl("game_page", None, None, _qsp_public_url(slug)))
+    if file_url := game.get("file_url"):
+        info.urls.append(GameUrl("download_direct", None, None, file_url))
+    if poster_url := game.get("cover_url") or game.get("icon_url"):
+        info.urls.append(GameUrl("poster", None, None, poster_url))
+    return info
+
+
 class QspSuProvider(GameSourceProvider):
     source_type = GameSource.SourceType.QSP
 
     def owns(self, url: str) -> bool:
-        return bool(QSP_RE.match(url))
+        return bool(
+            QSP_PUBLIC_GAME_RE.match(url) or QSP_API_GAME_RE.match(url)
+        )
 
     def fetch(self, url: str) -> str:
-        return FetchQsp(url, use_cache=False)
+        return FetchQspApi(url, use_cache=False)
 
     def canonicalize(self, raw: str, url: str) -> GameInfo:
-        return GameInfo.from_importer_dict(ParseQsp(raw, url))
+        parsed = json.loads(raw)
+        return _qsp_game_info(parsed.get("data", parsed))
 
     def discover(self) -> Iterable[DiscoveredSource]:
-        return (DiscoveredSource(url) for url in GetQspSuCandidates())
+        page = 1
+        while True:
+            parsed = json.loads(FetchQspApiGameList(page, use_cache=False))
+            for game in parsed["data"]:
+                yield DiscoveredSource(_qsp_public_url(game["slug"]))
+            if page >= parsed["meta"]["last_page"]:
+                break
+            page += 1
 
     def source_key(self, url: str) -> str:
-        # Identity is ``sobi2Id`` alone; ``Itemid``, ``catid`` and param order
-        # all vary between seed and discover URLs.
-        m = re.search(r"sobi2Id=(\d+)", url)
-        return f"qsp:sobi2id={m.group(1)}" if m else _base_source_key(url)
+        try:
+            ref = _qsp_game_ref(url)
+        except ValueError:
+            return _base_source_key(url)
+        game_id = _qsp_game_id(ref)
+        return f"qsp:game={game_id}" if game_id else _base_source_key(url)
 
 
 class PlutProvider(GameSourceProvider):
