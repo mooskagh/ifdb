@@ -43,6 +43,14 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ("ifwiki.ru", "/files/.*", "", "download_direct", "Скачать с IfWiki"),
     ("ifwiki.ru", "", "", "game_page", "Страница на IfWiki"),
     ("ifwiki.org", "", "", "game_page", "Страница на ifwiki.org"),
+    (
+        "qsp.org",
+        "/games/[^/]+/download/?",
+        "",
+        "download_direct",
+        "Скачать с qsp.org",
+    ),
+    ("qsp.org", "/games/[^/]+/?", "", "game_page", "Игра на qsp.org"),
     ("ludumdare.com", "", "", "game_page", "Страница на Ludum Dare"),
     ("urq.plut.info", ".*/files/.*", "", "download_direct", "Скачать с плута"),
     (

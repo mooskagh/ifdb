@@ -87,6 +87,62 @@ class DefaultRuleTests(TestCase):
         twice = _enrich(info).to_canonical()
         self.assertEqual(once, twice)
 
+    def test_fills_missing_url_descriptions(self):
+        info = GameInfo(
+            urls=[
+                GameUrl(
+                    "game_page",
+                    None,
+                    None,
+                    "https://qsp.org/games/114-noc-v-lesu-oborotnej",
+                ),
+                GameUrl(
+                    "download_direct",
+                    None,
+                    "",
+                    "https://qsp.org/games/114-noc-v-lesu-oborotnej/download",
+                ),
+                GameUrl(
+                    "poster",
+                    None,
+                    None,
+                    "https://qsp.org/storage/games/114/cover.jpg",
+                ),
+            ]
+        )
+
+        _enrich(info)
+
+        self.assertEqual(
+            [u.description for u in info.urls],
+            ["Игра на qsp.org", "Скачать с qsp.org", "Обложка"],
+        )
+
+    def test_keeps_existing_url_description(self):
+        info = GameInfo(
+            urls=[
+                GameUrl(
+                    "game_page",
+                    None,
+                    "Custom",
+                    "https://qsp.org/games/114-noc-v-lesu-oborotnej",
+                )
+            ]
+        )
+
+        _enrich(info)
+
+        self.assertEqual(info.urls[0].description, "Custom")
+
+    def test_unknown_url_description_stays_empty(self):
+        info = GameInfo(
+            urls=[GameUrl("other", None, None, "https://example.com/unknown")]
+        )
+
+        _enrich(info)
+
+        self.assertIsNone(info.urls[0].description)
+
 
 class GenreMappingTests(TestCase):
     """Built-in lowercase + tag->genre steps, no rules seeded."""

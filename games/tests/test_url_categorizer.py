@@ -25,3 +25,15 @@ class TestUrlCategorizer(unittest.TestCase):
         result = CategorizeUrl("https://vkvideo.ru/video-1_456")
 
         self.assertEqual(result["urlcat_slug"], "video")
+
+    def test_qsp_game_page(self):
+        result = CategorizeUrl("https://qsp.org/games/114-noc-v-lesu")
+
+        self.assertEqual(result["urlcat_slug"], "game_page")
+        self.assertEqual(result["description"], "Игра на qsp.org")
+
+    def test_qsp_download(self):
+        result = CategorizeUrl("https://qsp.org/games/114-noc-v-lesu/download")
+
+        self.assertEqual(result["urlcat_slug"], "download_direct")
+        self.assertEqual(result["description"], "Скачать с qsp.org")
