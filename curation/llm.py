@@ -315,7 +315,9 @@ class LlmWorkflowRunner(ABC):
             "content": json.dumps(result, ensure_ascii=False),
         }
 
-    def _skipped_tool_call_result(self, call: dict[str, Any]) -> dict[str, Any]:
+    def _skipped_tool_call_result(
+        self, call: dict[str, Any]
+    ) -> dict[str, Any]:
         function = call["function"]
         name = function["name"]
         return {
