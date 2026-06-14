@@ -221,12 +221,17 @@ class LlmWorkflowRunner(ABC):
                     continue
                 break
             tool_results = []
+            earlier_tool_failed = False
             for call in tool_calls:
-                tool_result = self._run_tool_call(call, tool_methods)
+                if earlier_tool_failed:
+                    tool_result = self._skipped_tool_call_result(call)
+                else:
+                    tool_result = self._run_tool_call(call, tool_methods)
                 tool_results.append(tool_result)
                 messages.append(tool_result)
                 if _is_error_tool_result(tool_result):
                     error_tool_calls += 1
+                    earlier_tool_failed = True
             if self.should_stop(message, tool_results, len(messages)):
                 break
             if error_tool_calls >= max_error_tool_calls:
@@ -308,6 +313,27 @@ class LlmWorkflowRunner(ABC):
             "tool_call_id": call["id"],
             "name": name,
             "content": json.dumps(result, ensure_ascii=False),
+        }
+
+    def _skipped_tool_call_result(self, call: dict[str, Any]) -> dict[str, Any]:
+        function = call["function"]
+        name = function["name"]
+        return {
+            "role": "tool",
+            "tool_call_id": call["id"],
+            "name": name,
+            "content": json.dumps(
+                {
+                    "status": "error",
+                    "error": (
+                        "This tool call was not executed because an earlier "
+                        "tool call in the same assistant message failed. "
+                        "Address that earlier error, then retry this call "
+                        "if it is still needed."
+                    ),
+                },
+                ensure_ascii=False,
+            ),
         }
 
     def _message_from_response(
