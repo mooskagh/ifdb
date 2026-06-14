@@ -6,6 +6,8 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils.timezone import now
 
+from games.models import URL, Game, GameURL, GameURLCategory
+
 from .discovery import DiscoveryStats, run_discover
 from .edit import EditStats
 from .fetch import FetchStats
@@ -343,12 +345,46 @@ class SourceKeyTest(TestCase):
             provider.source_key("https://ifiction.ru/g?id=2766"),
         )
 
-    def test_qsp_keys_on_sobi2id_only(self):
+    def test_qsp_keys_on_new_game_id_only(self):
         provider = QspSuProvider()
-        a = "http://qsp.su/index.php?option=com_sobi2&catid=0&sobi2Id=42&Itemid=55"
-        b = "http://qsp.su/index.php?option=com_sobi2&sobi2Id=42&catid=7"
+        a = "https://qsp.org/games/42-game-title"
+        b = "https://qsp.org/api/v1/games/42"
         self.assertEqual(provider.source_key(a), provider.source_key(b))
-        self.assertEqual(provider.source_key(a), "qsp:sobi2id=42")
+        self.assertEqual(provider.source_key(a), "qsp:game=42")
+
+
+class MigrateQspSuCommandTest(TestCase):
+    def test_apply_deletes_legacy_sources_but_keeps_game_urls(self):
+        source = GameSource.objects.create(
+            type=GameSource.SourceType.QSP,
+            url="http://qsp.su/index.php?option=com_sobi2&sobi2Id=42",
+        )
+        GameSource.objects.create(
+            type=GameSource.SourceType.QSP,
+            url="https://qsp.org/games/42-game-title",
+        )
+        game = Game.objects.create(title="QSP игра", creation_time=now())
+        url = URL.objects.create(
+            original_url="http://qsp.su/index.php?option=com_sobi2&sobi2Id=42",
+            creation_date=now(),
+        )
+        category = GameURLCategory.objects.create(
+            symbolic_id="game_page", title="Game page"
+        )
+        GameURL.objects.create(game=game, url=url, category=category)
+
+        out = StringIO()
+        call_command("migrateqspsu", apply=True, stdout=out)
+
+        self.assertFalse(GameSource.objects.filter(pk=source.pk).exists())
+        self.assertTrue(
+            GameSource.objects.filter(
+                type=GameSource.SourceType.QSP,
+                url="https://qsp.org/games/42-game-title",
+            ).exists()
+        )
+        self.assertTrue(GameURL.objects.filter(url=url).exists())
+        self.assertIn("Legacy QSP GameSources: 1", out.getvalue())
 
 
 class SourceDiscoveryStatusRecordTest(TestCase):

@@ -210,28 +210,60 @@ class IfictionProviderTest(ProviderTestBase):
         self.assert_round_trips(info)
 
 
-QSP_HTML = """
-<table class="sobi2Details">
-<tr><h1>QSP игра</h1></tr>
-<tr><span id="sobi2Details_field_author">Alice</span></tr>
-<tr><span id="sobi2Details_field_description">Описание QSP.</span></tr>
-</table>
-<table class="sobi2DetailsFooter">Добавлено: 04.03.2021&nbsp;&nbsp;</table>
+QSP_JSON = """
+{
+  "data": {
+    "slug": "123-qsp-igra",
+    "name": "QSP игра",
+    "lang": "ru",
+    "ver": "1.0",
+    "authors": "Alice, Bob",
+    "translators": "Carol",
+    "description_html": "<p>Описание QSP.</p>",
+    "cover_url": "https://qsp.org/storage/games/123/cover.png",
+    "icon_url": null,
+    "file_url": "https://qsp.org/games/123-qsp-igra/download",
+    "created_at": "2021-03-04T10:20:30+00:00"
+  }
+}
 """
 
 
 class QspSuProviderTest(ProviderTestBase):
-    url = "http://qsp.su/index.php?option=com_sobi2&Itemid=55&sobi2Id=123"
+    url = "https://qsp.org/games/123-qsp-igra"
 
     def test_canonicalize(self):
-        info = QspSuProvider().canonicalize(QSP_HTML, self.url)
+        info = QspSuProvider().canonicalize(QSP_JSON, self.url)
         self.assertEqual(info.name, "QSP игра")
         self.assertEqual(info.date, "2021-03-04")
-        self.assertEqual(self._person_names(info, "author"), ["Alice"])
+        self.assertEqual(self._person_names(info, "author"), ["Alice", "Bob"])
+        self.assertEqual(self._person_names(info, "translator"), ["Carol"])
         self.assertIn("QSP", self._tag_texts(info))
+        self.assertIn("1.0", self._tag_texts(info))
+        self.assertIn("русский", self._tag_texts(info))
         self.assertIn("game_page", self._url_cats(info))
-        self.assertEqual([a.name for a in info.attributions], ["qsp.su"])
+        self.assertIn("download_direct", self._url_cats(info))
+        self.assertIn("poster", self._url_cats(info))
+        self.assertEqual([a.name for a in info.attributions], ["qsp.org"])
         self.assert_round_trips(info)
+
+    def test_discover_reads_api_pages(self):
+        pages = {
+            1: '{"data":[{"slug":"1-one"}],"meta":{"last_page":2}}',
+            2: '{"data":[{"slug":"2-two"}],"meta":{"last_page":2}}',
+        }
+
+        with patch(
+            "curation.providers.FetchQspApiGameList",
+            side_effect=lambda page, use_cache: pages[page],
+        ) as fetch:
+            urls = [source.url for source in QspSuProvider().discover()]
+
+        self.assertEqual(
+            urls,
+            ["https://qsp.org/games/1-one", "https://qsp.org/games/2-two"],
+        )
+        self.assertEqual(fetch.call_count, 2)
 
 
 PLUT_HTML = """
@@ -288,7 +320,7 @@ class OwnsRoutingTest(ProviderTestBase):
                 QuestBookProviderTest.url,
             ),
             (IfictionProvider(), "FetchIfiction", IfictionProviderTest.url),
-            (QspSuProvider(), "FetchQsp", QspSuProviderTest.url),
+            (QspSuProvider(), "FetchQspApi", QspSuProviderTest.url),
             (PlutProvider(), "FetchPlut", PlutProviderTest.url),
         ]
 
