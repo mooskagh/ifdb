@@ -3028,6 +3028,10 @@ h6 {
 .curation-source-detail-value {
     min-width: 0;
 }
+.curation-rich-text {
+    display: block;
+    overflow-wrap: anywhere;
+}
 .curation-break-url {
     overflow-wrap: anywhere;
 }

@@ -554,6 +554,15 @@ class HistoryDetailViewTest(TestCase):
 
         self.assertContains(
             response,
+            (
+                '<div class="game--info-row-value curation-rich-text">'
+                f'See <a href="/game/{self.game.pk}/">g/{self.game.pk}</a> '
+                f'and <a href="/curation/sources/{source.pk}/">'
+                f's/{source.pk}</a><br>&lt;script&gt;x&lt;/script&gt;</div>'
+            ),
+        )
+        self.assertContains(
+            response,
             f'<a href="/game/{self.game.pk}/">g/{self.game.pk}</a>',
             html=True,
         )
