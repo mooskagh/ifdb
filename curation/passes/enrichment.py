@@ -20,7 +20,8 @@ from urllib.parse import urlsplit
 from curation.edit import GameEditPass, GameEditState, register_pass
 from curation.gameinfo import GameInfo, GameUrl, Tag
 from curation.models import EnrichmentRule, GenreMapping
-from games.models import GameTag
+from games.importer.tools import CategorizeUrl
+from games.models import URL, GameTag
 
 
 @register_pass
@@ -37,6 +38,7 @@ class EnrichmentPass(GameEditPass):
                 exec(_compile(rule.action, "exec"), {"__builtins__": {}}, ns)
         _lowercase_tags(info)
         _tags_to_genre(info)
+        _fill_url_descriptions(info)
 
 
 @lru_cache(maxsize=None)
@@ -172,3 +174,22 @@ def _tags_to_genre(info: GameInfo) -> None:
             extra.append(Tag("genre", m.genre_slug, None, None))
             present_slugs.add(m.genre_slug)
     info.tags.extend(extra)
+
+
+def _fill_url_descriptions(info: GameInfo) -> None:
+    url_by_id = {
+        u.id: u.original_url
+        for u in URL.objects.filter(
+            id__in={u.url_id for u in info.urls if u.url_id is not None}
+        )
+    }
+    for entry in info.urls:
+        if entry.description:
+            continue
+        url = entry.url or url_by_id.get(entry.url_id)
+        if not url:
+            continue
+        categorized = CategorizeUrl(url, category=entry.category)
+        description = categorized.get("description")
+        if description and description != url:
+            entry.description = description
