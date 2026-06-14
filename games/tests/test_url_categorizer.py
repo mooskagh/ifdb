@@ -33,9 +33,7 @@ class TestUrlCategorizer(unittest.TestCase):
         self.assertEqual(result["description"], "Игра на qsp.org")
 
     def test_qsp_download(self):
-        result = CategorizeUrl(
-            "https://qsp.org/games/114-noc-v-lesu/download"
-        )
+        result = CategorizeUrl("https://qsp.org/games/114-noc-v-lesu/download")
 
         self.assertEqual(result["urlcat_slug"], "download_direct")
         self.assertEqual(result["description"], "Скачать с qsp.org")
