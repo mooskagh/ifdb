@@ -2292,6 +2292,128 @@ class SourceViewsTest(TestCase):
             [newest_fetch.pk, orphan.pk, older.pk],
         )
 
+    def test_source_list_pending_orphans_and_last_new_fetch(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            title="Attached Game", creation_time=ts, added_by=self.user
+        )
+        history = GameHistory.objects.create(game=game, creation_time=ts)
+        attached = GameSource.objects.create(
+            history=history,
+            url="https://example.com/attached",
+            type=GameSource.SourceType.APERO,
+            created_at=ts,
+        )
+        kept_orphan = GameSource.objects.create(
+            url="https://example.com/kept-orphan",
+            type=GameSource.SourceType.IFWIKI,
+            created_at=ts,
+            keep_orphan=True,
+        )
+        unchanged_refetch = GameSource.objects.create(
+            url="https://example.com/unchanged-refetch",
+            type=GameSource.SourceType.QSP,
+            created_at=ts,
+            last_attempt=ts,
+        )
+        older_new_fetch = GameSource.objects.create(
+            url="https://example.com/older-new-fetch",
+            type=GameSource.SourceType.QSP,
+            created_at=ts,
+            last_attempt=ts - timedelta(days=1),
+        )
+        newest_new_fetch = GameSource.objects.create(
+            url="https://example.com/newest-new-fetch",
+            type=GameSource.SourceType.QSP,
+            created_at=ts,
+            last_attempt=ts - timedelta(hours=1),
+        )
+        GameSourceFetch.objects.create(
+            source=unchanged_refetch,
+            raw_content="raw",
+            canonical_text="canonical",
+            canonical_text_hash="same",
+            first_fetch=ts - timedelta(days=3),
+            last_fetch=ts,
+        )
+        GameSourceFetch.objects.create(
+            source=older_new_fetch,
+            raw_content="raw",
+            canonical_text="canonical",
+            canonical_text_hash="old-new",
+            first_fetch=ts - timedelta(days=1),
+            last_fetch=ts - timedelta(days=1),
+        )
+        GameSourceFetch.objects.create(
+            source=newest_new_fetch,
+            raw_content="raw",
+            canonical_text="canonical",
+            canonical_text_hash="new-new",
+            first_fetch=ts - timedelta(hours=1),
+            last_fetch=ts - timedelta(hours=1),
+        )
+
+        response = self.client.get(
+            "/curation/sources/", {"attached": "pending_orphan"}
+        )
+        self.assertContains(
+            response, f'href="/curation/sources/{unchanged_refetch.pk}/"'
+        )
+        self.assertNotContains(
+            response, f'href="/curation/sources/{attached.pk}/"'
+        )
+        self.assertNotContains(
+            response, f'href="/curation/sources/{kept_orphan.pk}/"'
+        )
+
+        response = self.client.get(
+            "/curation/sources/", {"sort": "last_new_fetch"}
+        )
+        self.assertEqual(
+            [source.pk for source in response.context["sources"][:3]],
+            [newest_new_fetch.pk, older_new_fetch.pk, unchanged_refetch.pk],
+        )
+        new_fetch_flags = {
+            source.pk: source.latest_fetch_is_new
+            for source in response.context["sources"]
+        }
+        self.assertFalse(new_fetch_flags[unchanged_refetch.pk])
+        self.assertTrue(new_fetch_flags[newest_new_fetch.pk])
+        self.assertContains(response, 'class="success"', count=2)
+
+    def test_source_list_ok_state_filter(self):
+        ts = timezone.now()
+        ok_source = GameSource.objects.create(
+            url="https://example.com/ok",
+            type=GameSource.SourceType.APERO,
+            created_at=ts,
+        )
+        failed_source = GameSource.objects.create(
+            url="https://example.com/failed",
+            type=GameSource.SourceType.APERO,
+            created_at=ts,
+            last_error="boom",
+        )
+        missing_source = GameSource.objects.create(
+            url="https://example.com/missing",
+            type=GameSource.SourceType.APERO,
+            created_at=ts,
+            missing_since=ts,
+        )
+
+        response = self.client.get("/curation/sources/", {"state": "ok"})
+
+        self.assertContains(
+            response, f'href="/curation/sources/{ok_source.pk}/"'
+        )
+        self.assertNotContains(
+            response, f'href="/curation/sources/{failed_source.pk}/"'
+        )
+        self.assertNotContains(
+            response, f'href="/curation/sources/{missing_source.pk}/"'
+        )
+        self.assertContains(response, '<option value="ok" selected>')
+
     def test_history_links_sources_to_detail(self):
         ts = timezone.now()
         history = GameHistory.objects.create(game=None, creation_time=ts)

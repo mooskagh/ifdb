@@ -2899,6 +2899,10 @@ h6 {
 .curation-table tbody tr.warning:nth-child(even) {
     background: #fff6d8;
 }
+.curation-table tbody tr.success,
+.curation-table tbody tr.success:nth-child(even) {
+    background: #e9f8e9;
+}
 .curation-table tbody tr.curation-history-state--needs_attention,
 .curation-table tbody tr.curation-history-state--needs_attention:nth-child(even) {
     background: #fdecec;

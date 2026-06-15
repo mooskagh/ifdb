@@ -7,6 +7,7 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import (
     Avg,
+    BooleanField,
     Case,
     Count,
     F,
@@ -571,9 +572,23 @@ def source_list(request):
     latest_fetch = GameSourceFetch.objects.filter(
         source=OuterRef("pk")
     ).order_by("-last_fetch", "-pk")
-    sources = GameSource.objects.select_related("history__game").annotate(
-        latest_fetch_id=Subquery(latest_fetch.values("pk")[:1]),
-        latest_fetch_at=Subquery(latest_fetch.values("last_fetch")[:1]),
+    sources = (
+        GameSource.objects
+        .select_related("history__game")
+        .annotate(
+            latest_fetch_id=Subquery(latest_fetch.values("pk")[:1]),
+            latest_fetch_at=Subquery(latest_fetch.values("last_fetch")[:1]),
+            latest_fetch_first_at=Subquery(
+                latest_fetch.values("first_fetch")[:1]
+            ),
+        )
+        .annotate(
+            latest_fetch_is_new=Case(
+                When(last_attempt=F("latest_fetch_first_at"), then=True),
+                default=False,
+                output_field=BooleanField(),
+            )
+        )
     )
 
     if q:
@@ -590,10 +605,17 @@ def source_list(request):
         )
     elif state == "missing":
         sources = sources.filter(missing_since__isnull=False)
+    elif state == "ok":
+        sources = sources.filter(
+            failing_since__isnull=True,
+            missing_since__isnull=True,
+        ).filter(Q(last_error__isnull=True) | Q(last_error=""))
     else:
         state = ""
     if attached == "orphan":
         sources = sources.filter(history__isnull=True)
+    elif attached == "pending_orphan":
+        sources = sources.filter(history__isnull=True, keep_orphan=False)
     elif attached == "attached":
         sources = sources.filter(history__isnull=False)
     else:
@@ -603,6 +625,10 @@ def source_list(request):
         case "last_fetch":
             sources = sources.order_by(
                 F("latest_fetch_at").desc(nulls_last=True), "-pk"
+            )
+        case "last_new_fetch":
+            sources = sources.order_by(
+                F("latest_fetch_first_at").desc(nulls_last=True), "-pk"
             )
         case "created":
             sources = sources.order_by(
