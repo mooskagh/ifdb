@@ -25,6 +25,7 @@
                 <label for="curation-source-state">Состояние</label>
                 <select id="curation-source-state" name="state">
                     <option value="">— все —</option>
+                    <option value="ok" {% if state == "ok" %}selected{% endif %}>Без ошибок</option>
                     <option value="failed" {% if state == "failed" %}selected{% endif %}>С ошибкой</option>
                     <option value="missing" {% if state == "missing" %}selected{% endif %}>Пропавшие</option>
                 </select>
@@ -34,6 +35,7 @@
                 <select id="curation-source-attached" name="attached">
                     <option value="">— все —</option>
                     <option value="orphan" {% if attached == "orphan" %}selected{% endif %}>Сироты</option>
+                    <option value="pending_orphan" {% if attached == "pending_orphan" %}selected{% endif %}>Ожидающие сироты</option>
                     <option value="attached" {% if attached == "attached" %}selected{% endif %}>Привязанные</option>
                 </select>
             </div>
@@ -42,6 +44,7 @@
                 <select id="curation-source-sort" name="sort">
                     <option value="last_attempt" {% if sort == "last_attempt" %}selected{% endif %}>По последней попытке</option>
                     <option value="last_fetch" {% if sort == "last_fetch" %}selected{% endif %}>По успешной загрузке</option>
+                    <option value="last_new_fetch" {% if sort == "last_new_fetch" %}selected{% endif %}>По новой загрузке</option>
                     <option value="created" {% if sort == "created" %}selected{% endif %}>По добавлению</option>
                     <option value="url" {% if sort == "url" %}selected{% endif %}>По URL</option>
                 </select>
@@ -62,7 +65,7 @@
         </thead>
         <tbody>
             {% for source in sources %}
-            <tr class="{% if source.failing_since or source.last_error %}error{% elif source.missing_since %}warning{% endif %}"
+            <tr class="{% if source.failing_since or source.last_error %}error{% elif source.missing_since %}warning{% elif source.latest_fetch_is_new %}success{% endif %}"
                 data-href="{% url 'curation_source_detail' source.pk %}">
                 <td><a href="{% url 'curation_source_detail' source.pk %}">{{ source.get_type_display }}</a></td>
                 <td>
