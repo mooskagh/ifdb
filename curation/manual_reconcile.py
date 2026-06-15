@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from django.db import transaction
 from django.urls import reverse
 from django.utils.timezone import now
@@ -15,6 +17,12 @@ from .gameinfo import GameInfo
 from .manual import editor_payload_to_gameinfo
 from .merge import contest_related_usage
 from .models import GameEdit, GameHistory, GameHistoryAuditLog, GameSource
+
+
+@dataclass(frozen=True)
+class ReconcileResult:
+    redirect_history: GameHistory
+    histories_by_client_id: dict[str, GameHistory | None]
 
 
 def choices_payload():
@@ -130,7 +138,7 @@ def initial_payload(history: GameHistory) -> dict:
 
 
 @transaction.atomic
-def save_reconcile_payload(data: dict, actor) -> GameHistory:
+def save_reconcile_payload(data: dict, actor) -> ReconcileResult:
     columns = [_normalized_column(col) for col in data.get("columns") or []]
     columns = [col for col in columns if not _is_empty_new_column(col)]
     orphan_source_ids = _clean_source_ids(data.get("orphan_source_ids") or [])
@@ -166,7 +174,10 @@ def save_reconcile_payload(data: dict, actor) -> GameHistory:
 
     for history in histories.values():
         history.refresh_from_db()
-    return _redirect_history(columns, histories, targets)
+    return ReconcileResult(
+        redirect_history=_redirect_history(columns, histories, targets),
+        histories_by_client_id=targets,
+    )
 
 
 def _empty_column(*, client_id, history_id=None, sources=()):

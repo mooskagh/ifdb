@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Annotated
@@ -521,6 +522,75 @@ class LlmWorkflowRunnerTests(TestCase):
         self.assertEqual(chat.call_count, 2)
         self.assertEqual(runner.stop_reason, "max_error_tool_calls")
         self.assertEqual(len(trajectory.messages), 5)
+
+    def test_agent_loop_skips_later_batched_calls_after_error(self):
+        responses = [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "set_description",
+                                        "arguments": (
+                                            '{"description": "error"}'
+                                        ),
+                                    },
+                                },
+                                {
+                                    "id": "call_2",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "set_description",
+                                        "arguments": (
+                                            '{"description": "Should not run"}'
+                                        ),
+                                    },
+                                },
+                            ],
+                        }
+                    }
+                ],
+                "usage": {},
+            },
+            {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "done"}}
+                ],
+                "usage": {},
+            },
+        ]
+        executed_calls = []
+
+        def run_tool_call(runner, call, tool_methods):
+            self.assertEqual(call["id"], "call_1")
+            executed_calls.append(call["id"])
+            return {
+                "role": "tool",
+                "tool_call_id": call["id"],
+                "name": "set_description",
+                "content": '{"status": "error", "error": "bad edit"}',
+            }
+
+        with (
+            patch.object(self.runner_cls, "_run_tool_call", run_tool_call),
+            patch.object(openrouter, "chat_completion", side_effect=responses),
+        ):
+            trajectory = runner_for_workflow(
+                self.workflow, self.state
+            ).run_agent_loop({})
+
+        self.assertEqual(executed_calls, ["call_1"])
+        self.assertEqual(trajectory.messages[3]["tool_call_id"], "call_2")
+        skipped = json.loads(trajectory.messages[3]["content"])
+        self.assertEqual(skipped["status"], "error")
+        self.assertIn("not executed", skipped["error"])
+        self.assertIn("earlier tool call", skipped["error"])
 
     def test_required_tool_loop_retries_missing_tool_calls(self):
         responses = [

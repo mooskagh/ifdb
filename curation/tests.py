@@ -840,6 +840,7 @@ class HistoryReconcileViewTest(TestCase):
         *,
         orphan_source_ids=(),
         keep_orphan_source_ids=(),
+        pipeline_by_client_id=None,
     ):
         return self.client.post(
             f"/curation/{history.pk}/reconcile/",
@@ -847,6 +848,7 @@ class HistoryReconcileViewTest(TestCase):
                 "columns": columns,
                 "orphan_source_ids": list(orphan_source_ids),
                 "keep_orphan_source_ids": list(keep_orphan_source_ids),
+                "pipeline_by_client_id": pipeline_by_client_id or {},
             }),
             content_type="application/json",
         )
@@ -864,12 +866,78 @@ class HistoryReconcileViewTest(TestCase):
 
     def test_reconcile_page_renders_editor_shell(self):
         history = self._history()
+        pipeline, _ = EditPipeline.objects.update_or_create(
+            name="Импорт", defaults={"passes": [{"name": "merge_sources"}]}
+        )
 
         response = self.client.get(f"/curation/{history.pk}/reconcile/")
 
         self.assertContains(response, "Сверка игр")
         self.assertContains(response, "reconcile.js")
         self.assertContains(response, "reconcile-data")
+        self.assertContains(response, "edit_pipelines")
+        self.assertContains(response, f'"id": {pipeline.pk}')
+
+    @patch("curation.views.edit_sources.delay")
+    def test_reconcile_starts_selected_pipeline_for_existing_history(
+        self, delay
+    ):
+        history = self._history()
+        pipeline, _ = EditPipeline.objects.update_or_create(
+            name="Импорт", defaults={"passes": [{"name": "merge_sources"}]}
+        )
+
+        response = self._post(
+            history,
+            [self._column(history)],
+            pipeline_by_client_id={"base": pipeline.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delay.assert_called_once_with(
+            history_id=history.pk, pipeline_id=pipeline.pk, force=True
+        )
+
+    @patch("curation.views.edit_sources.delay")
+    def test_reconcile_starts_selected_pipeline_for_new_history(self, delay):
+        history = self._history()
+        staying = self._source(history, "https://example.com/stay")
+        moving = self._source(history, "https://example.com/move")
+        pipeline, _ = EditPipeline.objects.update_or_create(
+            name="Импорт", defaults={"passes": [{"name": "merge_sources"}]}
+        )
+        new_col = self._column(history, client_id="new-1", sources=[moving])
+        new_col.update({
+            "history_id": None,
+            "game_id": None,
+            "title": "Split",
+        })
+
+        response = self._post(
+            history,
+            [self._column(history, sources=[staying]), new_col],
+            pipeline_by_client_id={"new-1": pipeline.pk},
+        )
+
+        split = GameHistory.objects.exclude(pk=history.pk).get()
+        self.assertEqual(response.status_code, 200)
+        delay.assert_called_once_with(
+            history_id=split.pk, pipeline_id=pipeline.pk, force=True
+        )
+
+    @patch("curation.views.edit_sources.delay")
+    def test_reconcile_rejects_unknown_pipeline(self, delay):
+        history = self._history()
+
+        response = self._post(
+            history,
+            [self._column(history)],
+            pipeline_by_client_id={"base": 999},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Обработки не найдены", response.json()["error"])
+        delay.assert_not_called()
 
     def test_reconcile_moves_source_to_new_game_and_copies_metadata(self):
         history = self._history()

@@ -52,6 +52,7 @@ interface Payload {
   base_history_id: number;
   choices: Choices;
   columns: ColumnData[];
+  edit_pipelines: {id: number; name: string}[];
 }
 
 const app = document.querySelector<HTMLElement>('#reconcile-app')!;
@@ -64,6 +65,7 @@ let columns = payload.columns;
 let nextNewColumn = 1;
 const orphanSourceIds = new Set<number>();
 const keepOrphanSourceIds = new Set<number>();
+const pipelineByClientId = new Map<string, string>();
 
 const roleById = new Map(payload.choices.authors.roles.map(r => [r.id, r.title]));
 const roleIdByName = new Map(payload.choices.authors.roles.map(r => [r.title, r.id]));
@@ -90,6 +92,7 @@ function render(): void {
   addGridRow(grid, '', (col, i) => columnHeader(col, i), 'reconcile-cell--top');
   addGridRow(grid, 'GameHistory id', historyCell);
   addGridRow(grid, 'Game id', gameCell);
+  addGridRow(grid, 'and start pipeline', pipelineCell);
   addGridRow(grid, 'Удалить', deleteCell);
   addGridRow(grid, 'GameSources', sourceCell);
   addGridRow(grid, 'Название', titleCell);
@@ -167,6 +170,21 @@ function historyCell(col: ColumnData): HTMLElement {
 function gameCell(col: ColumnData): HTMLElement {
   if (!col.game_id) return cell(el('span', {class: 'curation-meta', text: 'после сохранения'}));
   return cell(link(`/game/${col.game_id}/`, `#${col.game_id}`));
+}
+
+function pipelineCell(col: ColumnData): HTMLElement {
+  const input = el('select') as HTMLSelectElement;
+  input.append(el('option', {value: '', text: 'none'}));
+  payload.edit_pipelines.forEach(pipeline => {
+    input.append(el('option', {value: String(pipeline.id), text: pipeline.name}));
+  });
+  input.value = pipelineByClientId.get(col.client_id) || '';
+  input.disabled = col.delete;
+  input.addEventListener('change', () => {
+    if (input.value) pipelineByClientId.set(col.client_id, input.value);
+    else pipelineByClientId.delete(col.client_id);
+  });
+  return cell(input);
 }
 
 function deleteCell(col: ColumnData): HTMLElement {
@@ -560,6 +578,7 @@ async function saveReconcile(): Promise<void> {
       columns,
       orphan_source_ids: Array.from(orphanSourceIds),
       keep_orphan_source_ids: Array.from(keepOrphanSourceIds),
+      pipeline_by_client_id: pipelinePayload(),
     }),
   });
   const result = await response.json();
@@ -568,6 +587,15 @@ async function saveReconcile(): Promise<void> {
     return;
   }
   window.location.href = result.redirect;
+}
+
+function pipelinePayload(): Record<string, number> {
+  const activeClientIds = new Set(columns.filter(col => !col.delete).map(col => col.client_id));
+  return Object.fromEntries(
+    Array.from(pipelineByClientId.entries())
+      .filter(([clientId, pipelineId]) => activeClientIds.has(clientId) && pipelineId)
+      .map(([clientId, pipelineId]) => [clientId, Number(pipelineId)]),
+  );
 }
 
 function validationError(): string | null {
