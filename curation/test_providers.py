@@ -310,9 +310,7 @@ class RilarhivProviderTest(ProviderTestBase):
     qsp_url = "http://rilarhiv.ru/qsp.htm#qsp%2FBattle.rar"
 
     def test_canonicalize_archive_row(self):
-        info = RilarhivProvider().canonicalize(
-            RILARHIV_QSP_HTML, self.qsp_url
-        )
+        info = RilarhivProvider().canonicalize(RILARHIV_QSP_HTML, self.qsp_url)
 
         self.assertEqual(info.name, "Битва колдунов")
         self.assertEqual(self._person_names(info, "author"), ["Lostas 21"])
@@ -363,12 +361,15 @@ class RilarhivProviderTest(ProviderTestBase):
             "http://rilarhiv.ru/urq.htm": RILARHIV_EXTERNAL_HTML,
         }
 
-        with patch(
-            "curation.providers.RILARHIV_LISTINGS",
-            {"qsp": "QSP", "urq": "URQ"},
-        ), patch(
-            "curation.providers.FetchRilarhivListing",
-            side_effect=lambda url, use_cache: listings[url],
+        with (
+            patch(
+                "curation.providers.RILARHIV_LISTINGS",
+                {"qsp": "QSP", "urq": "URQ"},
+            ),
+            patch(
+                "curation.providers.FetchRilarhivListing",
+                side_effect=lambda url, use_cache: listings[url],
+            ),
         ):
             urls = [source.url for source in RilarhivProvider().discover()]
 
@@ -389,11 +390,15 @@ class RilarhivProviderTest(ProviderTestBase):
         </div>
         """
 
-        with patch(
-            "curation.providers.RILARHIV_LISTINGS", {"spectrum": "ZX Spectrum"}
-        ), patch(
-            "curation.providers.FetchRilarhivListing",
-            return_value=html,
+        with (
+            patch(
+                "curation.providers.RILARHIV_LISTINGS",
+                {"spectrum": "ZX Spectrum"},
+            ),
+            patch(
+                "curation.providers.FetchRilarhivListing",
+                return_value=html,
+            ),
         ):
             urls = [source.url for source in RilarhivProvider().discover()]
 

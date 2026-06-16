@@ -2,10 +2,10 @@ import unittest
 from unittest.mock import patch
 
 from games.importer.plut import (
+    PLUT_HEADERS,
     FetchPlut,
     GetCandidates,
     ImportFromPlut,
-    PLUT_HEADERS,
 )
 
 

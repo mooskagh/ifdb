@@ -101,8 +101,10 @@ def _categorize_row_anchor(href, text):
     text = text.strip()
     if "играть онлайн" in text.lower():
         return CategorizeUrl(
-            href, desc="Играть онлайн", category="play_online",
-            base=RILARHIV_BASE
+            href,
+            desc="Играть онлайн",
+            category="play_online",
+            base=RILARHIV_BASE,
         )
     parsed = urlparse(urljoin(RILARHIV_BASE, href))
     if parsed.hostname == "rilarhiv.ru" and re.search(
