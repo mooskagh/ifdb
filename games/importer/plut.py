@@ -42,11 +42,7 @@ def GetCandidates():
     res = []
 
     while True:
-        r = FetchUrlToString(
-            r"http://urq.plut.info/games?page=" + str(page),
-            use_cache=False,
-            headers=PLUT_HEADERS,
-        )
+        r = FetchPlut(r"http://urq.plut.info/games?page=" + str(page))
 
         found = False
 
@@ -108,11 +104,15 @@ def ParseFields(html):
     return res
 
 
+def FetchPlut(url, use_cache=False):
+    return FetchUrlToString(
+        url, use_cache=use_cache, headers=PLUT_HEADERS
+    )
+
+
 def ImportFromPlut(url):
     try:
-        html = FetchUrlToString(
-            url, use_cache=False, headers=PLUT_HEADERS
-        )
+        html = FetchPlut(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
     return ParsePlut(html, url)

@@ -1,7 +1,12 @@
 import unittest
 from unittest.mock import patch
 
-from games.importer.plut import GetCandidates, ImportFromPlut, PLUT_HEADERS
+from games.importer.plut import (
+    FetchPlut,
+    GetCandidates,
+    ImportFromPlut,
+    PLUT_HEADERS,
+)
 
 
 class TestPlutImporter(unittest.TestCase):
@@ -25,5 +30,19 @@ class TestPlutImporter(unittest.TestCase):
 
         self.assertEqual(result["title"], "Test Game")
         mock_fetch.assert_called_once_with(
-            "http://urq.plut.info/node/961", headers=PLUT_HEADERS
+            "http://urq.plut.info/node/961",
+            use_cache=False,
+            headers=PLUT_HEADERS,
+        )
+
+    @patch("games.importer.plut.FetchUrlToString")
+    def test_fetch_plut_applies_curl_user_agent(self, mock_fetch):
+        mock_fetch.return_value = "html"
+
+        self.assertEqual(FetchPlut("http://urq.plut.info/node/961"), "html")
+
+        mock_fetch.assert_called_once_with(
+            "http://urq.plut.info/node/961",
+            use_cache=False,
+            headers=PLUT_HEADERS,
         )
