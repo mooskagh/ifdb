@@ -31,11 +31,11 @@ def run_discover(
     types: list[str] | None = None,
     on_provider_done: ProviderDone | None = None,
 ) -> Counter[str]:
-    wanted = set(types or [])
+    wanted = {str(source_type) for source_type in (types or [])}
     providers = [
         provider
         for provider in REGISTERED_PROVIDERS
-        if not wanted or provider.source_type in wanted
+        if not wanted or str(provider.source_type) in wanted
     ]
 
     logger.info("Starting source discovery for %d providers", len(providers))
