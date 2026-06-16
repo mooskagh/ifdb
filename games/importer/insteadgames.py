@@ -8,7 +8,7 @@ from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeUrl
+from .tools import AddDescriptionAttribution, CategorizeUrl
 
 logger = getLogger("crawler")
 
@@ -71,12 +71,19 @@ def TrimPrefix(s, prefix):
     return s
 
 
+def FetchInstead(url, use_cache=True):
+    return FetchUrlToString(url, use_cache=use_cache)
+
+
 def ImportFromInstead(url):
     try:
-        html = FetchUrlToString(url)
+        html = FetchInstead(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParseInstead(html, url)
 
+
+def ParseInstead(html, url):
     res = {"priority": 80}
     res["urls"] = [CategorizeUrl(url, "", base=url)]
     res["tags"] = [{"cat_slug": "platform", "tag": "INSTEAD"}]
@@ -91,10 +98,8 @@ def ImportFromInstead(url):
     if m:
         tt = HTML2Text()
         tt.body_width = 0
-        res["desc"] = (
-            tt.handle(m.group(1))
-            + "\n\n_(описание взято с сайта instead-games.ru)_"
-        )
+        res["desc"] = tt.handle(m.group(1))
+        AddDescriptionAttribution(res, "instead-games.ru")
 
     m = INS_SCREENSHOTS.search(html)
     if m:

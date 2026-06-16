@@ -83,8 +83,14 @@ let initGallery = () => {
       content.setAttribute('frameborder', '0');
       content.setAttribute('marginwidth', '0');
     } else {
+      let link = document.createElement('a');
+      link.className = 'gallery--image-link';
+      link.target = '_blank';
+      link.href = img.src;
       content = document.createElement('img');
       content.src = img.src;
+      link.appendChild(content);
+      content = link;
     }
     document.getElementById('gallery-caption').innerText = img.getAttribute('alt');
     main.appendChild(content);

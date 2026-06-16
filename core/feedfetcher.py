@@ -149,7 +149,7 @@ def FetchUrqFeed():
     ProcessFeedEntries("urq", items)
 
 
-def FetchFeeds():
+def fetch_feeds_impl():
     FetchFeed("https://ifhub.club/rss/full", "ifhub")
     FetchIficionFeed()
     FetchUrqFeed()

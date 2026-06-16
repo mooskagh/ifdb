@@ -7,7 +7,7 @@ from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeUrl
+from .tools import AddDescriptionAttribution, CategorizeUrl
 
 logger = getLogger("crawler")
 
@@ -87,12 +87,19 @@ QSP_DETAILS_FOOTER = re.compile(
 QSP_ADD_DATE = re.compile(r"Добавлено: (\d+)\.(\d+)\.(\d+)&nbsp;&nbsp;")
 
 
+def FetchQsp(url, use_cache=True):
+    return FetchUrlToString(url, use_cache=use_cache)
+
+
 def ImportFromQsp(url):
     try:
-        html = FetchUrlToString(url)
+        html = FetchQsp(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParseQsp(html, url)
 
+
+def ParseQsp(html, url):
     res = {"priority": 40}
     m = QSP_DETAILS.search(html)
     if not m:
@@ -124,9 +131,8 @@ def ImportFromQsp(url):
             elif key == "description":
                 tt = HTML2Text()
                 tt.body_width = 0
-                res["desc"] = (
-                    tt.handle(val) + "\n\n_(описание взято с сайта qsp.su)_"
-                )
+                res["desc"] = tt.handle(val)
+                AddDescriptionAttribution(res, "qsp.su")
             else:
                 logger.error("Unknown field in QSP: [%s] [%s]" % (key, val))
         for n in QSP_LINK.finditer(tr):

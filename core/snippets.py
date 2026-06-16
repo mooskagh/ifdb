@@ -215,8 +215,8 @@ def LastComments(*, days=5, limit=30, event=None):
     return res
 
 
-def CommentsSnippet(request):
-    comments = LastComments()
+def CommentsSnippet(request, event=None):
+    comments = LastComments(event=event)
     games = [x.game for x in comments]
     SnippetFromList(games, False)
     if not comments:

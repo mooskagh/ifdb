@@ -1,0 +1,3 @@
+{% spaceless %}
+{% if source.history %}{% if source.history.game %}<a href="{% url 'show_game' source.history.game.pk %}">{{ source.history.game.title }}</a>{% else %}(none){% endif %} (<a href="{% url 'curation_history_detail' source.history.pk %}">история</a>){% else %}—{% endif %}
+{% endspaceless %}

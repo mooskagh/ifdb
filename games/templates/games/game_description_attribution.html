@@ -1,0 +1,9 @@
+{% if description_attributions %}
+    <p class="game-description-attribution">
+        {% if description_attributions|length == 1 %}
+            <em>(описание взято с сайта {{ description_attributions.0.name }})</em>
+        {% else %}
+            <em>(описание взято с сайтов {% for attribution in description_attributions %}{{ attribution.name }}{% if not forloop.last %}, {% endif %}{% endfor %})</em>
+        {% endif %}
+    </p>
+{% endif %}

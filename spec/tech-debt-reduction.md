@@ -228,7 +228,7 @@
 2. **Incremental Upgrade Strategy**:
    ```python
    # Step 1: Django 3.0.5 → 3.2 LTS (final 3.x)
-   # Step 2: Django 3.2 → 4.2 LTS  
+   # Step 2: Django 3.2 → 4.2 LTS
    # Step 3: Django 4.2 → 5.2
    ```
 
@@ -264,25 +264,26 @@
    ```python
    # Before
    from django.utils.translation import ugettext_lazy as _
-   
-   # After  
+
+   # After
    from django.utils.translation import gettext_lazy as _
    ```
 
 2. **URL patterns** (already identified):
    ```python
    # Before
-   url(r'^game/(?P<game_id>\d+)/', views.show_game, name='show_game')
-   
+   url(r"^game/(?P<game_id>\d+)/", views.show_game, name="show_game")
+
    # After
-   path('game/<int:game_id>/', views.show_game, name='show_game')
+   path("game/<int:game_id>/", views.show_game, name="show_game")
    ```
 
 3. **Model changes**:
    ```python
    # Add to settings.py
-   DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-   
+   DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
    # Or explicitly in models
    class Game(models.Model):
        id = models.BigAutoField(primary_key=True)
@@ -292,15 +293,15 @@
    ```python
    # Update DATABASES config in settings.py
    DATABASES = {
-       'default': {
-           'ENGINE': 'django.db.backends.postgresql',  # Updated engine
-           'NAME': 'ifdbdev',
-           'USER': 'ifdbdev', 
-           'PASSWORD': 'ifdb',
-           'HOST': 'localhost',
-           'PORT': '',
-           'OPTIONS': {
-               'server_side_binding': True,  # psycopg3 optimization
+       "default": {
+           "ENGINE": "django.db.backends.postgresql",  # Updated engine
+           "NAME": "ifdbdev",
+           "USER": "ifdbdev",
+           "PASSWORD": "ifdb",
+           "HOST": "localhost",
+           "PORT": "",
+           "OPTIONS": {
+               "server_side_binding": True,  # psycopg3 optimization
            },
        }
    }
@@ -310,9 +311,9 @@
    ```python
    # Update for Django 4.0+ format
    CSRF_TRUSTED_ORIGINS = [
-       'https://db.crem.xyz',
-       'https://kontigr.com',
-       'https://zok.quest',
+       "https://db.crem.xyz",
+       "https://kontigr.com",
+       "https://zok.quest",
    ]
    ```
 
@@ -354,52 +355,52 @@ python manage.py check --deploy
 **Django 5.2 Compatible Logging**:
 ```python
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'detailed': {
-            'format': '{asctime} {levelname} {name} {process:d} {thread:d} {message}',
-            'style': '{',
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "detailed": {
+            "format": "{asctime} {levelname} {name} {process:d} {thread:d} {message}",
+            "style": "{",
         },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
-        },
-    },
-    'handlers': {
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': os.path.join(LOG_DIR, 'django.log'),
-            'maxBytes': 10485760,  # 10MB
-            'backupCount': 5,
-            'formatter': 'detailed',
-        },
-        'console': {
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'class': 'logging.StreamHandler',
-            'formatter': 'simple',
-        },
-        'mail_admins': {
-            'level': 'ERROR',
-            'class': 'django.utils.log.AdminEmailHandler',
-            'include_html': True,
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
         },
     },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['file', 'console'],
-            'level': 'INFO',
-            'propagate': False,
+    "handlers": {
+        "file": {
+            "level": "INFO",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.path.join(LOG_DIR, "django.log"),
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5,
+            "formatter": "detailed",
         },
-        'ifdb': {  # App-specific logger
-            'handlers': ['file', 'console', 'mail_admins'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
+        "console": {
+            "level": "DEBUG" if DEBUG else "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+        "mail_admins": {
+            "level": "ERROR",
+            "class": "django.utils.log.AdminEmailHandler",
+            "include_html": True,
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["file", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "ifdb": {  # App-specific logger
+            "handlers": ["file", "console", "mail_admins"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
         },
     },
 }
@@ -413,18 +414,20 @@ from typing import Any, Optional
 from django.http import HttpRequest, HttpResponse
 from django.db.models import QuerySet
 
+
 # Type-annotated view example
 def show_game(request: HttpRequest, game_id: int) -> HttpResponse:
     game: Game = get_object_or_404(Game, pk=game_id)
-    context: dict[str, Any] = {'game': game}
-    return render(request, 'games/game.html', context)
+    context: dict[str, Any] = {"game": game}
+    return render(request, "games/game.html", context)
+
 
 # Model with type annotations
 class Game(models.Model):
     title: str = models.CharField(max_length=255)
     description: Optional[str] = models.TextField(null=True, blank=True)
-    
-    def get_authors(self) -> QuerySet['GameAuthor']:
+
+    def get_authors(self) -> QuerySet["GameAuthor"]:
         return self.gameauthor_set.all()
 ```
 
@@ -530,44 +533,47 @@ def store_game(request):
    from django.db import models
    from django.db.models import QuerySet
    from typing import Optional, List
-   
-   class GameQuerySet(QuerySet['Game']):
-       def published(self) -> 'GameQuerySet':
-           return self.exclude(title='')
-       
-       def by_author(self, author_name: str) -> 'GameQuerySet':
+
+
+   class GameQuerySet(QuerySet["Game"]):
+       def published(self) -> "GameQuerySet":
+           return self.exclude(title="")
+
+       def by_author(self, author_name: str) -> "GameQuerySet":
            return self.filter(gameauthor__author__name__icontains=author_name)
-       
-       def recent(self, days: int = 30) -> 'GameQuerySet':
+
+       def recent(self, days: int = 30) -> "GameQuerySet":
            from django.utils import timezone
+
            date_threshold = timezone.now() - timezone.timedelta(days=days)
            return self.filter(creation_time__gte=date_threshold)
-       
-       def with_authors(self) -> 'GameQuerySet':
-           return self.prefetch_related('gameauthor_set__author')
-       
-       def search(self, query: str) -> 'GameQuerySet':
+
+       def with_authors(self) -> "GameQuerySet":
+           return self.prefetch_related("gameauthor_set__author")
+
+       def search(self, query: str) -> "GameQuerySet":
            return self.filter(
-               models.Q(title__icontains=query) |
-               models.Q(description__icontains=query)
+               models.Q(title__icontains=query)
+               | models.Q(description__icontains=query)
            )
-   
-   class GameManager(models.Manager['Game']):
+
+
+   class GameManager(models.Manager["Game"]):
        def get_queryset(self) -> GameQuerySet:
            return GameQuerySet(self.model, using=self._db)
-       
+
        def published(self) -> GameQuerySet:
            return self.get_queryset().published()
-       
-       def create_game(self, title: str, description: str = '', **kwargs) -> 'Game':
+
+       def create_game(
+           self, title: str, description: str = "", **kwargs
+       ) -> "Game":
            """Manager method for creating games with validation."""
            if not title.strip():
                raise ValueError("Game title cannot be empty")
-           
+
            return self.create(
-               title=title.strip(),
-               description=description.strip(),
-               **kwargs
+               title=title.strip(), description=description.strip(), **kwargs
            )
    ```
 
@@ -575,28 +581,28 @@ def store_game(request):
    ```python
    class Game(models.Model):
        # ... field definitions ...
-       
+
        objects = GameManager()
-       
-       def get_primary_author(self) -> Optional['Personality']:
+
+       def get_primary_author(self) -> Optional["Personality"]:
            """Get the primary author of this game."""
            primary_author = self.gameauthor_set.filter(
-               role__in=['author', 'главный автор']
+               role__in=["author", "главный автор"]
            ).first()
            return primary_author.author if primary_author else None
-       
+
        def get_rating_stats(self) -> dict[str, float]:
            """Calculate rating statistics for this game."""
            votes = self.gamevote_set.all()
            if not votes:
-               return {'average': 0.0, 'count': 0}
-           
+               return {"average": 0.0, "count": 0}
+
            ratings = [vote.rating for vote in votes if vote.rating]
            return {
-               'average': sum(ratings) / len(ratings) if ratings else 0.0,
-               'count': len(ratings)
+               "average": sum(ratings) / len(ratings) if ratings else 0.0,
+               "count": len(ratings),
            }
-       
+
        def is_editable_by(self, user) -> bool:
            """Check if user can edit this game."""
            if user.is_superuser:
@@ -605,6 +611,7 @@ def store_game(request):
                return True
            # Check permission system
            from ifdb.permissioner import check_permission
+
            return check_permission(user, self.edit_perm)
    ```
 
@@ -614,38 +621,37 @@ def store_game(request):
    from typing import List, Dict, Any
    from django.db import transaction
    from django.core.exceptions import ValidationError
-   
+
+
    class GameImportService:
        """Service for importing games from external sources."""
-       
+
        def __init__(self):
-           self.logger = logging.getLogger('ifdb.services.import')
-       
+           self.logger = logging.getLogger("ifdb.services.import")
+
        @transaction.atomic
        def import_game_with_authors(
-           self, 
-           game_data: Dict[str, Any], 
-           author_data: List[Dict[str, Any]]
+           self, game_data: Dict[str, Any], author_data: List[Dict[str, Any]]
        ) -> Game:
            """Import game with associated authors and metadata."""
-           
+
            # Create or update game
            game, created = Game.objects.get_or_create(
-               title=game_data['title'],
+               title=game_data["title"],
                defaults={
-                   'description': game_data.get('description', ''),
-                   'release_date': game_data.get('release_date'),
-               }
+                   "description": game_data.get("description", ""),
+                   "release_date": game_data.get("release_date"),
+               },
            )
-           
+
            # Handle authors (cross-model operation)
            for author_info in author_data:
                self._add_author_to_game(game, author_info)
-           
+
            # Handle tags (cross-model operation)
-           if tags := game_data.get('tags'):
+           if tags := game_data.get("tags"):
                self._add_tags_to_game(game, tags)
-           
+
            return game
    ```
 
@@ -656,33 +662,36 @@ def store_game(request):
    from django.contrib.auth.decorators import login_required
    from django.contrib import messages
    from .services import GameImportService
-   
+
+
    @login_required
    def store_game(request: HttpRequest) -> HttpResponse:
        """Thin view for game creation/editing."""
-       if request.method == 'POST':
+       if request.method == "POST":
            try:
                # Simple validation
-               title = request.POST.get('title', '').strip()
+               title = request.POST.get("title", "").strip()
                if not title:
                    messages.error(request, "Game title is required")
-                   return render(request, 'games/edit.html')
-               
+                   return render(request, "games/edit.html")
+
                # Use manager method for creation
                game = Game.objects.create_game(
                    title=title,
-                   description=request.POST.get('description', ''),
-                   added_by=request.user
+                   description=request.POST.get("description", ""),
+                   added_by=request.user,
                )
-               
-               messages.success(request, f"Game '{game.title}' created successfully")
-               return redirect('show_game', game_id=game.id)
-               
+
+               messages.success(
+                   request, f"Game '{game.title}' created successfully"
+               )
+               return redirect("show_game", game_id=game.id)
+
            except ValueError as e:
                messages.error(request, str(e))
-               return render(request, 'games/edit.html')
-       
-       return render(request, 'games/edit.html')
+               return render(request, "games/edit.html")
+
+       return render(request, "games/edit.html")
    ```
 
 ---
@@ -702,24 +711,24 @@ import os
 from celery import Celery
 from django.conf import settings
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ifdb.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ifdb.settings")
 
-app = Celery('ifdb')
-app.config_from_object('django.conf:settings', namespace='CELERY')
+app = Celery("ifdb")
+app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
 
 # Celery settings in Django settings.py
-CELERY_BROKER_URL = 'amqp://guest@localhost//'  # RabbitMQ
-CELERY_RESULT_BACKEND = 'rpc://'
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = 'UTC'
+CELERY_BROKER_URL = "amqp://guest@localhost//"  # RabbitMQ
+CELERY_RESULT_BACKEND = "rpc://"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = "UTC"
 
 # Task routing
 CELERY_TASK_ROUTES = {
-    'games.tasks.import_*': {'queue': 'imports'},
-    'games.tasks.process_*': {'queue': 'processing'},
+    "games.tasks.import_*": {"queue": "imports"},
+    "games.tasks.process_*": {"queue": "processing"},
 }
 ```
 
@@ -732,11 +741,11 @@ CELERY_TASK_ROUTES = {
 class ImportOrchestrator:
     def import_all_sources(self):
         sources = [
-            ('ifwiki', import_from_ifwiki),
-            ('apero', import_from_apero), 
-            ('questbook', import_from_questbook)
+            ("ifwiki", import_from_ifwiki),
+            ("apero", import_from_apero),
+            ("questbook", import_from_questbook),
         ]
-        
+
         results = []
         for source_name, task in sources:
             try:
@@ -745,7 +754,7 @@ class ImportOrchestrator:
             except Exception as e:
                 logger.error(f"Failed to start {source_name} import: {e}")
                 # Continue with other sources
-        
+
         return results
 ```
 
@@ -766,23 +775,26 @@ class ImportOrchestrator:
 2. **Define Search Documents**:
    ```python
    from django_elasticsearch_dsl import Document, fields
-   
+
+
    @registry.register_document
    class GameDocument(Document):
        title = fields.TextField(
-           analyzer='russian',
+           analyzer="russian",
            fields={
-               'suggest': fields.CompletionField(),
-           }
+               "suggest": fields.CompletionField(),
+           },
        )
        description = fields.TextField()
-       authors = fields.NestedField(properties={
-           'name': fields.TextField(),
-       })
-       
+       authors = fields.NestedField(
+           properties={
+               "name": fields.TextField(),
+           }
+       )
+
        class Index:
-           name = 'games'
-           
+           name = "games"
+
        class Django:
            model = Game
    ```
@@ -1263,12 +1275,12 @@ STATICFILES_DIRS = [
 
 # For development
 if DEBUG:
-    INSTALLED_APPS += ['django_vite']
-    
+    INSTALLED_APPS += ["django_vite"]
+
     DJANGO_VITE = {
-        'default': {
-            'dev_mode': True,
-            'dev_server_port': 5173,
+        "default": {
+            "dev_mode": True,
+            "dev_server_port": 5173,
         }
     }
 ```
@@ -1371,66 +1383,77 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+
 class DeploymentError(Exception):
     """Custom deployment exception with context."""
+
     pass
+
 
 class ModernDeployment:
     def __init__(self, environment: str):
         self.environment = environment
         self.logger = self._setup_logging()
-        
+
     def _setup_logging(self) -> logging.Logger:
         """Configure structured logging for deployment."""
-        logger = logging.getLogger(f'deployment.{self.environment}')
-        handler = logging.FileHandler(f'/var/log/ifdb/deploy-{self.environment}.log')
+        logger = logging.getLogger(f"deployment.{self.environment}")
+        handler = logging.FileHandler(
+            f"/var/log/ifdb/deploy-{self.environment}.log"
+        )
         formatter = logging.Formatter(
-            '%(asctime)s %(levelname)s [%(name)s] %(message)s'
+            "%(asctime)s %(levelname)s [%(name)s] %(message)s"
         )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         return logger
-    
+
     def deploy_with_tests(self, version: str) -> bool:
         """Deploy with integrated testing."""
         try:
             self.logger.info(f"Starting deployment of version {version}")
-            
+
             # Pre-deployment checks
             self._run_pre_deployment_tests()
-            
+
             # Backup current state
             backup_id = self._create_backup()
-            
+
             # Deploy new version
             self._deploy_version(version)
-            
+
             # Post-deployment validation
             if not self._validate_deployment():
                 self.logger.error("Deployment validation failed, rolling back")
                 self._rollback(backup_id)
                 return False
-                
+
             self.logger.info(f"Deployment of {version} completed successfully")
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Deployment failed: {e}")
             raise DeploymentError(f"Deployment failed: {e}") from e
-    
+
     def _run_pre_deployment_tests(self) -> None:
         """Run tests before deployment."""
         import subprocess
-        
+
         # Run Django checks
-        result = subprocess.run(['python', 'manage.py', 'check', '--deploy'], 
-                              capture_output=True, text=True)
+        result = subprocess.run(
+            ["python", "manage.py", "check", "--deploy"],
+            capture_output=True,
+            text=True,
+        )
         if result.returncode != 0:
             raise DeploymentError(f"Django checks failed: {result.stderr}")
-        
+
         # Run migrations check
-        result = subprocess.run(['python', 'manage.py', 'makemigrations', '--dry-run'], 
-                              capture_output=True, text=True)
+        result = subprocess.run(
+            ["python", "manage.py", "makemigrations", "--dry-run"],
+            capture_output=True,
+            text=True,
+        )
         if "No changes detected" not in result.stdout:
             self.logger.warning("Pending migrations detected")
 ```
@@ -1484,17 +1507,17 @@ WantedBy=multi-user.target
 class DeploymentMonitor:
     def __init__(self, environment: str):
         self.environment = environment
-        
+
     def notify_deployment_start(self, version: str) -> None:
         """Notify monitoring systems of deployment start."""
         # Discord webhook notification
         self._send_discord_notification(
             f"🚀 Starting deployment of {version} to {self.environment}"
         )
-        
+
         # Log deployment event
         self._log_deployment_event("started", version)
-    
+
     def validate_deployment_health(self) -> bool:
         """Validate that deployment is healthy."""
         checks = [
@@ -1503,13 +1526,14 @@ class DeploymentMonitor:
             self._check_static_files(),
             self._check_celery_workers(),
         ]
-        
+
         return all(checks)
-    
+
     def _check_celery_workers(self) -> bool:
         """Check that Celery workers are responding."""
         try:
             from celery import current_app
+
             stats = current_app.control.inspect().stats()
             return bool(stats)
         except Exception:
@@ -1558,29 +1582,39 @@ from jinja2 import Environment, FileSystemLoader
 import yaml
 from typing import Dict, Any
 
+
 class ConfigManager:
     def __init__(self, environment: str):
         self.environment = environment
         self.template_env = Environment(
-            loader=FileSystemLoader('scripts/templates')
+            loader=FileSystemLoader("scripts/templates")
         )
-    
+
     def generate_configs(self, variables: Dict[str, Any]) -> None:
         """Generate configuration files from templates."""
         configs = [
-            ('nginx.conf.j2', f'/etc/nginx/sites-available/ifdb-{self.environment}'),
-            ('uwsgi.ini.j2', f'/home/ifdb/configs/uwsgi-{self.environment}.ini'),
-            ('systemd.service.j2', f'/etc/systemd/system/ifdb-{self.environment}.service'),
+            (
+                "nginx.conf.j2",
+                f"/etc/nginx/sites-available/ifdb-{self.environment}",
+            ),
+            (
+                "uwsgi.ini.j2",
+                f"/home/ifdb/configs/uwsgi-{self.environment}.ini",
+            ),
+            (
+                "systemd.service.j2",
+                f"/etc/systemd/system/ifdb-{self.environment}.service",
+            ),
         ]
-        
+
         for template_name, output_path in configs:
             self._render_template(template_name, output_path, variables)
-    
+
     def validate_config(self, config_path: str) -> bool:
         """Validate configuration file syntax."""
-        if config_path.endswith('.ini'):
+        if config_path.endswith(".ini"):
             return self._validate_ini_config(config_path)
-        elif config_path.endswith('.conf'):
+        elif config_path.endswith(".conf"):
             return self._validate_nginx_config(config_path)
         return True
 ```

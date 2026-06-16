@@ -12,8 +12,6 @@ from ifdb.permissioner import Permissioner
 LENGTH = 400
 HARD_LENGTH = 1500
 
-USER = "бездушный робот"
-
 
 class FakeRequest:
     def __init__(self, username):
@@ -28,7 +26,7 @@ def PostNewGameToDiscord(game_id):
     if not settings.DISCORD_WEBHOOK:
         return
 
-    request = FakeRequest(USER)
+    request = FakeRequest(settings.MAINTENANCE_USER)
     gameinfo = GameDetailsBuilder(game_id, request).GetGameDict()
 
     authors = None

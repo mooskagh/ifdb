@@ -6,7 +6,7 @@ from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeUrl
+from .tools import AddDescriptionAttribution, CategorizeUrl
 
 IFICTION_URL = re.compile(
     r"https?://forum\.ifiction\.ru/viewtopic\.php\?id=\d+"
@@ -84,12 +84,19 @@ SCREENSHOTS_BLOCK = re.compile(r'(?s)<div id="screenshots"[^>]*>(.*?)</div>')
 IMG_URL = re.compile(r'<img src="([^"]+)"')
 
 
+def FetchIfiction(url, use_cache=True):
+    return FetchUrlToString(url, encoding="cp1251", use_cache=use_cache)
+
+
 def ImportFromIfiction(url):
     try:
-        html = FetchUrlToString(url, encoding="cp1251")
+        html = FetchIfiction(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParseIfiction(html, url)
 
+
+def ParseIfiction(html, url):
     res = {
         "priority": 45,
         "authors": [],
@@ -116,10 +123,8 @@ def ImportFromIfiction(url):
     if m:
         tt = HTML2Text()
         tt.body_width = 0
-        res["desc"] = (
-            tt.handle(m.group(1))
-            + "\n\n_(описание взято с сайта ifiction.ru)_"
-        )
+        res["desc"] = tt.handle(m.group(1))
+        AddDescriptionAttribution(res, "ifiction.ru")
 
     m = LINKS_BLOCK.search(html)
     if m:

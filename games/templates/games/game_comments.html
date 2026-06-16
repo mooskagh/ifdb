@@ -1,15 +1,17 @@
 <div class="card card--yellow">
     <div class="card--header">Комментарии ({{ comments|length }})</div>
     <div class="card--body game--content-text">
-        {% if comment_perm %}
+        {% if comment_perm and user.is_authenticated %}
             <form class="comment-input" id="reply-1" action="{% url 'comment_game' %}" method="post">
                 {% csrf_token %}
                 <input type="hidden" name="game_id" value="{{game.id}}" />
+                {% comment "Disable anonymous comments for now" %}
                 {% if user.is_authenticated %}
                     <label style="display: none;"><input name="anonymous" type="checkbox">Анонимный комментарий</label>
                 {% else %}
                     <label style="display: none;"><input name="anonymous" type="checkbox" checked="1" disabled="1">Анонимный комментарий</label>
                 {% endif %}
+                {% endcomment %}
                 <textarea placeholder="Оставить отзыв... (поддерживается markdown)" name="text" required></textarea>
                 <input type="submit" value="Отправить" style="display: none;"/>
             </form>
@@ -17,11 +19,13 @@
                 {% csrf_token %}
                 <input type="hidden" name="parent"/>
                 <input type="hidden" name="game_id" value="{{game.id}}" />
+                {% comment "Disable anonymous comments for now" %}                
                 {% if user.is_authenticated %}
                     <label><input name="anonymous" type="checkbox">Анонимный комментарий</label>
                 {% else %}
                     <label><input name="anonymous" type="checkbox" checked="1" disabled="1">Анонимный комментарий</label>
                 {% endif %}
+                {% endcomment %}
                 <textarea class="active" placeholder="Оставить отзыв... (поддерживается markdown)" name="text" required></textarea>
                 <input type="submit" value="Отправить"/>
             </form>

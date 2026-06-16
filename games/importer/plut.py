@@ -7,7 +7,7 @@ from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeUrl
+from .tools import AddDescriptionAttribution, CategorizeUrl
 
 PLUT_HEADERS = {"User-Agent": "curl/8.5.0"}
 
@@ -110,10 +110,15 @@ def ParseFields(html):
 
 def ImportFromPlut(url):
     try:
-        html = FetchUrlToString(url, headers=PLUT_HEADERS)
+        html = FetchUrlToString(
+            url, use_cache=False, headers=PLUT_HEADERS
+        )
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParsePlut(html, url)
 
+
+def ParsePlut(html, url):
     res = {"priority": 50}
     m = PLUT_TITLE.search(html)
     if not m:
@@ -124,10 +129,8 @@ def ImportFromPlut(url):
     if m:
         tt = HTML2Text()
         tt.body_width = 0
-        res["desc"] = (
-            tt.handle(m.group(1))
-            + "\n\n_(описание взято с сайта urq.plut.info)_"
-        )
+        res["desc"] = tt.handle(m.group(1))
+        AddDescriptionAttribution(res, "urq.plut.info")
 
     m = PLUT_RELEASE.search(html)
     if m:

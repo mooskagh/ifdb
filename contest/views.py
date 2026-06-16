@@ -5,7 +5,6 @@ from collections import defaultdict
 from dateutil import relativedelta
 from django import forms
 from django.conf import settings
-from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 from django.db.models import Count, Max
 from django.forms import widgets
@@ -114,8 +113,24 @@ class CompetitionGameFetcher:
             game__in=games, role__symbolic_id="author"
         ).select_related("author")
 
+        from games.models import Game
+
+        CATEGORY_KEY = {
+            "genre": "genres",
+            "tag": "tags",
+            "platform": "platforms",
+            "age": "ages",
+        }
+        through = Game.tags.through.objects.filter(
+            game_id__in=games,
+            gametag__category__symbolic_id__in=CATEGORY_KEY,
+        ).select_related("gametag__category")
+
         g2p = {}
         authors = defaultdict(list)
+        tag_data: dict[int, dict] = defaultdict(
+            lambda: {k: [] for k in CATEGORY_KEY.values()}
+        )
         for x in posters:
             g2p[x.game_id] = x.GetLocalUrl()
         for x in screenshots:
@@ -123,6 +138,10 @@ class CompetitionGameFetcher:
                 g2p[x.game_id] = x.GetLocalUrl()
         for x in author_objs:
             authors[x.game_id].append(x.author.name)
+        for row in through:
+            tag_data[row.game_id][
+                CATEGORY_KEY[row.gametag.category.symbolic_id]
+            ].append(row.gametag)
 
         now = timezone.now()
         for x in raw:
@@ -143,6 +162,7 @@ class CompetitionGameFetcher:
                             ).total_seconds()
                         g.poster = g2p.get(z.game_id)
                         g.authors = ", ".join(authors[g.id])
+                        g.tag_data = tag_data.get(g.id)
 
                         votes = [x.star_rating for x in g.gamevote_set.all()]
                         g.rating = ComputeGameRating(votes)
@@ -198,6 +218,9 @@ def show_competition(request, slug, doc=""):
     logos, ext_links = PartitionItems(
         comp.competitionurl_set.all(), [("logo",)]
     )
+    from core.snippets import CommentsSnippet
+
+    comments_data = CommentsSnippet(request, event=comp.slug)
     return render(
         request,
         "contest/competition.html",
@@ -210,6 +233,7 @@ def show_competition(request, slug, doc=""):
             "logo": logo,
             "docs": links,
             "links": ext_links,
+            "comments_html": comments_data.get("content", ""),
             "moder_actions": (
                 GetModerActions(request, "CompetitionDocument", docobj)
                 if settings.SITE_ID == 1
@@ -250,15 +274,6 @@ COLOR_RULES = [
     ("qspcompo", "salad"),
     ("kontigr", "purple"),
 ]
-
-
-def _seconds_until_midnight():
-    """Calculate seconds until next midnight for cache expiration."""
-    now = timezone.now()
-    tomorrow = now.replace(
-        hour=0, minute=0, second=0, microsecond=0
-    ) + datetime.timedelta(days=1)
-    return int((tomorrow - now).total_seconds())
 
 
 def _render_snippet_html(items):
@@ -347,84 +362,49 @@ def _render_snippet_html(items):
 
 
 def get_competitions_data():
-    """Cache competition database queries until midnight.
+    competitions = list(
+        Competition.objects.filter(published=True).order_by("-end_date")
+    )
 
-    Uses file-based cache to ensure consistency across processes and
-    persistence across server restarts. Competition data changes rarely
-    but queries are expensive (86 competitions with complex joins).
-    """
-    import logging
+    schedule = defaultdict(list)
+    for x in CompetitionSchedule.objects.filter(show=True).order_by("when"):
+        schedule[x.competition_id].append({
+            "when": x.when,
+            "title": x.title,
+        })
 
-    logger = logging.getLogger(__name__)
+    links = defaultdict(list)
+    for x in CompetitionURL.objects.filter(
+        category__symbolic_id__in=SHOW_LINKS
+    ).select_related():
+        links[x.competition_id].append({
+            "description": x.description,
+            "url": x.GetRemoteUrl(),
+        })
 
-    cache_key = "contest:competitions_list_data"
-    data = cache.get(cache_key)
-    if data is None:
-        logger.info("Competition data cache MISS - querying database")
-        start_time = timezone.now()
+    logos = {}
+    for x in CompetitionURL.objects.filter(
+        category__symbolic_id="logo"
+    ).select_related():
+        logos[x.competition_id] = x.GetLocalUrl()
 
-        # Cache expensive database queries
-        competitions = list(
-            Competition.objects.filter(published=True).order_by("-end_date")
-        )
+    competition_games = {
+        comp.id: CompetitionGameFetcher(comp).GetCompetitionGamesRaw()
+        for comp in competitions
+    }
 
-        schedule = defaultdict(list)
-        for x in CompetitionSchedule.objects.filter(show=True).order_by(
-            "when"
-        ):
-            schedule[x.competition_id].append({
-                "when": x.when,
-                "title": x.title,
-            })
+    competition_options = {
+        comp.id: json.loads(comp.options) for comp in competitions
+    }
 
-        links = defaultdict(list)
-        for x in CompetitionURL.objects.filter(
-            category__symbolic_id__in=SHOW_LINKS
-        ).select_related():
-            links[x.competition_id].append({
-                "description": x.description,
-                "url": x.GetRemoteUrl(),
-            })
-
-        logos = {}
-        for x in CompetitionURL.objects.filter(
-            category__symbolic_id="logo"
-        ).select_related():
-            logos[x.competition_id] = x.GetLocalUrl()
-
-        # Cache competition games data (the main performance bottleneck)
-        competition_games = {
-            comp.id: CompetitionGameFetcher(comp).GetCompetitionGamesRaw()
-            for comp in competitions
-        }
-
-        # Pre-parse JSON options to avoid repeated parsing
-        competition_options = {
-            comp.id: json.loads(comp.options) for comp in competitions
-        }
-
-        data = {
-            "competitions": competitions,
-            "schedule": schedule,
-            "links": links,
-            "logos": logos,
-            "competition_games": competition_games,
-            "competition_options": competition_options,
-        }
-
-        query_time = (timezone.now() - start_time).total_seconds()
-        timeout = _seconds_until_midnight()
-        cache.set(cache_key, data, timeout)
-
-        logger.info(
-            f"Competition data cached: {len(competitions)} competitions, "
-            f"query took {query_time:.3f}s, cache expires in "
-            f"{timeout / 3600:.1f}h"
-        )
-    else:
-        logger.info("Competition data cache HIT - using cached data")
-
-    return data
+    return {
+        "competitions": competitions,
+        "schedule": schedule,
+        "links": links,
+        "logos": logos,
+        "competition_games": competition_games,
+        "competition_options": competition_options,
+    }
 
 
 def list_competitions(request):
@@ -433,12 +413,11 @@ def list_competitions(request):
     ) + relativedelta.relativedelta(months=1)
     now = timezone.now()
 
-    # Get cached database data
-    cached_data = get_competitions_data()
+    data = get_competitions_data()
 
-    # Process cached schedule data with fresh date formatting
+    # Process schedule data with date formatting
     schedule = defaultdict(list)
-    for comp_id, entries in cached_data["schedule"].items():
+    for comp_id, entries in data["schedule"].items():
         for entry in entries:
             schedule[comp_id].append({
                 "lines": [
@@ -456,9 +435,8 @@ def list_competitions(request):
                 ]
             })
 
-    # Process cached links data
     links = defaultdict(list)
-    for comp_id, entries in cached_data["links"].items():
+    for comp_id, entries in data["links"].items():
         for entry in entries:
             links[comp_id].append({
                 "lines": [
@@ -471,8 +449,7 @@ def list_competitions(request):
                 ]
             })
 
-    # Use cached logos
-    logos = cached_data["logos"]
+    logos = data["logos"]
 
     upcoming = []
     contests = []
@@ -481,8 +458,8 @@ def list_competitions(request):
     d = now.date()
     eighteen_months = relativedelta.relativedelta(months=18)  # Pre-compute
 
-    for x in cached_data["competitions"]:
-        options = cached_data["competition_options"][x.id]
+    for x in data["competitions"]:
+        options = data["competition_options"][x.id]
         if x.start_date and x.start_date < d:
             d = x.start_date
 
@@ -516,7 +493,7 @@ def list_competitions(request):
                 })
                 items.extend(links[x.id])
 
-        games = cached_data["competition_games"].get(x.id, [])
+        games = data["competition_games"].get(x.id, [])
         if games:
             for entry in games:
                 if entry["title"] or x.end_date >= now.date():

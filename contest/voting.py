@@ -201,7 +201,7 @@ def RenderVotingImpl(request, comp, voting, group, preview):
         gamelist = (
             GameListEntry.objects
             .filter(gamelist__competition=comp, gamelist__id=nomination_id)
-            .order_by("game__id")
+            .order_by("game__title")
             .select_related()
         )
         Fs = forms.formset_factory(VotingForm, formset=VotingFormSet, extra=0)
@@ -360,7 +360,7 @@ def RenderVotingImplV2(request, comp, voting, section_name, preview):
     gamelist = (
         GameListEntry.objects
         .filter(gamelist__competition=comp, gamelist__id=nomination_id)
-        .order_by("game__id")
+        .order_by("game__title")
         .select_related()
     )
 

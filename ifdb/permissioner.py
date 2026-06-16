@@ -29,6 +29,7 @@ GROUP_ALIAS = {
     "game_vote": "(a @auth (n @ban))",
     "personality_view": "@all",
     "personality_edit": "@moder",
+    "curation_admin": "@moder",
 }
 
 CRAWLER_STRS = [

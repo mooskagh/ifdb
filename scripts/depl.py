@@ -263,7 +263,6 @@ def red(ctx, message):
     p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-uwsgi"))
     p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-uwsgi-kontigr"))
     p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-uwsgi-zok"))
-    p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-worker"))
     p.Run("red")
 
 
@@ -295,7 +294,6 @@ def green(ctx):
     p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-uwsgi-kontigr"))
     p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-uwsgi-zok"))
     p.AddStep(RunCmdStep("sudo /bin/systemctl reload nginx"))
-    p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-worker"))
     p.Run("green")
 
 
@@ -455,8 +453,6 @@ def deploy(ctx, hot, from_master):
         p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-uwsgi-kontigr"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-uwsgi-zok"))
 
-    p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-worker"))
-
     if not hot:
         p.AddStep(
             Message(
@@ -519,7 +515,6 @@ def deploy(ctx, hot, from_master):
         p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-uwsgi"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-uwsgi-kontigr"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-uwsgi-zok"))
-    p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-worker"))
 
     if not hot:
         p.AddStep(

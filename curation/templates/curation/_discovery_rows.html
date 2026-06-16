@@ -1,0 +1,39 @@
+<table class="curation-table">
+    <thead>
+        <tr>
+            <th>Источник</th>
+            <th>Впервые</th>
+            <th>Последний раз</th>
+            <th>Новых</th>
+            <th>Существующих</th>
+            <th>Пропавших</th>
+            <th>Отсутствующих</th>
+            <th>Неиспользуемых</th>
+            <th>Дубликатов</th>
+            <th>Ошибка</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr class="{% if row.is_error %}error{% endif %}"
+            data-href="{% url 'curation_discovery_detail' row.pk %}">
+            <td>
+                <a href="{% url 'curation_discovery_detail' row.pk %}">
+                    {{ row.get_source_type_display }}
+                </a>
+            </td>
+            <td>{{ row.first_seen|date:"d.m.Y H:i" }}</td>
+            <td>{{ row.last_seen|date:"d.m.Y H:i" }}</td>
+            <td>{{ row.new_ids|length }}</td>
+            <td>{{ row.existing_ids|length }}</td>
+            <td>{{ row.newly_missing_ids|length }}</td>
+            <td>{{ row.absent_ids|length }}</td>
+            <td>{{ row.unused_ids|length }}</td>
+            <td>{{ row.duplicate_id_clusters|length }}</td>
+            <td>{{ row.error_message|default:"" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="10">{{ empty_text }}</td></tr>
+        {% endfor %}
+    </tbody>
+</table>

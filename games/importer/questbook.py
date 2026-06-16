@@ -8,7 +8,7 @@ from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
 
-from .tools import CategorizeUrl
+from .tools import AddDescriptionAttribution, CategorizeUrl
 
 logger = getLogger("crawler")
 
@@ -106,12 +106,19 @@ MONTH = [
 ]
 
 
+def FetchQuestBook(url, use_cache=True):
+    return FetchUrlToString(url, encoding="cp1251", use_cache=use_cache)
+
+
 def ImportFromQuestBook(url):
     try:
-        html = FetchUrlToString(url, encoding="cp1251")
+        html = FetchQuestBook(url)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
+    return ParseQuestBook(html, url)
 
+
+def ParseQuestBook(html, url):
     res = {"priority": 51, "authors": []}
     tags = [{"cat_slug": "platform", "tag": "Questbook"}]
     urls = [
@@ -150,7 +157,8 @@ def ImportFromQuestBook(url):
             ).date()
 
     if desc:
-        res["desc"] = desc + "\n\n_(описание взято с сайта quest-book.ru)_"
+        res["desc"] = desc
+        AddDescriptionAttribution(res, "quest-book.ru")
 
     m = QUESTBOOK_AUTHOR_BOX.search(html)
     if m:

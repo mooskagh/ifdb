@@ -4,7 +4,6 @@ from logging import getLogger
 from dateutil.parser import parse as parse_date
 from django.utils import timezone
 
-from core.taskqueue import Enqueue
 from games.tools import CreateUrl
 
 from .importer import Importer
@@ -13,6 +12,7 @@ from .models import (
     Game,
     GameAuthor,
     GameAuthorRole,
+    GameDescriptionAttribution,
     GameTag,
     GameTagCategory,
     GameURL,
@@ -23,7 +23,6 @@ from .models import (
     PersonalityUrl,
     PersonalityURLCategory,
 )
-from .tasks.uploads import RecodeGame
 
 PERM_ADD_GAME = "@auth"  # Also for file upload, game import, vote
 logger = getLogger("web")
@@ -141,6 +140,21 @@ def UpdateGameTags(request, game, tags, update):
 
     if existing_tags:
         game.tags.remove(*list(game.tags.filter(id__in=existing_tags)))
+
+
+def UpdateGameDescriptionAttributions(game, attributions):
+    game.description_attributions.clear()
+
+    names = dict.fromkeys(
+        name
+        for name in (str(item).strip() for item in attributions or [] if item)
+        if name
+    )
+    for name in names:
+        attribution, _ = GameDescriptionAttribution.objects.get_or_create(
+            name=name
+        )
+        game.description_attributions.add(attribution)
 
 
 def UpdatePersonalityUrls(importer, request, alias_id, data, update):
@@ -321,7 +335,6 @@ def UpdateGameUrls(request, game, data, update, kill_existing=True):
             obj.description = desc or None
             if GameURLCategory.IsRecodable(cat):
                 obj.save()
-                Enqueue(RecodeGame, obj.id, name="RecodeGame(%d)" % obj.id)
             else:
                 objs.append(obj)
         GameURL.objects.bulk_create(objs)
@@ -351,6 +364,10 @@ def UpdateGame(request, j, update_edit_time=True, kill_existing_urls=True):
     )
 
     g.save()
+    if "description_attributions" in j:
+        UpdateGameDescriptionAttributions(
+            g, j.get("description_attributions", [])
+        )
     UpdateGameUrls(
         request,
         g,
@@ -369,6 +386,9 @@ def Importer2Json(r):
     for x in ["title", "desc", "release_date"]:
         if x in r:
             res[x] = str(r[x])
+
+    if "description_attributions" in r:
+        res["description_attributions"] = r["description_attributions"]
 
     if "authors" in r:
         res["authors"] = []

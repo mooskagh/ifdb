@@ -12,7 +12,10 @@
     <div class="game--content-main">
         <div class="card card--purple">
             <div class="card--header">Описание</div>
-            <div class="card--body game--content-text">{{ markdown|safe }}</div>
+            <div class="card--body game--content-text">
+                {{ markdown|safe }}
+                {% include './game_description_attribution.html' %}
+            </div>
         </div>
         {% if comment_perm or comments %}
             {% include './game_comments.html' %}
@@ -257,6 +260,7 @@
             <div class="leftpane">
                 <div class="game-description">
                     {{ markdown|safe }}
+                    {% include './game_description_attribution.html' %}
                 </div>
             </div>
             <div class="leftpane">

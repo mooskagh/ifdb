@@ -1,13 +1,89 @@
+import json
 import re
+from decimal import Decimal, InvalidOperation
+from html import unescape
 
 from django import template
 from django.conf import settings
 from django.template import TemplateSyntaxError
 from django.template.defaultfilters import stringfilter
 from django.urls import NoReverseMatch, reverse
+from django.utils.html import conditional_escape, format_html
 from django.utils.safestring import mark_safe
+from django.utils.text import normalize_newlines
 
 register = template.Library()
+
+OBJECT_REF_RE = re.compile(r"(?<![\w/])(?P<kind>[gs])/(?P<id>\d+)\b")
+OBJECT_REF_ROUTES = {
+    "g": "show_game",
+    "s": "curation_source_detail",
+}
+
+
+@register.filter(needs_autoescape=True)
+def object_refs(value, autoescape=True):
+    if value is None:
+        return ""
+
+    text = normalize_newlines(str(value))
+    escape = conditional_escape if autoescape else lambda x: x
+    parts = []
+    pos = 0
+    for match in OBJECT_REF_RE.finditer(text):
+        parts.append(escape(text[pos : match.start()]))
+        ref = match.group(0)
+        try:
+            url = reverse(OBJECT_REF_ROUTES[match["kind"]], args=[match["id"]])
+        except (KeyError, NoReverseMatch):
+            parts.append(escape(ref))
+        else:
+            parts.append(format_html('<a href="{}">{}</a>', url, ref))
+        pos = match.end()
+    parts.append(escape(text[pos:]))
+    return mark_safe("".join(parts).replace("\n", "<br>"))
+
+
+@register.filter
+def costcell(value, decimals=4):
+    """Decimal-aligned money cell: trailing zeros kept for alignment but
+    hidden, negative/None (variable pricing) shown as an em dash."""
+    try:
+        amount = Decimal(value)
+    except (InvalidOperation, TypeError):
+        return mark_safe("—")
+    if amount < 0:
+        return mark_safe("—")
+    text = f"{amount:.{int(decimals)}f}".replace(".", ",")
+    head = text.rstrip("0").rstrip(",")
+    tail = text[len(head) :]
+    if not tail:
+        return mark_safe(head)
+    return format_html('{}<span class="zeros">{}</span>', head, tail)
+
+
+@register.filter
+def prettyjson(value):
+    if isinstance(value, str):
+        value = unescape(value)
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return mark_safe(conditional_escape(value))
+    return mark_safe(
+        conditional_escape(json.dumps(value, ensure_ascii=False, indent=2))
+    )
+
+
+@register.filter
+def is_error_tool_result(message):
+    if not isinstance(message, dict) or message.get("role") != "tool":
+        return False
+    try:
+        content = json.loads(message.get("content") or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return False
+    return isinstance(content, dict) and content.get("status") == "error"
 
 
 @register.simple_tag(takes_context=True)
@@ -43,6 +119,23 @@ def rupl(value, arg):
     except (IndexError, ValueError):
         raise TemplateSyntaxError
     return ""
+
+
+@register.simple_tag(takes_context=True)
+def has_perm(context, expr):
+    return context["request"].perm(expr)
+
+
+@register.simple_tag(takes_context=True)
+def needs_attention_history_count(context):
+    user = context["request"].user
+    if not user.is_superuser:
+        return 0
+    from curation.models import GameHistory
+
+    return GameHistory.objects.filter(
+        state=GameHistory.State.NEEDS_ATTENTION
+    ).count()
 
 
 @register.simple_tag(takes_context=False)

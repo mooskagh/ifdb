@@ -3,6 +3,11 @@
 /files
 /urlcache
 /tmp
+/core/static/bundle.js
+/core/static/editor.js
+/core/static/edit_diff.js
+/core/static/llm_models.js
+/core/static/reconcile.js
 /loonchator/out
 /virtualenv
 __pycache__
