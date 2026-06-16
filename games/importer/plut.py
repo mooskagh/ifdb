@@ -9,6 +9,8 @@ from core.crawler import FetchUrlToString
 
 from .tools import CategorizeUrl
 
+PLUT_HEADERS = {"User-Agent": "curl/8.5.0"}
+
 
 class PlutImporter:
     def MatchWithCat(self, url, cat):
@@ -41,7 +43,9 @@ def GetCandidates():
 
     while True:
         r = FetchUrlToString(
-            r"http://urq.plut.info/games?page=" + str(page), use_cache=False
+            r"http://urq.plut.info/games?page=" + str(page),
+            use_cache=False,
+            headers=PLUT_HEADERS,
         )
 
         found = False
@@ -106,7 +110,7 @@ def ParseFields(html):
 
 def ImportFromPlut(url):
     try:
-        html = FetchUrlToString(url)
+        html = FetchUrlToString(url, headers=PLUT_HEADERS)
     except Exception:
         return {"error": "Не открывается что-то этот URL."}
 
