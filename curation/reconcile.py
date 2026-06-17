@@ -87,6 +87,7 @@ class _Target:
 class _TargetIndex:
     targets: list[_Target] = field(default_factory=list)
     url_to_target: dict[str, _Target] = field(default_factory=dict)
+    duplicate_hash_urls: set[str] = field(default_factory=set)
 
     def add(self, target: _Target) -> None:
         """Register a target; first writer wins on a hash-url collision."""
@@ -97,16 +98,26 @@ class _TargetIndex:
         for h in hash_urls:
             if h in self.url_to_target:
                 logger.warning("Duplicate identity URL %s", h)
+                self.duplicate_hash_urls.add(h)
                 continue
             self.url_to_target[h] = target
 
     def match(
-        self, hash_urls: set[str], title_bow: set[str]
+        self,
+        hash_urls: set[str],
+        title_bow: set[str],
+        *,
+        trust_single_url_match: bool = False,
     ) -> tuple[_Target | None, set[_Target]]:
         """Faithful ``TryMerge`` port: URL identity first, then title floor."""
-        candidates = {
-            self.url_to_target[h] for h in hash_urls if h in self.url_to_target
-        }
+        matched_urls = {h for h in hash_urls if h in self.url_to_target}
+        candidates = {self.url_to_target[h] for h in matched_urls}
+        if (
+            trust_single_url_match
+            and len(candidates) == 1
+            and not (matched_urls & self.duplicate_hash_urls)
+        ):
+            return next(iter(candidates)), candidates
         if not candidates:
             candidates = {
                 t
@@ -306,7 +317,13 @@ def run_reconcile(
             continue
 
         totals.processed += 1
-        target, candidates = index.match(hash_urls, title_bow)
+        target, candidates = index.match(
+            hash_urls,
+            title_bow,
+            trust_single_url_match=(
+                source.type == GameSource.SourceType.RILARHIV
+            ),
+        )
         ambiguous = len(candidates) > 1
 
         if ambiguous and target is not None:
