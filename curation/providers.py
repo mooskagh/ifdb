@@ -63,6 +63,17 @@ from games.importer.questbook import (
     ParseQuestBook,
 )
 from games.importer.questbook import GetCandidates as GetQuestBookCandidates
+from games.importer.rilarhiv import (
+    RILARHIV_LISTINGS,
+    FetchRilarhivListing,
+    FindRilarhivRow,
+    MakeRilarhivSourceUrl,
+    ParseRilarhivRows,
+    RilarhivListingUrl,
+    RilarhivListingUrlForTarget,
+    RilarhivRowToImporterDict,
+    RilarhivSourceTarget,
+)
 from games.importer.tools import QuoteUtf8
 
 from .gameinfo import Attribution, GameInfo, GameUrl, Person, Tag
@@ -376,9 +387,56 @@ class PlutProvider(GameSourceProvider):
         return (DiscoveredSource(url) for url in GetPlutCandidates())
 
 
-# Mirrors the legacy ``REGISTERED_IMPORTERS``.  rilarhiv is intentionally
-# absent: it has no per-game page (data lives in listing rows), so it stays on
-# the old path until discover-coupled sources get bespoke handling.
+class RilarhivProvider(GameSourceProvider):
+    source_type = GameSource.SourceType.RILARHIV
+
+    def owns(self, url: str) -> bool:
+        return self._listing_url(url) is not None
+
+    def fetch(self, url: str) -> str:
+        listing_url = self._listing_url(url)
+        if listing_url is None:
+            raise ValueError(f"Unsupported Rilarhiv source URL: {url}")
+        return FetchRilarhivListing(listing_url, use_cache=False)
+
+    def canonicalize(self, raw: str, url: str) -> GameInfo:
+        listing_url = self._listing_url(url)
+        if listing_url is None:
+            raise ValueError(f"Unsupported Rilarhiv source URL: {url}")
+        target = RilarhivSourceTarget(url)
+        row = FindRilarhivRow(raw, listing_url, target)
+        if row is None:
+            raise ValueError(f"Rilarhiv row not found: {target}")
+        return GameInfo.from_importer_dict(RilarhivRowToImporterDict(row))
+
+    def discover(self) -> Iterable[DiscoveredSource]:
+        for link in RILARHIV_LISTINGS:
+            listing_url = RilarhivListingUrl(link)
+            raw = FetchRilarhivListing(listing_url, use_cache=False)
+            for row in ParseRilarhivRows(raw, listing_url):
+                yield DiscoveredSource(
+                    MakeRilarhivSourceUrl(listing_url, row.target)
+                )
+
+    def source_key(self, url: str) -> str:
+        listing_url = self._listing_url(url)
+        if listing_url is None:
+            return _base_source_key(url)
+        return (
+            f"rilarhiv:{_base_source_key(listing_url)}"
+            f"#{RilarhivSourceTarget(url)}"
+        )
+
+    def _listing_url(self, url: str) -> str | None:
+        base_url = url.split("#", 1)[0]
+        if re.match(r"https?://rilarhiv\.ru/[^/?#]+\.htm$", base_url):
+            link = base_url.rsplit("/", 1)[1][:-4]
+            if link in RILARHIV_LISTINGS:
+                return base_url
+        return RilarhivListingUrlForTarget(url)
+
+
+# Mirrors the legacy ``REGISTERED_IMPORTERS``.
 REGISTERED_PROVIDERS: list[GameSourceProvider] = [
     AperoProvider(),
     IfwikiProvider(),
@@ -387,6 +445,7 @@ REGISTERED_PROVIDERS: list[GameSourceProvider] = [
     IfictionProvider(),
     QspSuProvider(),
     PlutProvider(),
+    RilarhivProvider(),
 ]
 
 PROVIDER_BY_TYPE: dict[str, GameSourceProvider] = {

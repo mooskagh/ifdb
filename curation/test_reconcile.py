@@ -25,19 +25,19 @@ class RunReconcileTests(TestCase):
 
     # -- fixtures ---------------------------------------------------------
 
-    def _category(self):
+    def _category(self, symbolic_id="game_page"):
         cat, _ = GameURLCategory.objects.get_or_create(
-            symbolic_id="game_page", defaults={"title": "Game page"}
+            symbolic_id=symbolic_id, defaults={"title": symbolic_id}
         )
         return cat
 
-    def _existing(self, title, url=None):
+    def _existing(self, title, url=None, urlcat="game_page"):
         game = Game.objects.create(title=title, creation_time=now())
         if url:
             GameURL.objects.create(
                 game=game,
                 url=URL.objects.create(original_url=url, creation_date=now()),
-                category=self._category(),
+                category=self._category(urlcat),
             )
         return GameHistory.objects.create(
             game=game,
@@ -51,8 +51,10 @@ class RunReconcileTests(TestCase):
         )
         return info.to_canonical()
 
-    def _orphan(self, source_url, canonical):
-        source = GameSource.objects.create(type=self.stype, url=source_url)
+    def _orphan(self, source_url, canonical, source_type=None):
+        source = GameSource.objects.create(
+            type=source_type or self.stype, url=source_url
+        )
         ts = now()
         GameSourceFetch.objects.create(
             source=source,
@@ -140,6 +142,28 @@ class RunReconcileTests(TestCase):
             ).count(),
             1,
         )
+
+    def test_rilarhiv_single_url_match_overrides_title_mismatch(self):
+        history = self._existing(
+            "Alpha",
+            url="https://rilarhiv.ru/qsp/Battle.rar",
+            urlcat="download_direct",
+        )
+        source = self._orphan(
+            "http://rilarhiv.ru/qsp.htm#qsp%2FBattle.rar",
+            self._canon(
+                "Zeta Omega Entirely Different",
+                [("download_direct", "http://rilarhiv.ru/qsp/Battle.rar")],
+            ),
+            source_type=GameSource.SourceType.RILARHIV,
+        )
+
+        stats = run_reconcile()
+
+        self.assertEqual(stats[0].attached, 1)
+        self.assertEqual(stats[0].spawned, 0)
+        source.refresh_from_db()
+        self.assertEqual(source.history_id, history.pk)
 
     def test_two_orphans_sharing_url_cluster_into_one_history(self):
         shared = ("game_page", "http://newsite.ru/g")

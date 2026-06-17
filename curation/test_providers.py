@@ -15,6 +15,7 @@ from .providers import (
     PlutProvider,
     QspSuProvider,
     QuestBookProvider,
+    RilarhivProvider,
 )
 
 
@@ -287,6 +288,134 @@ class PlutProviderTest(ProviderTestBase):
         self.assert_round_trips(info)
 
 
+RILARHIV_QSP_HTML = """
+<P><b><a href="qsp/Battle.rar">"Битва колдунов" Lostas 21</a></b>
+(21 Кбайт) </P>
+"""
+
+RILARHIV_ONLINE_HTML = """
+<P><b><a href="vneplatform/Voprosi.zip">"Вопросы"
+(Ілля Feelviy Васильев; Inklewriter) </a></b> (3 Кбайт) //
+<STRONG><a href="https://writer.inklestudios.com/stories/rhcb"
+TARGET="_blank">(играть онлайн)</a></STRONG> </P>
+"""
+
+RILARHIV_EXTERNAL_HTML = """
+<P><b><a href="http://narmiel.github.io/UrqW/#support"
+TARGET="_blank">"Драконий остров" (Шушкарт; UrqW)</a></b></P>
+"""
+
+
+class RilarhivProviderTest(ProviderTestBase):
+    qsp_url = "http://rilarhiv.ru/qsp.htm#qsp%2FBattle.rar"
+
+    def test_canonicalize_archive_row(self):
+        info = RilarhivProvider().canonicalize(RILARHIV_QSP_HTML, self.qsp_url)
+
+        self.assertEqual(info.name, "Битва колдунов")
+        self.assertEqual(self._person_names(info, "author"), ["Lostas 21"])
+        self.assertIn("QSP", self._tag_texts(info))
+        self.assertIn("download_direct", self._url_cats(info))
+        self.assertEqual(
+            [u.url for u in info.urls],
+            ["http://rilarhiv.ru/qsp/Battle.rar"],
+        )
+        self.assert_round_trips(info)
+
+    def test_canonicalize_includes_secondary_online_link(self):
+        info = RilarhivProvider().canonicalize(
+            RILARHIV_ONLINE_HTML,
+            "http://rilarhiv.ru/vneplatform.htm#vneplatform%2FVoprosi.zip",
+        )
+
+        self.assertEqual(info.name, "Вопросы")
+        self.assertIn("download_direct", self._url_cats(info))
+        self.assertIn("play_online", self._url_cats(info))
+        self.assertEqual(
+            [u.url for u in info.urls],
+            [
+                "http://rilarhiv.ru/vneplatform/Voprosi.zip",
+                "https://writer.inklestudios.com/stories/rhcb",
+            ],
+        )
+        self.assert_round_trips(info)
+
+    def test_canonicalize_external_first_link_with_own_fragment(self):
+        info = RilarhivProvider().canonicalize(
+            RILARHIV_EXTERNAL_HTML,
+            "http://rilarhiv.ru/urq.htm#"
+            "http%3A%2F%2Fnarmiel.github.io%2FUrqW%2F%23support",
+        )
+
+        self.assertEqual(info.name, "Драконий остров")
+        self.assertIn("URQ", self._tag_texts(info))
+        self.assertEqual(
+            [u.url for u in info.urls],
+            ["http://narmiel.github.io/UrqW/#support"],
+        )
+        self.assert_round_trips(info)
+
+    def test_discover_uses_page_fragment_identity(self):
+        listings = {
+            "http://rilarhiv.ru/qsp.htm": RILARHIV_QSP_HTML,
+            "http://rilarhiv.ru/urq.htm": RILARHIV_EXTERNAL_HTML,
+        }
+
+        with (
+            patch(
+                "curation.providers.RILARHIV_LISTINGS",
+                {"qsp": "QSP", "urq": "URQ"},
+            ),
+            patch(
+                "curation.providers.FetchRilarhivListing",
+                side_effect=lambda url, use_cache: listings[url],
+            ),
+        ):
+            urls = [source.url for source in RilarhivProvider().discover()]
+
+        self.assertEqual(
+            urls,
+            [
+                "http://rilarhiv.ru/qsp.htm#qsp%2FBattle.rar",
+                "http://rilarhiv.ru/urq.htm#"
+                "http%3A%2F%2Fnarmiel.github.io%2FUrqW%2F%23support",
+            ],
+        )
+
+    def test_discover_ignores_sidebar_navigation_links(self):
+        html = """
+        <div id="bl-left"><p><b><a href="qsp.htm">QSP</a></b></p></div>
+        <div id="bl-right">
+        <P><b><a href="spectrum/game.zip">"ZX Game" Alice</a></b></P>
+        </div>
+        """
+
+        with (
+            patch(
+                "curation.providers.RILARHIV_LISTINGS",
+                {"spectrum": "ZX Spectrum"},
+            ),
+            patch(
+                "curation.providers.FetchRilarhivListing",
+                return_value=html,
+            ),
+        ):
+            urls = [source.url for source in RilarhivProvider().discover()]
+
+        self.assertEqual(
+            urls,
+            ["http://rilarhiv.ru/spectrum.htm#spectrum%2Fgame.zip"],
+        )
+
+    def test_source_key_matches_direct_archive_url(self):
+        provider = RilarhivProvider()
+
+        self.assertEqual(
+            provider.source_key("http://rilarhiv.ru/qsp/Battle.rar"),
+            provider.source_key(self.qsp_url),
+        )
+
+
 class OwnsRoutingTest(ProviderTestBase):
     def test_each_provider_claims_only_its_urls(self):
         cases = [
@@ -297,6 +426,7 @@ class OwnsRoutingTest(ProviderTestBase):
             (IfictionProvider(), IfictionProviderTest.url),
             (QspSuProvider(), QspSuProviderTest.url),
             (PlutProvider(), PlutProviderTest.url),
+            (RilarhivProvider(), RilarhivProviderTest.qsp_url),
         ]
         for provider, url in cases:
             with self.subTest(provider=type(provider).__name__):
@@ -307,27 +437,42 @@ class OwnsRoutingTest(ProviderTestBase):
 
     def test_provider_fetches_bypass_crawler_file_cache(self):
         cases = [
-            (AperoProvider(), "FetchApero", AperoProviderTest.url),
-            (IfwikiProvider(), "FetchIfwikiRaw", IfwikiProviderTest.url),
+            (AperoProvider(), "FetchApero", AperoProviderTest.url, None),
+            (IfwikiProvider(), "FetchIfwikiRaw", IfwikiProviderTest.url, None),
             (
                 InsteadGamesProvider(),
                 "FetchInstead",
                 InsteadGamesProviderTest.url,
+                None,
             ),
             (
                 QuestBookProvider(),
                 "FetchQuestBook",
                 QuestBookProviderTest.url,
+                None,
             ),
-            (IfictionProvider(), "FetchIfiction", IfictionProviderTest.url),
-            (QspSuProvider(), "FetchQspApi", QspSuProviderTest.url),
-            (PlutProvider(), "FetchPlut", PlutProviderTest.url),
+            (
+                IfictionProvider(),
+                "FetchIfiction",
+                IfictionProviderTest.url,
+                None,
+            ),
+            (QspSuProvider(), "FetchQspApi", QspSuProviderTest.url, None),
+            (PlutProvider(), "FetchPlut", PlutProviderTest.url, None),
+            (
+                RilarhivProvider(),
+                "FetchRilarhivListing",
+                RilarhivProviderTest.qsp_url,
+                "http://rilarhiv.ru/qsp.htm",
+            ),
         ]
 
-        for provider, fetch_name, url in cases:
+        for provider, fetch_name, url, expected_url in cases:
             with self.subTest(provider=type(provider).__name__):
                 with patch(
                     f"curation.providers.{fetch_name}", return_value="raw"
                 ) as fetch:
                     self.assertEqual(provider.fetch(url), "raw")
-                    fetch.assert_called_once_with(url, use_cache=False)
+                    fetch.assert_called_once_with(
+                        expected_url or url, use_cache=False
+                    )
