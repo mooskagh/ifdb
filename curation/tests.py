@@ -597,6 +597,66 @@ class HistoryDetailViewTest(TestCase):
         self.assertRedirects(response, f"/curation/{self.history.pk}/")
         self.assertFalse(GameHistoryComment.objects.exists())
 
+    def test_history_page_shows_delete_dialog(self):
+        response = self.client.get(f"/curation/{self.history.pk}/")
+
+        self.assertContains(response, "Удаление")
+        self.assertContains(response, 'data-dialog="history-delete-dialog"')
+        self.assertContains(
+            response,
+            f'action="/curation/{self.history.pk}/delete/"',
+        )
+        self.assertContains(response, 'name="keep_orphans"')
+        self.assertContains(response, "оставить источники сиротами")
+
+    def test_history_delete_deletes_game_and_keeps_sources_orphan(self):
+        source = GameSource.objects.create(
+            history=self.history,
+            type=GameSource.SourceType.IFWIKI,
+            url="https://example.com/source",
+        )
+        game_id = self.game.pk
+
+        response = self.client.post(
+            f"/curation/{self.history.pk}/delete/",
+            {"keep_orphans": "on"},
+        )
+
+        self.assertRedirects(response, f"/curation/{self.history.pk}/")
+        self.assertFalse(Game.objects.filter(pk=game_id).exists())
+        self.history.refresh_from_db()
+        source.refresh_from_db()
+        self.assertIsNone(self.history.game_id)
+        self.assertEqual(self.history.state, GameHistory.State.ABANDONED)
+        self.assertIsNone(source.history_id)
+        self.assertTrue(source.keep_orphan)
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=self.history,
+                kind=GameHistoryAuditLog.AuditKind.SOURCE_DETACHED,
+                old_id=source.pk,
+            ).exists()
+        )
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=self.history,
+                field=GameHistoryAuditLog.AuditField.STATE,
+                new_text=GameHistory.State.ABANDONED,
+            ).exists()
+        )
+
+    def test_history_delete_blocks_contest_references(self):
+        gamelist = GameList.objects.create(title="Contest games")
+        GameListEntry.objects.create(gamelist=gamelist, game=self.game)
+
+        response = self.client.post(f"/curation/{self.history.pk}/delete/")
+
+        self.assertRedirects(response, f"/curation/{self.history.pk}/")
+        self.assertTrue(Game.objects.filter(pk=self.game.pk).exists())
+        self.history.refresh_from_db()
+        self.assertEqual(self.history.game_id, self.game.pk)
+        self.assertNotEqual(self.history.state, GameHistory.State.ABANDONED)
+
 
 class HistoryMergeViewTest(TestCase):
     def setUp(self):
@@ -2458,7 +2518,11 @@ class SourceViewsTest(TestCase):
             response,
             f'action="/curation/{history.pk}/sources/{source.pk}/delete/"',
         )
-        self.assertContains(response, 'data-confirm="Открепить этот источник')
+        self.assertContains(
+            response, f'data-dialog="source-detach-dialog-{source.pk}"'
+        )
+        self.assertContains(response, 'name="keep_orphan"')
+        self.assertContains(response, "оставить сиротой")
         self.assertContains(response, "Автоматическая обработка")
         self.assertContains(response, pipeline.name)
 
@@ -2617,6 +2681,7 @@ class SourceViewsTest(TestCase):
         self.assertRedirects(response, f"/curation/{history.pk}/")
         source.refresh_from_db()
         self.assertIsNone(source.history)
+        self.assertFalse(source.keep_orphan)
         audit = GameHistoryAuditLog.objects.get(history=history)
         self.assertEqual(
             audit.kind, GameHistoryAuditLog.AuditKind.SOURCE_DETACHED
@@ -2626,6 +2691,25 @@ class SourceViewsTest(TestCase):
         self.assertIn("Apero", audit.old_text)
         history.refresh_from_db()
         self.assertIsNotNone(history.edit_time)
+
+    def test_history_source_detach_can_keep_source_orphan(self):
+        ts = timezone.now()
+        history = GameHistory.objects.create(game=None, creation_time=ts)
+        source = GameSource.objects.create(
+            history=history,
+            type=GameSource.SourceType.APERO,
+            url="https://example.com/source",
+        )
+
+        response = self.client.post(
+            f"/curation/{history.pk}/sources/{source.pk}/delete/",
+            {"keep_orphan": "on"},
+        )
+
+        self.assertRedirects(response, f"/curation/{history.pk}/")
+        source.refresh_from_db()
+        self.assertIsNone(source.history)
+        self.assertTrue(source.keep_orphan)
 
     @patch("curation.views.fetch_sources.delay")
     def test_source_fetch_now_enqueues_single_source(self, delay):
