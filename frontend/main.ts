@@ -26,7 +26,21 @@ function initConfirmForms(): void {
   });
 }
 
+function initDialogs(): void {
+  document.querySelectorAll<HTMLButtonElement>('[data-dialog]').forEach(button => {
+    const dialogId = button.dataset.dialog;
+    const dialog = dialogId ? document.getElementById(dialogId) : null;
+    if (!(dialog instanceof HTMLDialogElement)) return;
+
+    button.addEventListener('click', () => dialog.showModal());
+    dialog.querySelectorAll<HTMLButtonElement>('[data-dialog-cancel]').forEach(cancel => {
+      cancel.addEventListener('click', () => dialog.close());
+    });
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initClickableRows();
   initConfirmForms();
+  initDialogs();
 });

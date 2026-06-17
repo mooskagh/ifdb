@@ -759,6 +759,18 @@ def _attach_source(history, source, user):
     history.save(update_fields=["edit_time"])
 
 
+def _detach_source(history, source, user, *, keep_orphan=False):
+    GameHistoryAuditLog.record_source(
+        history,
+        user,
+        GameHistoryAuditLog.AuditKind.SOURCE_DETACHED,
+        source,
+    )
+    source.history = None
+    source.keep_orphan = keep_orphan
+    source.save(update_fields=["history", "keep_orphan"])
+
+
 def history_sources_fetch_now(request, history_id):
     if request.method != "POST":
         return HttpResponseBadRequest("Only POST is supported.")
@@ -845,14 +857,12 @@ def history_source_detach(request, history_id, source_id):
             pk=source_id,
             history=history,
         )
-        GameHistoryAuditLog.record_source(
+        _detach_source(
             history,
-            request.user,
-            GameHistoryAuditLog.AuditKind.SOURCE_DETACHED,
             source,
+            request.user,
+            keep_orphan=request.POST.get("keep_orphan") == "on",
         )
-        source.history = None
-        source.save(update_fields=["history"])
         history.edit_time = now()
         history.save(update_fields=["edit_time"])
 
@@ -1475,6 +1485,56 @@ def history_merge(request, history_id):
         messages.error(request, str(exc))
     else:
         messages.success(request, "Игры объединены.")
+    return redirect("curation_history_detail", history_id=history.pk)
+
+
+def history_delete(request, history_id):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required.")
+
+    keep_orphans = request.POST.get("keep_orphans") == "on"
+    with transaction.atomic():
+        history = get_object_or_404(
+            GameHistory.objects.select_related("game").select_for_update(
+                of=("self",)
+            ),
+            pk=history_id,
+        )
+        game = history.game
+        if game is not None and (usage := contest_related_usage(game)):
+            related = ", ".join(
+                f"{item.label}: {item.count}" for item in usage
+            )
+            messages.error(
+                request,
+                f"Игру #{game.id} нельзя удалить: "
+                f"есть конкурсные ссылки ({related}).",
+            )
+            return redirect("curation_history_detail", history_id=history.pk)
+
+        for source in GameSource.objects.select_for_update().filter(
+            history=history
+        ):
+            _detach_source(
+                history, source, request.user, keep_orphan=keep_orphans
+            )
+
+        if history.state != GameHistory.State.ABANDONED:
+            GameHistoryAuditLog.record_change(
+                history,
+                request.user,
+                GameHistoryAuditLog.AuditField.STATE,
+                history.state,
+                GameHistory.State.ABANDONED,
+            )
+        history.game = None
+        history.state = GameHistory.State.ABANDONED
+        history.edit_time = now()
+        history.save(update_fields=["game", "state", "edit_time"])
+        if game is not None:
+            game.delete()
+
+    messages.success(request, "Игра удалена, история заброшена.")
     return redirect("curation_history_detail", history_id=history.pk)
 
 

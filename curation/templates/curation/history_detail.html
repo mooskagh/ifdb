@@ -22,10 +22,18 @@
                 <input type="hidden" name="next" value="{% url 'curation_history_detail' history.pk %}">
                 <button type="submit">скачать сейчас</button>
             </form>
-            <form method="post" action="{% url 'curation_history_source_detach' history.pk source.pk %}" data-confirm="Открепить этот источник от истории?">
-                {% csrf_token %}
-                <button type="submit">отцепить</button>
-            </form>
+            <button type="button" data-dialog="source-detach-dialog-{{ source.pk }}">отцепить</button>
+            <dialog id="source-detach-dialog-{{ source.pk }}" class="curation-edit-action-dialog">
+                <form method="post" action="{% url 'curation_history_source_detach' history.pk source.pk %}">
+                    {% csrf_token %}
+                    <h3>Открепить источник?</h3>
+                    <label class="curation-save__checkbox"><input type="checkbox" name="keep_orphan"> оставить сиротой</label>
+                    <div class="curation-edit-action-buttons">
+                        <button type="button" data-dialog-cancel>Отмена</button>
+                        <button type="submit">отцепить</button>
+                    </div>
+                </form>
+            </dialog>
         </div>
         {% empty %}
         <div class="curation-source curation-meta">Источников нет.</div>
@@ -206,6 +214,26 @@
         </div>
     </div>
 </form>
+
+{% if history.state != "ABANDONED" %}
+<div class="card card--red">
+    <div class="card--header">Удаление</div>
+    <div class="card--body">
+        <button type="button" data-dialog="history-delete-dialog">удалить</button>
+        <dialog id="history-delete-dialog" class="curation-edit-action-dialog">
+            <form method="post" action="{% url 'curation_history_delete' history.pk %}">
+                {% csrf_token %}
+                <h3>Удалить игру?</h3>
+                <label class="curation-save__checkbox"><input type="checkbox" name="keep_orphans"> оставить источники сиротами</label>
+                <div class="curation-edit-action-buttons">
+                    <button type="button" data-dialog-cancel>Отмена</button>
+                    <button type="submit">удалить</button>
+                </div>
+            </form>
+        </dialog>
+    </div>
+</div>
+{% endif %}
 
 <div class="card card--purple">
     <div class="card--header">Автоматическая обработка</div>

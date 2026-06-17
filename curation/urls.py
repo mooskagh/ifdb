@@ -108,6 +108,11 @@ urlpatterns = [
         name="curation_history_merge",
     ),
     path(
+        "<int:history_id>/delete/",
+        superuser_required(views.history_delete),
+        name="curation_history_delete",
+    ),
+    path(
         "<int:history_id>/run-edit/",
         superuser_required(views.history_run_edit),
         name="curation_history_run_edit",
