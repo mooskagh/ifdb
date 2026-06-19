@@ -287,6 +287,26 @@ class PlutProviderTest(ProviderTestBase):
         self.assertIn("game_page", self._url_cats(info))
         self.assert_round_trips(info)
 
+    def test_canonicalize_stabilizes_cloudflare_email_links(self):
+        def html(email_href_hash, email_data_hash):
+            return (
+                '<h1 class="title">Плут игра</h1>'
+                '<div class="field field-name-body '
+                'field-type-text-with-summary field-label-hidden">'
+                '<div class="field-items"><p>Пишите '
+                f'<a href="/cdn-cgi/l/email-protection#{email_href_hash}">'
+                f'<span class="__cf_email__" data-cfemail="{email_data_hash}">'
+                "[email&#160;protected]</span></a>.</p></div></div>"
+            )
+
+        first = PlutProvider().canonicalize(html("111", "222"), self.url)
+        second = PlutProvider().canonicalize(html("333", "444"), self.url)
+
+        canonical = first.to_canonical()
+        self.assertEqual(canonical, second.to_canonical())
+        self.assertNotIn("email-protection", canonical)
+        self.assertNotIn("cdn-cgi", canonical)
+
 
 RILARHIV_QSP_HTML = """
 <P><b><a href="qsp/Battle.rar">"Битва колдунов" Lostas 21</a></b>
