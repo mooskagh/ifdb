@@ -18,7 +18,7 @@ from functools import lru_cache
 from urllib.parse import urlsplit
 
 from curation.edit import GameEditPass, GameEditState, register_pass
-from curation.gameinfo import GameInfo, GameUrl, Tag
+from curation.gameinfo import GameInfo, Tag
 from curation.models import EnrichmentRule, GenreMapping
 from games.importer.tools import CategorizeUrl
 from games.models import URL, GameTag
@@ -84,30 +84,12 @@ def _namespace(info: GameInfo) -> dict:
         ):
             info.tags.append(Tag(category, None, None, text))
 
-    def clone_url(from_cat, to_cat, desc_template):
-        existing = {u.url for u in info.urls if u.category == to_cat}
-        for src in [u for u in info.urls if u.category == from_cat]:
-            if src.url in existing:
-                continue
-            existing.add(src.url)
-            fields = {
-                "category": src.category,
-                "description": src.description or "",
-                "url": src.url or "",
-            }
-            info.urls.append(
-                GameUrl(
-                    to_cat, src.url_id, desc_template.format(**fields), src.url
-                )
-            )
-
     return {
         "has_tag": has_tag,
         "has_url_category": has_url_category,
         "is_from_site": is_from_site,
         "add_tag": add_tag,
         "add_raw_tag": add_raw_tag,
-        "clone_url": clone_url,
     }
 
 

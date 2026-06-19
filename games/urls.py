@@ -18,16 +18,6 @@ urlpatterns = [
     path("game/search/", views.search_game, name="search_game"),
     path("game/", views.list_games, name="list_games"),
     path("game/<int:game_id>/", views.show_game, name="show_game"),
-    path(
-        "game/interpreter/<int:gameurl_id>/store/",
-        views.store_interpreter_params,
-        name="store_interpreter_params",
-    ),
-    path(
-        "game/interpreter/<int:gameurl_id>/",
-        views.play_in_interpreter,
-        name="play_in_interpreter",
-    ),
     # Authors
     path("author/", views.list_authors, name="list_authors"),
     path("author/<int:author_id>/", views.show_author, name="show_author"),

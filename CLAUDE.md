@@ -83,7 +83,7 @@ Uses string-based permission expressions:
 ### File Management
 
 - Local file caching with multiple storage backends
-- Support for uploads, backups, and recodes
+- Support for uploads and backups
 - Automatic backup and mirroring capabilities
 
 ## Development Notes

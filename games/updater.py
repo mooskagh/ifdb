@@ -333,10 +333,7 @@ def UpdateGameUrls(request, game, data, update, kill_existing=True):
             obj.url_id = url_to_id[url]
             obj.game = game
             obj.description = desc or None
-            if GameURLCategory.IsRecodable(cat):
-                obj.save()
-            else:
-                objs.append(obj)
+            objs.append(obj)
         GameURL.objects.bulk_create(objs)
 
     if existing_urls and kill_existing:

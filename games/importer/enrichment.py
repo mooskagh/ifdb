@@ -114,25 +114,6 @@ class AddRawTag(ActionBase):
         })
 
 
-class CloneUrl(ActionBase):
-    def __init__(self, fr, to, desc):
-        self.fr = fr
-        self.to = to
-        self.desc = desc
-
-    def Apply(self, game):
-        urls = {}
-        for x in game.setdefault("urls", []):
-            if x["urlcat_slug"] == self.fr:
-                urls[x["url"]] = self.desc.format(**x)
-        for url, desc in urls.items():
-            game["urls"].append({
-                "urlcat_slug": self.to,
-                "description": desc,
-                "url": url,
-            })
-
-
 class Enricher:
     def __init__(self):
         self.rules = []
@@ -193,7 +174,6 @@ enricher.AddRule(
         "r?inform.*",
         "tweebox",
         "twine",
-        "urqw",
         "аперо",
         "квестер",
     ),
@@ -221,24 +201,6 @@ enricher.AddRule(HasTag("platform", "dosurq"), AddTag("os_dos"))
 enricher.AddRule(
     And(HasTag("platform", "qsp"), HasUrlCategory("play_online")),
     AddTag("os_web"),
-)
-# enricher.AddRule(
-#     And(
-#         Or(
-#             HasTag('platform', '.*urq.*'),
-#             IsFromSite('game_page', 'urq.plut.info')),
-#         Not(HasTag('platform', 'fireurq'))),
-#     CloneUrl('download_direct', 'play_in_interpreter',
-#              'Открыть в UrqW: {description:.30}'))
-enricher.AddRule(
-    Or(
-        HasTag("platform", ".*urq.*"), IsFromSite("game_page", "urq.plut.info")
-    ),
-    CloneUrl(
-        "download_direct",
-        "play_in_interpreter",
-        "Открыть в UrqW: {description:.30}",
-    ),
 )
 enricher.AddRule(
     Not(HasTag("language", ".*")), AddRawTag("language", "русский")

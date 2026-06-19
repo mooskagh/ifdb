@@ -161,18 +161,14 @@
                     <div class="game-info">
                         Играть:
                         {% for x in online %}
-                            {% if x.category.symbolic_id == 'play_in_interpreter' %}
-                                <a href="{% url 'play_in_interpreter' gameurl_id=x.pk %}" class="button-like">{{x.description}}</a>
-                            {% else %}
-                                <span class="button-like">
-                                    <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}" target="_blank">
-                                        {% if x.url.is_broken %}
-                                            <img src="{% static 'brokenlink.svg' %}"/>
-                                        {% endif %}
-                                        {{x.description}}
-                                    </a>
-                                </span>
-                            {% endif %}
+                            <span class="button-like">
+                                <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}" target="_blank">
+                                    {% if x.url.is_broken %}
+                                        <img src="{% static 'brokenlink.svg' %}"/>
+                                    {% endif %}
+                                    {{x.description}}
+                                </a>
+                            </span>
                         {% endfor %}
                     </div>
                     {% endif %}

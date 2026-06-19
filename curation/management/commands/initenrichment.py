@@ -18,7 +18,7 @@ RULES = [
     ),
     (
         'has_tag("platform", "aeroqsp", "apero", "axma.*", "r?inform.*", '
-        '"tweebox", "twine", "urqw", "аперо", "квестер")',
+        '"tweebox", "twine", "аперо", "квестер")',
         'add_tag("os_web")',
     ),
     (
@@ -34,12 +34,6 @@ RULES = [
     (
         'has_tag("platform", "qsp") and has_url_category("play_online")',
         'add_tag("os_web")',
-    ),
-    (
-        'has_tag("platform", ".*urq.*") '
-        'or is_from_site("game_page", "urq.plut.info")',
-        'clone_url("download_direct", "play_in_interpreter", '
-        '"Открыть в UrqW: {description:.30}")',
     ),
     ('not has_tag("language", ".*")', 'add_raw_tag("language", "русский")'),
 ]
@@ -119,9 +113,9 @@ class Command(BaseCommand):
             rules_created = 0
             for order, (condition, action) in enumerate(RULES):
                 _, created = EnrichmentRule.objects.get_or_create(
-                    order=order,
                     condition=condition,
                     action=action,
+                    defaults={"order": order},
                 )
                 rules_created += created
 

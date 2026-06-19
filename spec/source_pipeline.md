@@ -187,7 +187,7 @@ develop against, so it ships alone.
     `games/importer/enrichment.py`. Rules live in the `EnrichmentRule` table as
     plain-Python `condition`/`action` strings eval'd/exec'd against a stripped
     namespace of helpers (`has_tag`, `has_url_category`, `is_from_site`,
-    `add_tag`, `add_raw_tag`, `clone_url`) bound to the draft; Python's
+    `add_tag`, `add_raw_tag`) bound to the draft; Python's
     `and`/`or`/`not` replace the old rule classes. Two built-in steps follow:
     lowercase free-text tags, then map them to genres via the `GenreMapping`
     table. Seeded with the current behavior by `manage.py initenrichment`

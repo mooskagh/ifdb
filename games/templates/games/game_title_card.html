@@ -48,17 +48,12 @@
                             {% if x.url.is_broken %}
                                 title="Битая ссылка!"
                             {% endif %}
-                            {% if x.category.symbolic_id == 'play_in_interpreter' %}
-                                href="{% url 'play_in_interpreter' gameurl_id=x.pk %}"
-                            {% else %}
-                                href="{{ x.GetRemoteUrl }}"
-                                target="_blank"
-                            {% endif %}
-                            class="button-like">
+                            href="{{ x.GetRemoteUrl }}"
+                            target="_blank">
                                 <svg><use href="{% static 'iconset.svg' %}#play"></use></svg>
                                 {% if x.url.is_broken %}
                                     <img src="{% static 'brokenlink.svg' %}"/>
-                                {% endif %}                                
+                                {% endif %}
                                 {{x.description}}
                         </a>
                     {% endfor %}

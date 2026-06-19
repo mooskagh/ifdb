@@ -43,19 +43,6 @@ class DefaultRuleTests(TestCase):
         _enrich(info)
         self.assertIn("os_web", _slugs(info))
 
-    def test_urq_clones_download_to_interpreter(self):
-        info = GameInfo(
-            tags=[Tag("platform", None, None, "urqw")],
-            urls=[
-                GameUrl("download_direct", None, "My Game", "http://ex/g.qst")
-            ],
-        )
-        _enrich(info)
-        cloned = [u for u in info.urls if u.category == "play_in_interpreter"]
-        self.assertEqual(len(cloned), 1)
-        self.assertEqual(cloned[0].url, "http://ex/g.qst")
-        self.assertTrue(cloned[0].description.startswith("Открыть в UrqW:"))
-
     def test_missing_language_adds_russian(self):
         info = GameInfo(tags=[Tag("platform", None, None, "inform")])
         _enrich(info)
@@ -80,8 +67,8 @@ class DefaultRuleTests(TestCase):
 
     def test_rerun_is_idempotent(self):
         info = GameInfo(
-            tags=[Tag("platform", None, None, "urqw")],
-            urls=[GameUrl("download_direct", None, "g", "http://ex/g.qst")],
+            tags=[Tag("platform", None, None, "qsp")],
+            urls=[GameUrl("download_direct", None, "g", "http://ex/g.qsp")],
         )
         once = _enrich(info).to_canonical()
         twice = _enrich(info).to_canonical()
