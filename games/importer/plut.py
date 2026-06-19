@@ -64,7 +64,7 @@ PLUT_URL = re.compile(
 PLUT_TITLE = re.compile(r'<h1 class="title">(.*?)</h1>')
 PLUT_DESC = re.compile(
     r'<div class="field field-name-body field-type-text-with-summary '
-    r'field-label-hidden"><div class="field-items">(.*?)</div>',
+    r'field-label-hidden">\s*<div class="field-items">(.*?)</div>',
     re.DOTALL,
 )
 
@@ -83,13 +83,35 @@ PLUT_DOWNLOAD_LINK = re.compile(
     r'<td><span class="file"><img class="file-icon" [^>]+> '
     r'<a href="([^"]+)"[^>]*>([^<]*)</a>'
 )
+PLUT_EMAIL_PROTECTION_LINK = re.compile(
+    r'<a\b[^>]*\bhref=(?P<quote>["\'])'
+    r'[^"\']*/cdn-cgi/l/email-protection#[^"\']*'
+    r"(?P=quote)[^>]*>(?P<body>.*?)</a>",
+    re.DOTALL | re.IGNORECASE,
+)
 
 MARKDOWN_LINK = re.compile(r"\[([^\]]*)\]\((.*?[^\\])\)|<([^> ]+)>")
 MARKDOWN_SPECIAL_ESCAPED = re.compile(r"\\([\\\]\[()])")
+EMAIL_ADDRESS = re.compile(r"^[^@\s/]+@[^@\s/]+\.[^@\s/]+$")
 
 
 def MdUnescape(str):
     return MARKDOWN_SPECIAL_ESCAPED.sub(r"\1", str)
+
+
+def NormalizePlutDescriptionHtml(html):
+    return PLUT_EMAIL_PROTECTION_LINK.sub(lambda m: m.group("body"), html)
+
+
+def ShouldSkipDescriptionUrl(url):
+    url = url.strip()
+    lower = url.lower()
+    return bool(
+        not url
+        or lower.startswith("mailto:")
+        or "/cdn-cgi/l/email-protection" in lower
+        or EMAIL_ADDRESS.match(url)
+    )
 
 
 def ParseFields(html):
@@ -116,7 +138,7 @@ def ImportFromPlut(url):
     return ParsePlut(html, url)
 
 
-def ParsePlut(html, url):
+def ParsePlut(html, page_url):
     res = {"priority": 50}
     m = PLUT_TITLE.search(html)
     if not m:
@@ -127,7 +149,7 @@ def ParsePlut(html, url):
     if m:
         tt = HTML2Text()
         tt.body_width = 0
-        res["desc"] = tt.handle(m.group(1))
+        res["desc"] = tt.handle(NormalizePlutDescriptionHtml(m.group(1)))
         AddDescriptionAttribution(res, "urq.plut.info")
 
     m = PLUT_RELEASE.search(html)
@@ -136,12 +158,12 @@ def ParsePlut(html, url):
             m.group(1), "%Y-%m-%d"
         ).date()
 
-    res["urls"] = [CategorizeUrl(url, "")]
+    res["urls"] = [CategorizeUrl(page_url, "")]
 
     for m in PLUT_DOWNLOAD_LINK.finditer(html):
-        url = m.group(1)
+        href = m.group(1)
         desc = unescape(m.group(2))
-        res["urls"].append(CategorizeUrl(url, desc))
+        res["urls"].append(CategorizeUrl(href, desc, base=page_url))
 
     tags = []
     authors = []
@@ -166,7 +188,7 @@ def ParsePlut(html, url):
             authors.append({
                 "role_slug": "author",
                 "name": tag,
-                "url": urljoin(url, tagurl),
+                "url": urljoin(page_url, tagurl),
                 "urldesc": "Страница автора на urq.plut.info",
             })
 
@@ -177,11 +199,14 @@ def ParsePlut(html, url):
     if "desc" in res:
         for m in MARKDOWN_LINK.finditer(res["desc"]):
             if m.group(3):
-                x = CategorizeUrl(m.group(3))
+                href = m.group(3)
+                desc = ""
             else:
-                x = CategorizeUrl(
-                    MdUnescape(m.group(2)), MdUnescape(m.group(1))
-                )
+                href = MdUnescape(m.group(2))
+                desc = MdUnescape(m.group(1))
+            if ShouldSkipDescriptionUrl(href):
+                continue
+            x = CategorizeUrl(href, desc, base=page_url)
             if x:
                 res["urls"].append(x)
 
