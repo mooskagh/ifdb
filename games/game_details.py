@@ -122,7 +122,7 @@ class GameDetailsBuilder:
             self.game.gameurl_set.all(),
             [
                 ("poster", "screenshot"),
-                ("play_in_interpreter", "play_online"),
+                ("play_online",),
                 ("download_direct", "download_landing"),
             ],
         )

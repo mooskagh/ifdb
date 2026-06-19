@@ -103,19 +103,12 @@ The worker runs as a long-lived daemon process, continuously polling for and exe
 
 ## Task Implementations
 
-### File Operations (`games/tasks/uploads.py`)
+### File Operations (`games/tasks.py`)
 
-**`CloneFile(id)`**
+**`clone_file(url_id)`**
 - Downloads remote files referenced by GameURL records
 - Stores files locally in the upload directory
-- Updates URL status and file metadata
-- Failure handler: `MarkBroken` - marks URLs as broken
-
-**`RecodeGame(game_url_id)`**
-- Converts game files to web-playable formats
-- Handles formats: `.qst`, `.zip`, `.qsz`
-- Creates `InterpretedGameUrl` records for web interpreter
-- Supports Quest format detection and conversion
+- Updates URL status and file metadata; marks URLs as broken after final retry
 
 ### Game Import (`games/tasks/game_importer.py`)
 
@@ -215,13 +208,13 @@ TaskQueueElement includes comprehensive Django admin integration:
 ### Typical Enqueuing
 ```python
 from core.taskqueue import Enqueue
-from games.tasks.uploads import CloneFile, MarkBroken
+from games.tasks import clone_file
 
 # Simple task
-Enqueue(CloneFile, url_id)
+Enqueue(clone_file, url_id)
 
-# With failure handler
-Enqueue(CloneFile, url_id, name=f"CloneUrl({url_id})", onfail=MarkBroken)
+# With a readable task name
+Enqueue(clone_file, url_id, name=f"CloneUrl({url_id})")
 
 # High priority with custom retries
 Enqueue(ImportGames, priority=50, retries=5, name="ImportGames")
@@ -230,7 +223,7 @@ Enqueue(ImportGames, priority=50, retries=5, name="ImportGames")
 ### Preventing Duplicates
 ```python
 # Only enqueue if not already pending
-task = EnqueueOrGet(RecodeGame, game_url_id, name=f"RecodeGame({game_url_id})")
+task = EnqueueOrGet(clone_file, url_id, name=f"CloneUrl({url_id})")
 ```
 
 ## Performance Characteristics
@@ -273,9 +266,9 @@ Since the task queue will be empty at migration time, this is a straightforward 
 2. **Implement Changes**: Create new Redis-based task queue implementation
 3. **Deploy Changes**: Switch from database-backed to Redis-backed task queue
 
-The migration involves only 4 tasks total:
+The migration involves only 3 tasks total:
 - **Periodic**: `ImportGames`, `FetchFeeds` (cron-based)
-- **Queue-based**: `CloneFile`, `RecodeGame` (event-driven)
+- **Queue-based**: `clone_file` (event-driven)
 
 Note: `ForceReimport` and `ImportForceUpdateUrls` are CLI-only and don't use the task queue.
 

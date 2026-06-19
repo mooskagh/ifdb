@@ -1,13 +1,10 @@
 import json
-import os.path
 import random
 import timeit
 from logging import getLogger
 
-from django import forms
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import SuspiciousOperation
 from django.db import models
 from django.db.models import Count, OuterRef, Subquery
 from django.db.models.functions import Coalesce
@@ -36,10 +33,8 @@ from .models import (
     GameCommentVote,
     GameTag,
     GameTagCategory,
-    GameURL,
     GameURLCategory,
     GameVote,
-    InterpretedGameUrl,
     Personality,
     PersonalityAlias,
 )
@@ -492,96 +487,6 @@ def list_authors(request):
     query = request.GET.get("q", "")
     s.UpdateFromQuery(query)
     return render(request, "games/authors.html", s.ProduceBits())
-
-
-class ChoiceField(forms.ChoiceField):
-    def bound_data(self, data, initial):
-        return data
-
-
-class NullBooleanField(forms.NullBooleanField):
-    def bound_data(self, data, initial):
-        return data
-
-
-class UrqwInterpreterForm(forms.Form):
-    does_work = NullBooleanField(label="Работоспособность игры")
-    variant = ChoiceField(
-        label="Вариант URQ",
-        required=False,
-        choices=[
-            (None, "Без специальных правил"),
-            ("ripurq", "Rip URQ 1.4"),
-            ("dosurq", "Dos URQ 1.35"),
-        ],
-    )
-
-
-def store_interpreter_params(request, gameurl_id):
-    try:
-        u = InterpretedGameUrl.objects.get(pk=gameurl_id)
-    except GameURL.DoesNotExist:
-        raise Http404()
-
-    request.perm.Ensure(u.original.game.edit_perm)
-    form = UrqwInterpreterForm(request.POST)
-
-    if form.is_valid():
-        u.is_playable = form.cleaned_data["does_work"]
-        j = json.loads(u.configuration_json)
-        j["variant"] = form.cleaned_data["variant"]
-        u.configuration_json = json.dumps(j)
-        u.save()
-
-        return redirect(
-            reverse("play_in_interpreter", kwargs={"gameurl_id": gameurl_id})
-        )
-    raise SuspiciousOperation
-
-
-def play_in_interpreter(request, gameurl_id):
-    game = None
-    try:
-        o_u = GameURL.objects.get(pk=gameurl_id)
-        game = o_u.game
-    except GameURL.DoesNotExist:
-        raise Http404()
-
-    if o_u.category.symbolic_id != "play_in_interpreter":
-        raise Http404()
-
-    request.perm.Ensure(o_u.game.view_perm)
-    gameinfo = GameDetailsBuilder(o_u.game.id, request).GetGameDict()
-
-    res = {**gameinfo}
-
-    try:
-        res["data"] = data = InterpretedGameUrl.objects.get(pk=gameurl_id)
-        filename = data.recoded_filename or o_u.url.local_filename
-        if not filename:
-            raise InterpretedGameUrl.DoesNotExist
-        res["format"] = os.path.splitext(filename)[1].lower()
-        res["conf"] = json.loads(data.configuration_json)
-
-        form = UrqwInterpreterForm({
-            "does_work": data.is_playable,
-            "variant": res["conf"]["variant"],
-        })
-
-        res["can_edit"] = request.perm(game.edit_perm)
-        if not res["can_edit"]:
-            for x in form.fields:
-                form.fields[x].disabled = True
-
-        res["form"] = form.as_table()
-
-    except InterpretedGameUrl.DoesNotExist:
-        res["format"] = "error"
-        res["data"] = (
-            "Сервер ещё не подготовил эту игру к запуску. Попробуйте завтра."
-        )
-
-    return render(request, "games/interpreter.html", res)
 
 
 @perm_required(PERM_ADD_GAME)

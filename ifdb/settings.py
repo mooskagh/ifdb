@@ -438,9 +438,6 @@ UPLOADS_FS = FileSystemStorage(
 BACKUPS_FS = FileSystemStorage(
     os.path.join(MEDIA_ROOT, "backups"), os.path.join(MEDIA_URL, "backups")
 )
-RECODES_FS = FileSystemStorage(
-    os.path.join(MEDIA_ROOT, "recodes"), os.path.join(MEDIA_URL, "recodes")
-)
 
 REQUIRE_ACCOUNT_ACTIVATION = True
 ACCOUNT_ACTIVATION_DAYS = 7

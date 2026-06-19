@@ -12,7 +12,6 @@ from games.models import (
     Game,
     GameAuthor,
     GameURL,
-    InterpretedGameUrl,
     Personality,
     PersonalityAlias,
     PersonalityAliasRedirect,
@@ -41,18 +40,6 @@ def RenameUrls():
             x.local_url = "/f/uploads/" + m.group(1)
         else:
             x.local_url = "/f/backups/" + m.group(1)
-        x.save()
-
-
-def RenameRecodes():
-    R = re.compile(r"^/uploads/recode/(.*)$")
-    for x in InterpretedGameUrl.objects.all():
-        if not x.recoded_url:
-            continue
-        m = R.match(x.recoded_url)
-        if not m:
-            raise x
-        x.recoded_url = "/f/recodes/" + m.group(1)
         x.save()
 
 

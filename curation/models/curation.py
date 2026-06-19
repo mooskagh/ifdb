@@ -380,6 +380,10 @@ class GameHistoryAuditLog(models.Model):
         SOURCE_ATTACHED = "SOURCE_ATTACHED", _("Source attached")
         SOURCE_DETACHED = "SOURCE_DETACHED", _("Source detached")
         GAME_MERGED = "GAME_MERGED", _("Game merged")
+        AUTO_UPDATE_SCHEDULED = (
+            "AUTO_UPDATE_SCHEDULED",
+            _("Automatic update scheduled"),
+        )
         FIELD_CHANGE = "FIELD_CHANGE", _("Field changed")
 
     class AuditField(models.TextChoices):
@@ -444,6 +448,17 @@ class GameHistoryAuditLog(models.Model):
             new_id=new_game.pk,
             old_text=old_game.title,
             new_text=new_game.title,
+        )
+
+    @classmethod
+    def record_auto_update_scheduled(cls, history, old_state, new_state):
+        return cls.objects.create(
+            history=history,
+            actor=None,
+            created_at=now(),
+            kind=cls.AuditKind.AUTO_UPDATE_SCHEDULED,
+            old_text=old_state,
+            new_text=new_state,
         )
 
     history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)

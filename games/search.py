@@ -537,10 +537,7 @@ class SB_UserFlags(SB_Flags):
                 "download_landing",
             ]
         ),
-        5: (
-            Q(gameurl__category__symbolic_id="play_online")
-            | Q(gameurl__interpretedgameurl__is_playable=True)
-        ),
+        5: Q(gameurl__category__symbolic_id="play_online"),
         6: Q(package__isnull=False),
     }
 
@@ -553,9 +550,6 @@ class SB_AuxFlags(SB_Flags):
         "С файлами без категорий",
         "Без авторов",
         "Без даты выпуска",
-        "UrqW -- проверенные",
-        "UrqW -- непроверенные",
-        "UrqW -- неработающие",
         "С участниками без роли",
         "Редактированные людьми",
         "Со ссылками, общими с другими играми",
@@ -565,28 +559,22 @@ class SB_AuxFlags(SB_Flags):
 
     ANNOTATIONS = {
         1: Count("gameauthor"),
-        10: Count("gameauthor"),
+        7: Count("gameauthor"),
     }
 
     QUERIES = {
         0: Q(gameurl__category__symbolic_id="unknown"),
         1: Q(gameauthor__count=0),
         2: Q(release_date__isnull=True),
-        3: Q(gameurl__interpretedgameurl__is_playable=True),
-        4: (
-            Q(gameurl__interpretedgameurl__isnull=False)
-            & Q(gameurl__interpretedgameurl__is_playable__isnull=True)
-        ),
-        5: Q(gameurl__interpretedgameurl__is_playable=False),
-        6: Q(gameauthor__role__symbolic_id="member"),
-        7: Q(edit_time__isnull=False),
-        8: Q(
+        3: Q(gameauthor__role__symbolic_id="member"),
+        4: Q(edit_time__isnull=False),
+        5: Q(
             gameurl__url__in=URL.objects.annotate(
                 Count("gameurl__game", distinct=True)
             ).filter(gameurl__game__count__gt=1)
         ),
-        9: Q(gameurl__url__is_broken=True),
-        10: Q(gameauthor__count__gt=1),
+        6: Q(gameurl__url__is_broken=True),
+        7: Q(gameauthor__count__gt=1),
     }
 
 

@@ -104,17 +104,6 @@ class GameURLCategory(models.Model):
     def __str__(self):
         return self.title
 
-    RECODABLE_CAT = None
-
-    @staticmethod
-    def IsRecodable(id):
-        if GameURLCategory.RECODABLE_CAT is None:
-            GameURLCategory.RECODABLE_CAT = GameURLCategory.objects.get(
-                symbolic_id="play_in_interpreter"
-            ).id
-
-        return id == GameURLCategory.RECODABLE_CAT
-
     symbolic_id = models.SlugField(
         max_length=32, null=True, blank=True, db_index=True, unique=True
     )
@@ -150,28 +139,6 @@ class GameURL(models.Model):
     url = models.ForeignKey(URL, on_delete=models.CASCADE)
     category = models.ForeignKey(GameURLCategory, on_delete=models.CASCADE)
     description = models.CharField(null=True, blank=True, max_length=255)
-
-
-class InterpretedGameUrl(models.Model):
-    class Meta:
-        default_permissions = ()
-
-    def __str__(self):
-        return "%s (%s)" % (self.original.url.original_url, self.recoded_url)
-
-    def GetRecodedUrl(self):
-        return self.recoded_url or self.original.GetLocalUrl()
-
-    original = models.OneToOneField(
-        GameURL, on_delete=models.CASCADE, primary_key=True
-    )
-    recoded_filename = models.CharField(null=True, blank=True, max_length=255)
-    recoded_url = models.CharField(null=True, blank=True, max_length=255)
-    recoding_date = models.DateTimeField()
-    is_playable = models.BooleanField(null=True, blank=True)
-    configuration_json = models.CharField(
-        null=True, blank=True, max_length=255
-    )
 
 
 class PersonalityURLCategory(models.Model):

@@ -13,7 +13,6 @@ from .models import (
     GameURL,
     GameURLCategory,
     GameVote,
-    InterpretedGameUrl,
     Personality,
     PersonalityAlias,
     PersonalityAliasRedirect,
@@ -201,22 +200,3 @@ class GameCommentVoteAdmin(admin.ModelAdmin):
     list_display = ["comment", "user", "vote_time", "vote"]
     raw_id_fields = ["comment"]
     search_fields = ["comment", "user"]
-
-
-@admin.register(InterpretedGameUrl)
-class InterpretedGameUrlAdmin(admin.ModelAdmin):
-    def _original_url(self, obj):
-        ourl = obj.original.url.original_url
-        if len(ourl) < 80:
-            return ourl
-        return ourl[:80] + "…"
-
-    def _game(self, obj):
-        g = obj.original.game.title
-        if len(g) < 80:
-            return g
-        return g[:80] + "…"
-
-    list_display = ["_original_url", "_game", "recoded_url", "is_playable"]
-    list_filter = ["is_playable"]
-    raw_id_fields = ["original"]
