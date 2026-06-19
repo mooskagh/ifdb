@@ -3,7 +3,7 @@ import json
 import re
 import time
 from logging import getLogger
-from urllib.parse import quote, unquote
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import mwparserfromhell
 
@@ -23,7 +23,7 @@ class IfwikiImporter:
         return cat == "game_page" and self.Match(url)
 
     def Match(self, url):
-        return IFWIKI_URL.match(url)
+        return ParseIfwikiUrl(url) is not None
 
     def MatchAuthor(self, url):
         return self.Match(url)
@@ -162,8 +162,8 @@ def ParseAuthorFromIfwiki(cont, url, res=None):
         # exception, like ifiction's ResolveRedirect).
         return ImportAuthorFromIfwiki(url_to_fetch, res)
 
-    m = IFWIKI_URL.match(url)
-    name = unquote(m.group(2)).replace("_", " ")
+    _base_url, title = ParseIfwikiUrl(url)
+    name = unquote(title).replace("_", " ")
     context = WikiAuthorParsingContext(name, url)
     parsed_wikitext = mwparserfromhell.parse(cont)
 
@@ -178,8 +178,10 @@ def ParseAuthorFromIfwiki(cont, url, res=None):
 
 
 def FetchIfwikiRaw(url, use_cache=True):
-    m = IFWIKI_URL.match(url)
-    fetch_url = f"{m.group(1)}/index.php?title={m.group(2)}&action=raw"
+    base_url, title = ParseIfwikiUrl(url)
+    fetch_url = (
+        f"{base_url}/index.php?title={quote(unquote(title))}&action=raw"
+    )
     return FetchUrlToString(fetch_url, use_cache=use_cache) + "\n"
 
 
@@ -193,10 +195,10 @@ def ImportFromIfwiki(url):
 
 
 def ParseIfwiki(cont, url):
-    m = IFWIKI_URL.match(url)
     res = {"priority": 100}
 
-    context = WikiParsingContext(unquote(m.group(2)).replace("_", " "), url)
+    _base_url, title = ParseIfwikiUrl(url)
+    context = WikiParsingContext(unquote(title).replace("_", " "), url)
 
     try:
         parsed_wikitext = mwparserfromhell.parse(cont)
@@ -217,8 +219,23 @@ def ParseIfwiki(cont, url):
     return res
 
 
-IFWIKI_URL = re.compile(r"(https?://ifwiki.ru)/([^?]+)")
+IFWIKI_URL = re.compile(r"^https?://ifwiki\.ru/[^?]+(?:\?.*)?$")
 IFWIKI_LINK_PARSE = re.compile(r"\[\[(.*?)\]\]")
+
+
+def ParseIfwikiUrl(url):
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or parsed.netloc != "ifwiki.ru":
+        return None
+
+    if parsed.path == "/index.php":
+        title = parse_qs(parsed.query).get("title", [""])[0]
+    else:
+        title = parsed.path.removeprefix("/")
+
+    if not title:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}", title
 
 
 def ParseIfwikiLink(text):
@@ -452,7 +469,7 @@ class WikiParsingContext:
                 self.AddUrl(params["1"])
                 return f"[{params['1']} Ссылка на РилАрхив]"
             return ""
-        elif name == "Ссылка":
+        elif name.lower() == "ссылка":
             return handle_link()
         elif name == "Тема":
             if "1" in params:

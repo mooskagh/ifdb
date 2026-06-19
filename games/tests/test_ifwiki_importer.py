@@ -18,6 +18,7 @@ class TestIfwikiImporter(unittest.TestCase):
             "https://ifwiki.ru/Таинственный_гараж",
             "http://ifwiki.ru/Some_Game",
             "https://ifwiki.ru/Автор:Crem",
+            "https://ifwiki.ru/index.php?title=Some_Game&action=raw",
         ]
 
         for url in valid_urls:
@@ -670,6 +671,43 @@ Download: {{Ссылка|на=http://example.com/game.zip|1=Download Game}}
         # Check that description contains markdown link (in proper format)
         desc = result["desc"]
         self.assertIn("[Download Game](http://example.com/game.zip)", desc)
+
+    def test_raw_index_url_with_lowercase_link_template(self):
+        test_url = (
+            "https://ifwiki.ru/index.php?title=%D0%A3%D0%B7%D1%8B_"
+            "%D0%BF%D1%80%D0%BE%D0%BA%D0%BB%D1%8F%D1%82%D1%8B"
+            "%D1%85&action=raw"
+        )
+        forum_url = "https://forum.ifiction.ru/viewtopic.php?id=2684&lid=11"
+
+        wikitext = f"""{{{{game info
+ |название=Узы проклятых
+ |автор=[[Автор::Mioirel|Mioirel (Shadowspell inc.)]]
+ |вышла=03.03.2023
+ |платформа=QSP
+}}}}{{{{ЗОК|2023|8|10}}}}
+
+Заявленная тема игры: Три товарища
+== Ссылки ==
+* {{{{ссылка|на={forum_url}|Страница игры с обсуждением}}}}
+"""
+
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            result = ImportFromIfwiki(test_url)
+
+        mock_fetch.assert_called_once_with(test_url, use_cache=True)
+        self.assertEqual(result["title"], "Узы проклятых")
+        self.assertIn(
+            {
+                "urlcat_slug": "forum",
+                "description": "Страница игры с обсуждением",
+                "url": forum_url,
+            },
+            result["urls"],
+        )
+        self.assertIn("## Ссылки", result["desc"])
+        self.assertNotIn("{{ссылка", result["desc"])
 
     def test_image_url_processing(self):
         """Test image URL processing from обложка parameter."""
