@@ -10,7 +10,12 @@ from django.db import close_old_connections
 from django.db.models import Count, F
 from django.utils.timezone import now
 
-from .models import GameHistory, GameSource, GameSourceFetch
+from .models import (
+    GameHistory,
+    GameHistoryAuditLog,
+    GameSource,
+    GameSourceFetch,
+)
 from .providers import PROVIDER_BY_TYPE
 
 logger = getLogger("worker")
@@ -106,6 +111,21 @@ def _fetch_remote(
         return _FetchResult(source, fetched_at, "failed", error=str(exc))
 
 
+def _maybe_schedule_update(source: GameSource, fetch: GameSourceFetch) -> None:
+    history = source.history
+    if not history or history.state != GameHistory.State.SETTLED:
+        return
+    if history.edit_time and fetch.first_fetch <= history.edit_time:
+        return
+
+    old_state = history.state
+    history.state = GameHistory.State.SCHEDULED_FOR_UPDATE
+    history.save(update_fields=["state"])
+    GameHistoryAuditLog.record_auto_update_scheduled(
+        history, old_state, history.state
+    )
+
+
 def _save_fetch_result(result: _FetchResult) -> _FetchResult:
     source = result.source
     source.last_attempt = result.fetched_at
@@ -139,7 +159,7 @@ def _save_fetch_result(result: _FetchResult) -> _FetchResult:
         latest.save(update_fields=["last_fetch"])
         return _FetchResult(source, result.fetched_at, "unchanged")
 
-    GameSourceFetch.objects.create(
+    new_fetch = GameSourceFetch.objects.create(
         source=source,
         raw_content=result.raw or "",
         canonical_text=result.canonical or "",
@@ -147,6 +167,7 @@ def _save_fetch_result(result: _FetchResult) -> _FetchResult:
         first_fetch=result.fetched_at,
         last_fetch=result.fetched_at,
     )
+    _maybe_schedule_update(source, new_fetch)
     return _FetchResult(source, result.fetched_at, "created")
 
 
@@ -181,6 +202,7 @@ def run_fetch(
         .exclude(history__state=GameHistory.State.ABANDONED)
         .exclude(url__isnull=True)
         .exclude(url="")
+        .select_related("history")
         .annotate(fetch_count=Count("gamesourcefetch"))
         .order_by(
             F("last_attempt").asc(nulls_first=True),

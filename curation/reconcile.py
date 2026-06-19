@@ -13,7 +13,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from logging import getLogger
 
-from django.db.models import Q
 from django.utils.timezone import now
 
 from games.importer.tools import ComputeSimilarity, GetBagOfWords, HashizeUrl
@@ -250,13 +249,6 @@ def _build_index() -> _TargetIndex:
     return index
 
 
-def _has_new_version(source: GameSource, fetch: GameSourceFetch) -> bool:
-    history = source.history
-    return bool(
-        history and history.edit_time and fetch.first_fetch > history.edit_time
-    )
-
-
 def run_reconcile(
     types: list[str] | None = None,
     limit: int | None = None,
@@ -275,8 +267,7 @@ def run_reconcile(
     sources = (
         GameSource.objects
         .filter(type__in=source_types)
-        .filter(Q(history__isnull=False) | Q(keep_orphan=False))
-        .select_related("history")
+        .filter(history__isnull=True, keep_orphan=False)
         .order_by("id")
     )
     if source_id is not None:
@@ -296,17 +287,6 @@ def run_reconcile(
             totals.skipped_no_fetch += 1
             if on_source_done is not None:
                 on_source_done(source, "skipped", None)
-            continue
-
-        if source.history_id is not None:
-            if source.history.state == GameHistory.State.ABANDONED:
-                continue
-            if _has_new_version(source, fetch):
-                source.history.state = GameHistory.State.SCHEDULED_FOR_UPDATE
-                source.history.save(update_fields=["state"])
-                totals.processed += 1
-                if on_source_done is not None:
-                    on_source_done(source, "updated", source.history)
             continue
 
         hash_urls, title_bow = _signals(source, fetch)

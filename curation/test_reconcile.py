@@ -1,5 +1,4 @@
 from django.test import TestCase
-from django.utils import timezone
 from django.utils.timezone import now
 
 from games.models import URL, Game, GameURL, GameURLCategory
@@ -330,63 +329,4 @@ class RunReconcileTests(TestCase):
             ).exists()
         )
 
-    def test_new_attached_fetch_marks_history_in_progress(self):
-        edited_at = now()
-        history = self._existing("Existing Game")
-        history.edit_time = edited_at
-        history.save(update_fields=["edit_time"])
-        source = GameSource.objects.create(
-            type=self.stype, url="http://apero.ru/attached", history=history
-        )
-        self._source_fetch(
-            source,
-            self._canon("Existing Game"),
-            edited_at + timezone.timedelta(seconds=1),
-        )
 
-        stats = run_reconcile()
-
-        self.assertEqual(stats[0].processed, 1)
-        history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
-
-    def test_new_attached_fetch_ignores_abandoned_history(self):
-        edited_at = now()
-        history = self._existing("Existing Game")
-        history.state = GameHistory.State.ABANDONED
-        history.edit_time = edited_at
-        history.save(update_fields=["state", "edit_time"])
-        source = GameSource.objects.create(
-            type=self.stype, url="http://apero.ru/attached", history=history
-        )
-        self._source_fetch(
-            source,
-            self._canon("Existing Game"),
-            edited_at + timezone.timedelta(seconds=1),
-        )
-
-        stats = run_reconcile()
-
-        self.assertEqual(stats[0].processed, 0)
-        history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.ABANDONED)
-
-    def test_old_attached_fetch_keeps_history_settled(self):
-        edited_at = now()
-        history = self._existing("Existing Game")
-        history.edit_time = edited_at
-        history.save(update_fields=["edit_time"])
-        source = GameSource.objects.create(
-            type=self.stype, url="http://apero.ru/attached", history=history
-        )
-        self._source_fetch(
-            source,
-            self._canon("Existing Game"),
-            edited_at - timezone.timedelta(seconds=1),
-        )
-
-        stats = run_reconcile()
-
-        self.assertEqual(stats[0].processed, 0)
-        history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SETTLED)

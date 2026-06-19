@@ -10,7 +10,12 @@ from django.utils.timezone import now
 
 from .fetch import FetchStats, _RateLimiter, run_fetch
 from .gameinfo import GameInfo
-from .models import GameHistory, GameSource, GameSourceFetch
+from .models import (
+    GameHistory,
+    GameHistoryAuditLog,
+    GameSource,
+    GameSourceFetch,
+)
 from .providers import GameSourceProvider
 
 
@@ -135,6 +140,124 @@ class FetchTest(TestCase):
         self.assertEqual(stats, [FetchStats("APERO", 1, 1, 0, 1, 0)])
         self.assertEqual(GameSourceFetch.objects.count(), 2)
         self.assertNotEqual(hashes[0], hashes[1])
+
+    def test_changed_canonical_schedules_settled_history(self):
+        edited_at = now()
+        history = GameHistory.objects.create(
+            creation_time=edited_at,
+            state=GameHistory.State.SETTLED,
+            edit_time=edited_at,
+        )
+        source = self.source(history=history)
+        GameSourceFetch.objects.create(
+            source=source,
+            raw_content="",
+            canonical_text="old",
+            canonical_text_hash="oldhash",
+            first_fetch=edited_at - timedelta(minutes=1),
+            last_fetch=edited_at - timedelta(minutes=1),
+        )
+        provider = FakeProvider(
+            GameSource.SourceType.APERO,
+            fetches=["raw"],
+            infos=[self.info("New")],
+        )
+
+        with patch(
+            "curation.fetch.now",
+            return_value=edited_at + timedelta(seconds=1),
+        ):
+            stats = self.run_with(provider)
+
+        history.refresh_from_db()
+        self.assertEqual(stats, [FetchStats("APERO", 1, 1, 0, 1, 0)])
+        self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
+        self.assertTrue(
+            GameHistoryAuditLog.objects.filter(
+                history=history,
+                kind=GameHistoryAuditLog.AuditKind.AUTO_UPDATE_SCHEDULED,
+                old_text=GameHistory.State.SETTLED,
+                new_text=GameHistory.State.SCHEDULED_FOR_UPDATE,
+            ).exists()
+        )
+
+    def test_unchanged_canonical_keeps_settled_history(self):
+        edited_at = now()
+        history = GameHistory.objects.create(
+            creation_time=edited_at,
+            state=GameHistory.State.SETTLED,
+            edit_time=edited_at,
+        )
+        source = self.source(history=history)
+        canonical = self.info("Same").to_canonical()
+        GameSourceFetch.objects.create(
+            source=source,
+            raw_content="",
+            canonical_text=canonical,
+            canonical_text_hash=sha256(canonical.encode()).hexdigest(),
+            first_fetch=edited_at - timedelta(minutes=1),
+            last_fetch=edited_at - timedelta(minutes=1),
+        )
+        provider = FakeProvider(
+            GameSource.SourceType.APERO,
+            fetches=["raw"],
+            infos=[self.info("Same")],
+        )
+
+        with patch(
+            "curation.fetch.now",
+            return_value=edited_at + timedelta(seconds=1),
+        ):
+            stats = self.run_with(provider)
+
+        history.refresh_from_db()
+        self.assertEqual(stats, [FetchStats("APERO", 1, 1, 0, 0, 1)])
+        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertFalse(
+            GameHistoryAuditLog.objects.filter(
+                history=history,
+                kind=GameHistoryAuditLog.AuditKind.AUTO_UPDATE_SCHEDULED,
+            ).exists()
+        )
+
+    def test_changed_canonical_schedules_without_edit_time(self):
+        edited_at = now()
+        history = GameHistory.objects.create(
+            creation_time=edited_at,
+            state=GameHistory.State.SETTLED,
+        )
+        source = self.source(history=history)
+        GameSourceFetch.objects.create(
+            source=source,
+            raw_content="",
+            canonical_text="old",
+            canonical_text_hash="oldhash",
+            first_fetch=edited_at - timedelta(minutes=1),
+            last_fetch=edited_at - timedelta(minutes=1),
+        )
+        provider = FakeProvider(
+            GameSource.SourceType.APERO,
+            fetches=["raw"],
+            infos=[self.info("New")],
+        )
+
+        self.run_with(provider)
+
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
+
+    def test_changed_canonical_without_history_does_not_schedule(self):
+        self.source()
+        provider = FakeProvider(
+            GameSource.SourceType.APERO,
+            fetches=["raw"],
+            infos=[self.info("New")],
+        )
+
+        stats = self.run_with(provider)
+
+        self.assertEqual(stats, [FetchStats("APERO", 1, 1, 0, 1, 0)])
+        self.assertEqual(GameHistoryAuditLog.objects.count(), 0)
 
     def test_failure_records_error_and_later_success_clears_it(self):
         source = self.source()
