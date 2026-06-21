@@ -27,6 +27,7 @@ from django.urls import reverse
 from django.utils.timezone import now
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
+from core.models import BlogFeed, FeedCache
 from core.tasks import fetch_feeds
 from games.importer.discord import PostNewGameToDiscord
 from games.models import Game
@@ -661,6 +662,110 @@ def source_list(request):
             "sort": sort,
             "source_type_choices": GameSource.SourceType.choices,
         },
+    )
+
+
+def feed_list(request):
+    q = request.GET.get("q", "").strip()
+    state = request.GET.get("state", "")
+    sort = request.GET.get("sort") or "last_attempt"
+    latest_item = FeedCache.objects.filter(
+        feed_id=OuterRef("feed_id")
+    ).order_by("-date_discovered", "-pk")
+    item_counts = (
+        FeedCache.objects
+        .filter(feed_id=OuterRef("feed_id"))
+        .order_by()
+        .values("feed_id")
+        .annotate(count=Count("pk"))
+        .values("count")
+    )
+    feeds = BlogFeed.objects.annotate(
+        cached_count=Coalesce(
+            Subquery(item_counts[:1], output_field=IntegerField()),
+            0,
+            output_field=IntegerField(),
+        ),
+        latest_item_title=Subquery(latest_item.values("title")[:1]),
+        latest_item_url=Subquery(latest_item.values("url")[:1]),
+        latest_item_published=Subquery(
+            latest_item.values("date_published")[:1]
+        ),
+        latest_item_discovered=Subquery(
+            latest_item.values("date_discovered")[:1]
+        ),
+    )
+
+    if q:
+        feeds = feeds.filter(
+            Q(feed_id__icontains=q)
+            | Q(title__icontains=q)
+            | Q(url__icontains=q)
+            | Q(rss__icontains=q)
+            | Q(last_error__icontains=q)
+        )
+    if state == "failed":
+        feeds = feeds.filter(
+            Q(failing_since__isnull=False) | Q(last_error__gt="")
+        )
+    elif state == "disabled":
+        feeds = feeds.filter(is_enabled=False)
+    elif state == "ok":
+        feeds = feeds.filter(
+            is_enabled=True, failing_since__isnull=True
+        ).filter(Q(last_error__isnull=True) | Q(last_error=""))
+    else:
+        state = ""
+
+    match sort:
+        case "last_success":
+            feeds = feeds.order_by(
+                F("last_success").desc(nulls_last=True), "feed_id"
+            )
+        case "failing_since":
+            feeds = feeds.order_by(
+                F("failing_since").desc(nulls_last=True), "feed_id"
+            )
+        case "latest_post":
+            feeds = feeds.order_by(
+                F("latest_item_discovered").desc(nulls_last=True), "feed_id"
+            )
+        case "count":
+            feeds = feeds.order_by("-cached_count", "feed_id")
+        case "title":
+            feeds = feeds.order_by("title", "feed_id")
+        case _:
+            sort = "last_attempt"
+            feeds = feeds.order_by(
+                F("last_attempt").desc(nulls_last=True), "feed_id"
+            )
+
+    page = Paginator(feeds, 100).get_page(request.GET.get("page"))
+
+    return render(
+        request,
+        "curation/feed_list.html",
+        {
+            "page": page,
+            "feeds": page.object_list,
+            "q": q,
+            "state": state,
+            "sort": sort,
+        },
+    )
+
+
+def feed_detail(request, feed_id):
+    feed = get_object_or_404(BlogFeed, feed_id=feed_id)
+    posts = FeedCache.objects.filter(feed_id=feed.feed_id).order_by(
+        "-date_discovered", "-pk"
+    )
+    page = Paginator(posts, 100).get_page(request.GET.get("page"))
+
+    return render(
+        request,
+        "curation/feed_detail.html",
+        {"feed": feed, "page": page, "posts": page.object_list},
     )
 
 

@@ -1,0 +1,57 @@
+{% extends "curation/base.html" %}
+
+{% block titlesection %}{{ feed.title }} - Фиды - ОГОРОД - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--brown">
+    <div class="card--header">{{ feed.title }}</div>
+    <div class="card--body">
+        <p><a href="{% url 'curation_feed_list' %}">← все фиды</a></p>
+        <table class="curation-table">
+            <tbody>
+                <tr><th>ID</th><td>{{ feed.feed_id }}</td></tr>
+                <tr><th>Состояние</th><td>{% if feed.failing_since or feed.last_error %}ошибка{% elif not feed.is_enabled %}отключён{% else %}ok{% endif %}</td></tr>
+                {% if feed.url %}<tr><th>URL</th><td><a href="{{ feed.url }}">{{ feed.url }}</a></td></tr>{% endif %}
+                <tr><th>RSS</th><td><a href="{{ feed.rss }}">{{ feed.rss }}</a></td></tr>
+                <tr><th>Последняя попытка</th><td>{{ feed.last_attempt|date:"Y-m-d H:i"|default:"—" }}</td></tr>
+                <tr><th>Последний успех</th><td>{{ feed.last_success|date:"Y-m-d H:i"|default:"—" }}</td></tr>
+                {% if feed.failing_since %}<tr><th>Ошибается с</th><td>{{ feed.failing_since|date:"Y-m-d H:i" }}</td></tr>{% endif %}
+                {% if feed.last_error %}<tr><th>Ошибка</th><td>{{ feed.last_error }}</td></tr>{% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card card--brown">
+    <div class="card--header">Посты</div>
+    <table class="curation-table curation-table--compact">
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Авторы</th>
+                <th class="curation-source-table-attempt">Опубликован</th>
+                <th class="curation-source-table-attempt">Обнаружен</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for post in posts %}
+            <tr>
+                <td class="curation-truncate"><a href="{{ post.url }}" title="{{ post.url }}">{{ post.title }}</a></td>
+                <td class="curation-truncate">{{ post.authors|default:"—" }}</td>
+                <td class="curation-nowrap">{{ post.date_published|date:"Y-m-d H:i" }}</td>
+                <td class="curation-nowrap">{{ post.date_discovered|date:"Y-m-d H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4">Постов нет.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if page.has_other_pages %}
+    <div class="curation-pagination">
+        {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">← Назад</a>{% endif %}
+        <span>Страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a href="?page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

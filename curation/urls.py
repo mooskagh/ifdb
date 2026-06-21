@@ -48,6 +48,16 @@ urlpatterns = [
         name="curation_source_list",
     ),
     path(
+        "feeds/",
+        superuser_required(views.feed_list),
+        name="curation_feed_list",
+    ),
+    path(
+        "feeds/<str:feed_id>/",
+        superuser_required(views.feed_detail),
+        name="curation_feed_detail",
+    ),
+    path(
         "sources/<int:source_id>/",
         superuser_required(views.source_detail),
         name="curation_source_detail",

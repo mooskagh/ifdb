@@ -19,6 +19,7 @@ from contest.models import (
     GameList,
     GameListEntry,
 )
+from core.models import BlogFeed, FeedCache
 from games.models import (
     URL,
     Game,
@@ -2762,6 +2763,178 @@ class SourceViewsTest(TestCase):
             ],
         )
         self.assertContains(response, "Источники поставлены в очередь: 2.")
+
+
+class FeedViewsTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(
+            username="admin", email="admin@example.com", is_superuser=True
+        )
+        self.client.force_login(self.user)
+        BlogFeed.objects.all().delete()
+        FeedCache.objects.all().delete()
+
+    def _feed(self, feed_id, **kwargs):
+        defaults = {
+            "title": feed_id.title(),
+            "url": f"https://example.com/{feed_id}",
+            "rss": f"https://example.com/{feed_id}.rss",
+            "show_author": True,
+        }
+        defaults.update(kwargs)
+        return BlogFeed.objects.create(feed_id=feed_id, **defaults)
+
+    def test_feed_list_shows_health_and_cached_activity(self):
+        ts = timezone.now()
+        feed = self._feed(
+            "ifhub",
+            title="IF Hub",
+            last_attempt=ts,
+            last_success=ts - timedelta(hours=1),
+        )
+        self._feed(
+            "vk-news",
+            title="VK News",
+            rss="https://vk.com/if_news",
+            last_attempt=ts,
+            failing_since=ts - timedelta(days=1),
+            last_error="VK feeds need a service access token",
+        )
+        self._feed("disabled", title="Disabled Feed", is_enabled=False)
+        FeedCache.objects.create(
+            feed_id=feed.feed_id,
+            item_id="old",
+            date_published=ts - timedelta(days=2),
+            date_discovered=ts - timedelta(days=2),
+            title="Old post",
+            authors="Alice",
+            url="https://example.com/old",
+        )
+        FeedCache.objects.create(
+            feed_id=feed.feed_id,
+            item_id="new",
+            date_published=ts - timedelta(hours=2),
+            date_discovered=ts - timedelta(hours=1),
+            title="Fresh post",
+            authors="Alice",
+            url="https://example.com/fresh",
+        )
+
+        response = self.client.get("/curation/feeds/")
+
+        self.assertEqual(response.status_code, 200)
+        for text in [
+            'href="/curation/feeds/"',
+            'href="/curation/feeds/ifhub/"',
+            'data-href="/curation/feeds/ifhub/"',
+            "curation-feed-table",
+            "IF Hub",
+            "https://example.com/ifhub.rss",
+            ts.strftime("%Y-%m-%d %H:%M"),
+            "Fresh post",
+            "https://example.com/fresh",
+            "VK feeds need a service access token",
+            '<tr class="error"',
+            '<tr class="warning"',
+        ]:
+            self.assertContains(response, text)
+        cached_counts = {
+            feed.feed_id: feed.cached_count
+            for feed in response.context["feeds"]
+        }
+        self.assertEqual(cached_counts["ifhub"], 2)
+        self.assertEqual(cached_counts["vk-news"], 0)
+
+        detail_response = self.client.get("/curation/feeds/ifhub/")
+        self.assertEqual(detail_response.status_code, 200)
+        for text in [
+            "IF Hub",
+            "https://example.com/ifhub.rss",
+            "Fresh post",
+            "Old post",
+            "https://example.com/fresh",
+            "Alice",
+            ts.strftime("%Y-%m-%d %H:%M"),
+        ]:
+            self.assertContains(detail_response, text)
+        self.assertEqual(
+            [post.item_id for post in detail_response.context["posts"]],
+            ["new", "old"],
+        )
+
+    def test_feed_list_filters_sorts_and_paginates(self):
+        ts = timezone.now()
+        older = self._feed(
+            "older", title="Older Feed", last_success=ts - timedelta(days=1)
+        )
+        newer = self._feed("newer", title="Newer Feed", last_success=ts)
+        failed = self._feed(
+            "failed",
+            title="Failed Feed",
+            failing_since=ts,
+            last_error="boom",
+        )
+        for i in range(101):
+            self._feed(f"page-{i:03d}", title=f"Page Feed {i:03d}")
+        FeedCache.objects.create(
+            feed_id=older.feed_id,
+            item_id="older-post",
+            date_published=ts - timedelta(days=2),
+            date_discovered=ts - timedelta(days=2),
+            title="Older cached post",
+            authors="",
+            url="https://example.com/older-post",
+        )
+        FeedCache.objects.create(
+            feed_id=newer.feed_id,
+            item_id="newer-post",
+            date_published=ts - timedelta(hours=1),
+            date_discovered=ts - timedelta(hours=1),
+            title="Newer cached post",
+            authors="",
+            url="https://example.com/newer-post",
+        )
+
+        response = self.client.get(
+            "/curation/feeds/", {"q": "failed", "state": "failed"}
+        )
+        self.assertContains(response, "Failed Feed")
+        self.assertNotContains(response, "Older Feed")
+
+        response = self.client.get(
+            "/curation/feeds/", {"sort": "last_success"}
+        )
+        self.assertEqual(
+            [feed.feed_id for feed in response.context["feeds"][:3]],
+            [newer.feed_id, older.feed_id, failed.feed_id],
+        )
+
+        response = self.client.get("/curation/feeds/", {"sort": "latest_post"})
+        self.assertEqual(
+            [feed.feed_id for feed in response.context["feeds"][:2]],
+            [newer.feed_id, older.feed_id],
+        )
+
+        page_response = self.client.get("/curation/feeds/")
+        self.assertContains(page_response, "Страница 1 из 2")
+        self.assertContains(
+            page_response,
+            "?q=&state=&sort=last_attempt&page=2",
+        )
+
+        for i in range(101):
+            FeedCache.objects.create(
+                feed_id=failed.feed_id,
+                item_id=f"post-{i:03d}",
+                date_published=ts - timedelta(minutes=i),
+                date_discovered=ts - timedelta(minutes=i),
+                title=f"Failed post {i:03d}",
+                authors="",
+                url=f"https://example.com/failed-{i:03d}",
+            )
+        detail_response = self.client.get("/curation/feeds/failed/")
+        self.assertContains(detail_response, "Страница 1 из 2")
+        self.assertContains(detail_response, "?page=2")
 
 
 class InitCurationCommandTest(TestCase):
