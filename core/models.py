@@ -211,3 +211,8 @@ class BlogFeed(models.Model):
     show_author = models.BooleanField()
     rss = models.CharField(max_length=256)
     rss_comments = models.CharField(max_length=256, null=True, blank=True)
+    is_enabled = models.BooleanField(default=True)
+    last_attempt = models.DateTimeField(null=True, blank=True)
+    last_success = models.DateTimeField(null=True, blank=True)
+    failing_since = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(null=True, blank=True)

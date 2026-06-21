@@ -258,7 +258,8 @@ def _tasks_post(request):
             request, "Задание на выкачивание источников запущено."
         )
     elif action == "run_fetch_feeds":
-        fetch_feeds.delay()
+        limit = _positive_int(request.POST.get("run_limit"), default=5)
+        fetch_feeds.delay(limit=limit)
         messages.success(request, "Задание на выкачивание форумов запущено.")
     elif action == "run_edit_sources":
         limit = _positive_int(request.POST.get("run_limit"), default=5)
@@ -301,10 +302,12 @@ def _tasks_post(request):
             request, "Расписание обработки новых источников сохранено."
         )
     elif action == "save_fetch_feeds":
+        limit = _positive_int(request.POST.get("periodic_limit"), default=5)
         _save_periodic_task(
             FETCH_FEEDS_TASK_NAME,
             FETCH_FEEDS_TASK,
             request.POST,
+            kwargs={"limit": limit},
         )
         messages.success(request, "Расписание выкачивания форумов сохранено.")
     elif action == "save_edit_sources":
@@ -369,6 +372,8 @@ def _render_tasks(request):
                 FETCH_FEEDS_TASK_NAME,
                 default_every=1,
                 default_period=IntervalSchedule.HOURS,
+                default_periodic_limit=5,
+                default_run_limit=5,
             ),
             "edit_sources": _periodic_task_config(
                 EDIT_SOURCES_TASK_NAME,

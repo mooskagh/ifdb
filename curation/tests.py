@@ -1975,11 +1975,12 @@ class TasksViewTest(TestCase):
     @patch("curation.views.fetch_feeds.delay")
     def test_fetch_feeds_button_starts_task(self, delay):
         response = self.client.post(
-            "/curation/tasks/", {"action": "run_fetch_feeds"}
+            "/curation/tasks/",
+            {"action": "run_fetch_feeds", "run_limit": "9"},
         )
 
         self.assertRedirects(response, "/curation/tasks/")
-        delay.assert_called_once_with()
+        delay.assert_called_once_with(limit=9)
 
     @patch("curation.views.edit_sources.delay")
     def test_edit_sources_button_starts_task_with_pipeline_and_limit(
@@ -2105,6 +2106,7 @@ class TasksViewTest(TestCase):
             "/curation/tasks/",
             {
                 "action": "save_fetch_feeds",
+                "periodic_limit": "7",
                 "every": "2",
                 "period": IntervalSchedule.HOURS,
             },
@@ -2114,7 +2116,7 @@ class TasksViewTest(TestCase):
         task = PeriodicTask.objects.get(name="Fetch feeds")
         self.assertFalse(task.enabled)
         self.assertEqual(task.task, "core.tasks.fetch_feeds")
-        self.assertEqual(loads(task.kwargs), {})
+        self.assertEqual(loads(task.kwargs), {"limit": 7})
         self.assertEqual(task.interval.every, 2)
         self.assertEqual(task.interval.period, IntervalSchedule.HOURS)
 
