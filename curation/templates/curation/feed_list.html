@@ -1,0 +1,89 @@
+{% extends "curation/base.html" %}
+{% load tags %}
+
+{% block titlesection %}Фиды - ОГОРОД - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--brown">
+    <div class="card--header">Фиды</div>
+    <div class="card--body">
+        <form class="curation-filter curation-filter--source" method="get">
+            <div class="curation-filter-field">
+                <label for="curation-feed-q">Поиск</label>
+                <input id="curation-feed-q" type="search" name="q" value="{{ q }}" placeholder="ID, название, URL или ошибка">
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-feed-state">Состояние</label>
+                <select id="curation-feed-state" name="state">
+                    <option value="">— все —</option>
+                    <option value="ok" {% if state == "ok" %}selected{% endif %}>Без ошибок</option>
+                    <option value="failed" {% if state == "failed" %}selected{% endif %}>С ошибкой</option>
+                    <option value="disabled" {% if state == "disabled" %}selected{% endif %}>Отключённые</option>
+                </select>
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-feed-sort">Сортировка</label>
+                <select id="curation-feed-sort" name="sort">
+                    <option value="last_attempt" {% if sort == "last_attempt" %}selected{% endif %}>По последней попытке</option>
+                    <option value="last_success" {% if sort == "last_success" %}selected{% endif %}>По успешной загрузке</option>
+                    <option value="failing_since" {% if sort == "failing_since" %}selected{% endif %}>По началу ошибки</option>
+                    <option value="latest_post" {% if sort == "latest_post" %}selected{% endif %}>По свежим постам</option>
+                    <option value="count" {% if sort == "count" %}selected{% endif %}>По числу постов</option>
+                    <option value="title" {% if sort == "title" %}selected{% endif %}>По названию</option>
+                </select>
+            </div>
+            <button type="submit">Показать</button>
+        </form>
+    </div>
+    <table class="curation-table curation-table--compact curation-feed-table">
+        <thead>
+            <tr>
+                <th class="curation-source-table-type">ID</th>
+                <th class="curation-source-table-state">Сост.</th>
+                <th>Фид</th>
+                <th>RSS</th>
+                <th class="curation-source-table-attempt">Попытка</th>
+                <th class="curation-source-table-attempt">Успех</th>
+                <th class="num">Посты</th>
+                <th>Последний пост</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for feed in feeds %}
+            <tr class="{% if feed.failing_since or feed.last_error %}error{% elif not feed.is_enabled %}warning{% endif %}"
+                data-href="{% url 'curation_feed_detail' feed.feed_id %}">
+                <td><a href="{% url 'curation_feed_detail' feed.feed_id %}">{{ feed.feed_id }}</a></td>
+                <td>
+                    {% if feed.failing_since or feed.last_error %}ошибка{% elif not feed.is_enabled %}откл.{% else %}ok{% endif %}
+                </td>
+                <td class="curation-truncate">
+                    {% if feed.url %}<a href="{{ feed.url }}" title="{{ feed.url }}">{{ feed.title }}</a>{% else %}{{ feed.title }}{% endif %}
+                    {% if feed.last_error %}<br><span title="{{ feed.last_error }}">{{ feed.last_error|truncatechars:80 }}</span>{% endif %}
+                    {% if feed.failing_since %}<br>с {{ feed.failing_since|date:"Y-m-d H:i" }}{% endif %}
+                </td>
+                <td class="curation-truncate"><a href="{{ feed.rss }}" title="{{ feed.rss }}">{{ feed.rss }}</a></td>
+                <td class="curation-nowrap">{{ feed.last_attempt|date:"Y-m-d H:i"|default:"—" }}</td>
+                <td class="curation-nowrap">{{ feed.last_success|date:"Y-m-d H:i"|default:"—" }}</td>
+                <td class="num">{{ feed.cached_count }}</td>
+                <td class="curation-truncate">
+                    {% if feed.latest_item_url %}
+                    {{ feed.latest_item_discovered|date:"Y-m-d H:i" }}:
+                    <a href="{{ feed.latest_item_url }}" title="{{ feed.latest_item_title }}">{{ feed.latest_item_title }}</a>
+                    <br>опубл. {{ feed.latest_item_published|date:"Y-m-d H:i" }}
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8">Фидов нет.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if page.has_other_pages %}
+    <div class="curation-pagination">
+        {% if page.has_previous %}<a href="?q={{ q|urlencode }}&state={{ state }}&sort={{ sort }}&page={{ page.previous_page_number }}">← Назад</a>{% endif %}
+        <span>Страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a href="?q={{ q|urlencode }}&state={{ state }}&sort={{ sort }}&page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

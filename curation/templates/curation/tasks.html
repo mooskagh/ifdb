@@ -85,12 +85,14 @@
                 {% csrf_token %}
                 <input type="hidden" name="action" value="save_fetch_feeds">
                 <label><input type="checkbox" name="enabled" {% if fetch_feeds.enabled %}checked{% endif %}> включено</label>
+                <label>количество <input type="number" name="periodic_limit" min="1" value="{{ fetch_feeds.periodic_limit }}" style="width: 4rem;"></label>
                 {% include "curation/_periodic_interval_fields.html" with config=fetch_feeds periods=periods %}
                 <button type="submit">Сохранить</button>
             </form>
             <form class="curation-filter" method="post" style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-left: auto;">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="run_fetch_feeds">
+                <label>количество <input type="number" name="run_limit" min="1" value="{{ fetch_feeds.run_limit }}" style="width: 4rem;"></label>
                 <button type="submit">Запустить сейчас</button>
             </form>
         </div>

@@ -91,7 +91,7 @@ else:
     SECRET_KEY = "l3uja(27m53i#c)#9ziwmf*3n^e59eieal=3i$z0j@&$0i$!hr"
     VK_SERVICE_KEY = "dummy-vk-key-for-debug"
     DISCORD_WEBHOOK = None
-    ALLOWED_HOSTS = []
+    ALLOWED_HOSTS = ["10.162.0.100"]
     # DATABASES = {
     #     'default': {
     #         'ENGINE': 'django.db.backends.sqlite3',
