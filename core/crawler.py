@@ -42,7 +42,7 @@ def FetchUrlToFileLike(url, use_cache=True, headers={}):
     url = quote(url.encode("utf-8"), safe="/+=&?%:@;!#$*()_-")
     request = urllib.request.Request(url, data=None, headers=headers)
     if not settings.CRAWLER_CACHE_DIR or not use_cache:
-        response = urllib.request.urlopen(request, context=ctx)
+        response = urllib.request.urlopen(request, context=ctx, timeout=300)
         response.metadata = _ResponseInfoToMetadata(url, response.info())
         return response
 
@@ -59,7 +59,7 @@ def FetchUrlToFileLike(url, use_cache=True, headers={}):
         with open(metadata_filename, "r") as f:
             metadata = json.loads(f.read())
     else:
-        response = urllib.request.urlopen(request, context=ctx)
+        response = urllib.request.urlopen(request, context=ctx, timeout=300)
         metadata = _ResponseInfoToMetadata(url, response.info())
         with open(filename, "wb") as f:
             shutil.copyfileobj(response, f)
