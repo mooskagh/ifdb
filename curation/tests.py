@@ -7,6 +7,7 @@ from unittest.mock import patch
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.core import mail
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -59,6 +60,76 @@ class CurationSmokeTest(TestCase):
             origin=GameEdit.Origin.AUTO_IMPORT,
             canonical_text="# Game\n---\ntitle: Game",
         )
+
+    @override_settings(
+        ADMINS=[("Admin", "admin@example.com")],
+        CURATION_NOTIFICATION_EMAIL="curation@example.com",
+        CURATION_NOTIFICATION_BASE_URL="https://example.com",
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    )
+    def test_needs_attention_creation_sends_notification(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            history = GameHistory.objects.create(
+                creation_time=timezone.now(),
+                state=GameHistory.State.NEEDS_ATTENTION,
+                note="Needs manual review",
+            )
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["curation@example.com"])
+        self.assertNotIn("admin@example.com", message.to)
+        self.assertIn("Огород", message.subject)
+        self.assertIn(f"История: #{history.pk}", message.body)
+        self.assertIn("Needs manual review", message.body)
+        self.assertIn(
+            f"https://example.com/curation/{history.pk}/", message.body
+        )
+
+    @override_settings(
+        CURATION_NOTIFICATION_EMAIL="curation@example.com",
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    )
+    def test_transition_to_needs_attention_sends_notification(self):
+        history = GameHistory.objects.create(creation_time=timezone.now())
+
+        with self.captureOnCommitCallbacks(execute=True):
+            history.state = GameHistory.State.NEEDS_ATTENTION
+            history.save(update_fields=["state"])
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["curation@example.com"])
+
+    @override_settings(
+        CURATION_NOTIFICATION_EMAIL="curation@example.com",
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    )
+    def test_repeated_needs_attention_save_does_not_duplicate_notification(
+        self,
+    ):
+        with self.captureOnCommitCallbacks(execute=True):
+            history = GameHistory.objects.create(
+                creation_time=timezone.now(),
+                state=GameHistory.State.NEEDS_ATTENTION,
+            )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            history.save(update_fields=["state"])
+
+        self.assertEqual(len(mail.outbox), 1)
+
+    @override_settings(
+        CURATION_NOTIFICATION_EMAIL=None,
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    )
+    def test_needs_attention_notification_can_be_disabled(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            GameHistory.objects.create(
+                creation_time=timezone.now(),
+                state=GameHistory.State.NEEDS_ATTENTION,
+            )
+
+        self.assertEqual(mail.outbox, [])
 
     def test_note_survives_non_attention_model_save(self):
         history = GameHistory.objects.create(

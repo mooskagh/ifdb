@@ -1,5 +1,8 @@
 from django.conf import settings
+from django.core.mail import send_mail
 from django.db import models, transaction
+from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 
@@ -26,10 +29,32 @@ class GameHistory(models.Model):
     def __str__(self):
         return f"History #{self.pk} ({self.get_state_display()})"
 
+    def _send_needs_attention_notification(self):
+        recipient = getattr(settings, "CURATION_NOTIFICATION_EMAIL", None)
+        if not recipient:
+            return
+
+        url = "{}{}".format(
+            settings.CURATION_NOTIFICATION_BASE_URL.rstrip("/"),
+            reverse("curation_history_detail", args=[self.pk]),
+        )
+        context = {"history": self, "game": self.game, "url": url}
+        send_mail(
+            render_to_string(
+                "curation/email/actionable_subject.txt", context
+            ).strip(),
+            render_to_string("curation/email/actionable_body.txt", context),
+            settings.DEFAULT_FROM_EMAIL,
+            [recipient],
+        )
+
     def save(self, *args, **kwargs):
         update_fields = kwargs.get("update_fields")
         changes_state = update_fields is None or "state" in update_fields
         reject_pending_edits = False
+        notify_needs_attention = (
+            changes_state and self.state == self.State.NEEDS_ATTENTION
+        )
 
         if not self._state.adding and changes_state:
             with transaction.atomic():
@@ -43,15 +68,23 @@ class GameHistory(models.Model):
                     old_state == self.State.NEEDS_ATTENTION
                     and self.state != old_state
                 )
+                notify_needs_attention &= old_state != self.state
                 result = super().save(*args, **kwargs)
                 if reject_pending_edits:
                     GameEdit.objects.filter(
                         history=self,
                         status=GameEdit.EditStatus.PROPOSED,
                     ).update(status=GameEdit.EditStatus.REJECTED)
+                if notify_needs_attention:
+                    transaction.on_commit(
+                        self._send_needs_attention_notification
+                    )
                 return result
 
-        return super().save(*args, **kwargs)
+        result = super().save(*args, **kwargs)
+        if notify_needs_attention:
+            transaction.on_commit(self._send_needs_attention_notification)
+        return result
 
     game = models.OneToOneField(
         "games.Game",
