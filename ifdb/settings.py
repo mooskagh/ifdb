@@ -239,7 +239,9 @@ logging.config.dictConfig({
 })
 
 ADMINS = [("Alexander Lyashuk", "crem@crem.xyz")]
-CURATION_NOTIFICATION_EMAIL = None
+CURATION_NOTIFICATION_EMAIL = env(
+    "CURATION_NOTIFICATION_EMAIL", default=None
+)
 CURATION_NOTIFICATION_BASE_URL = "https://db.crem.xyz"
 
 
