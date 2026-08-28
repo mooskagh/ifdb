@@ -72,7 +72,7 @@ class CurationSmokeTest(TestCase):
             history = GameHistory.objects.create(
                 creation_time=timezone.now(),
                 state=GameHistory.State.NEEDS_ATTENTION,
-                note="Needs manual review",
+                note="Needs \"manual\" review & more",
             )
 
         self.assertEqual(len(mail.outbox), 1)
@@ -81,7 +81,9 @@ class CurationSmokeTest(TestCase):
         self.assertNotIn("admin@example.com", message.to)
         self.assertIn("Огород", message.subject)
         self.assertIn(f"История: #{history.pk}", message.body)
-        self.assertIn("Needs manual review", message.body)
+        self.assertIn("Needs \"manual\" review & more", message.body)
+        self.assertNotIn("&quot;", message.body)
+        self.assertNotIn("&amp;", message.body)
         self.assertIn(
             f"https://example.com/curation/{history.pk}/", message.body
         )

@@ -1,4 +1,4 @@
-Появилась игра, требующая внимания.
+{% autoescape off %}Появилась игра, требующая внимания.
 
 История: #{{ history.pk }}
 {% if game %}Игра: {{ game.title }}
@@ -6,3 +6,4 @@
 {{ history.note }}
 {% endif %}
 Открыть: {{ url }}
+{% endautoescape %}
