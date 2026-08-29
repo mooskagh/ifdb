@@ -33,6 +33,7 @@ from games.models import (
     GameURLCategory,
     PersonalityAlias,
 )
+from play.blueprint import BlueprintBase, BlueprintInfo
 
 from .edit import run_edit
 from .gameinfo import GameInfo, GameUrl
@@ -326,6 +327,31 @@ class HistoryListViewTest(TestCase):
             username="admin", email="admin@example.com", is_superuser=True
         )
         self.client.force_login(self.user)
+
+    @patch("curation.views.discover_blueprints")
+    def test_blueprint_list_shows_discovered_blueprints(self, discover_mock):
+        class TestBlueprint(BlueprintBase):
+            def name(self):
+                return "Test blueprint"
+
+        discover_mock.return_value = [
+            BlueprintInfo("test-blueprint", TestBlueprint)
+        ]
+
+        response = self.client.get("/curation/blueprints/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "curation/blueprint_list.html")
+        self.assertEqual(
+            response.context["blueprints"],
+            [{"display_name": "Test blueprint", "slug": "test-blueprint"}],
+        )
+        self.assertContains(response, "проигрыватели")
+        self.assertContains(response, ">Проигрыватели</a>")
+        self.assertContains(response, 'href="/curation/blueprints/"')
+        self.assertContains(response, "Test blueprint")
+        self.assertContains(response, "test-blueprint")
+        discover_mock.assert_called_once_with()
 
     def test_history_list_is_compact_and_uses_short_labels(self):
         ts = timezone.now()

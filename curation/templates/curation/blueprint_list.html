@@ -1,0 +1,27 @@
+{% extends "curation/base.html" %}
+
+{% block titlesection %}проигрыватели - ОГОРОД - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--green">
+    <div class="card--header">проигрыватели</div>
+    <table class="curation-table curation-table--compact">
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Идентификатор</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for blueprint in blueprints %}
+            <tr>
+                <td>{{ blueprint.display_name }}</td>
+                <td>{{ blueprint.slug }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2">Проигрывателей нет.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -32,6 +32,8 @@
                        href="{% url 'curation_llm_models' %}">Модели LLM</a>
                     <a class="curation-menu-item {% current 'curation_llm_trajectories' %}"
                        href="{% url 'curation_llm_trajectories' %}">Траектории LLM</a>
+                    <a class="curation-menu-item {% current 'curation_blueprint_list' %}"
+                       href="{% url 'curation_blueprint_list' %}">Проигрыватели</a>
                 </div>
             </div>
             {% block curation_sidebar %}{% endblock %}

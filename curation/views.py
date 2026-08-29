@@ -31,6 +31,7 @@ from core.models import BlogFeed, FeedCache
 from core.tasks import fetch_feeds
 from games.importer.discord import PostNewGameToDiscord
 from games.models import Game
+from play.blueprint import discover_blueprints
 
 from . import openrouter
 from .diff import build_diff
@@ -208,6 +209,21 @@ def history_list(request):
             "state_choices": GameHistory.State.choices,
             "auto_choices": GameHistory.AutoUpdate.choices,
         },
+    )
+
+
+def blueprint_list(request):
+    blueprints = [
+        {
+            "display_name": info.blueprint().name(),
+            "slug": info.name,
+        }
+        for info in discover_blueprints()
+    ]
+    return render(
+        request,
+        "curation/blueprint_list.html",
+        {"blueprints": blueprints},
     )
 
 
