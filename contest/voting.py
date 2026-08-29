@@ -20,7 +20,7 @@ from moder.userlog import LogAction
 #     nomination: (id) (id's of nominations. if empty then global)
 #     optional: True/false  # if every game is optional
 #     fields: []
-#        type: CharField
+#        "type": CharField
 #        label: ""
 #        helptext: ""
 #        widget: ""
