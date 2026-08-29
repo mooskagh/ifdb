@@ -1,7 +1,7 @@
 {% extends "curation/base.html" %}
 {% load tags %}
 
-{% block titlesection %}Траектории LLM - ОГОРОД - {% endblock %}
+{% block titlesection %}Траектории LLM - Модерация - {% endblock %}
 
 {% block curation_main %}
 <div class="card card--purple">
@@ -82,7 +82,7 @@
                     <a href="{% url 'show_game' trajectory.history.game.pk %}">{{ trajectory.history.game.title }}</a>
                     <a href="{% url 'curation_history_detail' trajectory.history.pk %}">#{{ trajectory.history.pk }}</a>
                     {% else %}
-                    <a href="{% url 'curation_history_detail' trajectory.history.pk %}">История #{{ trajectory.history.pk }}</a>
+                    <a href="{% url 'curation_history_detail' trajectory.history.pk %}">Админка #{{ trajectory.history.pk }}</a>
                     {% endif %}
                 </td>
                 <td class="num">{{ trajectory.messages_count }}</td>

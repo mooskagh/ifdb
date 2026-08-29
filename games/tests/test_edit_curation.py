@@ -423,7 +423,7 @@ class GameEditCurationViewTests(TestCase):
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
-        self.assertContains(response, "Огород")
+        self.assertContains(response, "Модерация")
         self.assertNotContains(response, "Объединить")
         self.assertContains(
             response, reverse("curation_history_detail", args=[history.pk])
@@ -435,7 +435,7 @@ class GameEditCurationViewTests(TestCase):
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
-        self.assertNotContains(response, "Огород")
+        self.assertNotContains(response, "Модерация")
 
     def test_superuser_nav_shows_needs_attention_count(self):
         self.user.is_superuser = True
@@ -451,7 +451,7 @@ class GameEditCurationViewTests(TestCase):
             response,
             (
                 f'<a class="top-nav-attention " '
-                f'href="{reverse("curation_history_list")}">ОГОРОД (1)</a>'
+                f'href="{reverse("curation_history_list")}">Модерация (1)</a>'
             ),
         )
 
@@ -468,7 +468,7 @@ class GameEditCurationViewTests(TestCase):
             response,
             (
                 f'<a class="top-nav-attention current" '
-                f'href="{reverse("curation_history_list")}">ОГОРОД (1)</a>'
+                f'href="{reverse("curation_history_list")}">Модерация (1)</a>'
             ),
         )
 
@@ -480,7 +480,7 @@ class GameEditCurationViewTests(TestCase):
         response = self.client.get(reverse("list_games"))
 
         self.assertNotContains(response, "top-nav-attention")
-        self.assertContains(response, ">ОГОРОД</a>")
+        self.assertContains(response, ">Модерация</a>")
 
     def test_non_superuser_nav_omits_needs_attention_count(self):
         self.user.groups.add(Group.objects.create(name="gardener"))

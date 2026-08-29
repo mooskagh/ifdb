@@ -1200,13 +1200,13 @@ def history_run_edit(request, history_id):
         return HttpResponseBadRequest("POST required.")
     history = get_object_or_404(GameHistory, pk=history_id)
     if history.state == GameHistory.State.ABANDONED:
-        messages.error(request, "Заброшенную историю нельзя обрабатывать.")
+        messages.error(request, "Заброшенную админку нельзя обрабатывать.")
         return redirect("curation_history_detail", history_id=history.pk)
     pipeline = _pipeline_from_post(request.POST)
     edit_sources.delay(
         history_id=history.pk, pipeline_id=pipeline.pk, force=True
     )
-    messages.success(request, "Задание на обработку истории запущено.")
+    messages.success(request, "Задание на обработку админки запущено.")
     return redirect("curation_history_detail", history_id=history.pk)
 
 
@@ -1578,7 +1578,7 @@ def history_merge(request, history_id):
         GameHistory.objects.select_related("game"), pk=history_id
     )
     if history.game is None:
-        messages.error(request, "У этой истории нет игры для объединения.")
+        messages.error(request, "У этой админки нет игры для объединения.")
         return redirect("curation_history_detail", history_id=history.pk)
 
     source_game_id = _positive_int(
@@ -1660,7 +1660,7 @@ def history_delete(request, history_id):
         if game is not None:
             game.delete()
 
-    messages.success(request, "Игра удалена, история заброшена.")
+    messages.success(request, "Игра удалена, админка заброшена.")
     return redirect("curation_history_detail", history_id=history.pk)
 
 

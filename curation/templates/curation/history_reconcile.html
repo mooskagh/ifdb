@@ -1,7 +1,7 @@
 {% extends "games/base.html" %}
 {% load static %}
 
-{% block titlesection %}Сверка игр - ОГОРОД - {% endblock %}
+{% block titlesection %}Сверка игр - Модерация - {% endblock %}
 
 {% block scripts %}
 <script src="{% static 'reconcile.js' %}" defer></script>
@@ -13,10 +13,10 @@
         <div>
             <h1>Сверка игр</h1>
             <div class="curation-meta">
-                Стартовая история: <a href="{% url 'curation_history_detail' history.pk %}">#{{ history.pk }}</a>
+                Стартовая админка: <a href="{% url 'curation_history_detail' history.pk %}">#{{ history.pk }}</a>
             </div>
         </div>
-        <a class="button-like" href="{% url 'curation_history_detail' history.pk %}">Назад к истории</a>
+        <a class="button-like" href="{% url 'curation_history_detail' history.pk %}">Назад к админке</a>
     </div>
     <input type="hidden" id="reconcile-csrf" value="{{ csrf_token }}">
     <div id="reconcile-app" data-game-url="{% url 'curation_reconcile_game_json' 0 %}"></div>

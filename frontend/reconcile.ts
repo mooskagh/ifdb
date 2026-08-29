@@ -90,7 +90,7 @@ function render(): void {
   grid.style.setProperty('--reconcile-columns', String(columns.length));
 
   addGridRow(grid, '', (col, i) => columnHeader(col, i), 'reconcile-cell--top');
-  addGridRow(grid, 'GameHistory id', historyCell);
+  addGridRow(grid, 'Админка id', historyCell);
   addGridRow(grid, 'Game id', gameCell);
   addGridRow(grid, 'and start pipeline', pipelineCell);
   addGridRow(grid, 'Удалить', deleteCell);
@@ -157,7 +157,7 @@ function columnHeader(col: ColumnData, index: number): HTMLElement {
 }
 
 function columnSubtitle(col: ColumnData): string {
-  const history = col.history_id ? `history #${col.history_id}` : 'new history';
+  const history = col.history_id ? `админка #${col.history_id}` : 'новая админка';
   const game = col.game_id ? `game #${col.game_id}` : 'new game';
   return `${history}, ${game}`;
 }
@@ -200,7 +200,7 @@ function deleteCell(col: ColumnData): HTMLElement {
       'label',
       {class: 'reconcile-check-label'},
       input,
-      el('span', {text: 'удалить игру/историю'}),
+      el('span', {text: 'удалить игру/админку'}),
     ),
     el('div', {
       class: 'curation-meta',
@@ -387,7 +387,7 @@ function confirmOrphanSource(source: SourceData): Promise<boolean | null> {
     const dialog = el(
       'dialog',
       {class: 'reconcile-source-dialog'},
-      el('p', {text: `Открепить источник #${source.id} от истории?`}),
+      el('p', {text: `Открепить источник #${source.id} от админки?`}),
       el(
         'label',
         {class: 'reconcile-check-label'},

@@ -1,7 +1,7 @@
 {% extends "curation/base.html" %}
 {% load tags %}
 
-{% block titlesection %}Обнаружение: {{ status.get_source_type_display }} - ОГОРОД - {% endblock %}
+{% block titlesection %}Обнаружение: {{ status.get_source_type_display }} - Модерация - {% endblock %}
 
 {% block curation_main %}
 <div class="card card--blue">
@@ -58,7 +58,7 @@
                         {% else %}
                         (none)
                         {% endif %}
-                        (<a href="{% url 'curation_history_detail' source.history.pk %}">история</a>)
+                        (<a href="{% url 'curation_history_detail' source.history.pk %}">админка</a>)
                     {% else %}
                         —
                     {% endif %}
@@ -90,7 +90,7 @@
                     {% else %}
                     (none)
                     {% endif %}
-                    (<a href="{% url 'curation_history_detail' source.history.pk %}">история</a>)
+                    (<a href="{% url 'curation_history_detail' source.history.pk %}">админка</a>)
                 {% else %}
                     —
                 {% endif %}

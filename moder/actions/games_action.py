@@ -66,7 +66,7 @@ class GameCloneAction(GameAction):
 
 @RegisterAction
 class GameCurationAction(GameAction):
-    TITLE = "Огород"
+    TITLE = "Модерация"
 
     @classmethod
     def IsAllowed(cls, request, obj):

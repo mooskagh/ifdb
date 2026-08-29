@@ -287,7 +287,7 @@ def _lock_histories(columns: list[dict]) -> dict[int, GameHistory]:
         for row in GameHistory.objects.select_for_update().filter(id__in=ids)
     }
     if missing := ids - set(histories):
-        raise ValueError(f"Истории не найдены: {sorted(missing)}.")
+        raise ValueError(f"Админки не найдены: {sorted(missing)}.")
     return histories
 
 
@@ -322,7 +322,7 @@ def _validate_columns(
         game = games.get(col["game_id"])
         if history and game and history.game_id != game.id:
             raise ValueError(
-                f"История #{history.id} не относится к игре #{game.id}."
+                f"Админка #{history.id} не относится к игре #{game.id}."
             )
         if col["delete"]:
             continue
@@ -416,7 +416,7 @@ def _lock_sources(
     for source in sources.values():
         if source.history_id not in allowed_history_ids:
             raise ValueError(
-                f"Источник #{source.id} уже не принадлежит открытым историям."
+                f"Источник #{source.id} уже не принадлежит открытым админкам."
             )
     return sources
 

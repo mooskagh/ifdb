@@ -82,8 +82,8 @@ class CurationSmokeTest(TestCase):
         message = mail.outbox[0]
         self.assertEqual(message.to, ["curation@example.com"])
         self.assertNotIn("admin@example.com", message.to)
-        self.assertIn("Огород", message.subject)
-        self.assertIn(f"История: #{history.pk}", message.body)
+        self.assertIn("Модерация", message.subject)
+        self.assertIn(f"Админка: #{history.pk}", message.body)
         self.assertIn('Needs "manual" review & more', message.body)
         self.assertNotIn("&quot;", message.body)
         self.assertNotIn("&amp;", message.body)
@@ -349,7 +349,7 @@ class HistoryListViewTest(TestCase):
         self.assertContains(response, "проигрыватели")
         self.assertContains(
             response,
-            "<title>Проигрыватели - ОГОРОД - db.crem.xyz</title>",
+            "<title>Проигрыватели - Модерация - db.crem.xyz</title>",
         )
         self.assertContains(response, ">Проигрыватели</a>")
         self.assertContains(response, 'href="/curation/blueprints/"')
@@ -815,7 +815,7 @@ class HistoryMergeViewTest(TestCase):
         )
         for earlier, later in [
             (
-                '<div class="card--header">ОГОРОД</div>',
+                '<div class="card--header">Модерация</div>',
                 f"Информация ({history.pk})",
             ),
             (f"Информация ({history.pk})", "Автоматическая обработка"),
@@ -1446,7 +1446,7 @@ class EditDiffViewTest(TestCase):
         self.assertContains(response, "к списку игр")
         self.assertContains(response, "к редактированию игры")
         self.assertContains(response, "к игре")
-        self.assertContains(response, "к истории игры")
+        self.assertContains(response, "к админке игры")
         self.assertContains(response, "остаться тут")
 
     def test_edit_page_shows_game_users_passes_and_llm_links(self):
@@ -1531,7 +1531,7 @@ class EditDiffViewTest(TestCase):
         self.assertContains(response, "к списку игр")
         self.assertNotContains(response, "к редактированию игры")
         self.assertNotContains(response, "к игре")
-        self.assertContains(response, "к истории игры")
+        self.assertContains(response, "к админке игры")
         self.assertContains(response, "остаться тут")
 
     def test_non_proposed_edit_hides_actions(self):
@@ -1982,12 +1982,12 @@ class DiscoveryViewsTest(TestCase):
         )
         self.assertContains(
             detail_response,
-            f'href="/curation/{game_history.pk}/">история</a>',
+            f'href="/curation/{game_history.pk}/">админка</a>',
         )
         self.assertContains(detail_response, "(none)")
         self.assertContains(
             detail_response,
-            f'href="/curation/{empty_history.pk}/">история</a>',
+            f'href="/curation/{empty_history.pk}/">админка</a>',
         )
         content = detail_response.content.decode()
         self.assertLess(
@@ -2299,7 +2299,7 @@ class SourceViewsTest(TestCase):
         for text in [
             "https://example.com/source",
             f'href="/game/{game.pk}/">Source Game</a>',
-            f'(<a href="/curation/{history.pk}/">история</a>)',
+            f'(<a href="/curation/{history.pk}/">админка</a>)',
             "Fetch failed",
             'class="curation-source-error"',
             ts.strftime("%Y-%m-%d %H:%M"),

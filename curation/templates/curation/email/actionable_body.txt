@@ -1,6 +1,6 @@
 {% autoescape off %}Появилась игра, требующая внимания.
 
-История: #{{ history.pk }}
+Админка: #{{ history.pk }}
 {% if game %}Игра: {{ game.title }}
 {% endif %}{% if history.note %}Примечание:
 {{ history.note }}

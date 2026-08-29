@@ -46,8 +46,8 @@
             </div>
         </div>
         <div class="curation-source-detail-row">
-            <div class="curation-source-detail-label">История</div>
-            <div class="curation-source-detail-value"><a href="{% url 'curation_history_detail' history.pk %}">вернуться к истории</a></div>
+            <div class="curation-source-detail-label">Админка</div>
+            <div class="curation-source-detail-value"><a href="{% url 'curation_history_detail' history.pk %}">вернуться к админке</a></div>
         </div>
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Состояние</div>
@@ -97,7 +97,7 @@
                 <option value="edit_game">к редактированию игры</option>
                 <option value="game">к игре</option>
                 {% endif %}
-                <option value="history">к истории игры</option>
+                <option value="history">к админке игры</option>
                 <option value="stay">остаться тут</option>
             </select>
         </label>

@@ -138,7 +138,7 @@
 </div>
 {% empty %}
 <div class="card card--blue">
-    <div class="card--body">В истории пока пусто.</div>
+    <div class="card--body">В админке пока пусто.</div>
 </div>
 {% endfor %}
 
@@ -258,7 +258,7 @@
             {% csrf_token %}
             <label>id присоединяемой игры <input type="number" name="source_game_id" min="1" required style="width: 7rem;"></label>
             <label><input type="checkbox" name="remap_contests"> переназначить конкурсные ссылки, голоса и вопросы</label>
-            <button type="submit" data-confirm="Присоединить указанную игру к этой? Присоединяемая игра будет удалена, её история станет заброшенной.">Объединить</button>
+            <button type="submit" data-confirm="Присоединить указанную игру к этой? Присоединяемая игра будет удалена, её админка станет заброшенной.">Объединить</button>
         </form>
         <div class="curation-meta">Если у присоединяемой игры есть записи в конкурсах, без чекбокса объединение будет остановлено и покажет затронутые таблицы.</div>
     </div>
