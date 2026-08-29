@@ -1,21 +1,24 @@
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from importlib import import_module
 from pkgutil import iter_modules
+from typing import Protocol, cast
 
 from . import blueprints
 
 
-class BlueprintBase(ABC):
-    @abstractmethod
-    def name(self) -> str:
-        pass
+@dataclass(frozen=True, slots=True)
+class BlueprintSpec:
+    name: str
+
+
+class BlueprintModule(Protocol):
+    spec: BlueprintSpec
 
 
 @dataclass(frozen=True, slots=True)
 class BlueprintInfo:
     name: str
-    blueprint: type[BlueprintBase]
+    blueprint: BlueprintModule
 
 
 def discover_blueprints() -> list[BlueprintInfo]:
@@ -28,14 +31,11 @@ def discover_blueprints() -> list[BlueprintInfo]:
             continue
 
         module = import_module(f"{blueprints.__name__}.{module_info.name}")
-        blueprint = getattr(module, "Blueprint", None)
-        if (
-            not isinstance(blueprint, type)
-            or blueprint.__module__ != module.__name__
-            or not issubclass(blueprint, BlueprintBase)
-        ):
+        if not isinstance(getattr(module, "spec", None), BlueprintSpec):
             continue
 
-        discovered.append(BlueprintInfo(module_info.name, blueprint))
+        discovered.append(
+            BlueprintInfo(module_info.name, cast(BlueprintModule, module))
+        )
 
     return discovered

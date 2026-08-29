@@ -2,6 +2,8 @@ from datetime import timedelta
 from html import unescape
 from io import StringIO
 from json import dumps, loads
+from types import ModuleType
+from typing import cast
 from unittest.mock import patch
 
 from django.conf import settings
@@ -33,7 +35,7 @@ from games.models import (
     GameURLCategory,
     PersonalityAlias,
 )
-from play.blueprint import BlueprintBase, BlueprintInfo
+from play.blueprint import BlueprintInfo, BlueprintModule, BlueprintSpec
 
 from .edit import run_edit
 from .gameinfo import GameInfo, GameUrl
@@ -330,12 +332,12 @@ class HistoryListViewTest(TestCase):
 
     @patch("curation.views.discover_blueprints")
     def test_blueprint_list_shows_discovered_blueprints(self, discover_mock):
-        class TestBlueprint(BlueprintBase):
-            def name(self):
-                return "Test blueprint"
-
+        blueprint = ModuleType("play.blueprints.test_blueprint")
+        setattr(blueprint, "spec", BlueprintSpec(name="Test blueprint"))
         discover_mock.return_value = [
-            BlueprintInfo("test-blueprint", TestBlueprint)
+            BlueprintInfo(
+                "test-blueprint", cast(BlueprintModule, blueprint)
+            )
         ]
 
         response = self.client.get("/curation/blueprints/")
@@ -347,6 +349,10 @@ class HistoryListViewTest(TestCase):
             [{"display_name": "Test blueprint", "slug": "test-blueprint"}],
         )
         self.assertContains(response, "проигрыватели")
+        self.assertContains(
+            response,
+            "<title>Проигрыватели - ОГОРОД - db.crem.xyz</title>",
+        )
         self.assertContains(response, ">Проигрыватели</a>")
         self.assertContains(response, 'href="/curation/blueprints/"')
         self.assertContains(response, "Test blueprint")

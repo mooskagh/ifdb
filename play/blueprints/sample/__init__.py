@@ -1,6 +1,3 @@
-from play.blueprint import BlueprintBase
+from play.blueprint import BlueprintSpec
 
-
-class Blueprint(BlueprintBase):
-    def name(self) -> str:
-        return "Sample"
+spec = BlueprintSpec(name="Sample")

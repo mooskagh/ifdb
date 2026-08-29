@@ -1,5 +1,6 @@
 from pkgutil import ModuleInfo
 from types import ModuleType
+from typing import cast
 from unittest.mock import patch
 
 from django.db import models
@@ -8,8 +9,13 @@ from django.utils.timezone import now
 
 from games.models import Game
 
-from .blueprint import BlueprintBase, BlueprintInfo, discover_blueprints
-from .blueprints.sample import Blueprint as SampleBlueprint
+from .blueprint import (
+    BlueprintInfo,
+    BlueprintModule,
+    BlueprintSpec,
+    discover_blueprints,
+)
+from .blueprints import sample as sample_blueprint
 from .models import Playable
 
 
@@ -57,19 +63,15 @@ class ModelTests(TestCase):
 class BlueprintDiscoveryTests(SimpleTestCase):
     def test_discovers_sample_blueprint(self):
         self.assertIn(
-            BlueprintInfo("sample", SampleBlueprint), discover_blueprints()
+            BlueprintInfo("sample", sample_blueprint), discover_blueprints()
         )
-        self.assertEqual(SampleBlueprint().name(), "Sample")
+        self.assertEqual(sample_blueprint.spec.name, "Sample")
 
     @staticmethod
     def blueprint_module(name):
         module = ModuleType(f"play.blueprints.{name}")
-        module.Blueprint = type(
-            "Blueprint",
-            (BlueprintBase,),
-            {"__module__": module.__name__},
-        )
-        return module
+        setattr(module, "spec", BlueprintSpec(name=name))
+        return cast(BlueprintModule, module)
 
     @patch("play.blueprint.import_module")
     @patch("play.blueprint.iter_modules")
@@ -85,46 +87,34 @@ class BlueprintDiscoveryTests(SimpleTestCase):
             f"play.blueprints.{name}": self.blueprint_module(name)
             for name in ("alpha", "zeta")
         }
-        alpha = modules["play.blueprints.alpha"]
-        alpha.Blueprint = type(
-            "Blueprint",
-            (alpha.Blueprint,),
-            {"__module__": alpha.__name__},
-        )
         import_mock.side_effect = modules.__getitem__
 
         self.assertEqual(
             discover_blueprints(),
             [
                 BlueprintInfo(
-                    "alpha", modules["play.blueprints.alpha"].Blueprint
+                    "alpha", modules["play.blueprints.alpha"]
                 ),
                 BlueprintInfo(
-                    "zeta", modules["play.blueprints.zeta"].Blueprint
+                    "zeta", modules["play.blueprints.zeta"]
                 ),
             ],
         )
 
     @patch("play.blueprint.import_module")
     @patch("play.blueprint.iter_modules")
-    def test_skips_packages_without_local_subclass(
+    def test_skips_packages_without_valid_spec(
         self, iter_modules_mock, import_mock
     ):
         iter_modules_mock.return_value = [
             ModuleInfo(None, "missing", True),
-            ModuleInfo(None, "unrelated", True),
-            ModuleInfo(None, "imported", True),
+            ModuleInfo(None, "invalid", True),
         ]
         missing = ModuleType("play.blueprints.missing")
-        unrelated = ModuleType("play.blueprints.unrelated")
-        unrelated.Blueprint = type(
-            "Blueprint", (), {"__module__": unrelated.__name__}
-        )
-        imported = ModuleType("play.blueprints.imported")
-        imported.Blueprint = BlueprintBase
+        invalid = ModuleType("play.blueprints.invalid")
+        setattr(invalid, "spec", object())
         modules = {
-            module.__name__: module
-            for module in (missing, unrelated, imported)
+            module.__name__: module for module in (missing, invalid)
         }
         import_mock.side_effect = modules.__getitem__
 
