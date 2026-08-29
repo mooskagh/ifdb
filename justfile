@@ -18,8 +18,10 @@ check-django:
     @echo "Running Django system checks..."
     uv run python manage.py check --verbosity=2
 
-# Run ruff linting
+# Run ruff linting and formatting checks
 check-ruff:
+    @echo "Running ruff format check..."
+    uv run ruff format --check .
     @echo "Running ruff..."
     uv run ruff check .
 
@@ -51,7 +53,7 @@ fix: fix-ruff
 # Run both fix and check
 fix_and_check: fix check
 
-pre-commit: fix_and_check
+pre-commit: check
 
 # Start PostgreSQL development server
 start-db:
