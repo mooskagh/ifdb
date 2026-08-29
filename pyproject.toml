@@ -54,6 +54,7 @@ preview = true
 
 [dependency-groups]
 dev = [
+    "django-stubs>=6.1.0",
     "mypy>=2.1.0",
     "ruff>=0.15.15",
 ]

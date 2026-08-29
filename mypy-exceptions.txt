@@ -107,9 +107,6 @@ moder/apps.py
 moder/models.py
 moder/tools.py
 moder/userlog.py
-play/apps.py
-play/models.py
-play/tests.py
 rss/apps.py
 rss/views.py
 scripts/aggrlog.py
