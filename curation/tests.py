@@ -75,7 +75,7 @@ class CurationSmokeTest(TestCase):
             history = GameHistory.objects.create(
                 creation_time=timezone.now(),
                 state=GameHistory.State.NEEDS_ATTENTION,
-                note="Needs \"manual\" review & more",
+                note='Needs "manual" review & more',
             )
 
         self.assertEqual(len(mail.outbox), 1)
@@ -84,7 +84,7 @@ class CurationSmokeTest(TestCase):
         self.assertNotIn("admin@example.com", message.to)
         self.assertIn("Огород", message.subject)
         self.assertIn(f"История: #{history.pk}", message.body)
-        self.assertIn("Needs \"manual\" review & more", message.body)
+        self.assertIn('Needs "manual" review & more', message.body)
         self.assertNotIn("&quot;", message.body)
         self.assertNotIn("&amp;", message.body)
         self.assertIn(
@@ -335,9 +335,7 @@ class HistoryListViewTest(TestCase):
         blueprint = ModuleType("play.blueprints.test_blueprint")
         setattr(blueprint, "spec", BlueprintSpec(name="Test blueprint"))
         discover_mock.return_value = [
-            BlueprintInfo(
-                "test-blueprint", cast(BlueprintModule, blueprint)
-            )
+            BlueprintInfo("test-blueprint", cast(BlueprintModule, blueprint))
         ]
 
         response = self.client.get("/curation/blueprints/")

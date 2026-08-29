@@ -92,12 +92,8 @@ class BlueprintDiscoveryTests(SimpleTestCase):
         self.assertEqual(
             discover_blueprints(),
             [
-                BlueprintInfo(
-                    "alpha", modules["play.blueprints.alpha"]
-                ),
-                BlueprintInfo(
-                    "zeta", modules["play.blueprints.zeta"]
-                ),
+                BlueprintInfo("alpha", modules["play.blueprints.alpha"]),
+                BlueprintInfo("zeta", modules["play.blueprints.zeta"]),
             ],
         )
 
@@ -113,9 +109,7 @@ class BlueprintDiscoveryTests(SimpleTestCase):
         missing = ModuleType("play.blueprints.missing")
         invalid = ModuleType("play.blueprints.invalid")
         setattr(invalid, "spec", object())
-        modules = {
-            module.__name__: module for module in (missing, invalid)
-        }
+        modules = {module.__name__: module for module in (missing, invalid)}
         import_mock.side_effect = modules.__getitem__
 
         self.assertEqual(discover_blueprints(), [])
