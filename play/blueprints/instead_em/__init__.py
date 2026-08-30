@@ -2,7 +2,7 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
-from zipfile import ZipFile
+from zipfile import BadZipFile, ZipFile
 
 from play.blueprint import BlueprintSpec, GenerateSpec
 
@@ -33,6 +33,26 @@ _RUNTIME_MEMBERS = (
     "instead-em/README",
 )
 _LAUNCHER_MEMBER = "instead-em/instead-em.html"
+_GAMEFILE_NAMES = frozenset(("main.lua", "main3.lua"))
+
+
+def _is_gamefile_member(member: str) -> bool:
+    parts = member.split("/")
+    return (
+        len(parts) in (1, 2)
+        and all(part not in {"", ".", ".."} for part in parts)
+        and parts[-1] in _GAMEFILE_NAMES
+    )
+
+
+def accepts(filename: Path) -> bool:
+    try:
+        with ZipFile(filename) as archive:
+            return any(
+                _is_gamefile_member(member) for member in archive.namelist()
+            )
+    except BadZipFile:
+        return False
 
 
 def _release_paths() -> dict[str, Path]:

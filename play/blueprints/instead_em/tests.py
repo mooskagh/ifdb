@@ -8,7 +8,7 @@ from django.test import SimpleTestCase
 
 from play.blueprint import GenerateSpec
 
-from . import generate, get_spec
+from . import accepts, generate, get_spec
 
 _DEFAULT_HTML = (
     b'<!doctype html>\n<!--    <meta name="gamefile" content="game.zip"> -->\n'
@@ -48,6 +48,11 @@ def _write_release(assets: Path, version: str = "1.0") -> None:
     (runtime / f"instead-em-{version}.zip").write_bytes(data.getvalue())
 
 
+def _write_game(game_file: Path, member_name: str = "main.lua") -> None:
+    with ZipFile(game_file, "w") as archive:
+        archive.writestr(member_name, b"return true")
+
+
 def _create_fixture(root: Path) -> tuple[Path, Path]:
     assets = root / "assets"
     assets.mkdir()
@@ -55,7 +60,7 @@ def _create_fixture(root: Path) -> tuple[Path, Path]:
     (assets / "viewport.js").write_text("fitCanvas();")
     _write_release(assets)
     game_file = root / "game.zip"
-    game_file.write_bytes(b"game\x00bytes\xff")
+    _write_game(game_file)
     return assets, game_file
 
 
@@ -75,6 +80,38 @@ class InsteadEmTests(SimpleTestCase):
                     get_spec().versions,
                     ["1.2", "1.10", "2.0"],
                 )
+
+    def test_accepts_supported_game_archives(self) -> None:
+        cases = (
+            ("main.lua", "game.zip"),
+            ("main3.lua", "game-main3"),
+            ("root/main.lua", "game-root"),
+            ("root/main3.lua", "game-root-main3"),
+        )
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for member_name, filename in cases:
+                game_file = root / filename
+                _write_game(game_file, member_name)
+                with self.subTest(member_name=member_name):
+                    self.assertTrue(accepts(game_file))
+
+    def test_rejects_unsupported_game_archives(self) -> None:
+        cases = (
+            ("story.lua", "missing-gamefile.zip"),
+            ("root/nested/main.lua", "nested-gamefile.zip"),
+        )
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for member_name, filename in cases:
+                game_file = root / filename
+                _write_game(game_file, member_name)
+                with self.subTest(member_name=member_name):
+                    self.assertFalse(accepts(game_file))
+
+            invalid_file = root / "not-a-zip"
+            invalid_file.write_bytes(b"not a zip")
+            self.assertFalse(accepts(invalid_file))
 
     def test_generates_launchable_game(self) -> None:
         with TemporaryDirectory() as directory:
