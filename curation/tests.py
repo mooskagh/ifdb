@@ -333,7 +333,11 @@ class HistoryListViewTest(TestCase):
     @patch("curation.views.discover_blueprints")
     def test_blueprint_list_shows_discovered_blueprints(self, discover_mock):
         blueprint = ModuleType("play.blueprints.test_blueprint")
-        setattr(blueprint, "spec", BlueprintSpec(name="Test blueprint"))
+        setattr(
+            blueprint,
+            "spec",
+            BlueprintSpec(name="Test blueprint", version="1.0"),
+        )
         discover_mock.return_value = [
             BlueprintInfo("test-blueprint", cast(BlueprintModule, blueprint))
         ]

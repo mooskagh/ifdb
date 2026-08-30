@@ -14,6 +14,9 @@ class Playable(models.Model):
         "games.Game", on_delete=models.PROTECT
     )
     template: models.SlugField[str, str] = models.SlugField()
+    template_version: models.CharField[str, str] = models.CharField(
+        max_length=32
+    )
     config: models.JSONField[dict[str, object], dict[str, object]] = (
         models.JSONField(default=dict, blank=True)
     )
