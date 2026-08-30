@@ -35,7 +35,12 @@ from games.models import (
     GameURLCategory,
     PersonalityAlias,
 )
-from play.blueprint import BlueprintInfo, BlueprintModule, BlueprintSpec
+from play.blueprint import (
+    BlueprintInfo,
+    BlueprintModule,
+    BlueprintSpec,
+    GenerateSpec,
+)
 
 from .edit import run_edit
 from .gameinfo import GameInfo, GameUrl
@@ -333,11 +338,15 @@ class HistoryListViewTest(TestCase):
     @patch("curation.views.discover_blueprints")
     def test_blueprint_list_shows_discovered_blueprints(self, discover_mock):
         blueprint = ModuleType("play.blueprints.test_blueprint")
-        setattr(
-            blueprint,
-            "spec",
-            BlueprintSpec(name="Test blueprint", versions=["1.0"]),
-        )
+
+        def get_spec() -> BlueprintSpec:
+            return BlueprintSpec(name="Test blueprint", versions=["1.0"])
+
+        def generate(_spec: GenerateSpec) -> None:
+            pass
+
+        setattr(blueprint, "get_spec", get_spec)
+        setattr(blueprint, "generate", generate)
         discover_mock.return_value = [
             BlueprintInfo("test-blueprint", cast(BlueprintModule, blueprint))
         ]

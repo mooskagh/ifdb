@@ -215,7 +215,7 @@ def history_list(request):
 def blueprint_list(request):
     blueprints = [
         {
-            "display_name": info.blueprint.spec.name,
+            "display_name": info.blueprint.get_spec().name,
             "slug": info.name,
         }
         for info in discover_blueprints()

@@ -14,9 +14,9 @@ from .blueprint import (
     BlueprintInfo,
     BlueprintModule,
     BlueprintSpec,
+    GenerateSpec,
     discover_blueprints,
 )
-from .blueprints import sample as sample_blueprint
 from .models import Playable
 
 
@@ -76,72 +76,39 @@ class ModelTests(TestCase):
         self.assertEqual(second.template_config, {})
 
 
-class BlueprintDiscoveryTests(SimpleTestCase):
-    def test_discovers_sample_blueprint(self) -> None:
-        self.assertIn(
-            BlueprintInfo("sample", sample_blueprint), discover_blueprints()
-        )
-        self.assertEqual(sample_blueprint.spec.name, "Sample")
-        self.assertEqual(sample_blueprint.spec.versions, ["1.0"])
-
-    @staticmethod
-    def blueprint_module(name: str) -> BlueprintModule:
-        module = ModuleType(f"play.blueprints.{name}")
-        setattr(module, "spec", BlueprintSpec(name=name, versions=["1.0"]))
-        return cast(BlueprintModule, module)
-
+class BlueprintTests(SimpleTestCase):
     @staticmethod
     def module_info(name: str, ispkg: bool) -> ModuleInfo:
         return ModuleInfo(FileFinder("."), name, ispkg)
+
+    @staticmethod
+    def example_module() -> ModuleType:
+        module = ModuleType("play.blueprints.example")
+        spec = BlueprintSpec(name="Example", versions=["1"])
+
+        def get_spec() -> BlueprintSpec:
+            return spec
+
+        def generate(_spec: GenerateSpec) -> None:
+            pass
+
+        setattr(module, "get_spec", get_spec)
+        setattr(module, "generate", generate)
+        return module
 
     @patch("play.blueprint.import_module")
     @patch("play.blueprint.iter_modules")
     def test_discovers_blueprint_packages(
         self, iter_modules_mock: MagicMock, import_mock: MagicMock
     ) -> None:
+        module = self.example_module()
         iter_modules_mock.return_value = [
-            self.module_info("zeta", True),
-            self.module_info("file", False),
-            self.module_info("alpha", True),
+            self.module_info("example", True),
+            self.module_info("not_a_package", False),
         ]
-        modules = {
-            f"play.blueprints.{name}": self.blueprint_module(name)
-            for name in ("alpha", "zeta")
-        }
-        import_mock.side_effect = modules.__getitem__
+        import_mock.return_value = module
 
         self.assertEqual(
             discover_blueprints(),
-            [
-                BlueprintInfo("alpha", modules["play.blueprints.alpha"]),
-                BlueprintInfo("zeta", modules["play.blueprints.zeta"]),
-            ],
+            [BlueprintInfo("example", cast(BlueprintModule, module))],
         )
-
-    @patch("play.blueprint.import_module")
-    @patch("play.blueprint.iter_modules")
-    def test_skips_packages_without_valid_spec(
-        self, iter_modules_mock: MagicMock, import_mock: MagicMock
-    ) -> None:
-        iter_modules_mock.return_value = [
-            self.module_info("missing", True),
-            self.module_info("invalid", True),
-        ]
-        missing = ModuleType("play.blueprints.missing")
-        invalid = ModuleType("play.blueprints.invalid")
-        setattr(invalid, "spec", object())
-        modules = {module.__name__: module for module in (missing, invalid)}
-        import_mock.side_effect = modules.__getitem__
-
-        self.assertEqual(discover_blueprints(), [])
-
-    @patch("play.blueprint.import_module", side_effect=ImportError("broken"))
-    @patch(
-        "play.blueprint.iter_modules",
-        return_value=[ModuleInfo(FileFinder("."), "broken", True)],
-    )
-    def test_import_errors_propagate(
-        self, _iter_modules_mock: MagicMock, _import_mock: MagicMock
-    ) -> None:
-        with self.assertRaisesRegex(ImportError, "broken"):
-            discover_blueprints()

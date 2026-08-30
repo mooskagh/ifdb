@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from importlib import import_module
+from pathlib import Path
 from pkgutil import iter_modules
 from typing import Protocol, cast
 
@@ -12,8 +13,18 @@ class BlueprintSpec:
     versions: list[str]
 
 
+@dataclass(frozen=True, slots=True)
+class GenerateSpec:
+    version: str
+    config: dict[str, object]
+    destination: Path
+    game_file: Path
+
+
 class BlueprintModule(Protocol):
-    spec: BlueprintSpec
+    def get_spec(self) -> BlueprintSpec: ...
+
+    def generate(self, spec: GenerateSpec) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +34,7 @@ class BlueprintInfo:
 
 
 def discover_blueprints() -> list[BlueprintInfo]:
-    discovered = []
+    discovered: list[BlueprintInfo] = []
 
     for module_info in sorted(
         iter_modules(blueprints.__path__), key=lambda x: x.name
@@ -32,7 +43,13 @@ def discover_blueprints() -> list[BlueprintInfo]:
             continue
 
         module = import_module(f"{blueprints.__name__}.{module_info.name}")
-        if not isinstance(getattr(module, "spec", None), BlueprintSpec):
+        get_spec = getattr(module, "get_spec", None)
+        generate = getattr(module, "generate", None)
+        if not callable(get_spec) or not callable(generate):
+            continue
+
+        spec = get_spec()
+        if not isinstance(spec, BlueprintSpec):
             continue
 
         discovered.append(
