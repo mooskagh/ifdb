@@ -17,6 +17,9 @@ class Playable(models.Model):
     template_version: models.CharField[str, str] = models.CharField(
         max_length=32
     )
+    template_config: models.JSONField[dict[str, object], dict[str, object]] = (
+        models.JSONField(default=dict, blank=True)
+    )
     config: models.JSONField[dict[str, object], dict[str, object]] = (
         models.JSONField(default=dict, blank=True)
     )

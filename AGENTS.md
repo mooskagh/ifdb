@@ -4,8 +4,9 @@
 
 - We use `uv` for virtual environment management.
 - Developer runs `uv run ./manage.py runserver` and database separately — do not start them
-- Use strict Python type annotations
+- Use strict Python type annotations for new files, and fix existing files when needed.
 - Code should be idiomatic, elegant, short, beautiful and concise. Don't overdo comments, don't overengineer, don't introduce unnecessary abstractions.
+- We generate Django migrations rather than writing them manually.
 
 ## Development Commands
 

@@ -38,11 +38,15 @@ class ModelTests(TestCase):
         self.assertEqual(str(playable), "demo")
         self.assertEqual(playable.template, "instead")
         self.assertEqual(playable.template_version, "1.0")
+        self.assertEqual(playable.template_config, {})
         self.assertIsInstance(
             Playable._meta.get_field("template"), models.SlugField
         )
         self.assertIsInstance(
             Playable._meta.get_field("template_version"), models.CharField
+        )
+        self.assertIsInstance(
+            Playable._meta.get_field("template_config"), models.JSONField
         )
         self.assertEqual(playable.config, {})
         self.assertIsNotNone(playable.created)
@@ -64,10 +68,12 @@ class ModelTests(TestCase):
         )
 
         first.config["theme"] = "dark"
+        first.template_config["layout"] = "compact"
         first.save()
         second.refresh_from_db()
 
         self.assertEqual(second.config, {})
+        self.assertEqual(second.template_config, {})
 
 
 class BlueprintDiscoveryTests(SimpleTestCase):
@@ -76,12 +82,12 @@ class BlueprintDiscoveryTests(SimpleTestCase):
             BlueprintInfo("sample", sample_blueprint), discover_blueprints()
         )
         self.assertEqual(sample_blueprint.spec.name, "Sample")
-        self.assertEqual(sample_blueprint.spec.version, "1.0")
+        self.assertEqual(sample_blueprint.spec.versions, ["1.0"])
 
     @staticmethod
     def blueprint_module(name: str) -> BlueprintModule:
         module = ModuleType(f"play.blueprints.{name}")
-        setattr(module, "spec", BlueprintSpec(name=name, version="1.0"))
+        setattr(module, "spec", BlueprintSpec(name=name, versions=["1.0"]))
         return cast(BlueprintModule, module)
 
     @staticmethod

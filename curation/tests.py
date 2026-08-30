@@ -336,7 +336,7 @@ class HistoryListViewTest(TestCase):
         setattr(
             blueprint,
             "spec",
-            BlueprintSpec(name="Test blueprint", version="1.0"),
+            BlueprintSpec(name="Test blueprint", versions=["1.0"]),
         )
         discover_mock.return_value = [
             BlueprintInfo("test-blueprint", cast(BlueprintModule, blueprint))

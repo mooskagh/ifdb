@@ -1,3 +1,3 @@
 from play.blueprint import BlueprintSpec
 
-spec = BlueprintSpec(name="Sample", version="1.0")
+spec = BlueprintSpec(name="Sample", versions=["1.0"])

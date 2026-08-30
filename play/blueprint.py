@@ -9,7 +9,7 @@ from . import blueprints
 @dataclass(frozen=True, slots=True)
 class BlueprintSpec:
     name: str
-    version: str
+    versions: list[str]
 
 
 class BlueprintModule(Protocol):
