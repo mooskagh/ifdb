@@ -362,7 +362,7 @@ class HistoryListViewTest(TestCase):
             response.context["blueprints"],
             [{"display_name": "Test blueprint", "slug": "test-blueprint"}],
         )
-        self.assertContains(response, "проигрыватели")
+        self.assertContains(response, "Проигрыватели")
         self.assertContains(
             response,
             "<title>Проигрыватели - Модерация - db.crem.xyz</title>",

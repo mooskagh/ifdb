@@ -7,6 +7,7 @@
 - Use strict Python type annotations for new files, and fix existing files when needed.
 - Code should be idiomatic, elegant, short, beautiful and concise. Don't overdo comments, don't overengineer, don't introduce unnecessary abstractions.
 - We generate Django migrations rather than writing them manually.
+- Test interfaces rather than implementation details. Keep tests fairly minimal and to the point.
 
 ## Development Commands
 
@@ -24,5 +25,7 @@ just start-db          # Start PostgreSQL via docker-compose
 ### Multi-Site Configuration
 
 The project supports multiple domains with separate configurations:
-- Main IFDB site (kontigr.com, zok.quest) -- these sites show subset of db.crem.xyz for particular contests.
+
+- Main IFDB site (kontigr.com, zok.quest) — these sites show subset of
+  db.crem.xyz for particular contests.
 - Environment detection based on hostname
