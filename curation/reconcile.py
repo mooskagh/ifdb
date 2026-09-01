@@ -15,9 +15,9 @@ from logging import getLogger
 
 from django.utils.timezone import now
 
+from games.gameinfo import parse
 from games.importer.tools import ComputeSimilarity, GetBagOfWords, HashizeUrl
 
-from .gameinfo import parse
 from .models import (
     GameHistory,
     GameHistoryAuditLog,

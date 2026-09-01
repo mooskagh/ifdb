@@ -26,6 +26,7 @@ from contest.models import (
     GameListEntry,
 )
 from core.models import BlogFeed, FeedCache
+from games.gameinfo import GameInfo, GameUrl
 from games.models import (
     URL,
     Game,
@@ -46,7 +47,6 @@ from play.blueprint import (
 )
 
 from .edit import run_edit
-from .gameinfo import GameInfo, GameUrl
 from .models import (
     EditPipeline,
     GameEdit,

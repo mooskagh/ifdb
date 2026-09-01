@@ -3,8 +3,8 @@ from difflib import unified_diff
 from typing import Any
 
 from curation.edit import Approval, GameEditState, SourceFetchInfo
-from curation.gameinfo import GameInfo
 from curation.llm import LlmWorkflowRunner
+from games.gameinfo import GameInfo
 
 
 class GameEditStateLlmRunner(LlmWorkflowRunner):

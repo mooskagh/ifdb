@@ -1,9 +1,9 @@
 from django.test import TestCase
 from django.utils.timezone import now
 
+from games.gameinfo import GameInfo, GameUrl
 from games.models import URL, Game, GameURL, GameURLCategory
 
-from .gameinfo import GameInfo, GameUrl
 from .models import (
     GameHistory,
     GameHistoryAuditLog,

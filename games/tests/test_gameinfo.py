@@ -5,6 +5,15 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
+from games.gameinfo import (
+    Attribution,
+    GameInfo,
+    GameUrl,
+    Person,
+    Tag,
+    merge,
+    parse,
+)
 from games.models import (
     URL,
     GameAuthor,
@@ -17,23 +26,13 @@ from games.models import (
     PersonalityAliasRedirect,
 )
 
-from .gameinfo import (
-    Attribution,
-    GameInfo,
-    GameUrl,
-    Person,
-    Tag,
-    merge,
-    parse,
-)
-
 
 class GameInfoTestBase(TestCase):
     @classmethod
-    def setUpTestData(cls):
+    def setUpTestData(cls) -> None:
         call_command("initifdb", stdout=StringIO(), stderr=StringIO())
 
-    def _seeded_info(self):
+    def _seeded_info(self) -> GameInfo:
         """A GameInfo touching every entry kind, from seeded/created rows."""
         alias = PersonalityAlias.objects.create(name="John Doe")
         tag_cat = GameTagCategory.objects.get(symbolic_id="tag")
@@ -67,7 +66,7 @@ class GameInfoTestBase(TestCase):
 
 
 class CanonicalRoundTripTest(GameInfoTestBase):
-    def test_canonical_is_idempotent(self):
+    def test_canonical_is_idempotent(self) -> None:
         _, canonical = self._seeded_info().save()
         reparsed = parse(canonical)
         # Re-canonicalizing parsed output is stable.
@@ -75,7 +74,7 @@ class CanonicalRoundTripTest(GameInfoTestBase):
         # And parsing the stable output yields the same structure.
         self.assertEqual(parse(reparsed.to_canonical()), reparsed)
 
-    def test_canonical_shape(self):
+    def test_canonical_shape(self) -> None:
         canonical = self._seeded_info().to_canonical()
         self.assertTrue(canonical.startswith("---\n"))
         self.assertIn('- name: "Неправильная сказка"\n', canonical)
@@ -87,7 +86,7 @@ class CanonicalRoundTripTest(GameInfoTestBase):
         )
         self.assertTrue(canonical.endswith("---\nA *markdown* body."))
 
-    def test_url_id_description_is_parseable_yaml_data(self):
+    def test_url_id_description_is_parseable_yaml_data(self) -> None:
         url = URL.objects.create(
             original_url="http://example.com/video",
             creation_date=timezone.now(),
@@ -100,7 +99,7 @@ class CanonicalRoundTripTest(GameInfoTestBase):
             reparsed.urls, [GameUrl("video", url.id, "Proposed", None)]
         )
 
-    def test_merge_keeps_current_url_description_when_present(self):
+    def test_merge_keeps_current_url_description_when_present(self) -> None:
         url = URL.objects.create(
             original_url="http://example.com/video",
             creation_date=timezone.now(),
@@ -120,7 +119,9 @@ class CanonicalRoundTripTest(GameInfoTestBase):
             canonical,
         )
 
-    def test_merge_uses_proposed_url_description_when_current_empty(self):
+    def test_merge_uses_proposed_url_description_when_current_empty(
+        self,
+    ) -> None:
         url = URL.objects.create(
             original_url="http://example.com/video",
             creation_date=timezone.now(),
@@ -136,7 +137,7 @@ class CanonicalRoundTripTest(GameInfoTestBase):
 
         self.assertIn(f'["video", "Proposed", {url.id}]', canonical)
 
-    def test_merge_uses_known_url_category_when_current_unknown(self):
+    def test_merge_uses_known_url_category_when_current_unknown(self) -> None:
         url = URL.objects.create(
             original_url="http://example.com/video",
             creation_date=timezone.now(),
@@ -153,7 +154,9 @@ class CanonicalRoundTripTest(GameInfoTestBase):
         self.assertIn(f'["video", "Proposed", {url.id}]', canonical)
         self.assertNotIn('["unknown"', canonical)
 
-    def test_merge_keeps_known_url_category_when_incoming_unknown(self):
+    def test_merge_keeps_known_url_category_when_incoming_unknown(
+        self,
+    ) -> None:
         url = URL.objects.create(
             original_url="http://example.com/video",
             creation_date=timezone.now(),
@@ -171,7 +174,7 @@ class CanonicalRoundTripTest(GameInfoTestBase):
         self.assertIn('"Proposed"', canonical)
         self.assertNotIn('["unknown"', canonical)
 
-    def test_merge_keeps_same_url_in_different_known_categories(self):
+    def test_merge_keeps_same_url_in_different_known_categories(self) -> None:
         url = URL.objects.create(
             original_url="http://example.com/video",
             creation_date=timezone.now(),
@@ -188,14 +191,14 @@ class CanonicalRoundTripTest(GameInfoTestBase):
         self.assertIn(f'["game_page", "Page", {url.id}]', canonical)
         self.assertIn(f'["video", "Video", "{url.original_url}"]', canonical)
 
-    def test_from_game_round_trips(self):
+    def test_from_game_round_trips(self) -> None:
         game, canonical = self._seeded_info().save()
         rebuilt = GameInfo.from_game(game)
         self.assertEqual(
             rebuilt.to_canonical(), parse(canonical).to_canonical()
         )
 
-    def test_slug_tags_sort_by_slug_not_id(self):
+    def test_slug_tags_sort_by_slug_not_id(self) -> None:
         fairy = GameTag.objects.get(symbolic_id="g_fairytale")
         kids = GameTag.objects.get(symbolic_id="g_kids")
         info = GameInfo(
@@ -212,7 +215,7 @@ class CanonicalRoundTripTest(GameInfoTestBase):
             canonical.index('  - "g_kids"'),
         )
 
-    def test_empty_personality_role_is_ignored(self):
+    def test_empty_personality_role_is_ignored(self) -> None:
         info = GameInfo(
             personalities={
                 None: [Person(None, "Nobody")],
@@ -228,7 +231,7 @@ class CanonicalRoundTripTest(GameInfoTestBase):
 
 
 class LooseParseTest(GameInfoTestBase):
-    def test_unordered_plain_mapping_matches_canonical(self):
+    def test_unordered_plain_mapping_matches_canonical(self) -> None:
         alias = PersonalityAlias.objects.create(name="Jane")
         canonical = (
             "---\n"
@@ -254,7 +257,7 @@ class LooseParseTest(GameInfoTestBase):
         )
         self.assertEqual(parse(loose), parse(canonical))
 
-    def test_text_addressed_references_resolve(self):
+    def test_text_addressed_references_resolve(self) -> None:
         alias = PersonalityAlias.objects.create(name="Resolved Person")
         GameDescriptionAttribution.objects.create(name="apero.ru")
         loose = (
@@ -270,7 +273,7 @@ class LooseParseTest(GameInfoTestBase):
         self.assertEqual(info.personalities["author"][0].alias_id, alias.id)
         self.assertIsNotNone(info.attributions[0].attr_id)
 
-    def test_person_redirect_resolves(self):
+    def test_person_redirect_resolves(self) -> None:
         alias = PersonalityAlias.objects.create(name="Canonical Name")
         PersonalityAliasRedirect.objects.create(
             name="Old Name", hidden_for=alias
@@ -282,7 +285,7 @@ class LooseParseTest(GameInfoTestBase):
 
         self.assertEqual(info.personalities["author"][0], Person(alias.id, ""))
 
-    def test_text_tag_and_language_are_lowercased(self):
+    def test_text_tag_and_language_are_lowercased(self) -> None:
         info = parse(
             '---\n- tags:\n  - ["tag", "Детектив"]\n'
             '  - ["language", "Русский"]\n'
@@ -300,7 +303,9 @@ class LooseParseTest(GameInfoTestBase):
 
 
 class CanonicalizeTest(GameInfoTestBase):
-    def test_resolves_existing_references_without_creating_new_ones(self):
+    def test_resolves_existing_references_without_creating_new_ones(
+        self,
+    ) -> None:
         alias = PersonalityAlias.objects.create(name="Resolved Person")
         language_cat = GameTagCategory.objects.get(symbolic_id="language")
         language = GameTag.objects.create(
@@ -330,7 +335,7 @@ class CanonicalizeTest(GameInfoTestBase):
         )
         self.assertEqual(info.attributions, [Attribution(attr.id, "")])
 
-    def test_deduplicates_after_resolving_existing_references(self):
+    def test_deduplicates_after_resolving_existing_references(self) -> None:
         alias = PersonalityAlias.objects.create(name="Resolved Person")
         fantasy = GameTag.objects.get(symbolic_id="g_fantasy")
         url = URL.objects.create(
@@ -380,7 +385,7 @@ class CanonicalizeTest(GameInfoTestBase):
 
 
 class FromImporterDictTest(GameInfoTestBase):
-    def test_scalar_fields(self):
+    def test_scalar_fields(self) -> None:
         info = GameInfo.from_importer_dict({
             "title": "Игра",
             "desc": "A *markdown* body.",
@@ -390,7 +395,7 @@ class FromImporterDictTest(GameInfoTestBase):
         self.assertEqual(info.description, "A *markdown* body.")
         self.assertEqual(info.date, "2020-01-02")
 
-    def test_authors_role_slug(self):
+    def test_authors_role_slug(self) -> None:
         info = GameInfo.from_importer_dict({
             "authors": [
                 {"role_slug": "author", "name": "Alice"},
@@ -405,14 +410,14 @@ class FromImporterDictTest(GameInfoTestBase):
         # Ids are left unresolved; names stay as text.
         self.assertIsNone(info.personalities["author"][0].alias_id)
 
-    def test_authors_role_title_fallback(self):
+    def test_authors_role_title_fallback(self) -> None:
         # No role_slug: resolve the human title via GameAuthorRole.
         info = GameInfo.from_importer_dict({
             "authors": [{"role": "Художник", "name": "Dave"}]
         })
         self.assertEqual(info.personalities["artist"][0].name, "Dave")
 
-    def test_tags_slug_vs_category(self):
+    def test_tags_slug_vs_category(self) -> None:
         info = GameInfo.from_importer_dict({
             "tags": [
                 {"tag_slug": "released"},
@@ -425,7 +430,7 @@ class FromImporterDictTest(GameInfoTestBase):
         self.assertEqual(info.tags[1], Tag("platform", None, None, "INSTEAD"))
         self.assertEqual(info.tags[2], Tag("", "ifwiki_featured", None, None))
 
-    def test_imported_tags_lowercase_only_tag_and_language(self):
+    def test_imported_tags_lowercase_only_tag_and_language(self) -> None:
         info = GameInfo.from_importer_dict({
             "tags": [
                 {"cat_slug": "tag", "tag": "Детектив"},
@@ -447,7 +452,7 @@ class FromImporterDictTest(GameInfoTestBase):
             ],
         )
 
-    def test_urls_and_falsy_urlcat_skipped(self):
+    def test_urls_and_falsy_urlcat_skipped(self) -> None:
         info = GameInfo.from_importer_dict({
             "urls": [
                 {"urlcat_slug": "game_page", "description": "d", "url": "u1"},
@@ -457,7 +462,7 @@ class FromImporterDictTest(GameInfoTestBase):
         })
         self.assertEqual(info.urls, [GameUrl("game_page", None, "d", "u1")])
 
-    def test_attributions(self):
+    def test_attributions(self) -> None:
         info = GameInfo.from_importer_dict({
             "description_attributions": ["apero.ru", "ifwiki.ru"]
         })
@@ -466,12 +471,12 @@ class FromImporterDictTest(GameInfoTestBase):
             [Attribution(None, "apero.ru"), Attribution(None, "ifwiki.ru")],
         )
 
-    def test_empty_dict_is_empty_gameinfo(self):
+    def test_empty_dict_is_empty_gameinfo(self) -> None:
         self.assertEqual(GameInfo.from_importer_dict({}), GameInfo())
 
 
 class MergeTest(GameInfoTestBase):
-    def test_union_dedup_and_scalars(self):
+    def test_union_dedup_and_scalars(self) -> None:
         base = GameInfo(
             name="Base",
             description="A",
@@ -500,7 +505,7 @@ class MergeTest(GameInfoTestBase):
             [a.name for a in result.attributions], ["shared", "new"]
         )
 
-    def test_dedups_resolved_and_imported_slug_tags(self):
+    def test_dedups_resolved_and_imported_slug_tags(self) -> None:
         fairy = GameTag.objects.get(symbolic_id="g_fairytale")
         kids = GameTag.objects.get(symbolic_id="g_kids")
         base = GameInfo(
@@ -524,7 +529,7 @@ class MergeTest(GameInfoTestBase):
 
 
 class SaveTest(GameInfoTestBase):
-    def test_create_resolves_new_entries_and_resave_is_noop(self):
+    def test_create_resolves_new_entries_and_resave_is_noop(self) -> None:
         game, canonical = self._seeded_info().save()
 
         game.refresh_from_db()
@@ -564,7 +569,7 @@ class SaveTest(GameInfoTestBase):
         self.assertEqual(game.tags.count(), 3)
         self.assertEqual(game.gameurl_set.count(), 2)
 
-    def test_update_adds_and_removes(self):
+    def test_update_adds_and_removes(self) -> None:
         game, _ = self._seeded_info().save()
         # Drop os_win, keep the rest, add os_linux.
         updated = parse('---\n- tags:\n  - "os_linux"\n---\n')

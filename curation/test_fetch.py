@@ -8,8 +8,9 @@ from django.core.management import call_command
 from django.test import TestCase, TransactionTestCase
 from django.utils.timezone import now
 
+from games.gameinfo import GameInfo
+
 from .fetch import FetchStats, _RateLimiter, run_fetch
-from .gameinfo import GameInfo
 from .models import (
     GameHistory,
     GameHistoryAuditLog,

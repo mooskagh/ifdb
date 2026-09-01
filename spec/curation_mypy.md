@@ -55,9 +55,10 @@ must not depend on unavailable services.
 
 ### Unannotated boundaries
 
-The package has useful typed service objects (`GameInfo`, fetch and discovery
-stats, provider dataclasses), but several boundaries are intentionally dynamic
-at runtime and currently untyped:
+The package has useful typed service objects, including
+`games.gameinfo.GameInfo` used by curation, fetch and discovery stats, and
+provider dataclasses, but several boundaries are intentionally dynamic at
+runtime and currently untyped:
 
 - Django models, views, commands, and test cases;
 - persisted `JSONField` values;
@@ -99,9 +100,12 @@ tests. Do not suppress diagnostics or weaken global strictness.
 
 Work from leaf modules upward:
 
-- `curation/gameinfo.py`, `curation/openrouter.py`, and `curation/providers.py`;
+- `games/gameinfo.py`, `curation/openrouter.py`, and `curation/providers.py`;
 - `curation/fetch.py`, `curation/discovery.py`, and `curation/reconcile.py`;
 - `curation/passes/` and `curation/merge.py`.
+
+The focused `GameInfo` contract tests live at `games/tests/test_gameinfo.py`;
+curation consumers and integration tests retain their current ownership.
 
 At JSON/HTTP boundaries, parse into `TypedDict`, dataclass, or narrow
 `object`-based values before business logic uses them. Avoid spreading `Any`

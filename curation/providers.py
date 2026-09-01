@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
+from games.gameinfo import Attribution, GameInfo, GameUrl, Person, Tag
 from games.importer.apero import (
     APERO_URL,
     FetchApero,
@@ -76,7 +77,6 @@ from games.importer.rilarhiv import (
 )
 from games.importer.tools import QuoteUtf8
 
-from .gameinfo import Attribution, GameInfo, GameUrl, Person, Tag
 from .models import GameSource
 
 

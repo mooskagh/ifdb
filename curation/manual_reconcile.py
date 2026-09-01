@@ -4,6 +4,7 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils.timezone import now
 
+from games.gameinfo import GameInfo
 from games.models import (
     Game,
     GameAuthorRole,
@@ -13,7 +14,6 @@ from games.models import (
     PersonalityAlias,
 )
 
-from .gameinfo import GameInfo
 from .manual import editor_payload_to_gameinfo
 from .merge import contest_related_usage
 from .models import GameEdit, GameHistory, GameHistoryAuditLog, GameSource

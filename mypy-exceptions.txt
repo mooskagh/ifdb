@@ -26,7 +26,6 @@ curation/apps.py
 curation/discovery.py
 curation/edit.py
 curation/fetch.py
-curation/gameinfo.py
 curation/llm.py
 curation/llm_runners/base.py
 curation/llm_runners/content_editor.py
@@ -56,7 +55,6 @@ curation/test_discovery.py
 curation/test_edit.py
 curation/test_enrichment.py
 curation/test_fetch.py
-curation/test_gameinfo.py
 curation/test_llm.py
 curation/test_providers.py
 curation/test_reconcile.py

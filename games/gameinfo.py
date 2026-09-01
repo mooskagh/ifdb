@@ -12,7 +12,9 @@ carries no request/permission/user coupling -- it acts as a maintenance writer.
 
 import json
 from collections import defaultdict
+from collections.abc import Callable, Hashable, Iterable, Mapping
 from dataclasses import dataclass, field
+from typing import Any, TypeVar, cast
 
 import yaml
 from dateutil.parser import parse as parse_date
@@ -34,6 +36,9 @@ from games.models import (
     PersonalityAliasRedirect,
 )
 from games.tools import CreateUrl
+
+_T = TypeVar("_T")
+_SortKey = int | tuple[int, str]
 
 
 @dataclass
@@ -71,7 +76,7 @@ class GameInfo:
     date: str | None = None
     description: str | None = None
     # role symbolic_id -> people
-    personalities: dict[str, list[Person]] = field(default_factory=dict)
+    personalities: dict[str | None, list[Person]] = field(default_factory=dict)
     tags: list[Tag] = field(default_factory=list)
     urls: list[GameUrl] = field(default_factory=list)
     attributions: list[Attribution] = field(default_factory=list)
@@ -107,7 +112,7 @@ class GameInfo:
         self._dedup_canonicalized()
 
     def _dedup_canonicalized(self) -> None:
-        personalities = {}
+        personalities: dict[str | None, list[Person]] = {}
         for role, people in self.personalities.items():
             if not role:
                 continue
@@ -128,7 +133,7 @@ class GameInfo:
     # -- Construction -----------------------------------------------------
 
     @classmethod
-    def from_importer_dict(cls, d: dict) -> "GameInfo":
+    def from_importer_dict(cls, d: Mapping[str, Any]) -> "GameInfo":
         """Bridge a legacy importer dict (``games/importer/tools.py``) to here.
 
         Pure text-level mapping: ids stay ``None`` and names stay as text --
@@ -433,7 +438,7 @@ def parse(text: str) -> GameInfo:
     return info
 
 
-def _parse_person(value) -> Person:
+def _parse_person(value: Any) -> Person:
     if isinstance(value, int):
         return Person(alias_id=value, name="")
     alias_id = _existing_alias_id(value)
@@ -442,7 +447,7 @@ def _parse_person(value) -> Person:
     return Person(None, value)
 
 
-def _parse_tag(value) -> Tag:
+def _parse_tag(value: Any) -> Tag:
     if isinstance(value, str):  # slug form
         tag = (
             GameTag.objects
@@ -470,7 +475,7 @@ def _normalize_tag_text(category: str, text: str) -> str:
     return text
 
 
-def _parse_url(value) -> GameUrl:
+def _parse_url(value: Any) -> GameUrl:
     cat, *rest = value
     if len(rest) == 2 and isinstance(rest[1], int):  # [cat, desc, DB url]
         desc, url_id = rest
@@ -489,7 +494,7 @@ def _parse_url(value) -> GameUrl:
     return GameUrl(cat, None, None, rest[0])  # [cat, url]
 
 
-def _parse_attribution(value) -> Attribution:
+def _parse_attribution(value: Any) -> Attribution:
     if isinstance(value, int):
         return Attribution(value, "")
     attr = GameDescriptionAttribution.objects.filter(name=value).first()
@@ -501,9 +506,9 @@ def _existing_alias_id(name: str) -> int | None:
         return None
     redirect = PersonalityAliasRedirect.objects.filter(name=name).first()
     if redirect:
-        return redirect.hidden_for_id
+        return cast(int, redirect.hidden_for_id)
     alias = PersonalityAlias.objects.filter(name=name).first()
-    return alias.id if alias else None
+    return cast(int, alias.id) if alias else None
 
 
 # -- Merge ----------------------------------------------------------------
@@ -551,11 +556,11 @@ def merge(base: GameInfo, incoming: GameInfo) -> GameInfo:
     return result
 
 
-def _person_key(p: Person):
+def _person_key(p: Person) -> Hashable:
     return ("id", p.alias_id) if p.alias_id is not None else ("name", p.name)
 
 
-def _tag_key(t: Tag):
+def _tag_key(t: Tag) -> Hashable:
     if t.slug:
         return ("slug", t.slug)
     if t.tag_id is not None:
@@ -563,22 +568,30 @@ def _tag_key(t: Tag):
     return ("new", t.category, t.text)
 
 
-def _url_key(u: GameUrl, url_by_id: dict[int, str | None]):
-    url = u.url if u.url is not None else url_by_id.get(u.url_id)
+def _url_key(u: GameUrl, url_by_id: dict[int, str | None]) -> tuple[str, str]:
+    url: str | None
+    if u.url is not None:
+        url = u.url
+    elif u.url_id is not None:
+        url = url_by_id.get(u.url_id)
+    else:
+        url = None
     return (u.category, _hash_url_for_merge(url or ""))
 
 
 def _hash_url_for_merge(url: str) -> str:
-    return HashizeUrl(url).replace("rinform.stormway.ru/", "rinform.org/")
+    return cast(
+        str, HashizeUrl(url).replace("rinform.stormway.ru/", "rinform.org/")
+    )
 
 
-def _attribution_key(a: Attribution):
+def _attribution_key(a: Attribution) -> Hashable:
     return ("id", a.attr_id) if a.attr_id is not None else ("name", a.name)
 
 
-def _dedup(items, key):
-    seen = set()
-    out = []
+def _dedup(items: Iterable[_T], key: Callable[[_T], Hashable]) -> list[_T]:
+    seen: set[Hashable] = set()
+    out: list[_T] = []
     for item in items:
         k = key(item)
         if k not in seen:
@@ -587,10 +600,12 @@ def _dedup(items, key):
     return out
 
 
-def _dedup_urls(items, key):
-    seen = {}
-    seen_by_url = {}
-    out = []
+def _dedup_urls(
+    items: Iterable[GameUrl], key: Callable[[GameUrl], tuple[str, str]]
+) -> list[GameUrl]:
+    seen: dict[tuple[str, str], GameUrl] = {}
+    seen_by_url: dict[str, GameUrl] = {}
+    out: list[GameUrl] = []
     for item in items:
         k = key(item)
         kept = seen.get(k)
@@ -623,7 +638,7 @@ def _dedup_urls(items, key):
 # -- Internals ------------------------------------------------------------
 
 
-def _dump(value) -> str:
+def _dump(value: Any) -> str:
     """JSON dump: double-quoted strings, flow lists -- all valid YAML."""
     return json.dumps(value, ensure_ascii=False)
 
@@ -640,11 +655,11 @@ def _split_front_matter(text: str) -> tuple[str, str]:
     return rest[:end], rest[end + 5 :]
 
 
-def _as_mapping(value) -> dict:
+def _as_mapping(value: Any) -> dict[str, Any]:
     """Normalize a section value (list-of-single-key-maps or map) to a dict."""
     if isinstance(value, dict):
         return value
-    result: dict = {}
+    result: dict[str, Any] = {}
     for item in value or []:
         if isinstance(item, dict):
             result.update(item)
@@ -687,7 +702,9 @@ class _References:
             GameURLCategory.objects.values_list("symbolic_id", "order")
         )
 
-    def personality_lines(self, personalities: dict[str, list[Person]]):
+    def personality_lines(
+        self, personalities: dict[str | None, list[Person]]
+    ) -> list[str]:
         lines = []
         roles = sorted(
             (r for r, p in personalities.items() if r and p),
@@ -705,7 +722,7 @@ class _References:
                     lines.append(f"    - {_dump(p.name)}")
         return ["- personalities:", *lines] if lines else []
 
-    def tag_lines(self, tags: list[Tag]):
+    def tag_lines(self, tags: list[Tag]) -> list[str]:
         by_cat: dict[str, list[Tag]] = defaultdict(list)
         for t in tags:
             by_cat[t.category].append(t)
@@ -727,7 +744,7 @@ class _References:
                     lines.append(f"  - {_dump([cat, t.text or ''])}")
         return ["- tags:", *lines] if lines else []
 
-    def url_lines(self, urls: list[GameUrl]):
+    def url_lines(self, urls: list[GameUrl]) -> list[str]:
         by_cat: dict[str, list[GameUrl]] = defaultdict(list)
         for u in urls:
             by_cat[u.category].append(u)
@@ -756,7 +773,7 @@ class _References:
                     )
         return ["- urls:", *lines] if lines else []
 
-    def attribution_lines(self, attributions: list[Attribution]):
+    def attribution_lines(self, attributions: list[Attribution]) -> list[str]:
         lines = []
         for a in self._sorted(
             attributions, lambda x: x.attr_id, lambda x: x.name
@@ -770,13 +787,25 @@ class _References:
         return ["- attributions:", *lines] if lines else []
 
     @staticmethod
-    def _sorted(items, db_key, new_key):
+    def _sorted(
+        items: Iterable[_T],
+        db_key: Callable[[_T], _SortKey | None],
+        new_key: Callable[[_T], str],
+    ) -> list[_T]:
         """DB entries (id present) first by id, then new entries by name."""
-        db = sorted((x for x in items if db_key(x) is not None), key=db_key)
+
+        def db_sort_key(item: _T) -> _SortKey:
+            key = db_key(item)
+            assert key is not None
+            return key
+
+        db = sorted(
+            (x for x in items if db_key(x) is not None), key=db_sort_key
+        )
         new = sorted((x for x in items if db_key(x) is None), key=new_key)
         return [*db, *new]
 
-    def _tag_sort_key(self, tag: Tag):
+    def _tag_sort_key(self, tag: Tag) -> _SortKey | None:
         if tag.slug:
             return (0, tag.slug)
         if tag.tag_id is not None:

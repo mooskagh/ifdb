@@ -8,9 +8,10 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils.timezone import now
 
+from games.gameinfo import GameInfo
+
 from . import openrouter
 from .edit import Approval, GameEditState, SourceFetchInfo, SourceStatus
-from .gameinfo import GameInfo
 from .llm import (
     LLM_RUNNERS,
     LlmWorkflowRunner,

@@ -6,12 +6,12 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils.timezone import now
 
+from games.gameinfo import GameInfo
 from games.models import URL, Game, GameURL, GameURLCategory
 
 from .discovery import DiscoveryStats, run_discover
 from .edit import EditStats
 from .fetch import FetchStats
-from .gameinfo import GameInfo
 from .models import GameHistory, GameSource, SourceDiscoveryStatus
 from .providers import (
     DiscoveredSource,

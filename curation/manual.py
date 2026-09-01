@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.utils.timezone import now
 
+from games.gameinfo import Attribution, GameInfo, GameUrl, Person, Tag
 from games.importer.discord import PostNewGameToDiscord
 from games.models import (
     Game,
@@ -11,7 +12,6 @@ from games.models import (
     GameURLCategory,
 )
 
-from .gameinfo import Attribution, GameInfo, GameUrl, Person, Tag
 from .models import GameEdit, GameHistory, GameHistoryAuditLog
 
 

@@ -30,9 +30,9 @@ from django.db import transaction
 from django.db.models import Case, IntegerField, Q, Value, When
 from django.utils.timezone import now
 
+from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
 
-from .gameinfo import GameInfo, parse
 from .models import (
     EditPipeline,
     GameEdit,

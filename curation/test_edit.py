@@ -6,6 +6,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils.timezone import now
 
+from games.gameinfo import Person, Tag
 from games.models import (
     Game,
     GameAuthorRole,
@@ -18,7 +19,6 @@ from games.models import (
 
 from . import edit
 from .edit import Approval, GameEditPass, run_edit
-from .gameinfo import Person, Tag
 from .manual import store_manual_edit
 from .models import (
     EditPipeline,

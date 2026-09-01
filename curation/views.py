@@ -31,13 +31,13 @@ from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
 from core.models import BlogFeed, FeedCache
 from core.tasks import fetch_feeds
+from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
 from games.models import Game, GameURL
 from play.blueprint import BlueprintModule, discover_blueprints
 
 from . import openrouter
 from .diff import build_diff
-from .gameinfo import GameInfo, parse
 from .manual_reconcile import (
     column_for_game,
     initial_payload,

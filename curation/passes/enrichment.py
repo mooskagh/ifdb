@@ -18,8 +18,8 @@ from functools import lru_cache
 from urllib.parse import urlsplit
 
 from curation.edit import GameEditPass, GameEditState, register_pass
-from curation.gameinfo import GameInfo, Tag
 from curation.models import EnrichmentRule, GenreMapping
+from games.gameinfo import GameInfo, Tag
 from games.importer.tools import CategorizeUrl
 from games.models import URL, GameTag
 
