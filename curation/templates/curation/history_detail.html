@@ -62,6 +62,63 @@
     </div>
 </div>
 
+{% if playable_files %}
+<div class="card card--green">
+    <div class="card--header">Проигрыватель</div>
+    <div class="curation-playable-table-wrap">
+        <table class="curation-table curation-table--compact curation-playable-table">
+            <thead>
+                <tr>
+                    <th class="curation-playable-table-file">Файл</th>
+                    <th class="curation-playable-table-local">Локальная копия</th>
+                    <th>Совместимость</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for playable_file in playable_files %}
+                <tr>
+                    <td class="curation-playable-file">
+                        <a href="{{ playable_file.game_url.url.original_url }}" title="{{ playable_file.game_url.url.original_url }}">{{ playable_file.game_url.url.original_filename|default:playable_file.game_url.url.original_url }}</a>
+                    </td>
+                    <td class="curation-playable-local">
+                        <div>{% if playable_file.has_local_copy %}Есть{% else %}Нет{% endif %}</div>
+                        {% if check_compatibility and playable_file.has_local_copy and playable_file.file_missing %}
+                        <div class="curation-meta">Файл не найден.</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if check_compatibility and playable_file.has_local_copy %}
+                            {% if playable_file.file_missing %}
+                            <span class="curation-meta">—</span>
+                            {% else %}
+                            <div class="curation-playable-compatibility">
+                                {% for result in playable_file.compatibility %}
+                                <span class="curation-playable-result{% if result.accepted %} curation-playable-result--accepted{% else %} curation-playable-result--rejected{% endif %}" data-blueprint-slug="{{ result.slug }}" title="{% if result.accepted %}Совместим{% else %}Несовместим{% endif %}: {{ result.display_name }}">
+                                    <span class="curation-playable-result-mark" aria-hidden="true">{% if result.accepted %}✓{% else %}✕{% endif %}</span>
+                                    <span>{{ result.display_name }}</span>
+                                </span>
+                                {% empty %}
+                                <span class="curation-meta">Проигрывателей нет.</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        {% else %}
+                        <span class="curation-meta">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card--body">
+        <form method="get" class="curation-source-add">
+            <button type="submit" name="check_compatibility" value="1">Проверить совместимость</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
 {% for group in groups %}
 <div class="card card--{{ group.color }}">
     <div class="card--header">

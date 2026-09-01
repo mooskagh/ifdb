@@ -1,6 +1,8 @@
 import copy
 import json
+from dataclasses import dataclass
 from datetime import timedelta
+from pathlib import Path
 
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -30,8 +32,8 @@ from django_celery_beat.models import IntervalSchedule, PeriodicTask
 from core.models import BlogFeed, FeedCache
 from core.tasks import fetch_feeds
 from games.importer.discord import PostNewGameToDiscord
-from games.models import Game
-from play.blueprint import discover_blueprints
+from games.models import Game, GameURL
+from play.blueprint import BlueprintModule, discover_blueprints
 
 from . import openrouter
 from .diff import build_diff
@@ -63,6 +65,102 @@ from .tasks import (
 )
 
 GROUP_WINDOW = timedelta(minutes=1)
+
+
+@dataclass(frozen=True, slots=True)
+class BlueprintResult:
+    slug: str
+    display_name: str
+    accepted: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PlayableFile:
+    game_url: GameURL
+    has_local_copy: bool
+    compatibility: tuple[BlueprintResult, ...] | None
+    file_missing: bool = False
+
+
+def _build_playable_files(
+    game_id: int | None, check_compatibility: bool
+) -> list[PlayableFile]:
+    if game_id is None:
+        return []
+
+    direct_downloads = list(
+        GameURL.objects
+        .filter(game_id=game_id, category__symbolic_id="download_direct")
+        .select_related("url", "category")
+        .order_by("pk")
+    )
+    playable_files = [
+        PlayableFile(
+            game_url=game_url,
+            has_local_copy=bool(game_url.url.local_filename),
+            compatibility=None,
+        )
+        for game_url in direct_downloads
+    ]
+
+    if not check_compatibility or not any(
+        playable_file.has_local_copy for playable_file in playable_files
+    ):
+        return playable_files
+
+    blueprint_specs: list[tuple[str, BlueprintModule, str]] = [
+        (info.name, info.blueprint, info.blueprint.get_spec().name)
+        for info in discover_blueprints()
+    ]
+    checked_files: list[PlayableFile] = []
+    for playable_file in playable_files:
+        url = playable_file.game_url.url
+        local_filename = url.local_filename
+        if not local_filename:
+            checked_files.append(playable_file)
+            continue
+
+        storage = url.GetFs()
+        path = Path(storage.path(local_filename))
+        if not storage.exists(local_filename):
+            checked_files.append(
+                PlayableFile(
+                    game_url=playable_file.game_url,
+                    has_local_copy=playable_file.has_local_copy,
+                    compatibility=None,
+                    file_missing=True,
+                )
+            )
+            continue
+
+        try:
+            compatibility = tuple(
+                BlueprintResult(
+                    slug=slug,
+                    display_name=display_name,
+                    accepted=blueprint.accepts(path),
+                )
+                for slug, blueprint, display_name in blueprint_specs
+            )
+        except FileNotFoundError:
+            checked_files.append(
+                PlayableFile(
+                    game_url=playable_file.game_url,
+                    has_local_copy=playable_file.has_local_copy,
+                    compatibility=None,
+                    file_missing=True,
+                )
+            )
+        else:
+            checked_files.append(
+                PlayableFile(
+                    game_url=playable_file.game_url,
+                    has_local_copy=playable_file.has_local_copy,
+                    compatibility=compatibility,
+                )
+            )
+    return checked_files
+
 
 FETCH_SOURCES_TASK_NAME = "Fetch sources"
 FETCH_SOURCES_TASK = "curation.tasks.fetch_sources"
@@ -1065,6 +1163,10 @@ def history_detail(request, history_id):
         GameHistory.objects.select_related("game"), pk=history_id
     )
     sources = list(GameSource.objects.filter(history=history))
+    check_compatibility = request.GET.get("check_compatibility") == "1"
+    playable_files = _build_playable_files(
+        history.game_id, check_compatibility
+    )
 
     timeline = []
     for source in sources:
@@ -1165,6 +1267,8 @@ def history_detail(request, history_id):
             "history": history,
             "game": history.game,
             "sources": sources,
+            "playable_files": playable_files,
+            "check_compatibility": check_compatibility,
             "groups": _group_timeline(timeline),
             "auto_choices": GameHistory.AutoUpdate.choices,
             "state_choices": GameHistory.State.choices,

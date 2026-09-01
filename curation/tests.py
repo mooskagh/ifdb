@@ -2,6 +2,8 @@ from datetime import timedelta
 from html import unescape
 from io import StringIO
 from json import dumps, loads
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import ModuleType
 from typing import cast
 from unittest.mock import patch
@@ -10,6 +12,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core import mail
+from django.core.files.storage import FileSystemStorage
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -2267,6 +2270,365 @@ class SourceViewsTest(TestCase):
             username="admin", email="admin@example.com", is_superuser=True
         )
         self.client.force_login(self.user)
+
+    def _url_category(self, symbolic_id):
+        return GameURLCategory.objects.get_or_create(
+            symbolic_id=symbolic_id,
+            defaults={"title": symbolic_id},
+        )[0]
+
+    def _download_link(
+        self,
+        game,
+        original_url,
+        *,
+        original_filename=None,
+        local_filename=None,
+        local_url=None,
+        is_uploaded=False,
+        category=None,
+    ):
+        url = URL.objects.create(
+            original_url=original_url,
+            original_filename=original_filename,
+            local_filename=local_filename,
+            local_url=local_url,
+            is_uploaded=is_uploaded,
+            creation_date=timezone.now(),
+        )
+        return GameURL.objects.create(
+            game=game,
+            url=url,
+            category=category or self._url_category("download_direct"),
+        )
+
+    def _fake_blueprint(self, slug, name, accepted, paths, spec_calls):
+        blueprint = ModuleType(f"play.blueprints.{slug}")
+
+        def get_spec() -> BlueprintSpec:
+            spec_calls.append(slug)
+            return BlueprintSpec(name=name, versions=[])
+
+        def accepts(filename: Path) -> bool:
+            paths.append(filename)
+            return accepted
+
+        def generate(_spec: GenerateSpec) -> None:
+            pass
+
+        setattr(blueprint, "get_spec", get_spec)
+        setattr(blueprint, "accepts", accepts)
+        setattr(blueprint, "generate", generate)
+        return BlueprintInfo(slug, cast(BlueprintModule, blueprint))
+
+    def test_history_playable_card_requires_direct_download(self):
+        ts = timezone.now()
+        no_game = GameHistory.objects.create(game=None, creation_time=ts)
+        game_without_links = Game.objects.create(
+            title="No downloads", creation_time=ts
+        )
+        no_downloads = GameHistory.objects.create(
+            game=game_without_links, creation_time=ts
+        )
+        game = Game.objects.create(title="Other link", creation_time=ts)
+        other_category = self._url_category("play_online")
+        self._download_link(
+            game,
+            "https://example.com/play",
+            category=other_category,
+        )
+        other_links = GameHistory.objects.create(game=game, creation_time=ts)
+
+        for history in [no_game, no_downloads, other_links]:
+            response = self.client.get(f"/curation/{history.pk}/")
+
+            self.assertEqual(response.context["playable_files"], [])
+            self.assertNotContains(
+                response,
+                '<div class="card--header">Проигрыватель</div>',
+                html=True,
+            )
+
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_card_lists_direct_downloads_in_order(
+        self, discover_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(title="Downloads", creation_time=ts)
+        history = GameHistory.objects.create(game=game, creation_time=ts)
+        source = GameSource.objects.create(
+            history=history,
+            type=GameSource.SourceType.IFWIKI,
+            url="https://example.com/source",
+            created_at=ts,
+        )
+        first = self._download_link(
+            game,
+            "https://example.com/first.zip",
+            original_filename="first.zip",
+        )
+        self._download_link(
+            game,
+            "https://example.com/online",
+            category=self._url_category("play_online"),
+        )
+        second = self._download_link(
+            game,
+            "https://example.com/second.zip",
+        )
+
+        response = self.client.get(f"/curation/{history.pk}/")
+        rows = response.context["playable_files"]
+        content = response.content.decode()
+
+        self.assertEqual(
+            [row.game_url.pk for row in rows], [first.pk, second.pk]
+        )
+        self.assertTrue(all(row.compatibility is None for row in rows))
+        self.assertContains(response, "Проигрыватель")
+        self.assertContains(
+            response,
+            '<table class="curation-table curation-table--compact '
+            'curation-playable-table">',
+        )
+        self.assertContains(response, ">Файл</th>")
+        self.assertContains(response, ">Локальная копия</th>")
+        self.assertContains(response, ">Совместимость</th>")
+        self.assertContains(response, "first.zip")
+        self.assertContains(response, "https://example.com/second.zip")
+        self.assertContains(response, "Проверить совместимость")
+        self.assertContains(response, "Нет", count=2)
+        self.assertNotContains(response, "https://example.com/online")
+        self.assertNotContains(response, "data-blueprint-slug")
+        self.assertLess(
+            content.index('<div class="card--header">Источники</div>'),
+            content.index('<div class="card--header">Проигрыватель</div>'),
+        )
+        self.assertLess(
+            content.index('<div class="card--header">Проигрыватель</div>'),
+            content.index("Добавлен источник"),
+        )
+        discover_mock.assert_not_called()
+        self.assertTrue(GameSource.objects.filter(pk=source.pk).exists())
+
+    @patch.object(FileSystemStorage, "exists")
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_local_copy_uses_database_marker(
+        self, discover_mock, exists_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(title="Local files", creation_time=ts)
+        history = GameHistory.objects.create(game=game, creation_time=ts)
+        backup = self._download_link(
+            game,
+            "https://example.com/backup.zip",
+            local_filename="backup.zip",
+        )
+        upload = self._download_link(
+            game,
+            "https://example.com/upload.zip",
+            local_filename="upload.zip",
+            is_uploaded=True,
+        )
+        remote = self._download_link(
+            game,
+            "https://example.com/remote.zip",
+            local_url="/f/backups/remote.zip",
+        )
+
+        response = self.client.get(f"/curation/{history.pk}/")
+        rows = response.context["playable_files"]
+
+        self.assertEqual(
+            [row.game_url.pk for row in rows],
+            [backup.pk, upload.pk, remote.pk],
+        )
+        self.assertEqual(
+            [row.has_local_copy for row in rows], [True, True, False]
+        )
+        self.assertContains(response, "Есть", count=2)
+        self.assertContains(response, "Нет")
+        discover_mock.assert_not_called()
+        exists_mock.assert_not_called()
+
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_compatibility_checks_all_local_files(
+        self, discover_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(title="Compatibility", creation_time=ts)
+        history = GameHistory.objects.create(game=game, creation_time=ts)
+        with (
+            TemporaryDirectory() as upload_root,
+            TemporaryDirectory() as backup_root,
+        ):
+            self._download_link(
+                game,
+                "https://example.com/backup.zip",
+                local_filename="games/backup.zip",
+            )
+            self._download_link(
+                game,
+                "https://example.com/remote.zip",
+                local_url="/f/backups/remote.zip",
+            )
+            self._download_link(
+                game,
+                "https://example.com/upload.zip",
+                local_filename="games/upload.zip",
+                is_uploaded=True,
+            )
+            accepting_paths = []
+            rejecting_paths = []
+            spec_calls = []
+            discover_mock.return_value = [
+                self._fake_blueprint(
+                    "accepting",
+                    "Accepting playable",
+                    True,
+                    accepting_paths,
+                    spec_calls,
+                ),
+                self._fake_blueprint(
+                    "rejecting",
+                    "Rejecting playable",
+                    False,
+                    rejecting_paths,
+                    spec_calls,
+                ),
+            ]
+            for file_path in [
+                Path(backup_root) / "games/backup.zip",
+                Path(upload_root) / "games/upload.zip",
+            ]:
+                file_path.parent.mkdir(parents=True)
+                file_path.touch()
+
+            with override_settings(
+                UPLOADS_FS=FileSystemStorage(upload_root),
+                BACKUPS_FS=FileSystemStorage(backup_root),
+            ):
+                response = self.client.get(
+                    f"/curation/{history.pk}/",
+                    {"check_compatibility": "1"},
+                )
+
+            expected_paths = [
+                Path(backup_root) / "games/backup.zip",
+                Path(upload_root) / "games/upload.zip",
+            ]
+
+        self.assertEqual(accepting_paths, expected_paths)
+        self.assertEqual(rejecting_paths, expected_paths)
+        self.assertEqual(spec_calls, ["accepting", "rejecting"])
+        discover_mock.assert_called_once_with()
+        self.assertContains(
+            response,
+            'data-blueprint-slug="accepting"',
+            count=2,
+        )
+        self.assertContains(
+            response,
+            "curation-playable-result--accepted",
+            count=2,
+        )
+        self.assertContains(response, "✓", count=2)
+        self.assertContains(
+            response,
+            'data-blueprint-slug="rejecting"',
+            count=2,
+        )
+        self.assertContains(
+            response,
+            "curation-playable-result--rejected",
+            count=2,
+        )
+        self.assertContains(response, "✕", count=2)
+        self.assertNotContains(
+            response, '<input type="checkbox" data-blueprint-slug'
+        )
+        self.assertContains(response, ">Accepting playable</span>", count=2)
+        self.assertContains(response, ">Rejecting playable</span>", count=2)
+        self.assertIsNone(response.context["playable_files"][1].compatibility)
+        self.assertContains(response, "Нет")
+
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_missing_file_is_reported(self, discover_mock):
+        ts = timezone.now()
+        game = Game.objects.create(title="Missing file", creation_time=ts)
+        history = GameHistory.objects.create(game=game, creation_time=ts)
+        self._download_link(
+            game,
+            "https://example.com/missing.zip",
+            local_filename="missing.zip",
+        )
+        accepting_paths = []
+        spec_calls = []
+        discover_mock.return_value = [
+            self._fake_blueprint(
+                "accepting",
+                "Accepting playable",
+                True,
+                accepting_paths,
+                spec_calls,
+            )
+        ]
+
+        with TemporaryDirectory() as backup_root:
+            with override_settings(
+                BACKUPS_FS=FileSystemStorage(backup_root),
+            ):
+                response = self.client.get(
+                    f"/curation/{history.pk}/",
+                    {"check_compatibility": "1"},
+                )
+
+        row = response.context["playable_files"][0]
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(row.file_missing)
+        self.assertIsNone(row.compatibility)
+        self.assertEqual(accepting_paths, [])
+        self.assertEqual(spec_calls, ["accepting"])
+        discover_mock.assert_called_once_with()
+        self.assertContains(response, "Файл не найден.")
+        self.assertNotContains(response, "data-blueprint-slug")
+
+    @patch.object(FileSystemStorage, "exists", return_value=True)
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_compatibility_requires_exact_query_value(
+        self, discover_mock, exists_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(title="Compatibility", creation_time=ts)
+        history = GameHistory.objects.create(game=game, creation_time=ts)
+        self._download_link(
+            game,
+            "https://example.com/game.zip",
+            local_filename="game.zip",
+        )
+        path = f"/curation/{history.pk}/"
+
+        for query in [
+            {},
+            {"check_compatibility": ""},
+            {"check_compatibility": "0"},
+        ]:
+            response = self.client.get(path, query)
+            self.assertIsNone(
+                response.context["playable_files"][0].compatibility
+            )
+            self.assertNotContains(response, "data-blueprint-slug")
+        discover_mock.assert_not_called()
+
+        discover_mock.return_value = []
+        response = self.client.get(path, {"check_compatibility": "1"})
+
+        discover_mock.assert_called_once_with()
+        exists_mock.assert_called_once_with("game.zip")
+        self.assertEqual(
+            response.context["playable_files"][0].compatibility, ()
+        )
+        self.assertContains(response, "Проигрывателей нет.")
 
     def test_source_list_detail_and_fetch_content(self):
         ts = timezone.now()
