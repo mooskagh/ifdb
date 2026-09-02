@@ -22,6 +22,7 @@ from moder.actions import GetModerActions
 from moder.userlog import LogAction
 
 from .game_details import GameDetailsBuilder, GetCommentVotes, StarsFromRating
+from .gameinfo import GameInfo
 from .importer import Importer
 from .importer.tools import CategorizeUrl
 from .models import (
@@ -373,9 +374,12 @@ def json_commentvote(request):
 
 def show_game(request, game_id):
     try:
-        g = GameDetailsBuilder(game_id, request)
-        LogAction(request, "gam-view", is_mutation=False, obj=g.game)
-        return render(request, "games/game.html", g.GetGameDict())
+        game = Game.objects.get(id=game_id)
+        request.perm.Ensure(game.view_perm)
+        info = GameInfo.from_game(game)
+        LogAction(request, "gam-view", is_mutation=False, obj=game)
+        page = GameDetailsBuilder(info).GetGameDict(game, request)
+        return render(request, "games/game.html", vars(page))
     except Game.DoesNotExist:
         raise Http404()
 

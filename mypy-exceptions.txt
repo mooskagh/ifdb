@@ -63,7 +63,6 @@ curation/urls.py
 curation/views.py
 games/admin.py
 games/apps.py
-games/game_details.py
 games/importer/apero.py
 games/importer/discord.py
 games/importer/enrichment.py
