@@ -363,7 +363,9 @@ class MigrateQspSuCommandTest(TestCase):
             type=GameSource.SourceType.QSP,
             url="https://qsp.org/games/42-game-title",
         )
-        game = Game.objects.create(title="QSP игра", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="QSP игра", creation_time=now()
+        )
         url = URL.objects.create(
             original_url="http://qsp.su/index.php?option=com_sobi2&sobi2Id=42",
             creation_date=now(),

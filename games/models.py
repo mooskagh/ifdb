@@ -5,9 +5,43 @@ from django.utils.translation import gettext_lazy as _
 # Create your models here.
 
 
+class GameQuerySet(models.QuerySet["Game"]):
+    def published(self) -> "GameQuerySet":
+        return self.filter(state=Game.State.PUBLISHED)
+
+
 class Game(models.Model):
+    class State(models.TextChoices):
+        DRAFT = "DRAFT", _("Draft")
+        PUBLISHED = "PUBLISHED", _("Published")
+        REDIRECT = "REDIRECT", _("Redirect")
+
     class Meta:
         default_permissions = ()
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        state="REDIRECT",
+                        redirect_to__isnull=False,
+                    )
+                    | models.Q(
+                        state__in=["DRAFT", "PUBLISHED"],
+                        redirect_to__isnull=True,
+                    )
+                ),
+                name="games_game_state_redirect_target",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(redirect_to__isnull=True)
+                    | ~models.Q(pk=models.F("redirect_to_id"))
+                ),
+                name="games_game_redirect_not_self",
+            ),
+        ]
+
+    objects = GameQuerySet.as_manager()
 
     def __str__(self):
         return self.title
@@ -22,6 +56,20 @@ class Game(models.Model):
     )
     creation_time = models.DateTimeField(_("Added at"), db_index=True)
     edit_time = models.DateTimeField(_("Last edit"), null=True, blank=True)
+    state = models.CharField(
+        _("Publication state"),
+        max_length=16,
+        choices=State,
+        default=State.DRAFT,
+        db_index=True,
+    )
+    redirect_to = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="redirects",
+    )
     view_perm = models.CharField(
         _("Game view permission"), max_length=255, default="(alias game_view)"
     )

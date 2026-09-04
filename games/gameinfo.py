@@ -220,7 +220,12 @@ class GameInfo:
 
     # -- Persistence ------------------------------------------------------
 
-    def save(self, game: Game | None = None) -> tuple[Game, str]:
+    def save(
+        self,
+        game: Game | None = None,
+        *,
+        state: Game.State = Game.State.PUBLISHED,
+    ) -> tuple[Game, str]:
         """Create or update a game; return ``(game, fresh canonical text)``.
 
         After rows are written the newly created ids are back-filled into this
@@ -229,7 +234,7 @@ class GameInfo:
         """
         now = timezone.now()
         if game is None:
-            game = Game(creation_time=now)
+            game = Game(creation_time=now, state=state)
         game.edit_time = now
         game.title = self.name or ""
         game.description = self.description

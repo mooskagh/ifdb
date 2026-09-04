@@ -9,7 +9,7 @@ from dateutil import relativedelta
 from django import forms
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Q
 from django.forms import widgets
 from django.http import Http404
 from django.shortcuts import render
@@ -17,7 +17,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 
-from games.models import GameAuthor, GameURL
+from games.models import Game, GameAuthor, GameURL
 from games.tools import (
     ComputeGameRating,
     FormatDate,
@@ -77,6 +77,9 @@ class CompetitionGameFetcher:
             unranked = []
             for y in (
                 x.gamelistentry_set
+                .filter(
+                    Q(game__isnull=True) | Q(game__in=Game.objects.published())
+                )
                 .annotate(
                     coms_count=Count("game__gamecomment"),
                     coms_recent=Max("game__gamecomment__creation_time"),
@@ -124,8 +127,6 @@ class CompetitionGameFetcher:
         author_objs = GameAuthor.objects.filter(
             game__in=games, role__symbolic_id="author"
         ).select_related("author")
-
-        from games.models import Game
 
         CATEGORY_KEY = {
             "genre": "genres",

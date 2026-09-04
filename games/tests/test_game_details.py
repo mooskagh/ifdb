@@ -218,6 +218,7 @@ A **markdown** description.
         self, from_game: Any
     ) -> None:
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title="Persisted title",
             description="Persisted body",
             creation_time=now(),

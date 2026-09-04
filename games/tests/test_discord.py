@@ -24,6 +24,7 @@ class DiscordRenderingTests(TestCase):
         self, from_game: MagicMock, post: MagicMock
     ) -> None:
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title="Persisted title",
             description="Persisted description",
             creation_time=now(),
@@ -63,7 +64,9 @@ class DiscordRenderingTests(TestCase):
         self, from_game: MagicMock, post: MagicMock
     ) -> None:
         game = Game.objects.create(
-            title="Persisted title", creation_time=now()
+            state=Game.State.PUBLISHED,
+            title="Persisted title",
+            creation_time=now(),
         )
         from_game.return_value = GameInfo(name="Canonical title")
 

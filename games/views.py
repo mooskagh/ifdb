@@ -10,7 +10,7 @@ from django.db.models import Count, OuterRef, Subquery
 from django.db.models.functions import Coalesce
 from django.http import Http404
 from django.http.response import JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -80,7 +80,7 @@ def add_game(request):
 @ensure_csrf_cookie
 @login_required
 def edit_game(request, game_id):
-    game = Game.objects.get(id=game_id)
+    game = get_object_or_404(Game.objects.published(), id=game_id)
     return render(
         request,
         "games/edit.html",
@@ -114,7 +114,7 @@ def store_game(request):
 
     is_new_game = "game_id" not in j
     if not is_new_game:
-        game = Game.objects.get(id=j["game_id"])
+        game = get_object_or_404(Game.objects.published(), id=j["game_id"])
         can_save = request.perm(game.edit_perm)
         if not can_save:
             request.perm.Ensure("@auth")
@@ -150,7 +150,10 @@ def vote_game(request):
         return render(
             request, "games/error.html", {"message": "Что-то не так!" + " (2)"}
         )
-    game = Game.objects.get(id=int(request.POST.get("game_id")))
+    resolved = _resolve_public_game(int(request.POST.get("game_id")))
+    if resolved is None:
+        raise Http404()
+    game, _ = resolved
     request.perm.Ensure(game.vote_perm)
 
     before = None
@@ -288,7 +291,10 @@ def comment_game(request):
         return render(
             request, "games/error.html", {"message": "Что-то не так!" + " (3)"}
         )
-    game = Game.objects.get(id=int(request.POST.get("game_id")))
+    resolved = _resolve_public_game(int(request.POST.get("game_id")))
+    if resolved is None:
+        raise Http404()
+    game, _ = resolved
     request.perm.Ensure(game.comment_perm)
 
     comment = GameComment()
@@ -332,7 +338,12 @@ def json_commentvote(request):
             "games/error.html",
             {"message": "Что-то не так!" + " (199)"},
         )
-    comment = GameComment.objects.get(id=int(request.POST.get("comment")))
+    comment = get_object_or_404(
+        GameComment.objects.select_related("game"),
+        id=int(request.POST.get("comment")),
+    )
+    if not Game.objects.published().filter(id=comment.game_id).exists():
+        raise Http404()
 
     if request.user.is_authenticated:
         old_vote = None
@@ -372,16 +383,43 @@ def json_commentvote(request):
     )
 
 
+def _resolve_public_game(game_id: int) -> tuple[Game, bool] | None:
+    visited: set[int] = set()
+    redirected = False
+    while True:
+        if game_id in visited:
+            return None
+        visited.add(game_id)
+        try:
+            game = Game.objects.select_related("redirect_to").get(id=game_id)
+        except Game.DoesNotExist:
+            return None
+        if game.state == Game.State.REDIRECT:
+            if game.redirect_to_id is None:
+                return None
+            redirected = True
+            game_id = game.redirect_to_id
+            continue
+        if game.state != Game.State.PUBLISHED:
+            return None
+        return game, redirected
+
+
 def show_game(request, game_id):
-    try:
-        game = Game.objects.get(id=game_id)
-        request.perm.Ensure(game.view_perm)
-        info = GameInfo.from_game(game)
-        LogAction(request, "gam-view", is_mutation=False, obj=game)
-        page = GameDetailsBuilder(info).GetGameDict(game, request)
-        return render(request, "games/game.html", vars(page))
-    except Game.DoesNotExist:
+    resolved = _resolve_public_game(game_id)
+    if resolved is None:
         raise Http404()
+    game, redirected = resolved
+    request.perm.Ensure(game.view_perm)
+    if redirected:
+        location = reverse("show_game", kwargs={"game_id": game.id})
+        if query_string := request.META.get("QUERY_STRING"):
+            location = f"{location}?{query_string}"
+        return redirect(location, permanent=True)
+    info = GameInfo.from_game(game)
+    LogAction(request, "gam-view", is_mutation=False, obj=game)
+    page = GameDetailsBuilder(info).GetGameDict(game, request)
+    return render(request, "games/game.html", vars(page))
 
 
 def show_author(request, author_id):
@@ -390,7 +428,10 @@ def show_author(request, author_id):
         res = {"name": a.name, "aliases": [], "links": []}
         for x in (
             PersonalityAlias.objects
-            .filter(personality=a)
+            .filter(
+                personality=a,
+                gameauthor__game__in=Game.objects.published(),
+            )
             .annotate(games=Count("gameauthor"))
             .order_by("-games")
         ):
@@ -425,7 +466,10 @@ def show_author(request, author_id):
         existing = set()
         for g in (
             GameAuthor.objects
-            .filter(author__personality=author_id)
+            .filter(
+                author__personality=author_id,
+                game__in=Game.objects.published(),
+            )
             .select_related()
             .prefetch_related(
                 "game__gameauthor_set__role",
@@ -568,7 +612,7 @@ def linktypes(request):
 def BuildJsonGameInfo(request, game_id):
     g = {}
     if game_id:
-        game = Game.objects.get(id=game_id)
+        game = get_object_or_404(Game.objects.published(), id=game_id)
         request.perm.Ensure(game.view_perm)
         g["title"] = game.title or ""
         g["desc"] = game.description or ""
@@ -645,6 +689,7 @@ def json_author_search(request):
                     .filter(
                         role__symbolic_id="author",
                         author__personality=OuterRef("pk"),
+                        game__in=Game.objects.published(),
                     )
                     .values("author__personality")
                     .annotate(cnt=Count("game", distinct=True))
@@ -659,7 +704,7 @@ def json_author_search(request):
     for x in authors:
         x.aliases = []
         for a in x.personalityalias_set.filter(
-            gameauthor__isnull=False
+            gameauthor__game__in=Game.objects.published()
         ).distinct():
             if a.name != x.name:
                 x.aliases.append(a.name)

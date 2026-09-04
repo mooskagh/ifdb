@@ -350,7 +350,7 @@ def UpdateGame(request, j, update_edit_time=True, kill_existing_urls=True):
             g.edit_time = timezone.now()
     else:
         request.perm.Ensure(PERM_ADD_GAME)
-        g = Game()
+        g = Game(state=Game.State.PUBLISHED)
         g.creation_time = timezone.now()
         g.added_by = request.user
 

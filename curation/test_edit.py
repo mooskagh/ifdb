@@ -141,7 +141,9 @@ class RunEditTests(TestCase):
         call_command("initifdb", stdout=StringIO(), stderr=StringIO())
 
     def _history(self):
-        game = Game.objects.create(title="A Game", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="A Game", creation_time=now()
+        )
         return GameHistory.objects.create(
             game=game,
             state=GameHistory.State.SCHEDULED_FOR_UPDATE,
@@ -170,6 +172,7 @@ class RunEditTests(TestCase):
         self.assertEqual(stats.applied, 1)
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.game.state, Game.State.PUBLISHED)
         edit_row = GameEdit.objects.get(history=history)
         self.assertEqual(edit_row.status, GameEdit.EditStatus.APPLIED)
         self.assertEqual(edit_row.passes, [{"name": "tag_and_approve"}])
@@ -593,7 +596,9 @@ class ManualEditTests(TestCase):
         return history, fetch
 
     def test_apply_updates_game_and_records_edit(self):
-        game = Game.objects.create(title="Old Title", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
+        )
         history, fetch = self._history_with_source(game)
 
         edit_row = store_manual_edit(game, self._payload(), None, apply=True)
@@ -610,7 +615,9 @@ class ManualEditTests(TestCase):
         self.assertIn("manual source", edit_row.canonical_text)
 
     def test_propose_creates_attention_edit_without_changing_game(self):
-        game = Game.objects.create(title="Old Title", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
+        )
         history, fetch = self._history_with_source(game)
 
         edit_row = store_manual_edit(game, self._payload(), None, apply=False)
@@ -628,7 +635,9 @@ class ManualEditTests(TestCase):
         self.assertIn("manual source", edit_row.canonical_text)
 
     def test_propose_records_note_audit(self):
-        game = Game.objects.create(title="Old Title", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
+        )
         history, _ = self._history_with_source(game)
 
         store_manual_edit(game, self._payload(), None, apply=False)

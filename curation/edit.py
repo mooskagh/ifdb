@@ -32,6 +32,7 @@ from django.utils.timezone import now
 
 from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
+from games.models import Game
 
 from .models import (
     EditPipeline,
@@ -372,7 +373,10 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
 
         if state.approval is Approval.APPLIED:
             created_game = history.game is None
-            game, after = state.current.save(history.game)
+            game, after = state.current.save(
+                history.game,
+                state=Game.State.PUBLISHED,
+            )
             if after != final:
                 edit.canonical_text = after
             edit.approved_at = now()

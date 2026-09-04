@@ -109,7 +109,7 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameEdit:
 
     old_note = history.note
     if apply:
-        game, after = info.save(None)
+        game, after = info.save(None, state=Game.State.PUBLISHED)
         game.added_by = user
         game.save(update_fields=["added_by"])
         edit.canonical_text = after

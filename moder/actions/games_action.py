@@ -28,7 +28,7 @@ class GameCloneAction(GameAction):
             return "Клонировать эту игру?"
 
         fro = self.obj
-        to = Game()
+        to = Game(state=Game.State.PUBLISHED)
         for field in [
             "title",
             "description",

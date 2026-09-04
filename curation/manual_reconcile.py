@@ -480,7 +480,7 @@ def _apply_game_info(
         "description_attributions": col["description_attributions"],
         "desc": col["description"],
     })
-    game, after = info.save(game)
+    game, after = info.save(game, state=Game.State.PUBLISHED)
     if history is None:
         history, _ = GameHistory.objects.get_or_create(
             game=game, defaults={"creation_time": now()}

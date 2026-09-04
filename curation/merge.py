@@ -123,7 +123,9 @@ def merge_game_into_history(
             target_history, actor, source_game, target_game
         )
 
-    source_game.delete()
+    source_game.state = Game.State.REDIRECT
+    source_game.redirect_to = target_game
+    source_game.save(update_fields=["state", "redirect_to"])
     target_history.edit_time = now()
     target_history.save(update_fields=["edit_time"])
 

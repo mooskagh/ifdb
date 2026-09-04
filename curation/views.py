@@ -1592,7 +1592,7 @@ def _update_auto_accept(history, request):
 def _accept_edit(edit, history, before, user):
     info = parse(edit.canonical_text)
     created_game = history.game is None
-    game, after = info.save(history.game)
+    game, after = info.save(history.game, state=Game.State.PUBLISHED)
     if created_game:
         history.game = game
         game.added_by = edit.proposed_by

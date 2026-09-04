@@ -31,7 +31,9 @@ class RunReconcileTests(TestCase):
         return cat
 
     def _existing(self, title, url=None, urlcat="game_page"):
-        game = Game.objects.create(title=title, creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title=title, creation_time=now()
+        )
         if url:
             GameURL.objects.create(
                 game=game,

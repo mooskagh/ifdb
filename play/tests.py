@@ -25,7 +25,9 @@ class ModelTests(TestCase):
 
     @classmethod
     def setUpTestData(cls) -> None:
-        cls.game = Game.objects.create(title="A game", creation_time=now())
+        cls.game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="A game", creation_time=now()
+        )
 
     def test_playable(self) -> None:
         playable = Playable.objects.create(
