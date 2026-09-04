@@ -304,6 +304,12 @@ class MarkdownSnippet(Extension):
 
 
 def RenderMarkdown(content, snippet_provider=None):
+    if not content:
+        return ""
+    if "{|" in content:
+        from games.importer.ifwiki import convert_wikitext_tables
+
+        content = convert_wikitext_tables(content)
     extensions = [
         "markdown.extensions.extra",
         "markdown.extensions.meta",
@@ -313,7 +319,7 @@ def RenderMarkdown(content, snippet_provider=None):
     ]
     if snippet_provider:
         extensions.append(MarkdownSnippet(snippet_provider))
-    return markdown.markdown(content, extensions=extensions) if content else ""
+    return markdown.markdown(content, extensions=extensions)
 
 
 def CreateUrl(url, *, ok_to_clone, creator=None):

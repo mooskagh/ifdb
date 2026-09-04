@@ -268,6 +268,59 @@ IFWIKI_ROLES = {
 }
 IFWIKI_IGNORE_ROLES = {"Категория"}
 
+ROLE_PATTERNS = [
+    (
+        re.compile(
+            r"(?:\bавтор[а-я]*\s+перевода|\bперевод(?:чик[а-я]*)?|\bпер\b|\bпер\.)",
+            re.I,
+        ),
+        "translator",
+    ),
+    (
+        re.compile(
+            r"(?:\bпортировани[ея]|\bпортировал[а-я]*|\bпорт\b|\bпорт\.|\bпрограммист[а-я]*|\bдвижок\b|\bкод\b)",
+            re.I,
+        ),
+        "programmer",
+    ),
+    (
+        re.compile(
+            r"(?:\bиллюстрац[а-я]*|\bиллюстратор[а-я]*|\bхудожник[а-я]*|\bрисунк[а-я]*|\bарт\b|\bобложк[а-я]*)",
+            re.I,
+        ),
+        "artist",
+    ),
+    (
+        re.compile(
+            r"(?:\bмузык[а-я]*|\bкомпозитор[а-я]*|\bсаундтрек[а-я]*|\bзвук\b)",
+            re.I,
+        ),
+        "composer",
+    ),
+    (
+        re.compile(
+            r"(?:\bтестиров[а-я]*|\bтестер[а-я]*)",
+            re.I,
+        ),
+        "tester",
+    ),
+    (
+        re.compile(
+            r"(?:\bавтор[а-я]*|\bсюжет[а-я]*|\bтекст[а-я]*|\bсценари[а-я]*)",
+            re.I,
+        ),
+        "author",
+    ),
+]
+
+
+def detect_role_in_text(text: str) -> str | None:
+    for pattern, role in ROLE_PATTERNS:
+        if pattern.search(text):
+            return role
+    return None
+
+
 IFWIKI_COMPETITIONS = {
     "Конкурс": "{_1}",
     "ЛОК": "ЛОК-{_1}",
@@ -378,7 +431,9 @@ class WikiParsingContext:
             elif default_role:
                 self.authors.append({
                     "role_slug": default_role,
-                    "name": name,
+                    "name": display_name or name,
+                    "url": f"http://ifwiki.ru/{WikiQuote(name)}",
+                    "urldesc": "Страница автора на ifwiki",
                 })
             elif ALLOW_INTERNAL_LINKS:
                 self.AddUrl(
@@ -390,6 +445,54 @@ class WikiParsingContext:
         if role:
             return f"{role}:{name}"
         return name
+
+    def ProcessAuthorLine(self, v):
+        links = list(IFWIKI_LINK_PARSE.finditer(v))
+        if links:
+            current_role = "author"
+            last_end = 0
+            for m in links:
+                prefix = v[last_end : m.start()]
+                detected = detect_role_in_text(prefix)
+                if detected:
+                    current_role = detected
+                parsed = ParseIfwikiLink(m.group(1))
+                if parsed:
+                    role, name, _typ, display_name = parsed
+                    if role in IFWIKI_IGNORE_ROLES:
+                        last_end = m.end()
+                        continue
+                    if detected:
+                        role_slug = detected
+                    elif role and role.lower() in IFWIKI_ROLES:
+                        role_slug = IFWIKI_ROLES[role.lower()]
+                    else:
+                        role_slug = current_role
+                    author_name = (display_name or name).strip()
+                    self.authors.append({
+                        "role_slug": role_slug,
+                        "name": author_name,
+                        "url": f"http://ifwiki.ru/{WikiQuote(name)}",
+                        "urldesc": "Страница автора на ifwiki",
+                    })
+                last_end = m.end()
+        else:
+            current_role = "author"
+            parts = re.split(r"[,;]", v)
+            for part in parts:
+                part = part.strip()
+                if not part:
+                    continue
+                detected = detect_role_in_text(part)
+                if detected:
+                    current_role = detected
+                    for pattern, _r in ROLE_PATTERNS:
+                        part = pattern.sub("", part).strip(" :-\t")
+                if part:
+                    self.authors.append({
+                        "role_slug": current_role,
+                        "name": part,
+                    })
 
     def ProcessGameinfo(self, params):
         """Process game info template parameters elegantly."""
@@ -404,10 +507,7 @@ class WikiParsingContext:
                 return None
 
         handlers = {
-            "автор": lambda v: [
-                self.ProcessLink(m.group(1))
-                for m in IFWIKI_LINK_PARSE.finditer(v)
-            ],
+            "автор": self.ProcessAuthorLine,
             "название": lambda v: setattr(self, "title", v),
             "вышла": lambda v: setattr(self, "release_date", parse_date(v)),
             "платформа": lambda v: add_tag("platform", v),
@@ -545,6 +645,107 @@ def process_wikitext_for_author(wikicode, context):
     return text
 
 
+def parse_cell(cell_str: str) -> str:
+    cell_str = cell_str.strip()
+    if "|" in cell_str and not cell_str.startswith("["):
+        parts = cell_str.split("|", 1)
+        if re.match(
+            r"^[a-zA-Z0-9_\-\"\'%=\s#;:!]+$", parts[0].strip()
+        ) and not ("[[" in parts[0] or "]]" in parts[0]):
+            cell_str = parts[1].strip()
+    cell_str = cell_str.replace("\n", " ")
+    cell_str = re.sub(
+        r"\[\[(.*?)\]\]",
+        lambda m: "[[" + m.group(1).replace("|", "&#124;") + "]]",
+        cell_str,
+    )
+    return cell_str
+
+
+def convert_wikitext_table(table_body: str) -> str:
+    rows: list[tuple[bool, list[str]]] = []
+    current_row: list[str] = []
+    is_header_row = False
+    lines = table_body.splitlines()
+    caption = None
+
+    for line in lines:
+        line_s = line.strip()
+        if not line_s:
+            continue
+        if line_s.startswith("|+"):
+            caption = line_s[2:].strip()
+            continue
+        if line_s.startswith("|-"):
+            if current_row:
+                rows.append((is_header_row, current_row))
+                current_row = []
+            is_header_row = False
+            continue
+        if line_s.startswith("!"):
+            is_header_row = True
+            cells = line_s[1:].split("!!")
+            for c in cells:
+                current_row.append(parse_cell(c))
+            continue
+        if line_s.startswith("|"):
+            cells = line_s[1:].split("||")
+            for c in cells:
+                current_row.append(parse_cell(c))
+            continue
+        if current_row:
+            current_row[-1] += " " + line_s
+
+    if current_row:
+        rows.append((is_header_row, current_row))
+
+    if not rows:
+        return ""
+
+    headers: list[list[str]] = []
+    data_rows: list[list[str]] = []
+    for is_h, r in rows:
+        if is_h:
+            headers.append(r)
+        else:
+            data_rows.append(r)
+
+    max_cols = max(len(r) for _, r in rows) if rows else 0
+    if max_cols == 0:
+        return ""
+
+    res: list[str] = []
+    if caption:
+        res.append(f"**{caption}**\n")
+
+    if headers:
+        header_row = headers[0]
+        header_row += [""] * (max_cols - len(header_row))
+        res.append("| " + " | ".join(header_row) + " |")
+        res.append("| " + " | ".join(["---"] * max_cols) + " |")
+        for h in headers[1:]:
+            h += [""] * (max_cols - len(h))
+            res.append("| " + " | ".join(h) + " |")
+    else:
+        res.append("| " + " | ".join([""] * max_cols) + " |")
+        res.append("| " + " | ".join(["---"] * max_cols) + " |")
+
+    for d in data_rows:
+        d += [""] * (max_cols - len(d))
+        res.append("| " + " | ".join(d) + " |")
+
+    return "\n\n" + "\n".join(res) + "\n\n"
+
+
+def convert_wikitext_tables(text: str) -> str:
+    return re.sub(
+        r"^[ \t]*{\|[^\n]*\n(.*?)\n[ \t]*\|}\s*$",
+        lambda m: convert_wikitext_table(m.group(1)),
+        text,
+        flags=re.DOTALL | re.MULTILINE,
+    )
+
+
 def convert_wikitext_to_markdown(text, context):
     """Convert MediaWiki markup to markdown-like format."""
     if not text or not text.strip():
@@ -625,6 +826,9 @@ def convert_wikitext_to_markdown(text, context):
 
     # Remove category links
     text = re.sub(r"\[\[Категория:.*?\]\]", "", text)
+
+    # Convert tables
+    text = convert_wikitext_tables(text)
 
     # Convert horizontal rules
     text = re.sub(r"^----+", r"===", text, flags=re.MULTILINE)
