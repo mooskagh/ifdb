@@ -822,6 +822,209 @@ This is a horror game.
         self.assertNotIn("<br", desc.lower())
         self.assertIn("Первая строка\nВторая строка\nТретья строка", desc)
 
+    def test_wikitext_table_conversion(self):
+        """Test conversion of MediaWiki table syntax to markdown table."""
+        test_url = "https://ifwiki.ru/TestGame"
+
+        wikitext = """{{game info
+|название=Test Game
+}}
+
+== Результаты соревнования ==
+{| class="wikitable"
+! Место
+! Номинация
+! Балл
+|-
+| 398
+| Тема (Джем)
+| 3.61
+|-
+| 569
+| Настроение (Джем)
+| 3.05
+|}
+"""
+
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            result = ImportFromIfwiki(test_url)
+
+        desc = result["desc"]
+        self.assertNotIn("{|", desc)
+        self.assertNotIn("|}", desc)
+        self.assertIn("| Место | Номинация | Балл |", desc)
+        self.assertIn("| --- | --- | --- |", desc)
+        self.assertIn("| 398 | Тема (Джем) | 3.61 |", desc)
+        self.assertIn("| 569 | Настроение (Джем) | 3.05 |", desc)
+
+        # Also verify RenderMarkdown produces an HTML <table>
+        from games.tools import RenderMarkdown
+
+        html = RenderMarkdown(desc)
+        self.assertIn("<table>", html)
+        self.assertIn("<th>Место</th>", html)
+        self.assertIn("<td>398</td>", html)
+
+    def test_render_markdown_converts_raw_wikitext_table(self):
+        """Test that RenderMarkdown converts raw wikitext table directly."""
+        from games.tools import RenderMarkdown
+
+        raw_table = """== Таблица ==
+{| class="wikitable"
+! Заголовок 1 !! Заголовок 2
+|-
+| Значение 1 || Значение 2
+|}"""
+        html = RenderMarkdown(raw_table)
+        self.assertIn("<table>", html)
+        self.assertIn("<th>Заголовок 1</th>", html)
+        self.assertIn("<td>Значение 1</td>", html)
+        self.assertNotIn("{|", html)
+
+    def test_author_roles_multiple_contributors(self):
+        """Test parsing complex author lines with translators and porters."""
+        test_url = "https://ifwiki.ru/TestGame"
+
+        # Case 1: Harry Harrison with translator and 2 porters
+        wikitext = (
+            "{{game info\n"
+            "|название=Стань стальной крысой!\n"
+            "|автор=[[Автор::Гарри Гаррисон]], "
+            "перевод: [[Переводчик::Жаворонков, Александр|"
+            "Александр Жаворонков]], "
+            "портирование: [[Программист::Расторгуев, Денис|"
+            "Денис Расторгуев]] "
+            "и [[Программист::Петров, Павел|Павел Петров]]\n"
+            "}}"
+        )
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            res = ImportFromIfwiki(test_url)
+
+        authors = [(a["role_slug"], a["name"]) for a in res["authors"]]
+        self.assertEqual(
+            authors,
+            [
+                ("author", "Гарри Гаррисон"),
+                ("translator", "Александр Жаворонков"),
+                ("programmer", "Денис Расторгуев"),
+                ("programmer", "Павел Петров"),
+            ],
+        )
+
+        # Case 2: Akron with "пер."
+        wikitext = """{{game info
+|название=Акрон
+|автор=[[Автор::Markus Kolic]], пер. [[Переводчик::Трофимчук, Владимир]]
+}}"""
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            res = ImportFromIfwiki(test_url)
+
+        authors = [(a["role_slug"], a["name"]) for a in res["authors"]]
+        self.assertEqual(
+            authors,
+            [
+                ("author", "Markus Kolic"),
+                ("translator", "Трофимчук, Владимир"),
+            ],
+        )
+
+        # Case 3: NeverMo as "Автор перевода на QSP"
+        wikitext = """{{game info
+|название=Ты - удобрение для растений
+|автор=[[Автор::Р. Л. Стайн]]. Автор перевода на QSP: [[Программист::NeverMo]]
+}}"""
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            res = ImportFromIfwiki(test_url)
+
+        authors = [(a["role_slug"], a["name"]) for a in res["authors"]]
+        self.assertEqual(
+            authors,
+            [
+                ("author", "Р. Л. Стайн"),
+                ("translator", "NeverMo"),
+            ],
+        )
+
+        # Case 4: Brazorag with translator and porter
+        wikitext = (
+            "{{game info\n"
+            "|название=Служа Бразорагу\n"
+            "|автор=[[Автор::Йорг Раддатц]], "
+            "перевод [[Переводчик::Златолюб]], "
+            "портирование [[Программист::kerbal]]\n"
+            "}}"
+        )
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            res = ImportFromIfwiki(test_url)
+
+        authors = [(a["role_slug"], a["name"]) for a in res["authors"]]
+        self.assertEqual(
+            authors,
+            [
+                ("author", "Йорг Раддатц"),
+                ("translator", "Златолюб"),
+                ("programmer", "kerbal"),
+            ],
+        )
+
+        # Case 5: Plain links without role prefix in link syntax
+        wikitext = (
+            "{{game info\n"
+            "|название=Test\n"
+            "|автор=[[Гарри Гаррисон]], перевод: [[Александр Жаворонков]], "
+            "портирование: [[Денис Расторгуев]] и [[Павел Петров]]\n"
+            "}}"
+        )
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            res = ImportFromIfwiki(test_url)
+
+        authors = [(a["role_slug"], a["name"]) for a in res["authors"]]
+        self.assertEqual(
+            authors,
+            [
+                ("author", "Гарри Гаррисон"),
+                ("translator", "Александр Жаворонков"),
+                ("programmer", "Денис Расторгуев"),
+                ("programmer", "Павел Петров"),
+            ],
+        )
+
+        # Case 6: Plain text authors without links
+        wikitext = """{{game info
+|название=Test
+|автор=Mars People Games
+}}"""
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            res = ImportFromIfwiki(test_url)
+
+        authors = [(a["role_slug"], a["name"]) for a in res["authors"]]
+        self.assertEqual(authors, [("author", "Mars People Games")])
+
+        # Case 7: Plain text with role keyword
+        wikitext = """{{game info
+|название=Test
+|автор=Джон Доу, перевод: Иван Иванов
+}}"""
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            res = ImportFromIfwiki(test_url)
+
+        authors = [(a["role_slug"], a["name"]) for a in res["authors"]]
+        self.assertEqual(
+            authors,
+            [
+                ("author", "Джон Доу"),
+                ("translator", "Иван Иванов"),
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

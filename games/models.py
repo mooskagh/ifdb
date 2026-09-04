@@ -50,9 +50,9 @@ class Game(models.Model):
     @transaction.atomic
     def abandon(self, actor: Any, *, keep_orphan: bool = False) -> None:
         from curation.models import (
-            GameEdit,
             GameHistory,
             GameHistoryAuditLog,
+            GameRevision,
             GameSource,
         )
 
@@ -66,17 +66,17 @@ class Game(models.Model):
         timestamp = now()
         if history is not None:
             for source in GameSource.objects.select_for_update().filter(
-                history=history
+                game=game
             ):
                 GameHistoryAuditLog.record_source(
-                    history,
+                    game,
                     actor,
                     GameHistoryAuditLog.AuditKind.SOURCE_DETACHED,
                     source,
                 )
-                source.history = None
+                source.game = None
                 source.keep_orphan = keep_orphan
-                source.save(update_fields=["history", "keep_orphan"])
+                source.save(update_fields=["game", "keep_orphan"])
 
             old_state = history.state
             history.state = GameHistory.State.ABANDONED
@@ -93,13 +93,13 @@ class Game(models.Model):
                     "edit_time",
                 ]
             )
-            GameEdit.objects.filter(
-                history=history,
-                status=GameEdit.EditStatus.PROPOSED,
-            ).update(status=GameEdit.EditStatus.REJECTED)
+            GameRevision.objects.filter(
+                game=game,
+                status=GameRevision.Status.PROPOSED,
+            ).update(status=GameRevision.Status.REJECTED)
             if old_state != history.state:
                 GameHistoryAuditLog.record_change(
-                    history,
+                    game,
                     actor,
                     GameHistoryAuditLog.AuditField.STATE,
                     old_state,

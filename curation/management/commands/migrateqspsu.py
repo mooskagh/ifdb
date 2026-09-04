@@ -31,7 +31,7 @@ class Command(BaseCommand):
             legacy_qsp_source_query(), type=GameSource.SourceType.QSP
         )
         total = sources.count()
-        attached = sources.exclude(history__isnull=True).count()
+        attached = sources.exclude(game__isnull=True).count()
         orphan = total - attached
 
         self.stdout.write(
@@ -42,11 +42,7 @@ class Command(BaseCommand):
             return
 
         for source in sources.order_by("id")[:20]:
-            target = (
-                f"history #{source.history_id}"
-                if source.history_id
-                else "orphan"
-            )
+            target = f"game #{source.game_id}" if source.game_id else "orphan"
             self.stdout.write(f"  #{source.id} {target}: {source.url}")
         if total > 20:
             self.stdout.write(f"  ... and {total - 20} more")

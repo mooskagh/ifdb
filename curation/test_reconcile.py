@@ -94,10 +94,10 @@ class RunReconcileTests(TestCase):
 
         self.assertEqual(stats[0].attached, 1)
         source.refresh_from_db()
-        self.assertEqual(source.history_id, history.pk)
+        self.assertEqual(source.game_id, history.game_id)
         self.assertEqual(
             GameHistoryAuditLog.objects.filter(
-                history=history,
+                game=history.game,
                 kind=GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
                 new_id=source.pk,
             ).count(),
@@ -116,7 +116,7 @@ class RunReconcileTests(TestCase):
 
         self.assertEqual(stats[0].attached, 1)
         source.refresh_from_db()
-        self.assertEqual(source.history_id, history.pk)
+        self.assertEqual(source.game_id, history.game_id)
 
     def test_spawns_when_title_below_floor_despite_shared_url(self):
         self._existing("Alpha", url="http://ifwiki.ru/Shared")
@@ -133,14 +133,12 @@ class RunReconcileTests(TestCase):
         self.assertEqual(stats[0].spawned, 1)
         self.assertEqual(stats[0].attached, 0)
         source.refresh_from_db()
-        self.assertIsNotNone(source.history_id)
-        self.assertEqual(source.history.game.state, Game.State.DRAFT)
-        self.assertEqual(
-            source.history.game.title, "Zeta Omega Entirely Different"
-        )
+        self.assertIsNotNone(source.game_id)
+        self.assertEqual(source.game.state, Game.State.DRAFT)
+        self.assertEqual(source.game.title, "Zeta Omega Entirely Different")
         self.assertEqual(
             GameHistoryAuditLog.objects.filter(
-                history=source.history,
+                game=source.game,
                 kind=GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
                 new_id=source.pk,
             ).count(),
@@ -167,7 +165,7 @@ class RunReconcileTests(TestCase):
         self.assertEqual(stats[0].attached, 1)
         self.assertEqual(stats[0].spawned, 0)
         source.refresh_from_db()
-        self.assertEqual(source.history_id, history.pk)
+        self.assertEqual(source.game_id, history.game_id)
 
     def test_two_orphans_sharing_url_cluster_into_one_history(self):
         shared = ("game_page", "http://newsite.ru/g")
@@ -188,8 +186,8 @@ class RunReconcileTests(TestCase):
         )
         a.refresh_from_db()
         b.refresh_from_db()
-        self.assertIsNotNone(a.history_id)
-        self.assertEqual(a.history_id, b.history_id)
+        self.assertIsNotNone(a.game_id)
+        self.assertEqual(a.game_id, b.game_id)
 
     def test_later_orphan_clusters_on_existing_draft_candidate(self):
         shared = ("game_page", "http://newsite.ru/later")
@@ -208,7 +206,7 @@ class RunReconcileTests(TestCase):
         second.refresh_from_db()
         self.assertEqual(first_stats[0].spawned, 1)
         self.assertEqual(second_stats[0].attached, 1)
-        self.assertEqual(first.history_id, second.history_id)
+        self.assertEqual(first.game_id, second.game_id)
         self.assertEqual(
             GameHistory.objects.filter(game__state=Game.State.DRAFT).count(),
             1,
@@ -233,7 +231,7 @@ class RunReconcileTests(TestCase):
         self.assertEqual(stats[0].ambiguous, 1)
         self.assertEqual(stats[0].attached, 1)
         source.refresh_from_db()
-        self.assertEqual(source.history_id, h1.pk)
+        self.assertEqual(source.game_id, h1.game_id)
         h1.refresh_from_db()
         h2.refresh_from_db()
         self.assertEqual(h1.state, GameHistory.State.NEEDS_ATTENTION)
@@ -250,7 +248,7 @@ class RunReconcileTests(TestCase):
         )
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
-                history=h1,
+                game=h1.game,
                 kind=GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
                 new_id=source.pk,
             ).exists()
@@ -292,14 +290,14 @@ class RunReconcileTests(TestCase):
         )
         self.assertFalse(
             GameHistoryAuditLog.objects.filter(
-                history=h2,
+                game=h2.game,
                 kind=GameHistoryAuditLog.AuditKind.FIELD_CHANGE,
                 field=GameHistoryAuditLog.AuditField.STATE,
             ).exists()
         )
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
-                history=h2,
+                game=h2.game,
                 kind=GameHistoryAuditLog.AuditKind.FIELD_CHANGE,
                 field=GameHistoryAuditLog.AuditField.NOTE,
                 old_text="Старая причина",
@@ -321,7 +319,7 @@ class RunReconcileTests(TestCase):
         self.assertEqual(stats[0].skipped_no_fetch, 1)
         self.assertEqual(stats[0].processed, 0)
         source.refresh_from_db()
-        self.assertIsNone(source.history_id)
+        self.assertIsNone(source.game_id)
         self.assertFalse(
             GameHistoryAuditLog.objects.filter(
                 kind=GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
@@ -346,14 +344,14 @@ class RunReconcileTests(TestCase):
 
         self.assertEqual(stats, [])
         source.refresh_from_db()
-        self.assertIsNone(source.history_id)
+        self.assertIsNone(source.game_id)
         self.assertEqual(
             GameHistory.objects.filter(game__state=Game.State.DRAFT).count(),
             0,
         )
         self.assertFalse(
             GameHistoryAuditLog.objects.filter(
-                history=history,
+                game=history.game,
                 kind=GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
                 new_id=source.pk,
             ).exists()

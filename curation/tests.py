@@ -49,10 +49,10 @@ from play.blueprint import (
 from .edit import run_edit
 from .models import (
     EditPipeline,
-    GameEdit,
     GameHistory,
     GameHistoryAuditLog,
     GameHistoryComment,
+    GameRevision,
     GameSource,
     GameSourceFetch,
     LLMModel,
@@ -74,11 +74,11 @@ class CurationSmokeTest(TestCase):
         return GameHistory.objects.create(**kwargs)
 
     def _proposed_edit(self, history):
-        return GameEdit.objects.create(
-            history=history,
-            proposed_at=timezone.now(),
-            status=GameEdit.EditStatus.PROPOSED,
-            origin=GameEdit.Origin.AUTO_IMPORT,
+        return GameRevision.objects.create(
+            game=history.game,
+            created_at=timezone.now(),
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
             canonical_text="# Game\n---\ntitle: Game",
         )
 
@@ -185,7 +185,7 @@ class CurationSmokeTest(TestCase):
         history.save()
 
         edit.refresh_from_db()
-        self.assertEqual(edit.status, GameEdit.EditStatus.REJECTED)
+        self.assertEqual(edit.status, GameRevision.Status.REJECTED)
 
     def test_leaving_needs_attention_with_update_fields_rejects_pending_edit(
         self,
@@ -199,7 +199,7 @@ class CurationSmokeTest(TestCase):
         history.save(update_fields=["state"])
 
         edit.refresh_from_db()
-        self.assertEqual(edit.status, GameEdit.EditStatus.REJECTED)
+        self.assertEqual(edit.status, GameRevision.Status.REJECTED)
 
     def test_needs_attention_save_without_state_change_keeps_pending_edit(
         self,
@@ -214,7 +214,7 @@ class CurationSmokeTest(TestCase):
         history.save(update_fields=["note"])
 
         edit.refresh_from_db()
-        self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
+        self.assertEqual(edit.status, GameRevision.Status.PROPOSED)
 
     def test_applied_edit_survives_history_state_change(self):
         history = self._history(
@@ -222,14 +222,14 @@ class CurationSmokeTest(TestCase):
         )
         edit = self._proposed_edit(history)
 
-        edit.status = GameEdit.EditStatus.APPLIED
-        edit.approved_at = timezone.now()
-        edit.save(update_fields=["status", "approved_at"])
+        edit.status = GameRevision.Status.PUBLISHED
+        edit.published_at = timezone.now()
+        edit.save(update_fields=["status", "published_at"])
         history.state = GameHistory.State.SETTLED
         history.save(update_fields=["state"])
 
         edit.refresh_from_db()
-        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
+        self.assertEqual(edit.status, GameRevision.Status.PUBLISHED)
 
     def test_history_lifecycle(self):
         now = timezone.now()
@@ -244,7 +244,7 @@ class CurationSmokeTest(TestCase):
         self.assertEqual(history.auto_updates, GameHistory.AutoUpdate.ACCEPT)
 
         source = GameSource.objects.create(
-            history=history,
+            game=game,
             url="https://example.com/game",
             type=GameSource.SourceType.IFWIKI,
         )
@@ -257,37 +257,37 @@ class CurationSmokeTest(TestCase):
             last_fetch=now,
         )
 
-        edit = GameEdit.objects.create(
-            history=history,
-            proposed_at=now,
-            status=GameEdit.EditStatus.PROPOSED,
-            origin=GameEdit.Origin.AUTO_IMPORT,
+        edit = GameRevision.objects.create(
+            game=game,
+            created_at=now,
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
             canonical_text="# Game\n---\ntitle: Game",
         )
         edit.used_sources.add(fetch)
         self.assertEqual(list(edit.used_sources.all()), [fetch])
 
-        other_edit = GameEdit.objects.create(
-            history=history,
-            proposed_at=now,
-            status=GameEdit.EditStatus.PROPOSED,
-            origin=GameEdit.Origin.MANUAL_EDIT,
+        other_edit = GameRevision.objects.create(
+            game=game,
+            created_at=now,
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
             passes=["ManualPass"],
             canonical_text="Updated game text",
         )
         edit.refresh_from_db()
-        self.assertEqual(edit.status, GameEdit.EditStatus.REJECTED)
-        self.assertEqual(other_edit.status, GameEdit.EditStatus.PROPOSED)
+        self.assertEqual(edit.status, GameRevision.Status.REJECTED)
+        self.assertEqual(other_edit.status, GameRevision.Status.PROPOSED)
         self.assertEqual(other_edit.passes, ["ManualPass"])
 
         parent_comment = GameHistoryComment.objects.create(
-            history=history,
+            game=game,
             type=GameHistoryComment.CommentType.USER_FEEDBACK,
             text="Looks off.",
             creation_time=now,
         )
         reply = GameHistoryComment.objects.create(
-            history=history,
+            game=game,
             reply_to=parent_comment,
             type=GameHistoryComment.CommentType.MODS_COMMENT,
             text="Fixed.",
@@ -296,12 +296,12 @@ class CurationSmokeTest(TestCase):
         self.assertEqual(reply.reply_to, parent_comment)
 
         GameHistoryAuditLog.objects.create(
-            history=history,
+            game=game,
             created_at=now,
             kind="",
             new_id=edit.pk,
         )
-        self.assertEqual(history.gamehistoryauditlog_set.count(), 1)
+        self.assertEqual(game.gamehistoryauditlog_set.count(), 1)
 
 
 class CurationAccessTest(TestCase):
@@ -421,7 +421,7 @@ class HistoryListViewTest(TestCase):
             note="",
         )
         source = GameSource.objects.create(
-            history=history,
+            game=game,
             type=GameSource.SourceType.QSP,
             url="https://example.com/game",
         )
@@ -582,22 +582,22 @@ class HistoryListViewTest(TestCase):
         old_pending = self._create_edit(
             pending_history,
             ts,
-            status=GameEdit.EditStatus.PROPOSED,
+            status=GameRevision.Status.PROPOSED,
         )
         latest_pending = self._create_edit(
             pending_history,
             ts + timezone.timedelta(minutes=1),
-            status=GameEdit.EditStatus.PROPOSED,
+            status=GameRevision.Status.PROPOSED,
         )
         old_pending.refresh_from_db()
-        self.assertEqual(old_pending.status, GameEdit.EditStatus.REJECTED)
+        self.assertEqual(old_pending.status, GameRevision.Status.REJECTED)
         done_history = self._create_history(
             "Done", ts, state=GameHistory.State.SETTLED
         )
         done_edit = self._create_edit(
             done_history,
             ts,
-            status=GameEdit.EditStatus.APPLIED,
+            status=GameRevision.Status.PUBLISHED,
         )
 
         response = self.client.get("/curation/")
@@ -628,12 +628,12 @@ class HistoryListViewTest(TestCase):
             state=state,
         )
 
-    def _create_edit(self, history, proposed_at, *, status):
-        return GameEdit.objects.create(
-            history=history,
-            proposed_at=proposed_at,
+    def _create_edit(self, history, created_at, *, status):
+        return GameRevision.objects.create(
+            game=history.game,
+            created_at=created_at,
             status=status,
-            origin=GameEdit.Origin.AUTO_IMPORT,
+            origin=GameRevision.Origin.AUTO_IMPORT,
             previous_canonical_text="old",
             canonical_text="new",
         )
@@ -658,7 +658,7 @@ class HistoryDetailViewTest(TestCase):
 
     def test_history_page_shows_comments_and_comment_form(self):
         GameHistoryComment.objects.create(
-            history=self.history,
+            game=self.game,
             user=self.user,
             type=GameHistoryComment.CommentType.MODS_COMMENT,
             text="Existing moderator note.",
@@ -678,7 +678,7 @@ class HistoryDetailViewTest(TestCase):
 
     def test_history_page_links_note_object_refs_and_escapes_text(self):
         source = GameSource.objects.create(
-            history=self.history,
+            game=self.game,
             type=GameSource.SourceType.QSP,
             url="https://example.com/game",
         )
@@ -718,7 +718,7 @@ class HistoryDetailViewTest(TestCase):
         )
 
         self.assertRedirects(response, f"/curation/{self.history.pk}/")
-        comment = GameHistoryComment.objects.get(history=self.history)
+        comment = GameHistoryComment.objects.get(game=self.game)
         self.assertEqual(comment.user, self.user)
         self.assertEqual(
             comment.type, GameHistoryComment.CommentType.MODS_COMMENT
@@ -748,7 +748,7 @@ class HistoryDetailViewTest(TestCase):
 
     def test_history_delete_deletes_game_and_keeps_sources_orphan(self):
         source = GameSource.objects.create(
-            history=self.history,
+            game=self.game,
             type=GameSource.SourceType.IFWIKI,
             url="https://example.com/source",
         )
@@ -765,18 +765,18 @@ class HistoryDetailViewTest(TestCase):
         source.refresh_from_db()
         self.assertEqual(self.history.game_id, self.game.pk)
         self.assertEqual(self.history.state, GameHistory.State.ABANDONED)
-        self.assertIsNone(source.history_id)
+        self.assertIsNone(source.game_id)
         self.assertTrue(source.keep_orphan)
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
-                history=self.history,
+                game=self.game,
                 kind=GameHistoryAuditLog.AuditKind.SOURCE_DETACHED,
                 old_id=source.pk,
             ).exists()
         )
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
-                history=self.history,
+                game=self.game,
                 field=GameHistoryAuditLog.AuditField.STATE,
                 new_text=GameHistory.State.ABANDONED,
             ).exists()
@@ -881,7 +881,7 @@ class HistoryMergeViewTest(TestCase):
         source.game.description = "Source description"
         source.game.save(update_fields=["description"])
         GameSource.objects.create(
-            history=source,
+            game=source.game,
             type=GameSource.SourceType.IFWIKI,
             url="https://example.com/source",
         )
@@ -924,7 +924,7 @@ class HistoryMergeViewTest(TestCase):
         self.assertEqual(source.state, GameHistory.State.ABANDONED)
         self.assertEqual(source.game_id, source_game_id)
         self.assertEqual(
-            list(target.gamesource_set.values_list("url", flat=True)),
+            list(target.game.gamesource_set.values_list("url", flat=True)),
             ["https://example.com/source"],
         )
         for obj in [entry, vote, question]:
@@ -932,7 +932,7 @@ class HistoryMergeViewTest(TestCase):
             self.assertEqual(obj.game_id, target.game_id)
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
-                history=target,
+                game=target.game,
                 kind=GameHistoryAuditLog.AuditKind.GAME_MERGED,
                 old_id=source_game_id,
                 new_id=target.game_id,
@@ -940,7 +940,7 @@ class HistoryMergeViewTest(TestCase):
         )
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
-                history=source,
+                game=source_game,
                 field=GameHistoryAuditLog.AuditField.STATE,
                 new_text=GameHistory.State.ABANDONED,
             ).exists()
@@ -966,7 +966,7 @@ class HistoryReconcileViewTest(TestCase):
 
     def _source(self, history, url):
         source = GameSource.objects.create(
-            history=history,
+            game=history.game,
             type=GameSource.SourceType.IFWIKI,
             url=url,
             created_at=self.now,
@@ -1165,8 +1165,8 @@ class HistoryReconcileViewTest(TestCase):
         staying.refresh_from_db()
         moving.refresh_from_db()
         history.refresh_from_db()
-        self.assertEqual(staying.history, history)
-        self.assertEqual(moving.history, split)
+        self.assertEqual(staying.game, history.game)
+        self.assertEqual(moving.game, split.game)
         self.assertEqual(moving.gamesourcefetch_set.count(), 1)
         self.assertEqual(split.game.title, "Split")
         self.assertEqual(split.game.state, Game.State.PUBLISHED)
@@ -1182,14 +1182,14 @@ class HistoryReconcileViewTest(TestCase):
         self.assertEqual(split.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
-                history=history,
+                game=history.game,
                 kind=GameHistoryAuditLog.AuditKind.SOURCE_DETACHED,
                 old_id=moving.pk,
             ).exists()
         )
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
-                history=split,
+                game=split.game,
                 kind=GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
                 new_id=moving.pk,
             ).exists()
@@ -1224,7 +1224,7 @@ class HistoryReconcileViewTest(TestCase):
         self.assertTrue(Game.objects.filter(pk=game_id).exists())
         source.refresh_from_db()
         history.refresh_from_db()
-        self.assertEqual(source.history_id, history.pk)
+        self.assertEqual(source.game_id, game_id)
         self.assertEqual(history.game_id, game_id)
 
     def test_reconcile_orphan_source_then_deletes_game(self):
@@ -1241,12 +1241,12 @@ class HistoryReconcileViewTest(TestCase):
         self.assertEqual(game.state, Game.State.ABANDONED)
         source.refresh_from_db()
         history.refresh_from_db()
-        self.assertIsNone(source.history_id)
+        self.assertIsNone(source.game_id)
         self.assertEqual(history.game_id, game_id)
         self.assertEqual(history.state, GameHistory.State.ABANDONED)
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
-                history=history,
+                game=history.game,
                 kind=GameHistoryAuditLog.AuditKind.SOURCE_DETACHED,
                 old_id=source.pk,
             ).exists()
@@ -1266,7 +1266,7 @@ class HistoryReconcileViewTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         source.refresh_from_db()
-        self.assertIsNone(source.history_id)
+        self.assertIsNone(source.game_id)
         self.assertTrue(source.keep_orphan)
 
     def test_reconcile_keep_orphan_requires_detaching_source(self):
@@ -1281,7 +1281,7 @@ class HistoryReconcileViewTest(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("без открепления", response.json()["error"])
         source.refresh_from_db()
-        self.assertEqual(source.history_id, history.pk)
+        self.assertEqual(source.game_id, history.game_id)
         self.assertFalse(source.keep_orphan)
 
 
@@ -1317,7 +1317,7 @@ class LlmTrajectoryViewTest(TestCase):
             model=self.model,
         )
         self.trajectory = LlmTrajectory.objects.create(
-            history=self.history,
+            game=self.game,
             workflow=self.workflow,
             model=self.model,
             created_at=now,
@@ -1377,7 +1377,7 @@ class LlmTrajectoryViewTest(TestCase):
 
     def test_list_shows_average_cents_per_game(self):
         LlmTrajectory.objects.create(
-            history=self.history,
+            game=self.game,
             workflow=self.workflow,
             model=self.model,
             created_at=timezone.now(),
@@ -1470,12 +1470,12 @@ class EditDiffViewTest(TestCase):
             state=GameHistory.State.NEEDS_ATTENTION,
             auto_updates=auto_updates,
         )
-        edit = GameEdit.objects.create(
-            history=history,
-            proposed_at=self.now,
-            proposed_by=self.user,
-            status=GameEdit.EditStatus.PROPOSED,
-            origin=GameEdit.Origin.AUTO_IMPORT,
+        edit = GameRevision.objects.create(
+            game=history.game,
+            created_at=self.now,
+            created_by=self.user,
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
             canonical_text=GameInfo(name="New Title").to_canonical(),
         )
         return edit
@@ -1498,9 +1498,10 @@ class EditDiffViewTest(TestCase):
 
     def test_edit_page_shows_game_users_passes_and_llm_links(self):
         edit = self._edit()
-        edit.history.state = GameHistory.State.NEEDS_ATTENTION
-        edit.history.note = "Current note\nSecond line"
-        edit.history.save(update_fields=["state", "note"])
+        history = edit.game.gamehistory
+        history.state = GameHistory.State.NEEDS_ATTENTION
+        history.note = "Current note\nSecond line"
+        history.save(update_fields=["state", "note"])
         edit.passes = [
             "NormalizeText",
             {"name": "LlmWorkflowPass", "workflow": "test_workflow"},
@@ -1521,7 +1522,7 @@ class EditDiffViewTest(TestCase):
             model=model,
         )
         trajectory = LlmTrajectory.objects.create(
-            history=edit.history,
+            game=edit.game,
             edit=edit,
             workflow=workflow,
             model=model,
@@ -1533,12 +1534,12 @@ class EditDiffViewTest(TestCase):
         response = self.client.get(f"/curation/edits/{edit.pk}/")
         content = unescape(response.content.decode())
 
-        self.assertContains(response, f'href="/game/{edit.history.game_id}/"')
+        self.assertContains(response, f'href="/game/{edit.game_id}/"')
         self.assertContains(response, "Old Title")
         self.assertContains(response, "Предложил")
         self.assertContains(response, self.user.username)
         self.assertContains(response, "Состояние")
-        self.assertContains(response, edit.history.get_state_display())
+        self.assertContains(response, history.get_state_display())
         self.assertContains(response, "Заметка")
         self.assertContains(response, "Current note<br>Second line")
         self.assertContains(response, "Passes")
@@ -1554,23 +1555,23 @@ class EditDiffViewTest(TestCase):
 
     def test_settled_edit_page_shows_approver(self):
         edit = self._edit()
-        edit.status = GameEdit.EditStatus.APPLIED
-        edit.approved_at = self.now + timezone.timedelta(minutes=5)
-        edit.approver = self.user
-        edit.save(update_fields=["status", "approved_at", "approver"])
+        edit.status = GameRevision.Status.PUBLISHED
+        edit.published_at = self.now + timezone.timedelta(minutes=5)
+        edit.published_by = self.user
+        edit.save(update_fields=["status", "published_at", "published_by"])
 
         response = self.client.get(f"/curation/edits/{edit.pk}/")
 
         self.assertContains(response, "Одобрил")
         self.assertContains(
             response,
-            f"{self.user.username} ({edit.approved_at:%d.%m.%Y %H:%M})",
+            f"{self.user.username} ({edit.published_at:%d.%m.%Y %H:%M})",
         )
 
     def test_edit_redirect_dropdown_hides_game_options_for_draft_game(self):
         edit = self._edit()
-        edit.history.game.state = Game.State.DRAFT
-        edit.history.game.save(update_fields=["state"])
+        edit.game.state = Game.State.DRAFT
+        edit.game.save(update_fields=["state"])
 
         response = self.client.get(f"/curation/edits/{edit.pk}/")
 
@@ -1583,7 +1584,7 @@ class EditDiffViewTest(TestCase):
 
     def test_non_proposed_edit_hides_actions(self):
         edit = self._edit()
-        edit.status = GameEdit.EditStatus.REJECTED
+        edit.status = GameRevision.Status.REJECTED
         edit.save(update_fields=["status"])
 
         response = self.client.get(f"/curation/edits/{edit.pk}/")
@@ -1603,14 +1604,14 @@ class EditDiffViewTest(TestCase):
 
         self.assertRedirects(response, "/curation/")
         edit.refresh_from_db()
-        history = edit.history
+        history = edit.game.gamehistory
         history.refresh_from_db()
-        history.game.refresh_from_db()
-        self.assertEqual(edit.status, GameEdit.EditStatus.REJECTED)
-        self.assertEqual(edit.approver, self.user)
+        edit.game.refresh_from_db()
+        self.assertEqual(edit.status, GameRevision.Status.REJECTED)
+        self.assertEqual(edit.published_by, self.user)
         self.assertIn("Old Title", edit.previous_canonical_text)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertEqual(history.game.title, "Old Title")
+        self.assertEqual(edit.game.title, "Old Title")
 
     def test_accept_applies_and_settles(self):
         edit = self._edit()
@@ -1621,14 +1622,14 @@ class EditDiffViewTest(TestCase):
 
         self.assertRedirects(response, "/curation/")
         edit.refresh_from_db()
-        history = edit.history
+        history = edit.game.gamehistory
         history.refresh_from_db()
-        history.game.refresh_from_db()
-        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
-        self.assertEqual(edit.approver, self.user)
+        edit.game.refresh_from_db()
+        self.assertEqual(edit.status, GameRevision.Status.PUBLISHED)
+        self.assertEqual(edit.published_by, self.user)
         self.assertIn("Old Title", edit.previous_canonical_text)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertEqual(history.game.title, "New Title")
+        self.assertEqual(edit.game.title, "New Title")
 
     def test_accept_preserves_proposed_description_for_bare_url_id(self):
         edit = self._edit()
@@ -1648,7 +1649,7 @@ class EditDiffViewTest(TestCase):
 
         self.client.post(f"/curation/edits/{edit.pk}/", {"action": "accept"})
 
-        game_url = GameURL.objects.get(game=edit.history.game, url=url)
+        game_url = GameURL.objects.get(game=edit.game, url=url)
         self.assertEqual(game_url.description, "Proposed video")
 
     def test_accept_keeps_current_description_for_existing_game_url(self):
@@ -1659,7 +1660,7 @@ class EditDiffViewTest(TestCase):
             creation_date=self.now,
         )
         GameURL.objects.create(
-            game=edit.history.game,
+            game=edit.game,
             category=category,
             url=url,
             description="Current video",
@@ -1675,7 +1676,7 @@ class EditDiffViewTest(TestCase):
 
         self.client.post(f"/curation/edits/{edit.pk}/", {"action": "accept"})
 
-        game_url = GameURL.objects.get(game=edit.history.game, url=url)
+        game_url = GameURL.objects.get(game=edit.game, url=url)
         self.assertEqual(game_url.description, "Current video")
 
     def test_accept_redirects_to_game_edit_when_requested(self):
@@ -1688,7 +1689,7 @@ class EditDiffViewTest(TestCase):
 
         self.assertRedirects(
             response,
-            f"/game/edit/{edit.history.game_id}/",
+            f"/game/edit/{edit.game_id}/",
             fetch_redirect_response=False,
         )
 
@@ -1702,7 +1703,7 @@ class EditDiffViewTest(TestCase):
 
         self.assertRedirects(
             response,
-            f"/game/{edit.history.game_id}/",
+            f"/game/{edit.game_id}/",
             fetch_redirect_response=False,
         )
 
@@ -1714,7 +1715,9 @@ class EditDiffViewTest(TestCase):
             {"action": "accept", "next": "history"},
         )
 
-        self.assertRedirects(response, f"/curation/{edit.history_id}/")
+        self.assertRedirects(
+            response, f"/curation/{edit.game.gamehistory.pk}/"
+        )
 
     def test_accept_redirects_to_edit_when_stay_requested(self):
         edit = self._edit()
@@ -1728,8 +1731,8 @@ class EditDiffViewTest(TestCase):
 
     def test_game_redirect_falls_back_to_list_for_draft_game(self):
         edit = self._edit()
-        edit.history.game.state = Game.State.DRAFT
-        edit.history.game.save(update_fields=["state"])
+        edit.game.state = Game.State.DRAFT
+        edit.game.save(update_fields=["state"])
 
         response = self.client.post(
             f"/curation/edits/{edit.pk}/",
@@ -1746,12 +1749,12 @@ class EditDiffViewTest(TestCase):
             {"action": "accept", "auto_accept": "on"},
         )
 
-        history = edit.history
+        history = edit.game.gamehistory
         history.refresh_from_db()
         self.assertEqual(history.auto_updates, GameHistory.AutoUpdate.ACCEPT)
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
-                history=history,
+                game=edit.game,
                 actor=self.user,
                 field=GameHistoryAuditLog.AuditField.AUTO_UPDATES,
                 old_text=GameHistory.AutoUpdate.PROPOSE,
@@ -1761,7 +1764,7 @@ class EditDiffViewTest(TestCase):
 
     def test_accept_clears_note_with_audit(self):
         edit = self._edit()
-        history = edit.history
+        history = edit.game.gamehistory
         history.note = "Needs manual review"
         history.save(update_fields=["note"])
 
@@ -1771,7 +1774,7 @@ class EditDiffViewTest(TestCase):
         self.assertIsNone(history.note)
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
-                history=history,
+                game=edit.game,
                 actor=self.user,
                 field=GameHistoryAuditLog.AuditField.NOTE,
                 old_text="Needs manual review",
@@ -1791,17 +1794,19 @@ class EditDiffViewTest(TestCase):
 
     def test_history_page_resolve_button_only_for_proposed_edits(self):
         proposed = self._edit()
-        rejected = GameEdit.objects.create(
-            history=proposed.history,
-            proposed_at=self.now + timezone.timedelta(minutes=5),
-            proposed_by=self.user,
-            approver=self.user,
-            status=GameEdit.EditStatus.REJECTED,
-            origin=GameEdit.Origin.AUTO_IMPORT,
+        rejected = GameRevision.objects.create(
+            game=proposed.game,
+            created_at=self.now + timezone.timedelta(minutes=5),
+            created_by=self.user,
+            published_by=self.user,
+            status=GameRevision.Status.REJECTED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
             canonical_text=GameInfo(name="Rejected Title").to_canonical(),
         )
 
-        response = self.client.get(f"/curation/{proposed.history.pk}/")
+        response = self.client.get(
+            f"/curation/{proposed.game.gamehistory.pk}/"
+        )
 
         self.assertContains(
             response,
@@ -1827,31 +1832,33 @@ class EditDiffViewTest(TestCase):
 
     def test_history_page_sorts_settled_edits_by_approval_date(self):
         proposed = self._edit()
-        proposed.proposed_at = self.now + timezone.timedelta(minutes=10)
-        proposed.save(update_fields=["proposed_at"])
-        approved = GameEdit.objects.create(
-            history=proposed.history,
-            proposed_at=self.now - timezone.timedelta(days=1),
-            proposed_by=self.user,
-            approved_at=self.now + timezone.timedelta(minutes=20),
-            approver=self.user,
-            status=GameEdit.EditStatus.APPLIED,
-            origin=GameEdit.Origin.AUTO_IMPORT,
+        proposed.created_at = self.now + timezone.timedelta(minutes=10)
+        proposed.save(update_fields=["created_at"])
+        approved = GameRevision.objects.create(
+            game=proposed.game,
+            created_at=self.now - timezone.timedelta(days=1),
+            created_by=self.user,
+            published_at=self.now + timezone.timedelta(minutes=20),
+            published_by=self.user,
+            status=GameRevision.Status.PUBLISHED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
             canonical_text=GameInfo(name="Approved Title").to_canonical(),
         )
 
-        response = self.client.get(f"/curation/{proposed.history.pk}/")
+        response = self.client.get(
+            f"/curation/{proposed.game.gamehistory.pk}/"
+        )
         content = response.content.decode()
 
         self.assertContains(
             response,
             "Предложил: "
-            f"{self.user.username} ({proposed.proposed_at:%d.%m.%Y %H:%M})",
+            f"{self.user.username} ({proposed.created_at:%d.%m.%Y %H:%M})",
         )
         self.assertContains(
             response,
             "Одобрил: "
-            f"{self.user.username} ({approved.approved_at:%d.%m.%Y %H:%M})",
+            f"{self.user.username} ({approved.published_at:%d.%m.%Y %H:%M})",
         )
         self.assertLess(
             content.index(f"/curation/edits/{proposed.pk}/"),
@@ -1880,7 +1887,7 @@ class EditDiffViewTest(TestCase):
             model=model,
         )
         trajectory = LlmTrajectory.objects.create(
-            history=edit.history,
+            game=edit.game,
             edit=edit,
             workflow=workflow,
             model=model,
@@ -1889,7 +1896,7 @@ class EditDiffViewTest(TestCase):
             cost="0.000000",
         )
 
-        response = self.client.get(f"/curation/{edit.history.pk}/")
+        response = self.client.get(f"/curation/{edit.game.gamehistory.pk}/")
         content = unescape(response.content.decode())
 
         self.assertNotContains(response, "Траектория LLM")
@@ -1921,7 +1928,7 @@ class EditDiffViewTest(TestCase):
             model=model,
         )
         trajectory = LlmTrajectory.objects.create(
-            history=edit.history,
+            game=edit.game,
             workflow=workflow,
             model=model,
             created_at=self.now + timezone.timedelta(minutes=1),
@@ -1929,11 +1936,11 @@ class EditDiffViewTest(TestCase):
             cost="0.000000",
         )
 
-        response = self.client.get(f"/curation/{edit.history.pk}/")
+        response = self.client.get(f"/curation/{edit.game.gamehistory.pk}/")
 
         self.assertContains(response, "Сиротская траектория LLM")
         self.assertContains(
-            response, "У этой траектории нет ссылки на GameEdit."
+            response, "У этой траектории нет ссылки на GameRevision."
         )
         self.assertContains(response, "orphan_workflow")
         self.assertContains(
@@ -1982,10 +1989,10 @@ class DiscoveryViewsTest(TestCase):
         empty_history = GameHistory.objects.create(
             game=draft_game, creation_time=ts
         )
-        sources[2].history = empty_history
-        sources[2].save(update_fields=["history"])
-        sources[3].history = game_history
-        sources[3].save(update_fields=["history"])
+        sources[2].game = draft_game
+        sources[2].save(update_fields=["game"])
+        sources[3].game = game
+        sources[3].save(update_fields=["game"])
         status = SourceDiscoveryStatus.objects.create(
             source_type=GameSource.SourceType.APERO,
             first_seen=ts,
@@ -2418,7 +2425,7 @@ class SourceViewsTest(TestCase):
         )
         history = GameHistory.objects.create(game=game, creation_time=ts)
         source = GameSource.objects.create(
-            history=history,
+            game=game,
             type=GameSource.SourceType.IFWIKI,
             url="https://example.com/source",
             created_at=ts,
@@ -2709,7 +2716,7 @@ class SourceViewsTest(TestCase):
         )
         history = GameHistory.objects.create(game=game, creation_time=ts)
         source = GameSource.objects.create(
-            history=history,
+            game=game,
             url="https://example.com/source",
             type=GameSource.SourceType.IFWIKI,
             created_at=ts,
@@ -2801,11 +2808,9 @@ class SourceViewsTest(TestCase):
             creation_time=ts,
             added_by=self.user,
         )
-        wanted_history = GameHistory.objects.create(
-            game=wanted_game, creation_time=ts
-        )
+        GameHistory.objects.create(game=wanted_game, creation_time=ts)
         wanted = GameSource.objects.create(
-            history=wanted_history,
+            game=wanted_game,
             url="https://example.com/wanted",
             type=GameSource.SourceType.APERO,
             failing_since=ts,
@@ -2845,9 +2850,9 @@ class SourceViewsTest(TestCase):
             creation_time=ts,
             added_by=self.user,
         )
-        history = GameHistory.objects.create(game=game, creation_time=ts)
+        GameHistory.objects.create(game=game, creation_time=ts)
         older = GameSource.objects.create(
-            history=history,
+            game=game,
             url="https://example.com/older",
             type=GameSource.SourceType.APERO,
             created_at=ts - timedelta(days=3),
@@ -2919,9 +2924,9 @@ class SourceViewsTest(TestCase):
             creation_time=ts,
             added_by=self.user,
         )
-        history = GameHistory.objects.create(game=game, creation_time=ts)
+        GameHistory.objects.create(game=game, creation_time=ts)
         attached = GameSource.objects.create(
-            history=history,
+            game=game,
             url="https://example.com/attached",
             type=GameSource.SourceType.APERO,
             created_at=ts,
@@ -3043,7 +3048,7 @@ class SourceViewsTest(TestCase):
             name="Импорт", defaults={"passes": [{"name": "merge_sources"}]}
         )
         source = GameSource.objects.create(
-            history=history,
+            game=history.game,
             url="https://example.com/source",
             type=GameSource.SourceType.APERO,
             created_at=ts,
@@ -3118,10 +3123,10 @@ class SourceViewsTest(TestCase):
         )
 
         self.assertRedirects(response, f"/curation/{history.pk}/")
-        source = GameSource.objects.get(history=history)
+        source = GameSource.objects.get(game=history.game)
         self.assertEqual(source.type, GameSource.SourceType.IFWIKI)
         self.assertEqual(source.url, "https://example.com/new")
-        audit = GameHistoryAuditLog.objects.get(history=history)
+        audit = GameHistoryAuditLog.objects.get(game=history.game)
         self.assertEqual(
             audit.kind, GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED
         )
@@ -3149,7 +3154,7 @@ class SourceViewsTest(TestCase):
 
         self.assertRedirects(response, f"/curation/{history.pk}/")
         orphan.refresh_from_db()
-        self.assertEqual(orphan.history, history)
+        self.assertEqual(orphan.game, history.game)
         self.assertEqual(GameSource.objects.count(), 1)
         self.assertEqual(GameHistoryAuditLog.objects.get().new_id, orphan.pk)
 
@@ -3158,7 +3163,7 @@ class SourceViewsTest(TestCase):
         history = self._history(title="H1", creation_time=ts)
         other = self._history(title="H2", creation_time=ts)
         GameSource.objects.create(
-            history=other,
+            game=other.game,
             type=GameSource.SourceType.IFWIKI,
             url="https://example.com/new",
         )
@@ -3190,7 +3195,7 @@ class SourceViewsTest(TestCase):
 
         self.assertRedirects(response, f"/curation/{history.pk}/")
         orphan.refresh_from_db()
-        self.assertEqual(orphan.history, history)
+        self.assertEqual(orphan.game, history.game)
         self.assertEqual(GameHistoryAuditLog.objects.get().new_id, orphan.pk)
 
     def test_history_source_add_rejects_attached_source_by_id(self):
@@ -3198,7 +3203,7 @@ class SourceViewsTest(TestCase):
         history = self._history(title="H1", creation_time=ts)
         other = self._history(title="H2", creation_time=ts)
         source = GameSource.objects.create(
-            history=other,
+            game=other.game,
             type=GameSource.SourceType.APERO,
             url="https://example.com/source",
         )
@@ -3210,7 +3215,7 @@ class SourceViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 400)
         source.refresh_from_db()
-        self.assertEqual(source.history, other)
+        self.assertEqual(source.game, other.game)
         self.assertFalse(GameHistoryAuditLog.objects.exists())
 
     def test_history_source_add_rejects_unknown_type(self):
@@ -3229,7 +3234,7 @@ class SourceViewsTest(TestCase):
         ts = timezone.now()
         history = self._history(creation_time=ts)
         source = GameSource.objects.create(
-            history=history,
+            game=history.game,
             type=GameSource.SourceType.APERO,
             url="https://example.com/source",
         )
@@ -3240,9 +3245,9 @@ class SourceViewsTest(TestCase):
 
         self.assertRedirects(response, f"/curation/{history.pk}/")
         source.refresh_from_db()
-        self.assertIsNone(source.history)
+        self.assertIsNone(source.game)
         self.assertFalse(source.keep_orphan)
-        audit = GameHistoryAuditLog.objects.get(history=history)
+        audit = GameHistoryAuditLog.objects.get(game=history.game)
         self.assertEqual(
             audit.kind, GameHistoryAuditLog.AuditKind.SOURCE_DETACHED
         )
@@ -3256,7 +3261,7 @@ class SourceViewsTest(TestCase):
         ts = timezone.now()
         history = self._history(creation_time=ts)
         source = GameSource.objects.create(
-            history=history,
+            game=history.game,
             type=GameSource.SourceType.APERO,
             url="https://example.com/source",
         )
@@ -3268,7 +3273,7 @@ class SourceViewsTest(TestCase):
 
         self.assertRedirects(response, f"/curation/{history.pk}/")
         source.refresh_from_db()
-        self.assertIsNone(source.history)
+        self.assertIsNone(source.game)
         self.assertTrue(source.keep_orphan)
 
     @patch("curation.views.fetch_sources.delay")
@@ -3293,12 +3298,12 @@ class SourceViewsTest(TestCase):
         ts = timezone.now()
         history = self._history(creation_time=ts)
         first = GameSource.objects.create(
-            history=history,
+            game=history.game,
             type=GameSource.SourceType.APERO,
             url="https://example.com/one",
         )
         second = GameSource.objects.create(
-            history=history,
+            game=history.game,
             type=GameSource.SourceType.IFWIKI,
             url="https://example.com/two",
         )
@@ -3514,7 +3519,7 @@ class EditRunnerTest(TestCase):
 
     def _source(self, history, type, name, desc):
         source = GameSource.objects.create(
-            history=history,
+            game=history.game,
             url=f"https://example.com/{type}",
             type=type,
         )
@@ -3533,7 +3538,7 @@ class EditRunnerTest(TestCase):
         self, history, canonical, type=GameSource.SourceType.IFWIKI
     ):
         source = GameSource.objects.create(
-            history=history,
+            game=history.game,
             url=f"https://example.com/{type}/{GameSource.objects.count()}",
             type=type,
         )
@@ -3572,8 +3577,8 @@ class EditRunnerTest(TestCase):
             history.game.description, "Wiki desc\n\n---\n\nApero desc"
         )
 
-        edit = GameEdit.objects.get(history=history)
-        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
+        edit = GameRevision.objects.get(game=history.game)
+        self.assertEqual(edit.status, GameRevision.Status.PUBLISHED)
         self.assertEqual(edit.passes, [{"name": "merge_sources"}])
         self.assertEqual(set(edit.used_sources.all()), {wiki, apero})
 
@@ -3594,7 +3599,9 @@ class EditRunnerTest(TestCase):
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.unchanged, 1)
-        self.assertEqual(GameEdit.objects.filter(history=history).count(), 1)
+        self.assertEqual(
+            GameRevision.objects.filter(game=history.game).count(), 1
+        )
         history.refresh_from_db()
         # Description was not re-concatenated across runs.
         self.assertEqual(
@@ -3704,7 +3711,7 @@ Source desc"""
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.proposed, 1)
-        edit = GameEdit.objects.get(history=history)
+        edit = GameRevision.objects.get(game=history.game)
         self.assertIn(
             f'["download_landing", "Скачать игру", {url.id}]',
             edit.canonical_text,
@@ -3743,7 +3750,7 @@ Source desc"""
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.proposed, 1)
-        edit = GameEdit.objects.get(history=history)
+        edit = GameRevision.objects.get(game=history.game)
         self.assertIn(
             f'["download_landing", "Текущее описание", {url.id}]'
             f'  # "Скачать игру" "{url.original_url}"',
@@ -3804,7 +3811,7 @@ Second    paragraph
         self.assertEqual(
             history.game.description, "First paragraph\n\nSecond paragraph\n"
         )
-        edit = GameEdit.objects.get(history=history)
+        edit = GameRevision.objects.get(game=history.game)
         self.assertEqual(
             edit.passes, [{"name": "merge_sources"}, {"name": "cleanup_text"}]
         )
@@ -3931,7 +3938,9 @@ Text
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.unchanged, 1)
-        self.assertFalse(GameEdit.objects.filter(history=history).exists())
+        self.assertFalse(
+            GameRevision.objects.filter(game=history.game).exists()
+        )
 
     def test_merge_can_drop_existing_data(self):
         self._set_pipeline([{"name": "merge_sources", "keep_existing": False}])
@@ -3970,8 +3979,8 @@ Text
         self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
         self.assertIsNotNone(history.game)
         self.assertEqual(history.game.state, Game.State.DRAFT)
-        edit = GameEdit.objects.get(history=history)
-        self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
+        edit = GameRevision.objects.get(game=history.game)
+        self.assertEqual(edit.status, GameRevision.Status.PROPOSED)
         self.assertEqual(Game.objects.published().count(), 0)
 
     def test_proposed_edit_is_canonicalized_before_diff(self):
@@ -3983,7 +3992,7 @@ Text
             category=language_cat, name="русский"
         )
         source = GameSource.objects.create(
-            history=history,
+            game=history.game,
             url="https://example.com/source",
             type=GameSource.SourceType.IFWIKI,
         )
@@ -4000,7 +4009,7 @@ Text
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.proposed, 1)
-        edit = GameEdit.objects.get(history=history)
+        edit = GameRevision.objects.get(game=history.game)
         self.assertIn(f'["language", {language.id}]', edit.canonical_text)
         self.assertNotIn('["language", "русский"]', edit.canonical_text)
 
@@ -4025,7 +4034,7 @@ Text
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.proposed, 1)
-        edit = GameEdit.objects.get(history=history)
+        edit = GameRevision.objects.get(game=history.game)
         self.assertEqual(edit.canonical_text.count('"g_fairytale"'), 1)
         self.assertEqual(edit.canonical_text.count('"g_kids"'), 1)
         self.assertNotIn('["tag",', edit.canonical_text)
@@ -4058,5 +4067,5 @@ Source desc"""
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.proposed, 1)
-        edit = GameEdit.objects.get(history=history)
+        edit = GameRevision.objects.get(game=history.game)
         self.assertEqual(edit.canonical_text.count('"g_fantasy"'), 1)

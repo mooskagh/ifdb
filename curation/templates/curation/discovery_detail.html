@@ -52,13 +52,15 @@
                 {% if source.created_at %}<div class="curation-meta">Добавлен: {{ source.created_at|date:"d.m.Y H:i" }}</div>{% endif %}
                 {% if source.missing_since %}<div class="curation-meta">Пропал: {{ source.missing_since|date:"d.m.Y H:i" }}</div>{% endif %}
                 <div class="curation-duplicate-usage">
-                    {% if source.history %}
-                        {% if source.history.game.state == "PUBLISHED" %}
-                        <a href="{% url 'show_game' source.history.game.pk %}">{{ source.history.game.title }}</a>
+                    {% if source.game %}
+                        {% if source.game.state == "PUBLISHED" %}
+                        <a href="{% url 'show_game' source.game.pk %}">{{ source.game.title }}</a>
                         {% else %}
-                        {{ source.history.game.title }} ({{ source.history.game.get_state_display }})
+                        {{ source.game.title }} ({{ source.game.get_state_display }})
                         {% endif %}
-                        (<a href="{% url 'curation_history_detail' source.history.pk %}">админка</a>)
+                        {% if source.game.gamehistory %}
+                        (<a href="{% url 'curation_history_detail' source.game.gamehistory.pk %}">админка</a>)
+                        {% endif %}
                     {% else %}
                         —
                     {% endif %}
@@ -84,13 +86,15 @@
                 {% if source.missing_since %}<div class="curation-meta">Пропал: {{ source.missing_since|date:"d.m.Y H:i" }}</div>{% endif %}
             </div>
             <div class="curation-source-usage">
-                {% if source.history %}
-                    {% if source.history.game.state == "PUBLISHED" %}
-                    <a href="{% url 'show_game' source.history.game.pk %}">{{ source.history.game.title }}</a>
+                {% if source.game %}
+                    {% if source.game.state == "PUBLISHED" %}
+                    <a href="{% url 'show_game' source.game.pk %}">{{ source.game.title }}</a>
                     {% else %}
-                    {{ source.history.game.title }} ({{ source.history.game.get_state_display }})
+                    {{ source.game.title }} ({{ source.game.get_state_display }})
                     {% endif %}
-                    (<a href="{% url 'curation_history_detail' source.history.pk %}">админка</a>)
+                    {% if source.game.gamehistory %}
+                    (<a href="{% url 'curation_history_detail' source.game.gamehistory.pk %}">админка</a>)
+                    {% endif %}
                 {% else %}
                     —
                 {% endif %}

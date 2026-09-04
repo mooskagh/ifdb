@@ -16,7 +16,12 @@ from games.models import (
 
 from .manual import editor_payload_to_gameinfo
 from .merge import contest_related_usage
-from .models import GameEdit, GameHistory, GameHistoryAuditLog, GameSource
+from .models import (
+    GameHistory,
+    GameHistoryAuditLog,
+    GameRevision,
+    GameSource,
+)
 
 
 @dataclass(frozen=True)
@@ -111,9 +116,7 @@ def column_for_game(game: Game, *, history: GameHistory | None = None) -> dict:
         "description": game.description or "",
         "sources": [
             source_payload(source)
-            for source in (
-                history.gamesource_set.order_by("id") if history else []
-            )
+            for source in (game.gamesource_set.order_by("id") if game else [])
         ],
         "delete": False,
     }
@@ -361,7 +364,7 @@ def _validate_deletions(
             continue
         current_source_ids = set(
             GameSource.objects.filter(
-                history=histories[col["history_id"]]
+                game=histories[col["history_id"]].game
             ).values_list("id", flat=True)
         )
         remaining = sorted(
@@ -402,9 +405,12 @@ def _lock_sources(
     }
     if missing := set(wanted_source_ids) - set(sources):
         raise ValueError(f"Источники не найдены: {sorted(missing)}.")
-    allowed_history_ids = set(histories)
+    allowed_game_ids = {h.game_id for h in histories.values() if h.game_id}
     for source in sources.values():
-        if source.history_id not in allowed_history_ids:
+        if (
+            source.game_id is not None
+            and source.game_id not in allowed_game_ids
+        ):
             raise ValueError(
                 f"Источник #{source.id} уже не принадлежит открытым админкам."
             )
@@ -455,7 +461,11 @@ def _has_game_data(col: dict) -> bool:
 def _apply_game_info(
     col: dict, game: Game | None, history: GameHistory | None, actor
 ) -> Game:
-    before = GameInfo.from_game(game).to_canonical() if game else ""
+    before = (
+        GameInfo.from_game(game).to_canonical()
+        if game and game.state == Game.State.PUBLISHED
+        else ""
+    )
     info = editor_payload_to_gameinfo({
         "title": col["title"],
         "release_date": col["release_date"],
@@ -465,20 +475,30 @@ def _apply_game_info(
         "description_attributions": col["description_attributions"],
         "desc": col["description"],
     })
-    game, after = info.save(game, state=Game.State.PUBLISHED)
+    target_state = (
+        game.state
+        if game
+        else Game.State.PUBLISHED
+        if (
+            getattr(actor, "is_staff", False)
+            or getattr(actor, "is_superuser", False)
+        )
+        else Game.State.DRAFT
+    )
+    game, after = info.save(game, state=target_state)
     if history is None:
         history, _ = GameHistory.objects.get_or_create(
             game=game, defaults={"creation_time": now()}
         )
     if before.rstrip("\n") != after.rstrip("\n"):
-        GameEdit.objects.create(
-            history=history,
-            proposed_at=now(),
-            approved_at=now(),
-            proposed_by=actor,
-            approver=actor,
-            status=GameEdit.EditStatus.APPLIED,
-            origin=GameEdit.Origin.MANUAL_EDIT,
+        GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            created_by=actor,
+            published_by=actor,
+            status=GameRevision.Status.PUBLISHED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
             previous_canonical_text=before,
             canonical_text=after,
         )
@@ -518,27 +538,28 @@ def _move_source(
     *,
     keep_orphan=False,
 ):
-    if source.history_id == (
-        target_history.id if target_history else None
-    ) and (target_history is not None or source.keep_orphan == keep_orphan):
+    target_game = target_history.game if target_history else None
+    if source.game_id == (target_game.id if target_game else None) and (
+        target_game is not None or source.keep_orphan == keep_orphan
+    ):
         return
-    old_history = source.history
-    if old_history is not None:
+    old_game = source.game
+    if old_game is not None:
         GameHistoryAuditLog.record_source(
-            old_history,
+            old_game,
             actor,
             GameHistoryAuditLog.AuditKind.SOURCE_DETACHED,
             source,
         )
-    source.history = target_history
-    fields = ["history"]
-    if target_history is None and source.keep_orphan != keep_orphan:
+    source.game = target_game
+    fields = ["game"]
+    if target_game is None and source.keep_orphan != keep_orphan:
         source.keep_orphan = keep_orphan
         fields.append("keep_orphan")
     source.save(update_fields=fields)
-    if target_history is not None:
+    if target_game is not None:
         GameHistoryAuditLog.record_source(
-            target_history,
+            target_game,
             actor,
             GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
             source,

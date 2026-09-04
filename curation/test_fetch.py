@@ -160,7 +160,7 @@ class FetchTest(TestCase):
             state=GameHistory.State.SETTLED,
             edit_time=edited_at,
         )
-        source = self.source(history=history)
+        source = self.source(game=history.game)
         GameSourceFetch.objects.create(
             source=source,
             raw_content="",
@@ -186,7 +186,7 @@ class FetchTest(TestCase):
         self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
-                history=history,
+                game=history.game,
                 kind=GameHistoryAuditLog.AuditKind.AUTO_UPDATE_SCHEDULED,
                 old_text=GameHistory.State.SETTLED,
                 new_text=GameHistory.State.SCHEDULED_FOR_UPDATE,
@@ -200,7 +200,7 @@ class FetchTest(TestCase):
             state=GameHistory.State.SETTLED,
             edit_time=edited_at,
         )
-        source = self.source(history=history)
+        source = self.source(game=history.game)
         canonical = self.info("Same").to_canonical()
         GameSourceFetch.objects.create(
             source=source,
@@ -227,7 +227,7 @@ class FetchTest(TestCase):
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertFalse(
             GameHistoryAuditLog.objects.filter(
-                history=history,
+                game=history.game,
                 kind=GameHistoryAuditLog.AuditKind.AUTO_UPDATE_SCHEDULED,
             ).exists()
         )
@@ -238,7 +238,7 @@ class FetchTest(TestCase):
             creation_time=edited_at,
             state=GameHistory.State.SETTLED,
         )
-        source = self.source(history=history)
+        source = self.source(game=history.game)
         GameSourceFetch.objects.create(
             source=source,
             raw_content="",
@@ -397,7 +397,7 @@ class FetchTest(TestCase):
         self.source(
             url="http://example.com/with-history",
             last_attempt=ts,
-            history=history,
+            game=history.game,
         )
         no_history = self.source(
             url="http://example.com/no-history", last_attempt=ts
@@ -416,7 +416,7 @@ class FetchTest(TestCase):
         history = self._history(
             creation_time=now(), state=GameHistory.State.ABANDONED
         )
-        self.source(url="http://example.com/skip", history=history)
+        self.source(url="http://example.com/skip", game=history.game)
         wanted = self.source(url="http://example.com/wanted")
         provider = FakeProvider(
             GameSource.SourceType.APERO,

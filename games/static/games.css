@@ -1741,6 +1741,28 @@ a.contest-result-item:hover {
     line-height: 1.6;
 }
 
+.game--content-text table {
+    border-collapse: collapse;
+    margin: 1em 0;
+    max-width: 100%;
+}
+
+.game--content-text th,
+.game--content-text td {
+    border: 1px solid #ddd;
+    padding: 6px 12px;
+    text-align: left;
+}
+
+.game--content-text th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+.game--content-text tr:nth-child(even) {
+    background-color: #fbfbfb;
+}
+
 .game-header {
     margin-top: 1em;
     margin-bottom: 3em;

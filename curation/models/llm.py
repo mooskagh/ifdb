@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from .curation import GameEdit, GameHistory
+from .curation import GameRevision
 
 _MTOK = Decimal(1_000_000)
 
@@ -66,9 +66,9 @@ class LlmTrajectory(models.Model):
     def __str__(self):
         return f"LLM trajectory #{self.pk} (${self.cost})"
 
-    history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)
+    game = models.ForeignKey("games.Game", on_delete=models.CASCADE)
     edit = models.ForeignKey(
-        GameEdit,
+        GameRevision,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
