@@ -874,7 +874,7 @@ class HumanReviewRunnerTests(TestCase):
             game=game, creation_time=now()
         )
         self.source = GameSource.objects.create(
-            history=self.history,
+            game=game,
             type=GameSource.SourceType.IFWIKI,
             url="https://example.test/game",
         )

@@ -72,7 +72,7 @@ class GameHistory(models.Model):
                 result = super().save(*args, **kwargs)
                 if reject_pending_edits:
                     GameEdit.objects.filter(
-                        history=self,
+                        game=self.game,
                         status=GameEdit.EditStatus.PROPOSED,
                     ).update(status=GameEdit.EditStatus.REJECTED)
                 if notify_needs_attention:
@@ -132,8 +132,8 @@ class GameSource(models.Model):
     def __str__(self):
         return f"{self.get_type_display()}: {self.url or '(no url)'}"
 
-    history = models.ForeignKey(
-        GameHistory,
+    game = models.ForeignKey(
+        "games.Game",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -263,9 +263,9 @@ class GameEdit(models.Model):
         default_permissions = ()
         constraints = [
             models.UniqueConstraint(
-                fields=["history"],
+                fields=["game"],
                 condition=models.Q(status="PROPOSED"),
-                name="curation_gameedit_one_proposed_per_history",
+                name="curation_gameedit_one_proposed_per_game",
             )
         ]
 
@@ -291,16 +291,18 @@ class GameEdit(models.Model):
             return super().save(*args, **kwargs)
 
         with transaction.atomic():
-            GameHistory.objects.select_for_update().get(pk=self.history_id)
+            from games.models import Game
+
+            Game.objects.select_for_update().get(pk=self.game_id)
             pending_edits = GameEdit.objects.filter(
-                history_id=self.history_id, status=self.EditStatus.PROPOSED
+                game_id=self.game_id, status=self.EditStatus.PROPOSED
             )
             if self.pk:
                 pending_edits = pending_edits.exclude(pk=self.pk)
             pending_edits.update(status=self.EditStatus.REJECTED)
             return super().save(*args, **kwargs)
 
-    history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)
+    game = models.ForeignKey("games.Game", on_delete=models.CASCADE)
     proposed_at = models.DateTimeField(_("Proposed at"))
     approved_at = models.DateTimeField(_("Approved at"), null=True, blank=True)
     proposed_by = models.ForeignKey(
@@ -349,9 +351,9 @@ class GameHistoryComment(models.Model):
         EMAIL_RESPONSE = "EMAIL_RESPONSE", _("Email response")
 
     def __str__(self):
-        return f"Comment #{self.pk} on history #{self.history_id}"
+        return f"Comment #{self.pk} on game #{self.game_id}"
 
-    history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)
+    game = models.ForeignKey("games.Game", on_delete=models.CASCADE)
     reply_to = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -423,13 +425,15 @@ class GameHistoryAuditLog(models.Model):
         NOTE = "NOTE", _("Note")
 
     def __str__(self):
-        return f"Audit #{self.pk} on history #{self.history_id}"
+        return f"Audit #{self.pk} on game #{self.game_id}"
 
     @classmethod
-    def record_change(cls, history, actor, field, old, new):
+    def record_change(cls, game, actor, field, old, new):
         """Record a FIELD_CHANGE entry for an editable history field."""
+        if hasattr(game, "game"):
+            game = game.game
         return cls.objects.create(
-            history=history,
+            game=game,
             actor=actor,
             created_at=now(),
             kind=cls.AuditKind.FIELD_CHANGE,
@@ -439,18 +443,20 @@ class GameHistoryAuditLog(models.Model):
         )
 
     @classmethod
-    def record_note_change(cls, history, actor, old, new):
+    def record_note_change(cls, game, actor, old, new):
         if old == new:
             return None
-        return cls.record_change(history, actor, cls.AuditField.NOTE, old, new)
+        return cls.record_change(game, actor, cls.AuditField.NOTE, old, new)
 
     @classmethod
-    def record_source(cls, history, actor, kind, source):
+    def record_source(cls, game, actor, kind, source):
+        if hasattr(game, "game"):
+            game = game.game
         source_text = (
             f"{source.get_type_display()}: {source.url or '(no url)'}"
         )
         return cls.objects.create(
-            history=history,
+            game=game,
             actor=actor,
             created_at=now(),
             kind=kind,
@@ -469,9 +475,11 @@ class GameHistoryAuditLog(models.Model):
         )
 
     @classmethod
-    def record_game_merge(cls, history, actor, old_game, new_game):
+    def record_game_merge(cls, game, actor, old_game, new_game):
+        if hasattr(game, "game"):
+            game = game.game
         return cls.objects.create(
-            history=history,
+            game=game,
             actor=actor,
             created_at=now(),
             kind=cls.AuditKind.GAME_MERGED,
@@ -482,9 +490,11 @@ class GameHistoryAuditLog(models.Model):
         )
 
     @classmethod
-    def record_auto_update_scheduled(cls, history, old_state, new_state):
+    def record_auto_update_scheduled(cls, game, old_state, new_state):
+        if hasattr(game, "game"):
+            game = game.game
         return cls.objects.create(
-            history=history,
+            game=game,
             actor=None,
             created_at=now(),
             kind=cls.AuditKind.AUTO_UPDATE_SCHEDULED,
@@ -492,7 +502,7 @@ class GameHistoryAuditLog(models.Model):
             new_text=new_state,
         )
 
-    history = models.ForeignKey(GameHistory, on_delete=models.CASCADE)
+    game = models.ForeignKey("games.Game", on_delete=models.CASCADE)
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

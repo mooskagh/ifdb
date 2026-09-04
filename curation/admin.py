@@ -34,7 +34,7 @@ class GameHistoryAdmin(admin.ModelAdmin):
 class GameSourceAdmin(admin.ModelAdmin):
     list_display = [
         "pk",
-        "history",
+        "game",
         "type",
         "url",
         "failing_since",
@@ -43,7 +43,7 @@ class GameSourceAdmin(admin.ModelAdmin):
     ]
     list_filter = ["type", "keep_orphan"]
     search_fields = ["pk", "url"]
-    raw_id_fields = ["history"]
+    raw_id_fields = ["game"]
 
 
 @admin.register(GameSourceFetch)
@@ -63,7 +63,7 @@ class GameSourceFetchAdmin(admin.ModelAdmin):
 class GameEditAdmin(admin.ModelAdmin):
     list_display = [
         "pk",
-        "history",
+        "game",
         "status",
         "origin",
         "proposed_at",
@@ -74,7 +74,7 @@ class GameEditAdmin(admin.ModelAdmin):
     list_filter = ["status", "origin"]
     search_fields = ["pk"]
     raw_id_fields = [
-        "history",
+        "game",
         "proposed_by",
         "approver",
         "used_sources",
@@ -89,18 +89,18 @@ class EditPipelineAdmin(admin.ModelAdmin):
 
 @admin.register(GameHistoryComment)
 class GameHistoryCommentAdmin(admin.ModelAdmin):
-    list_display = ["pk", "history", "type", "user", "creation_time"]
+    list_display = ["pk", "game", "type", "user", "creation_time"]
     list_filter = ["type"]
     search_fields = ["pk", "text"]
-    raw_id_fields = ["history", "reply_to", "user"]
+    raw_id_fields = ["game", "reply_to", "user"]
 
 
 @admin.register(GameHistoryAuditLog)
 class GameHistoryAuditLogAdmin(admin.ModelAdmin):
-    list_display = ["pk", "history", "kind", "field", "actor", "created_at"]
+    list_display = ["pk", "game", "kind", "field", "actor", "created_at"]
     list_filter = ["kind", "field"]
     search_fields = ["pk"]
-    raw_id_fields = ["history", "actor"]
+    raw_id_fields = ["game", "actor"]
 
 
 @admin.register(EnrichmentRule)
@@ -141,7 +141,7 @@ class LlmWorkflowAdmin(admin.ModelAdmin):
 class LlmTrajectoryAdmin(admin.ModelAdmin):
     list_display = [
         "pk",
-        "history",
+        "game",
         "edit",
         "workflow",
         "model",
@@ -150,4 +150,4 @@ class LlmTrajectoryAdmin(admin.ModelAdmin):
     ]
     list_filter = ["workflow", "model"]
     search_fields = ["pk"]
-    raw_id_fields = ["history", "edit", "workflow", "model"]
+    raw_id_fields = ["game", "edit", "workflow", "model"]

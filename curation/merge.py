@@ -82,15 +82,13 @@ def merge_game_into_history(
         for model in CONTEST_RELATED_MODELS:
             _move_related(model, source_game, target_game)
 
+    GameSource.objects.filter(game=source_game).update(game=target_game)
+    GameHistoryAuditLog.record_game_merge(
+        target_game, actor, source_game, target_game
+    )
     if source_history is not None:
-        GameSource.objects.filter(history=source_history).update(
-            history=target_history
-        )
         GameHistoryAuditLog.record_game_merge(
-            target_history, actor, source_game, target_game
-        )
-        GameHistoryAuditLog.record_game_merge(
-            source_history, actor, source_game, target_game
+            source_game, actor, source_game, target_game
         )
         old_state = source_history.state
         source_history.state = GameHistory.State.ABANDONED
@@ -108,15 +106,11 @@ def merge_game_into_history(
             ]
         )
         GameHistoryAuditLog.record_change(
-            source_history,
+            source_game,
             actor,
             GameHistoryAuditLog.AuditField.STATE,
             old_state,
             source_history.state,
-        )
-    else:
-        GameHistoryAuditLog.record_game_merge(
-            target_history, actor, source_game, target_game
         )
 
     source_game.state = Game.State.REDIRECT

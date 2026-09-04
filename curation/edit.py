@@ -200,7 +200,7 @@ def _latest_fetch(source: GameSource) -> GameSourceFetch | None:
 
 def _last_applied_edit(history: GameHistory) -> GameEdit | None:
     return (
-        history.gameedit_set
+        history.game.gameedit_set
         .filter(status=GameEdit.EditStatus.APPLIED)
         .order_by("-approved_at", "-proposed_at", "-id")
         .first()
@@ -225,7 +225,7 @@ def _build_sources(
 
     sources: list[SourceFetchInfo] = []
     covered: set[int] = set()
-    for source in history.gamesource_set.all():
+    for source in history.game.gamesource_set.all():
         fetch = _latest_fetch(source)
         if fetch is None:
             continue
@@ -303,7 +303,7 @@ def _flush(history: GameHistory, state: GameEditState, actor) -> None:
     old_note = history.note
     history.note = "\n".join(state.notes) or None
     GameHistoryAuditLog.record_note_change(
-        history, actor, old_note, history.note
+        history.game, actor, old_note, history.note
     )
     history.edit_time = now()
     history.processing_started_at = None
@@ -325,7 +325,7 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
     )
     last_trajectory_id = (
         LlmTrajectory.objects
-        .filter(history=history)
+        .filter(game=history.game)
         .order_by("-pk")
         .values_list("pk", flat=True)
         .first()
@@ -353,7 +353,7 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
         outcome = "cancelled"
     else:
         edit = GameEdit.objects.create(
-            history=history,
+            game=history.game,
             proposed_at=now(),
             proposed_by=maintenance_user,
             origin=GameEdit.Origin.AUTO_IMPORT,
@@ -366,7 +366,7 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
         )
         edit.used_sources.set([s.fetch for s in state.sources if s.fetch])
         LlmTrajectory.objects.filter(
-            history=history,
+            game=history.game,
             edit__isnull=True,
             pk__gt=last_trajectory_id,
         ).update(edit=edit)

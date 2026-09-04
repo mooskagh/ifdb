@@ -112,7 +112,9 @@ def _fetch_remote(
 
 
 def _maybe_schedule_update(source: GameSource, fetch: GameSourceFetch) -> None:
-    history = source.history
+    history = (
+        getattr(source.game, "gamehistory", None) if source.game else None
+    )
     if not history or history.state != GameHistory.State.SETTLED:
         return
     if history.edit_time and fetch.first_fetch <= history.edit_time:
@@ -122,36 +124,32 @@ def _maybe_schedule_update(source: GameSource, fetch: GameSourceFetch) -> None:
     history.state = GameHistory.State.SCHEDULED_FOR_UPDATE
     history.save(update_fields=["state"])
     GameHistoryAuditLog.record_auto_update_scheduled(
-        history, old_state, history.state
+        source.game, old_state, history.state
     )
 
 
 def _save_fetch_result(result: _FetchResult) -> _FetchResult:
     source = result.source
     source.last_attempt = result.fetched_at
+    update_fields = ["last_attempt"]
 
     if result.outcome == "failed":
-        if source.failing_since is None:
+        if not source.failing_since:
             source.failing_since = result.fetched_at
+            update_fields.append("failing_since")
         source.last_error = result.error
-        source.save(
-            update_fields=[
-                "last_attempt",
-                "failing_since",
-                "last_error",
-            ]
-        )
+        update_fields.append("last_error")
+        source.save(update_fields=update_fields)
         return result
 
-    source.failing_since = None
-    source.last_error = None
-    source.save(
-        update_fields=[
-            "last_attempt",
-            "failing_since",
-            "last_error",
-        ]
-    )
+    if source.failing_since:
+        source.failing_since = None
+        update_fields.append("failing_since")
+    if source.last_error:
+        source.last_error = None
+        update_fields.append("last_error")
+
+    source.save(update_fields=update_fields)
 
     latest = source.gamesourcefetch_set.order_by("-last_fetch").first()
     if latest and latest.canonical_text_hash == result.canonical_hash:
@@ -199,15 +197,15 @@ def run_fetch(
     sources = (
         GameSource.objects
         .filter(type__in=source_types)
-        .exclude(history__state=GameHistory.State.ABANDONED)
+        .exclude(game__gamehistory__state=GameHistory.State.ABANDONED)
         .exclude(url__isnull=True)
         .exclude(url="")
-        .select_related("history")
+        .select_related("game__gamehistory")
         .annotate(fetch_count=Count("gamesourcefetch"))
         .order_by(
             F("last_attempt").asc(nulls_first=True),
             "fetch_count",
-            F("history").asc(nulls_first=True),
+            F("game").asc(nulls_first=True),
         )
     )
     if source_id is not None:

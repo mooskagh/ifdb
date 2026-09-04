@@ -97,7 +97,7 @@ class _CreateTrajectory(GameEditPass):
             model=model,
         )
         LlmTrajectory.objects.create(
-            history=state.history,
+            game=state.history.game,
             workflow=workflow,
             model=model,
             created_at=now(),
@@ -173,7 +173,7 @@ class RunEditTests(TestCase):
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertEqual(history.game.state, Game.State.PUBLISHED)
-        edit_row = GameEdit.objects.get(history=history)
+        edit_row = GameEdit.objects.get(game=history.game)
         self.assertEqual(edit_row.status, GameEdit.EditStatus.APPLIED)
         self.assertEqual(edit_row.passes, [{"name": "tag_and_approve"}])
         self.assertIsNotNone(edit_row.previous_canonical_text)
@@ -223,7 +223,7 @@ class RunEditTests(TestCase):
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
         self.assertEqual(
-            (edit_row := GameEdit.objects.get(history=history)).status,
+            (edit_row := GameEdit.objects.get(game=history.game)).status,
             GameEdit.EditStatus.PROPOSED,
         )
         self.assertIsNone(edit_row.previous_canonical_text)
@@ -242,7 +242,7 @@ class RunEditTests(TestCase):
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertEqual(
-            (edit_row := GameEdit.objects.get(history=history)).status,
+            (edit_row := GameEdit.objects.get(game=history.game)).status,
             GameEdit.EditStatus.REJECTED,
         )
         self.assertIsNotNone(edit_row.previous_canonical_text)
@@ -261,7 +261,7 @@ class RunEditTests(TestCase):
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertEqual(history.note, "Needs review")
         self.assertEqual(
-            GameEdit.objects.get(history=history).status,
+            GameEdit.objects.get(game=history.game).status,
             GameEdit.EditStatus.REJECTED,
         )
         self.assertFalse(self._has_os_win(history.game))
@@ -272,7 +272,7 @@ class RunEditTests(TestCase):
         self._run_with([_Note(), _TagAndApprove(Approval.REJECTED)], history)
 
         audit = GameHistoryAuditLog.objects.get(
-            history=history, field=GameHistoryAuditLog.AuditField.NOTE
+            game=history.game, field=GameHistoryAuditLog.AuditField.NOTE
         )
         self.assertEqual(audit.actor.username, settings.MAINTENANCE_USER)
         self.assertIsNone(audit.old_text)
@@ -305,7 +305,7 @@ class RunEditTests(TestCase):
         self.assertEqual(history.note, "Needs review")
         self.assertTrue(self._has_os_win(history.game))
         self.assertEqual(
-            GameEdit.objects.get(history=history).status,
+            GameEdit.objects.get(game=history.game).status,
             GameEdit.EditStatus.APPLIED,
         )
 
@@ -317,7 +317,7 @@ class RunEditTests(TestCase):
         self.assertEqual(stats.cancelled, 1)
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertFalse(GameEdit.objects.filter(history=history).exists())
+        self.assertFalse(GameEdit.objects.filter(game=history.game).exists())
         self.assertFalse(self._has_os_win(history.game))
 
     def test_noop_settles_unchanged_without_edit(self):
@@ -328,7 +328,7 @@ class RunEditTests(TestCase):
         self.assertEqual(stats.unchanged, 1)
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertFalse(GameEdit.objects.filter(history=history).exists())
+        self.assertFalse(GameEdit.objects.filter(game=history.game).exists())
 
     def test_processing_history_is_not_claimed_again(self):
         history = self._history()
@@ -340,7 +340,7 @@ class RunEditTests(TestCase):
         stats = self._run_with([_TagAndApprove(Approval.APPLIED)], history)
 
         self.assertEqual(stats.processed, 0)
-        self.assertFalse(GameEdit.objects.filter(history=history).exists())
+        self.assertFalse(GameEdit.objects.filter(game=history.game).exists())
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.PROCESSING)
         self.assertEqual(history.processing_task_id, "running-task")
@@ -399,7 +399,7 @@ class RunEditTests(TestCase):
         )
 
         self.assertEqual(stats.processed, 0)
-        self.assertFalse(GameEdit.objects.filter(history=history).exists())
+        self.assertFalse(GameEdit.objects.filter(game=history.game).exists())
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.PROCESSING)
         self.assertEqual(history.processing_task_id, "running-task")
@@ -510,7 +510,7 @@ class RunEditTests(TestCase):
         self.assertEqual(stats.unchanged, 1)
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertFalse(GameEdit.objects.filter(history=history).exists())
+        self.assertFalse(GameEdit.objects.filter(game=history.game).exists())
 
     def test_pass_params_are_applied_and_recorded(self):
         history = self._history()
@@ -521,7 +521,7 @@ class RunEditTests(TestCase):
             [{"name": "tag_and_approve", "tag": "os_dos"}],
         )
 
-        edit_row = GameEdit.objects.get(history=history)
+        edit_row = GameEdit.objects.get(game=history.game)
         self.assertEqual(
             edit_row.passes, [{"name": "tag_and_approve", "tag": "os_dos"}]
         )
@@ -536,8 +536,8 @@ class RunEditTests(TestCase):
             [_TagAndApprove(Approval.APPLIED), _CreateTrajectory()], history
         )
 
-        edit_row = GameEdit.objects.get(history=history)
-        trajectory = LlmTrajectory.objects.get(history=history)
+        edit_row = GameEdit.objects.get(game=history.game)
+        trajectory = LlmTrajectory.objects.get(game=history.game)
         self.assertEqual(trajectory.edit, edit_row)
 
     def test_canonicalizes_after_each_pass(self):
@@ -583,7 +583,7 @@ class ManualEditTests(TestCase):
     def _history_with_source(self, game):
         history = GameHistory.objects.create(game=game, creation_time=now())
         source = GameSource.objects.create(
-            history=history,
+            game=game,
             type=GameSource.SourceType.IFWIKI,
             url="https://example.com/wiki",
         )
@@ -596,7 +596,7 @@ class ManualEditTests(TestCase):
             last_fetch=now(),
         )
         applied = GameEdit.objects.create(
-            history=history,
+            game=game,
             proposed_at=now(),
             approved_at=now(),
             status=GameEdit.EditStatus.APPLIED,
@@ -654,7 +654,7 @@ class ManualEditTests(TestCase):
         store_manual_edit(game, self._payload(), None, apply=False)
 
         audit = GameHistoryAuditLog.objects.get(
-            history=history, field=GameHistoryAuditLog.AuditField.NOTE
+            game=game, field=GameHistoryAuditLog.AuditField.NOTE
         )
         self.assertIsNone(audit.actor)
         self.assertIsNone(audit.old_text)

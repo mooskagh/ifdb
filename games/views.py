@@ -131,7 +131,7 @@ def store_game(request):
 
     can_save = request.perm(PERM_ACCEPT_GAME_ADD)
     edit = store_manual_add(j, request.user, apply=can_save)
-    game = edit.history.game
+    game = edit.game
     LogAction(
         request,
         "gam-store" if can_save else "gam-propose",

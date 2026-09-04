@@ -22,23 +22,27 @@
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Игра</div>
             <div class="curation-source-detail-value">
-                {% if trajectory.history.game.state == "PUBLISHED" %}
-                <a href="{% url 'show_game' trajectory.history.game.pk %}">{{ trajectory.history.game.title }}</a>
+                {% if trajectory.game.state == "PUBLISHED" %}
+                <a href="{% url 'show_game' trajectory.game.pk %}">{{ trajectory.game.title }}</a>
                 {% else %}
-                {{ trajectory.history.game.title }} ({{ trajectory.history.game.get_state_display }})
+                {{ trajectory.game.title }} ({{ trajectory.game.get_state_display }})
                 {% endif %}
-                <a href="{% url 'curation_history_detail' trajectory.history.pk %}">админка #{{ trajectory.history.pk }}</a>
+                {% if trajectory.game.gamehistory %}
+                <a href="{% url 'curation_history_detail' trajectory.game.gamehistory.pk %}">админка #{{ trajectory.game.gamehistory.pk }}</a>
+                {% endif %}
             </div>
         </div>
+        {% if trajectory.game.gamehistory %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Состояние</div>
-            <div class="curation-source-detail-value">{{ trajectory.history.get_state_display }}</div>
+            <div class="curation-source-detail-value">{{ trajectory.game.gamehistory.get_state_display }}</div>
         </div>
-        {% if trajectory.history.note %}
+        {% if trajectory.game.gamehistory.note %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Заметка</div>
-            <div class="curation-source-detail-value">{{ trajectory.history.note|object_refs }}</div>
+            <div class="curation-source-detail-value">{{ trajectory.game.gamehistory.note|object_refs }}</div>
         </div>
+        {% endif %}
         {% endif %}
         {% if trajectory.edit %}
         <div class="curation-source-detail-row">

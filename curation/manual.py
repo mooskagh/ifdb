@@ -41,9 +41,9 @@ def store_manual_edit(
     before = GameInfo.from_game(game).to_canonical()
     info = editor_payload_to_gameinfo(data)
     canonical = info.to_canonical()
-    previous_edit = _latest_applied_edit(history)
+    previous_edit = _latest_applied_edit(game)
     edit = GameEdit.objects.create(
-        history=history,
+        game=game,
         proposed_at=now(),
         proposed_by=user,
         origin=(
@@ -74,9 +74,7 @@ def store_manual_edit(
     else:
         history.state = GameHistory.State.NEEDS_ATTENTION
         history.note = "Пользователь предложил правку"
-    GameHistoryAuditLog.record_note_change(
-        history, user, old_note, history.note
-    )
+    GameHistoryAuditLog.record_note_change(game, user, old_note, history.note)
     history.edit_time = now()
     history.save(update_fields=["state", "note", "edit_time"])
     return edit
@@ -104,7 +102,7 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameEdit:
         edit_time=now(),
     )
     edit = GameEdit.objects.create(
-        history=history,
+        game=game,
         proposed_at=now(),
         proposed_by=user,
         origin=(
@@ -123,9 +121,7 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameEdit:
         canonical_text=after if apply else canonical,
     )
     if not apply:
-        GameHistoryAuditLog.record_note_change(
-            history, user, None, history.note
-        )
+        GameHistoryAuditLog.record_note_change(game, user, None, history.note)
     else:
         PostNewGameToDiscord(game.id)
     return edit
@@ -139,9 +135,10 @@ def _history_for_game(game: Game) -> GameHistory:
     return history
 
 
-def _latest_applied_edit(history: GameHistory) -> GameEdit | None:
+def _latest_applied_edit(target: Game | GameHistory) -> GameEdit | None:
+    game = target.game if isinstance(target, GameHistory) else target
     return (
-        history.gameedit_set
+        game.gameedit_set
         .filter(status=GameEdit.EditStatus.APPLIED)
         .order_by("-approved_at", "-proposed_at", "-id")
         .first()

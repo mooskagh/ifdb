@@ -89,7 +89,7 @@ class GameEditCurationViewTests(TestCase):
 
         game.refresh_from_db()
         history = GameHistory.objects.get(game=game)
-        edit = GameEdit.objects.get(history=history)
+        edit = GameEdit.objects.get(game=game)
         self.assertEqual(game.title, "Old Title")
         self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
         self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
@@ -109,7 +109,7 @@ class GameEditCurationViewTests(TestCase):
 
         game.refresh_from_db()
         history = GameHistory.objects.get(game=game)
-        edit = GameEdit.objects.get(history=history)
+        edit = GameEdit.objects.get(game=game)
         self.assertEqual(game.title, "New Title")
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
@@ -137,7 +137,7 @@ class GameEditCurationViewTests(TestCase):
         )
 
         history = GameHistory.objects.get()
-        edit = GameEdit.objects.get(history=history)
+        edit = GameEdit.objects.get(game=history.game)
         self.assertRedirects(response, reverse("list_games"))
         self.assertIsNotNone(history.game)
         self.assertEqual(history.game.state, Game.State.DRAFT)
@@ -164,7 +164,7 @@ class GameEditCurationViewTests(TestCase):
         )
 
         edit.refresh_from_db()
-        history = edit.history
+        history = edit.game.gamehistory
         history.refresh_from_db()
         history.game.refresh_from_db()
         self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
@@ -189,7 +189,7 @@ class GameEditCurationViewTests(TestCase):
             state=GameHistory.State.SETTLED,
         )
         previous = GameEdit.objects.create(
-            history=history,
+            game=game,
             proposed_at=now(),
             approved_at=now(),
             status=GameEdit.EditStatus.APPLIED,
@@ -201,7 +201,7 @@ class GameEditCurationViewTests(TestCase):
         previous_fetch = self._source_fetch(history)
         previous.used_sources.add(previous_fetch)
         edit = GameEdit.objects.create(
-            history=history,
+            game=game,
             proposed_at=now(),
             approved_at=now(),
             status=GameEdit.EditStatus.APPLIED,
@@ -275,13 +275,13 @@ class GameEditCurationViewTests(TestCase):
             creation_time=now(),
         )
         game.description_attributions.add(attribution)
-        history = GameHistory.objects.create(
+        GameHistory.objects.create(
             game=game,
             creation_time=now(),
             state=GameHistory.State.SETTLED,
         )
         edit = GameEdit.objects.create(
-            history=history,
+            game=game,
             proposed_at=now(),
             approved_at=now(),
             status=GameEdit.EditStatus.APPLIED,
@@ -331,7 +331,7 @@ class GameEditCurationViewTests(TestCase):
             state=GameHistory.State.SETTLED,
         )
         edit = GameEdit.objects.create(
-            history=history,
+            game=game,
             proposed_at=now(),
             approved_at=now(),
             status=GameEdit.EditStatus.REJECTED,
@@ -397,7 +397,7 @@ class GameEditCurationViewTests(TestCase):
 
         game = Game.objects.get()
         history = GameHistory.objects.get(game=game)
-        edit = GameEdit.objects.get(history=history)
+        edit = GameEdit.objects.get(game=game)
         self.assertRedirects(response, reverse("show_game", args=[game.id]))
         self.assertEqual(game.title, "New Game")
         self.assertEqual(game.state, Game.State.PUBLISHED)
@@ -410,7 +410,7 @@ class GameEditCurationViewTests(TestCase):
 
     def _source_fetch(self, history):
         source = GameSource.objects.create(
-            history=history,
+            game=history.game,
             type=GameSource.SourceType.IFWIKI,
             url="https://example.com/game",
             created_at=now(),

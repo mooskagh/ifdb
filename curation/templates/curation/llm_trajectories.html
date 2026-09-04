@@ -78,12 +78,14 @@
                 <td class="curation-nowrap"><a href="{% url 'curation_llm_trajectory_detail' trajectory.pk %}">{{ trajectory.created_at|date:"Y-m-d H:i" }}</a></td>
                 <td>{{ trajectory.workflow.name|default:"—" }}</td>
                 <td class="curation-truncate">
-                    {% if trajectory.history.game.state == "PUBLISHED" %}
-                    <a href="{% url 'show_game' trajectory.history.game.pk %}">{{ trajectory.history.game.title }}</a>
+                    {% if trajectory.game.state == "PUBLISHED" %}
+                    <a href="{% url 'show_game' trajectory.game.pk %}">{{ trajectory.game.title }}</a>
                     {% else %}
-                    {{ trajectory.history.game.title }} ({{ trajectory.history.game.get_state_display }})
+                    {{ trajectory.game.title }} ({{ trajectory.game.get_state_display }})
                     {% endif %}
-                    <a href="{% url 'curation_history_detail' trajectory.history.pk %}">#{{ trajectory.history.pk }}</a>
+                    {% if trajectory.game.gamehistory %}
+                    <a href="{% url 'curation_history_detail' trajectory.game.gamehistory.pk %}">#{{ trajectory.game.gamehistory.pk }}</a>
+                    {% endif %}
                 </td>
                 <td class="num">{{ trajectory.messages_count }}</td>
                 <td class="num">{{ trajectory.prompt_tokens }}</td>

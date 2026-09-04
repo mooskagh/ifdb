@@ -158,7 +158,7 @@ def _signals(
 
 def _record_source_attached(source: GameSource, history: GameHistory) -> None:
     GameHistoryAuditLog.objects.create(
-        history=history,
+        game=history.game,
         actor=None,
         created_at=now(),
         kind=GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
@@ -178,14 +178,14 @@ def _mark_needs_attention(history: GameHistory, reason: str) -> None:
     history.save(update_fields=["state", "note"])
     if old_state != history.state:
         GameHistoryAuditLog.record_change(
-            history,
+            history.game,
             None,
             GameHistoryAuditLog.AuditField.STATE,
             old_state,
             history.state,
         )
     GameHistoryAuditLog.record_note_change(
-        history, None, old_note, history.note
+        history.game, None, old_note, history.note
     )
 
 
@@ -211,7 +211,7 @@ def _build_index() -> _TargetIndex:
         .prefetch_related(
             "game__gameurl_set__category",
             "game__gameurl_set__url",
-            "gamesource_set",
+            "game__gamesource_set",
         )
     )
     for history in existing:
@@ -223,7 +223,7 @@ def _build_index() -> _TargetIndex:
         }
         title_bow = set(GetBagOfWords(game.title))
         if game.state == Game.State.DRAFT:
-            for source in history.gamesource_set.all():
+            for source in game.gamesource_set.all():
                 fetch = _latest_fetch(source)
                 if fetch is None:
                     continue
@@ -254,7 +254,7 @@ def run_reconcile(
     sources = (
         GameSource.objects
         .filter(type__in=source_types)
-        .filter(history__isnull=True, keep_orphan=False)
+        .filter(game__isnull=True, keep_orphan=False)
         .order_by("id")
     )
     if source_id is not None:
@@ -294,8 +294,8 @@ def run_reconcile(
         ambiguous = len(candidates) > 1
 
         if ambiguous and target is not None:
-            source.history = target.history
-            source.save(update_fields=["history"])
+            source.game = target.history.game
+            source.save(update_fields=["game"])
             _record_source_attached(source, target.history)
             _mark_needs_attention(
                 target.history,
@@ -326,8 +326,8 @@ def run_reconcile(
             continue
 
         if target is not None:
-            source.history = target.history
-            source.save(update_fields=["history"])
+            source.game = target.history.game
+            source.save(update_fields=["game"])
             _record_source_attached(source, target.history)
             if target.is_new:  # grow so later same-run orphans cluster onto it
                 index.register_urls(target, hash_urls)
@@ -349,8 +349,8 @@ def run_reconcile(
             state=GameHistory.State.SCHEDULED_FOR_UPDATE,
             creation_time=now(),
         )
-        source.history = history
-        source.save(update_fields=["history"])
+        source.game = game
+        source.save(update_fields=["game"])
         _record_source_attached(source, history)
         index.add(
             _Target(history, set(hash_urls), set(title_bow), is_new=True)

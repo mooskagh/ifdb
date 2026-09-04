@@ -112,9 +112,9 @@ def run_discover(
             .filter(type=source_type)
             .exclude(url="")
             .exclude(url__isnull=True)
-            .values("id", "url", "history_id")
+            .values("id", "url", "game_id")
         )
-        unused_ids = [r["id"] for r in current_rows if r["history_id"] is None]
+        unused_ids = [r["id"] for r in current_rows if r["game_id"] is None]
         duplicate_groups = defaultdict(list)
         for r in current_rows:
             duplicate_groups[provider.source_key(r["url"])].append(r["id"])

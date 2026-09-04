@@ -239,7 +239,7 @@ class LlmWorkflowRunner(ABC):
                 break
 
         return LlmTrajectory.objects.create(
-            history=self.state.history,
+            game=self.state.history.game,
             workflow=self.workflow,
             model=self.model,
             created_at=now(),

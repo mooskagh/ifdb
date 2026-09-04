@@ -58,7 +58,7 @@ class DiscoveryTest(TestCase):
         self.assertEqual(
             list(
                 GameSource.objects.order_by("url").values_list(
-                    "type", "url", "history_id"
+                    "type", "url", "game_id"
                 )
             ),
             [
@@ -71,11 +71,11 @@ class DiscoveryTest(TestCase):
         game = Game.objects.create(
             state=Game.State.DRAFT, title="Existing", creation_time=now()
         )
-        history = GameHistory.objects.create(game=game, creation_time=now())
+        GameHistory.objects.create(game=game, creation_time=now())
         GameSource.objects.create(
             type=GameSource.SourceType.APERO,
             url="http://example.com/existing",
-            history=history,
+            game=game,
             created_at=now(),
         )
         provider = FakeProvider(
@@ -103,11 +103,11 @@ class DiscoveryTest(TestCase):
         game = Game.objects.create(
             state=Game.State.DRAFT, title="Dup", creation_time=now()
         )
-        history = GameHistory.objects.create(game=game, creation_time=now())
+        GameHistory.objects.create(game=game, creation_time=now())
         used_dup = GameSource.objects.create(
             type=GameSource.SourceType.INSTEAD,
             url="http://example.com/dup",
-            history=history,
+            game=game,
             created_at=now(),
         )
         unused_dup = GameSource.objects.create(
@@ -145,7 +145,7 @@ class DiscoveryTest(TestCase):
             GameSource.objects.filter(
                 type=GameSource.SourceType.INSTEAD,
                 url="http://example.com/new",
-                history__isnull=True,
+                game__isnull=True,
             ).count(),
             1,
         )
