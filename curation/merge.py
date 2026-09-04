@@ -47,8 +47,6 @@ def merge_game_into_history(
     remap_contests: bool,
 ) -> None:
     target_game = target_history.game
-    if target_game is None:
-        raise ValueError("Target history has no game.")
     if source_game.pk == target_game.pk:
         raise ValueError("Cannot merge a game into itself.")
 
@@ -95,7 +93,6 @@ def merge_game_into_history(
             source_history, actor, source_game, target_game
         )
         old_state = source_history.state
-        source_history.game = None
         source_history.state = GameHistory.State.ABANDONED
         source_history.auto_updates = GameHistory.AutoUpdate.REJECT
         source_history.processing_started_at = None
@@ -103,7 +100,6 @@ def merge_game_into_history(
         source_history.edit_time = now()
         source_history.save(
             update_fields=[
-                "game",
                 "state",
                 "auto_updates",
                 "processing_started_at",

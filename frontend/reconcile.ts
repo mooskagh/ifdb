@@ -21,6 +21,7 @@ interface ColumnData {
   client_id: string;
   history_id: number | null;
   game_id: number | null;
+  state: string | null;
   title: string;
   release_date: string;
   tags: Pair[];
@@ -169,7 +170,9 @@ function historyCell(col: ColumnData): HTMLElement {
 
 function gameCell(col: ColumnData): HTMLElement {
   if (!col.game_id) return cell(el('span', {class: 'curation-meta', text: 'после сохранения'}));
-  return cell(link(`/game/${col.game_id}/`, `#${col.game_id}`));
+  if (col.state === 'PUBLISHED') return cell(link(`/game/${col.game_id}/`, `#${col.game_id}`));
+  if (col.history_id) return cell(link(`/curation/${col.history_id}/`, `#${col.game_id}`));
+  return cell(el('span', {text: `#${col.game_id}`}));
 }
 
 function pipelineCell(col: ColumnData): HTMLElement {
@@ -517,6 +520,7 @@ function blankColumn(): ColumnData {
     client_id: `new-${nextNewColumn++}`,
     history_id: null,
     game_id: null,
+    state: null,
     title: '',
     release_date: '',
     tags: [],

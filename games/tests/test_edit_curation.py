@@ -139,13 +139,16 @@ class GameEditCurationViewTests(TestCase):
         history = GameHistory.objects.get()
         edit = GameEdit.objects.get(history=history)
         self.assertRedirects(response, reverse("list_games"))
-        self.assertIsNone(history.game)
+        self.assertIsNotNone(history.game)
+        self.assertEqual(history.game.state, Game.State.DRAFT)
+        self.assertEqual(history.game.title, "New Game")
         self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
         self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
         self.assertEqual(edit.origin, GameEdit.Origin.USER_SUGGESTION)
         self.assertEqual(edit.proposed_by, self.user)
         self.assertIsNone(edit.approver)
-        self.assertEqual(Game.objects.count(), 0)
+        self.assertEqual(Game.objects.count(), 1)
+        self.assertEqual(Game.objects.published().count(), 0)
 
     def test_accepting_proposed_add_creates_game(self):
         self.client.post(
@@ -163,6 +166,7 @@ class GameEditCurationViewTests(TestCase):
         edit.refresh_from_db()
         history = edit.history
         history.refresh_from_db()
+        history.game.refresh_from_db()
         self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertIsNotNone(history.game)
@@ -457,13 +461,20 @@ class GameEditCurationViewTests(TestCase):
 
         self.assertNotContains(response, "Модерация")
 
+    def _make_history(self, state=None, title="Game"):
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title=title, creation_time=now()
+        )
+        kwargs = {"game": game, "creation_time": now()}
+        if state is not None:
+            kwargs["state"] = state
+        return GameHistory.objects.create(**kwargs)
+
     def test_superuser_nav_shows_needs_attention_count(self):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
-        GameHistory.objects.create(
-            creation_time=now(), state=GameHistory.State.NEEDS_ATTENTION
-        )
-        GameHistory.objects.create(creation_time=now())
+        self._make_history(state=GameHistory.State.NEEDS_ATTENTION)
+        self._make_history()
 
         response = self.client.get(reverse("list_games"))
 
@@ -478,9 +489,7 @@ class GameEditCurationViewTests(TestCase):
     def test_selected_superuser_nav_keeps_normal_style_with_count(self):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
-        GameHistory.objects.create(
-            creation_time=now(), state=GameHistory.State.NEEDS_ATTENTION
-        )
+        self._make_history(state=GameHistory.State.NEEDS_ATTENTION)
 
         response = self.client.get(reverse("curation_history_list"))
 
@@ -495,7 +504,7 @@ class GameEditCurationViewTests(TestCase):
     def test_superuser_nav_omits_needs_attention_count_when_zero(self):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
-        GameHistory.objects.create(creation_time=now())
+        self._make_history()
 
         response = self.client.get(reverse("list_games"))
 
@@ -504,9 +513,7 @@ class GameEditCurationViewTests(TestCase):
 
     def test_non_superuser_nav_omits_needs_attention_count(self):
         self.user.groups.add(Group.objects.create(name="gardener"))
-        GameHistory.objects.create(
-            creation_time=now(), state=GameHistory.State.NEEDS_ATTENTION
-        )
+        self._make_history(state=GameHistory.State.NEEDS_ATTENTION)
 
         response = self.client.get(reverse("list_games"))
 

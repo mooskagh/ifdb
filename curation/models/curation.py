@@ -88,9 +88,7 @@ class GameHistory(models.Model):
 
     game = models.OneToOneField(
         "games.Game",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.CASCADE,
     )
     auto_updates = models.CharField(
         _("Auto-update policy"),

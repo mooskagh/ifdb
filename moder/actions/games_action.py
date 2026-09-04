@@ -97,7 +97,7 @@ class GameDeleteAction(GameAction):
 
     def DoAction(self, action, form, execute):
         if execute:
-            self.obj.delete()
+            self.obj.abandon(self.request.user)
             return "Удалено!"
         else:
             return "Удалить эту игру?"

@@ -31,7 +31,6 @@ curation/llm_runners/base.py
 curation/llm_runners/content_editor.py
 curation/llm_runners/human_review.py
 curation/llm_runners/status_review.py
-curation/management/commands/initcuration.py
 curation/management/commands/initenrichment.py
 curation/management/commands/migrateqspsu.py
 curation/management/commands/sources.py

@@ -53,6 +53,7 @@ class GameLifecycleTests(TestCase):
     def test_published_queryset_keeps_only_public_rows(self) -> None:
         published = self._game("Published")
         draft = self._game("Draft", state=Game.State.DRAFT)
+        abandoned = self._game("Abandoned", state=Game.State.ABANDONED)
         redirect = self._game(
             "Redirect", state=Game.State.REDIRECT, redirect_to=published
         )
@@ -61,8 +62,9 @@ class GameLifecycleTests(TestCase):
             set(Game.objects.published().values_list("id", flat=True)),
             {published.id},
         )
-        self.assertEqual(Game.objects.count(), 3)
+        self.assertEqual(Game.objects.count(), 4)
         self.assertNotIn(draft, Game.objects.published())
+        self.assertNotIn(abandoned, Game.objects.published())
         self.assertNotIn(redirect, Game.objects.published())
 
     def test_gameinfo_creation_publishes_and_update_preserves_state(
@@ -78,8 +80,28 @@ class GameLifecycleTests(TestCase):
         self.assertEqual(draft.title, "Updated")
         self.assertEqual(draft.state, Game.State.DRAFT)
 
+        abandoned = self._game("Abandoned", state=Game.State.ABANDONED)
+        GameInfo(name="Updated abandoned").save(abandoned)
+        abandoned.refresh_from_db()
+
+        self.assertEqual(abandoned.title, "Updated abandoned")
+        self.assertEqual(abandoned.state, Game.State.ABANDONED)
+
     def test_game_state_constraints_validate_local_invariants(self) -> None:
         target = self._game("Target")
+
+        Game(
+            title="Abandoned",
+            creation_time=now(),
+            state=Game.State.ABANDONED,
+        ).full_clean()
+        with self.assertRaises(ValidationError):
+            Game(
+                title="Abandoned with target",
+                creation_time=now(),
+                state=Game.State.ABANDONED,
+                redirect_to=target,
+            ).full_clean()
 
         with self.assertRaises(ValidationError):
             Game(
@@ -113,6 +135,13 @@ class GameLifecycleTests(TestCase):
 
     def test_draft_detail_is_not_public(self) -> None:
         game = self._game("Draft", state=Game.State.DRAFT)
+
+        response = self.client.get(reverse("show_game", args=[game.id]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_abandoned_detail_is_not_public(self) -> None:
+        game = self._game("Abandoned", state=Game.State.ABANDONED)
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
@@ -160,17 +189,28 @@ class GameLifecycleTests(TestCase):
 
     def test_redirect_to_hidden_terminal_is_not_public(self) -> None:
         draft = self._game("Draft", state=Game.State.DRAFT)
+        abandoned = self._game("Abandoned", state=Game.State.ABANDONED)
         source = self._game(
             "Source", state=Game.State.REDIRECT, redirect_to=draft
         )
+        abandoned_source = self._game(
+            "Abandoned source",
+            state=Game.State.REDIRECT,
+            redirect_to=abandoned,
+        )
 
         response = self.client.get(reverse("show_game", args=[source.id]))
+        abandoned_response = self.client.get(
+            reverse("show_game", args=[abandoned_source.id])
+        )
 
         self.assertEqual(response.status_code, 404)
+        self.assertEqual(abandoned_response.status_code, 404)
 
     def test_public_search_excludes_hidden_games(self) -> None:
         visible = self._game("Visible")
         self._game("Draft", state=Game.State.DRAFT)
+        self._game("Abandoned", state=Game.State.ABANDONED)
         self._game("Redirect", state=Game.State.REDIRECT, redirect_to=visible)
 
         def allow(_: str) -> bool:
@@ -185,6 +225,15 @@ class GameLifecycleTests(TestCase):
 
         response = self.client.get(
             reverse("json_gameinfo"), {"game_id": draft.id}
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_public_json_rejects_abandoned_game(self) -> None:
+        abandoned = self._game("Abandoned", state=Game.State.ABANDONED)
+
+        response = self.client.get(
+            reverse("json_gameinfo"), {"game_id": abandoned.id}
         )
 
         self.assertEqual(response.status_code, 404)

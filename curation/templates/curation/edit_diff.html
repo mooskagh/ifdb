@@ -37,14 +37,14 @@
         {% endif %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Игра</div>
-            <div class="curation-source-detail-value">
-                {% if game %}
-                <a href="{% url 'show_game' game.pk %}">{{ game.title }}</a>
-                {% else %}
-                —
-                {% endif %}
-            </div>
-        </div>
+                <div class="curation-source-detail-value">
+                    {% if game.state == "PUBLISHED" %}
+                    <a href="{% url 'show_game' game.pk %}">{{ game.title }}</a>
+                    {% else %}
+                    {{ game.title }} ({{ game.get_state_display }})
+                    {% endif %}
+                </div>
+
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Админка</div>
             <div class="curation-source-detail-value"><a href="{% url 'curation_history_detail' history.pk %}">вернуться к админке</a></div>
@@ -93,7 +93,7 @@
             и перейти
             <select name="next">
                 <option value="list" selected>к списку игр</option>
-                {% if game %}
+                {% if game.state == "PUBLISHED" %}
                 <option value="edit_game">к редактированию игры</option>
                 <option value="game">к игре</option>
                 {% endif %}

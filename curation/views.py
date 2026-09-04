@@ -1497,8 +1497,6 @@ def _propose_from_settled_edit(edit, user, post):
 
 
 def _served_gameinfo(history):
-    if history.game is None:
-        return GameInfo()
     return GameInfo.from_game(history.game)
 
 
@@ -1552,9 +1550,9 @@ def _previous_applied_edit(edit):
 
 
 def _redirect_after_edit(next_page, edit, history):
-    if next_page == "edit_game" and history.game_id:
+    if next_page == "edit_game" and history.game.state == Game.State.PUBLISHED:
         return redirect("edit_game", game_id=history.game_id)
-    if next_page == "game" and history.game_id:
+    if next_page == "game" and history.game.state == Game.State.PUBLISHED:
         return redirect("show_game", game_id=history.game_id)
     if next_page == "history":
         return redirect("curation_history_detail", history_id=history.pk)
@@ -1564,8 +1562,6 @@ def _redirect_after_edit(next_page, edit, history):
 
 
 def _served_canonical(history):
-    if history.game is None:
-        return ""
     return GameInfo.from_game(history.game).to_canonical()
 
 
@@ -1591,10 +1587,12 @@ def _update_auto_accept(history, request):
 
 def _accept_edit(edit, history, before, user):
     info = parse(edit.canonical_text)
-    created_game = history.game is None
-    game, after = info.save(history.game, state=Game.State.PUBLISHED)
-    if created_game:
-        history.game = game
+    game, after = info.save(history.game)
+    was_draft = game.state == Game.State.DRAFT
+    if was_draft:
+        game.state = Game.State.PUBLISHED
+        game.save(update_fields=["state"])
+    if was_draft and edit.proposed_by and not game.added_by:
         game.added_by = edit.proposed_by
         game.save(update_fields=["added_by"])
     edit.status = GameEdit.EditStatus.APPLIED
@@ -1619,10 +1617,8 @@ def _accept_edit(edit, history, before, user):
     )
     history.edit_time = now()
     fields = ["auto_updates", "state", "note", "edit_time"]
-    if created_game:
-        fields.append("game")
     history.save(update_fields=fields)
-    if created_game:
+    if was_draft:
         PostNewGameToDiscord(game.id)
 
 
@@ -1639,12 +1635,16 @@ def _reject_edit(edit, history, before, user):
             "previous_canonical_text",
         ]
     )
-    history.state = GameHistory.State.SETTLED
     old_note = history.note
     history.note = None
     GameHistoryAuditLog.record_note_change(
         history, user, old_note, history.note
     )
+    if history.game.state == Game.State.DRAFT:
+        history.save(update_fields=["note"])
+        history.game.abandon(user)
+        return
+    history.state = GameHistory.State.SETTLED
     history.edit_time = now()
     history.save(update_fields=["state", "note", "edit_time"])
 
@@ -1681,9 +1681,6 @@ def history_merge(request, history_id):
     history = get_object_or_404(
         GameHistory.objects.select_related("game"), pk=history_id
     )
-    if history.game is None:
-        messages.error(request, "У этой админки нет игры для объединения.")
-        return redirect("curation_history_detail", history_id=history.pk)
 
     source_game_id = _positive_int(
         request.POST.get("source_game_id"), default=None
@@ -1731,7 +1728,7 @@ def history_delete(request, history_id):
             pk=history_id,
         )
         game = history.game
-        if game is not None and (usage := contest_related_usage(game)):
+        if usage := contest_related_usage(game):
             related = ", ".join(
                 f"{item.label}: {item.count}" for item in usage
             )
@@ -1742,27 +1739,7 @@ def history_delete(request, history_id):
             )
             return redirect("curation_history_detail", history_id=history.pk)
 
-        for source in GameSource.objects.select_for_update().filter(
-            history=history
-        ):
-            _detach_source(
-                history, source, request.user, keep_orphan=keep_orphans
-            )
-
-        if history.state != GameHistory.State.ABANDONED:
-            GameHistoryAuditLog.record_change(
-                history,
-                request.user,
-                GameHistoryAuditLog.AuditField.STATE,
-                history.state,
-                GameHistory.State.ABANDONED,
-            )
-        history.game = None
-        history.state = GameHistory.State.ABANDONED
-        history.edit_time = now()
-        history.save(update_fields=["game", "state", "edit_time"])
-        if game is not None:
-            game.delete()
+        game.abandon(request.user, keep_orphan=keep_orphans)
 
     messages.success(request, "Игра удалена, админка заброшена.")
     return redirect("curation_history_detail", history_id=history.pk)

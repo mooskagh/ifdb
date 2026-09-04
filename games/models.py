@@ -1,5 +1,8 @@
+from typing import Any
+
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
+from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 
 # Create your models here.
@@ -14,6 +17,7 @@ class Game(models.Model):
     class State(models.TextChoices):
         DRAFT = "DRAFT", _("Draft")
         PUBLISHED = "PUBLISHED", _("Published")
+        ABANDONED = "ABANDONED", _("Abandoned")
         REDIRECT = "REDIRECT", _("Redirect")
 
     class Meta:
@@ -26,7 +30,7 @@ class Game(models.Model):
                         redirect_to__isnull=False,
                     )
                     | models.Q(
-                        state__in=["DRAFT", "PUBLISHED"],
+                        state__in=["DRAFT", "PUBLISHED", "ABANDONED"],
                         redirect_to__isnull=True,
                     )
                 ),
@@ -42,6 +46,70 @@ class Game(models.Model):
         ]
 
     objects = GameQuerySet.as_manager()
+
+    @transaction.atomic
+    def abandon(self, actor: Any, *, keep_orphan: bool = False) -> None:
+        from curation.models import (
+            GameEdit,
+            GameHistory,
+            GameHistoryAuditLog,
+            GameSource,
+        )
+
+        game = Game.objects.select_for_update().get(pk=self.pk)
+        history = (
+            GameHistory.objects
+            .select_for_update()
+            .filter(game_id=game.pk)
+            .first()
+        )
+        timestamp = now()
+        if history is not None:
+            for source in GameSource.objects.select_for_update().filter(
+                history=history
+            ):
+                GameHistoryAuditLog.record_source(
+                    history,
+                    actor,
+                    GameHistoryAuditLog.AuditKind.SOURCE_DETACHED,
+                    source,
+                )
+                source.history = None
+                source.keep_orphan = keep_orphan
+                source.save(update_fields=["history", "keep_orphan"])
+
+            old_state = history.state
+            history.state = GameHistory.State.ABANDONED
+            history.auto_updates = GameHistory.AutoUpdate.REJECT
+            history.processing_started_at = None
+            history.processing_task_id = None
+            history.edit_time = timestamp
+            history.save(
+                update_fields=[
+                    "state",
+                    "auto_updates",
+                    "processing_started_at",
+                    "processing_task_id",
+                    "edit_time",
+                ]
+            )
+            GameEdit.objects.filter(
+                history=history,
+                status=GameEdit.EditStatus.PROPOSED,
+            ).update(status=GameEdit.EditStatus.REJECTED)
+            if old_state != history.state:
+                GameHistoryAuditLog.record_change(
+                    history,
+                    actor,
+                    GameHistoryAuditLog.AuditField.STATE,
+                    old_state,
+                    history.state,
+                )
+
+        game.state = Game.State.ABANDONED
+        game.redirect_to = None
+        game.edit_time = timestamp
+        game.save(update_fields=["state", "redirect_to", "edit_time"])
 
     def __str__(self):
         return self.title

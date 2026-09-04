@@ -71,17 +71,6 @@ def source_payload(source: GameSource) -> dict:
     }
 
 
-def column_for_history(history: GameHistory) -> dict:
-    game = history.game
-    if game is None:
-        return _empty_column(
-            client_id=f"history-{history.id}",
-            history_id=history.id,
-            sources=history.gamesource_set.order_by("id"),
-        )
-    return column_for_game(game, history=history)
-
-
 def column_for_game(game: Game, *, history: GameHistory | None = None) -> dict:
     if history is None:
         history = getattr(game, "gamehistory", None)
@@ -89,6 +78,7 @@ def column_for_game(game: Game, *, history: GameHistory | None = None) -> dict:
         "client_id": f"game-{game.id}",
         "history_id": history.id if history else None,
         "game_id": game.id,
+        "state": game.state,
         "title": game.title or "",
         "release_date": game.release_date.isoformat()
         if game.release_date
@@ -132,7 +122,7 @@ def column_for_game(game: Game, *, history: GameHistory | None = None) -> dict:
 def initial_payload(history: GameHistory) -> dict:
     return {
         "base_history_id": history.id,
-        "columns": [column_for_history(history)],
+        "columns": [column_for_game(history.game, history=history)],
         "choices": choices_payload(),
     }
 
@@ -432,7 +422,7 @@ def _save_column(
         return None
 
     game = games.get(col["game_id"])
-    if game is None and history and history.game_id:
+    if game is None and history:
         game = games[history.game_id]
     if game is None and _has_game_data(col):
         game = _apply_game_info(col, None, history, actor)
@@ -447,11 +437,6 @@ def _save_column(
         history, _ = GameHistory.objects.select_for_update().get_or_create(
             game=game, defaults={"creation_time": now()}
         )
-    elif (
-        history is not None and game is not None and history.game_id != game.id
-    ):
-        history.game = game
-        history.save(update_fields=["game"])
     return history
 
 
@@ -485,9 +470,6 @@ def _apply_game_info(
         history, _ = GameHistory.objects.get_or_create(
             game=game, defaults={"creation_time": now()}
         )
-    elif history.game_id != game.id:
-        history.game = game
-        history.save(update_fields=["game"])
     if before.rstrip("\n") != after.rstrip("\n"):
         GameEdit.objects.create(
             history=history,
@@ -575,33 +557,9 @@ def _delete_marked_columns(
         history = histories.get(col["history_id"])
         game = games.get(col["game_id"])
         if history is not None:
-            old_state = history.state
-            history.game = None
-            history.state = GameHistory.State.ABANDONED
-            history.auto_updates = GameHistory.AutoUpdate.REJECT
-            history.processing_started_at = None
-            history.processing_task_id = None
-            history.edit_time = now()
-            history.save(
-                update_fields=[
-                    "game",
-                    "state",
-                    "auto_updates",
-                    "processing_started_at",
-                    "processing_task_id",
-                    "edit_time",
-                ]
-            )
-            if old_state != history.state:
-                GameHistoryAuditLog.record_change(
-                    history,
-                    actor,
-                    GameHistoryAuditLog.AuditField.STATE,
-                    old_state,
-                    history.state,
-                )
+            game = history.game
         if game is not None:
-            game.delete()
+            game.abandon(actor)
 
 
 def _schedule_history(history: GameHistory, actor):

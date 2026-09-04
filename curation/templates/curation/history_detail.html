@@ -1,7 +1,7 @@
 {% extends "curation/base.html" %}
 {% load tags %}
 
-{% block titlesection %}Игра: {{ history.game.title|default:"(не назначена)" }} - {% endblock %}
+{% block titlesection %}Игра: {{ history.game.title }} - {% endblock %}
 
 {% block curation_main %}
 <div class="card card--brown">
@@ -220,10 +220,10 @@
             <div class="game--info-row">
                 <div class="game--info-row-label">Игра</div>
                 <div class="game--info-row-value">
-                    {% if game %}
+                    {% if game.state == "PUBLISHED" %}
                     <a href="{% url 'show_game' game.pk %}">{{ game.title }}</a>
                     {% else %}
-                    (не назначена)
+                    {{ game.title }} ({{ game.get_state_display }})
                     {% endif %}
                 </div>
             </div>
@@ -234,21 +234,29 @@
             <div class="game--info-row">
                 <div class="game--info-row-label">Автообновление</div>
                 <div class="game--info-row-value">
+                    {% if history.state != "ABANDONED" %}
                     <select name="auto_updates">
                         {% for value, label in auto_choices %}
                         <option value="{{ value }}" {% if value == history.auto_updates %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
+                    {% else %}
+                    {{ history.get_auto_updates_display }}
+                    {% endif %}
                 </div>
             </div>
             <div class="game--info-row">
                 <div class="game--info-row-label">Состояние</div>
                 <div class="game--info-row-value">
+                    {% if history.state != "ABANDONED" %}
                     <select name="state">
                         {% for value, label in state_choices %}
                         <option value="{{ value }}" {% if value == history.state %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
+                    {% else %}
+                    {{ history.get_state_display }}
+                    {% endif %}
                 </div>
             </div>
             {% if history.note %}
@@ -266,9 +274,11 @@
                 <div class="game--info-row-value">{{ history.edit_time|date:"d.m.Y H:i"|default:"—" }}</div>
             </div>
         </div>
+        {% if history.state != "ABANDONED" %}
         <div class="curation-save">
             <button type="submit">Сохранить</button>
         </div>
+        {% endif %}
     </div>
 </form>
 
@@ -292,6 +302,7 @@
 </div>
 {% endif %}
 
+{% if history.state != "ABANDONED" %}
 <div class="card card--purple">
     <div class="card--header">Автоматическая обработка</div>
     <div class="card--body">
@@ -306,8 +317,9 @@
         </form>
     </div>
 </div>
+{% endif %}
 
-{% if game and history.state != "ABANDONED" %}
+{% if history.state != "ABANDONED" %}
 <div class="card card--yellow">
     <div class="card--header">Объединить с другой игрой</div>
     <div class="card--body">
@@ -315,7 +327,7 @@
             {% csrf_token %}
             <label>id присоединяемой игры <input type="number" name="source_game_id" min="1" required style="width: 7rem;"></label>
             <label><input type="checkbox" name="remap_contests"> переназначить конкурсные ссылки, голоса и вопросы</label>
-            <button type="submit" data-confirm="Присоединить указанную игру к этой? Присоединяемая игра будет удалена, её админка станет заброшенной.">Объединить</button>
+            <button type="submit" data-confirm="Присоединить указанную игру к этой? Присоединяемая игра станет перенаправлением, а её админка будет заброшена.">Объединить</button>
         </form>
         <div class="curation-meta">Если у присоединяемой игры есть записи в конкурсах, без чекбокса объединение будет остановлено и покажет затронутые таблицы.</div>
     </div>

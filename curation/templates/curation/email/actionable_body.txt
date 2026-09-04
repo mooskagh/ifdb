@@ -1,9 +1,9 @@
 {% autoescape off %}Появилась игра, требующая внимания.
 
 Админка: #{{ history.pk }}
-{% if game %}Игра: {{ game.title }}
-{% endif %}{% if history.note %}Примечание:
+Игра: {{ game.title }}
+Состояние: {{ history.get_state_display }}
+{% if history.note %}Примечание:
 {{ history.note }}
-{% endif %}
-Открыть: {{ url }}
+{% endif %}Открыть: {{ url }}
 {% endautoescape %}

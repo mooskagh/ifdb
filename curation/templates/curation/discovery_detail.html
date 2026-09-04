@@ -53,10 +53,10 @@
                 {% if source.missing_since %}<div class="curation-meta">Пропал: {{ source.missing_since|date:"d.m.Y H:i" }}</div>{% endif %}
                 <div class="curation-duplicate-usage">
                     {% if source.history %}
-                        {% if source.history.game %}
+                        {% if source.history.game.state == "PUBLISHED" %}
                         <a href="{% url 'show_game' source.history.game.pk %}">{{ source.history.game.title }}</a>
                         {% else %}
-                        (none)
+                        {{ source.history.game.title }} ({{ source.history.game.get_state_display }})
                         {% endif %}
                         (<a href="{% url 'curation_history_detail' source.history.pk %}">админка</a>)
                     {% else %}
@@ -85,10 +85,10 @@
             </div>
             <div class="curation-source-usage">
                 {% if source.history %}
-                    {% if source.history.game %}
+                    {% if source.history.game.state == "PUBLISHED" %}
                     <a href="{% url 'show_game' source.history.game.pk %}">{{ source.history.game.title }}</a>
                     {% else %}
-                    (none)
+                    {{ source.history.game.title }} ({{ source.history.game.get_state_display }})
                     {% endif %}
                     (<a href="{% url 'curation_history_detail' source.history.pk %}">админка</a>)
                 {% else %}

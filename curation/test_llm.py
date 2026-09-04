@@ -9,6 +9,7 @@ from django.test import TestCase
 from django.utils.timezone import now
 
 from games.gameinfo import GameInfo
+from games.models import Game
 
 from . import openrouter
 from .edit import Approval, GameEditState, SourceFetchInfo, SourceStatus
@@ -271,7 +272,12 @@ class LlmWorkflowRunnerTests(TestCase):
             model=self.model,
             runner_params={"label": "configured"},
         )
-        self.history = GameHistory.objects.create(creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.DRAFT, title="LLM Game", creation_time=now()
+        )
+        self.history = GameHistory.objects.create(
+            game=game, creation_time=now()
+        )
         self.state = GameEditState(
             history=self.history,
             current=GameInfo(),
@@ -861,7 +867,12 @@ class HumanReviewRunnerTests(TestCase):
             ),
             model=self.model,
         )
-        self.history = GameHistory.objects.create(creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.DRAFT, title="LLM Game", creation_time=now()
+        )
+        self.history = GameHistory.objects.create(
+            game=game, creation_time=now()
+        )
         self.source = GameSource.objects.create(
             history=self.history,
             type=GameSource.SourceType.IFWIKI,
@@ -1024,7 +1035,12 @@ class StatusReviewRunnerTests(TestCase):
             prompt_template="Diff:\n{{ content_text_diff }}",
             model=self.model,
         )
-        self.history = GameHistory.objects.create(creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.DRAFT, title="LLM Game", creation_time=now()
+        )
+        self.history = GameHistory.objects.create(
+            game=game, creation_time=now()
+        )
         self.state = GameEditState(
             history=self.history,
             current=GameInfo(name="Title", description="New"),
@@ -1181,7 +1197,12 @@ class ContentEditorRunnerTests(TestCase):
             prompt_template="Current:\n{{ current_content_text }}",
             model=self.model,
         )
-        self.history = GameHistory.objects.create(creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.DRAFT, title="LLM Game", creation_time=now()
+        )
+        self.history = GameHistory.objects.create(
+            game=game, creation_time=now()
+        )
         self.state = GameEditState(
             history=self.history,
             current=GameInfo(

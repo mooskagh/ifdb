@@ -275,7 +275,7 @@ def _build_state(
 ) -> GameEditState:
     served = (
         GameInfo.from_game(history.game)
-        if history.game is not None
+        if history.game.state == Game.State.PUBLISHED
         else GameInfo()
     )
     last_edit = _last_applied_edit(history)
@@ -372,11 +372,11 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
         ).update(edit=edit)
 
         if state.approval is Approval.APPLIED:
-            created_game = history.game is None
-            game, after = state.current.save(
-                history.game,
-                state=Game.State.PUBLISHED,
-            )
+            game, after = state.current.save(history.game)
+            created_game = game.state == Game.State.DRAFT
+            if created_game:
+                game.state = Game.State.PUBLISHED
+                game.save(update_fields=["state"])
             if after != final:
                 edit.canonical_text = after
             edit.approved_at = now()
@@ -385,7 +385,6 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
                 update_fields=["canonical_text", "approved_at", "approver"]
             )
             if created_game:
-                history.game = game
                 created_game_id = game.id
             history.state = done_state
             outcome = "applied"
@@ -397,6 +396,11 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
             outcome = "rejected"
 
     _flush(history, state, maintenance_user)
+    if history.game.state == Game.State.DRAFT and state.approval in {
+        Approval.REJECTED,
+        Approval.CANCELLED,
+    }:
+        history.game.abandon(maintenance_user)
     if created_game_id is not None:
         PostNewGameToDiscord(created_game_id)
     return outcome
@@ -425,7 +429,7 @@ def _claim_history(
         .exclude(state=GameHistory.State.ABANDONED)
         .alias(
             orphan_order=Case(
-                When(game__isnull=True, then=Value(0)),
+                When(game__state=Game.State.DRAFT, then=Value(0)),
                 default=Value(1),
                 output_field=IntegerField(),
             )

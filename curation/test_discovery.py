@@ -68,7 +68,10 @@ class DiscoveryTest(TestCase):
         )
 
     def test_run_discover_dedups_by_type_and_url(self):
-        history = GameHistory.objects.create(creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.DRAFT, title="Existing", creation_time=now()
+        )
+        history = GameHistory.objects.create(game=game, creation_time=now())
         GameSource.objects.create(
             type=GameSource.SourceType.APERO,
             url="http://example.com/existing",
@@ -97,7 +100,10 @@ class DiscoveryTest(TestCase):
         self.assertEqual(GameSource.objects.count(), 2)
 
     def test_run_discover_handles_duplicate_existing_sources(self):
-        history = GameHistory.objects.create(creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.DRAFT, title="Dup", creation_time=now()
+        )
+        history = GameHistory.objects.create(game=game, creation_time=now())
         used_dup = GameSource.objects.create(
             type=GameSource.SourceType.INSTEAD,
             url="http://example.com/dup",
