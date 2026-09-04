@@ -278,6 +278,7 @@ class GameRevision(models.Model):
         AUTO_IMPORT = "AUTO_IMPORT", _("Automatic import")
         MANUAL_EDIT = "MANUAL_EDIT", _("Manual edit")
         USER_SUGGESTION = "USER_SUGGESTION", _("User suggestion")
+        BACKFILL = "BACKFILL", _("Backfill")
         ROLLBACK = "ROLLBACK", _("Rollback")
         PARTIAL_ROLLBACK = "PARTIAL_ROLLBACK", _("Partial rollback")
         REAPPLICATION = "REAPPLICATION", _("Reapplication")
