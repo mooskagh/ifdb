@@ -191,7 +191,10 @@ def GameListSnippet(
 def LastComments(*, days=5, limit=30, event=None):
     games = set()
     # TODO Game permissions!
-    comments = GameComment.objects.select_related().filter(is_deleted=False)
+    comments = GameComment.objects.select_related().filter(
+        is_deleted=False,
+        game__in=Game.objects.published(),
+    )
     if event:
         event_id = Competition.objects.get(slug=event)
         comments = comments.filter(
@@ -252,7 +255,10 @@ def LastUrlCat(request, cat, max_secs, min_count, max_count):
     urls = (
         GameURL.objects
         .select_related()
-        .filter(category__symbolic_id=cat)
+        .filter(
+            category__symbolic_id=cat,
+            game__in=Game.objects.published(),
+        )
         .order_by("-url__creation_date")[:max_count]
     )
 
@@ -409,6 +415,7 @@ def ThisDayInHistorySnippet(request, default_age=24 * 60 * 60):
     items = []
     games = (
         Game.objects
+        .published()
         .filter(
             release_date__month=now.month,
             release_date__day=now.day,
@@ -473,6 +480,7 @@ def PopularGamesSnippet(
         ids = []
     games = (
         Game.objects
+        .published()
         .filter(id__in=ids)
         .annotate(
             coms_count=Count("gamecomment"),

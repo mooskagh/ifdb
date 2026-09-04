@@ -2,12 +2,17 @@ from datetime import timedelta
 from html import unescape
 from io import StringIO
 from json import dumps, loads
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from types import ModuleType
+from typing import cast
 from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core import mail
+from django.core.files.storage import FileSystemStorage
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -21,6 +26,7 @@ from contest.models import (
     GameListEntry,
 )
 from core.models import BlogFeed, FeedCache
+from games.gameinfo import GameInfo, GameUrl
 from games.models import (
     URL,
     Game,
@@ -33,9 +39,14 @@ from games.models import (
     GameURLCategory,
     PersonalityAlias,
 )
+from play.blueprint import (
+    BlueprintInfo,
+    BlueprintModule,
+    BlueprintSpec,
+    GenerateSpec,
+)
 
 from .edit import run_edit
-from .gameinfo import GameInfo, GameUrl
 from .models import (
     EditPipeline,
     GameEdit,
@@ -52,6 +63,16 @@ from .models import (
 
 
 class CurationSmokeTest(TestCase):
+    def _history(self, **kwargs):
+        if "game" not in kwargs:
+            kwargs["game"] = Game.objects.create(
+                state=Game.State.PUBLISHED,
+                title="Smoke Game",
+                creation_time=timezone.now(),
+            )
+        kwargs.setdefault("creation_time", timezone.now())
+        return GameHistory.objects.create(**kwargs)
+
     def _proposed_edit(self, history):
         return GameEdit.objects.create(
             history=history,
@@ -69,19 +90,20 @@ class CurationSmokeTest(TestCase):
     )
     def test_needs_attention_creation_sends_notification(self):
         with self.captureOnCommitCallbacks(execute=True):
-            history = GameHistory.objects.create(
-                creation_time=timezone.now(),
+            history = self._history(
                 state=GameHistory.State.NEEDS_ATTENTION,
-                note="Needs manual review",
+                note='Needs "manual" review & more',
             )
 
         self.assertEqual(len(mail.outbox), 1)
         message = mail.outbox[0]
         self.assertEqual(message.to, ["curation@example.com"])
         self.assertNotIn("admin@example.com", message.to)
-        self.assertIn("Огород", message.subject)
-        self.assertIn(f"История: #{history.pk}", message.body)
-        self.assertIn("Needs manual review", message.body)
+        self.assertIn("Модерация", message.subject)
+        self.assertIn(f"Админка: #{history.pk}", message.body)
+        self.assertIn('Needs "manual" review & more', message.body)
+        self.assertNotIn("&quot;", message.body)
+        self.assertNotIn("&amp;", message.body)
         self.assertIn(
             f"https://example.com/curation/{history.pk}/", message.body
         )
@@ -91,7 +113,7 @@ class CurationSmokeTest(TestCase):
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     )
     def test_transition_to_needs_attention_sends_notification(self):
-        history = GameHistory.objects.create(creation_time=timezone.now())
+        history = self._history()
 
         with self.captureOnCommitCallbacks(execute=True):
             history.state = GameHistory.State.NEEDS_ATTENTION
@@ -108,8 +130,7 @@ class CurationSmokeTest(TestCase):
         self,
     ):
         with self.captureOnCommitCallbacks(execute=True):
-            history = GameHistory.objects.create(
-                creation_time=timezone.now(),
+            history = self._history(
                 state=GameHistory.State.NEEDS_ATTENTION,
             )
 
@@ -124,16 +145,14 @@ class CurationSmokeTest(TestCase):
     )
     def test_needs_attention_notification_can_be_disabled(self):
         with self.captureOnCommitCallbacks(execute=True):
-            GameHistory.objects.create(
-                creation_time=timezone.now(),
+            self._history(
                 state=GameHistory.State.NEEDS_ATTENTION,
             )
 
         self.assertEqual(mail.outbox, [])
 
     def test_note_survives_non_attention_model_save(self):
-        history = GameHistory.objects.create(
-            creation_time=timezone.now(),
+        history = self._history(
             state=GameHistory.State.NEEDS_ATTENTION,
             note="Needs manual review",
         )
@@ -145,8 +164,7 @@ class CurationSmokeTest(TestCase):
         self.assertEqual(history.note, "Needs manual review")
 
     def test_note_survives_non_attention_update_fields_save(self):
-        history = GameHistory.objects.create(
-            creation_time=timezone.now(),
+        history = self._history(
             state=GameHistory.State.NEEDS_ATTENTION,
             note="Needs manual review",
         )
@@ -158,8 +176,7 @@ class CurationSmokeTest(TestCase):
         self.assertEqual(history.note, "Needs manual review")
 
     def test_leaving_needs_attention_rejects_pending_edit(self):
-        history = GameHistory.objects.create(
-            creation_time=timezone.now(),
+        history = self._history(
             state=GameHistory.State.NEEDS_ATTENTION,
         )
         edit = self._proposed_edit(history)
@@ -173,8 +190,7 @@ class CurationSmokeTest(TestCase):
     def test_leaving_needs_attention_with_update_fields_rejects_pending_edit(
         self,
     ):
-        history = GameHistory.objects.create(
-            creation_time=timezone.now(),
+        history = self._history(
             state=GameHistory.State.NEEDS_ATTENTION,
         )
         edit = self._proposed_edit(history)
@@ -188,8 +204,7 @@ class CurationSmokeTest(TestCase):
     def test_needs_attention_save_without_state_change_keeps_pending_edit(
         self,
     ):
-        history = GameHistory.objects.create(
-            creation_time=timezone.now(),
+        history = self._history(
             state=GameHistory.State.NEEDS_ATTENTION,
             note="Needs manual review",
         )
@@ -202,8 +217,7 @@ class CurationSmokeTest(TestCase):
         self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
 
     def test_applied_edit_survives_history_state_change(self):
-        history = GameHistory.objects.create(
-            creation_time=timezone.now(),
+        history = self._history(
             state=GameHistory.State.NEEDS_ATTENTION,
         )
         edit = self._proposed_edit(history)
@@ -220,9 +234,12 @@ class CurationSmokeTest(TestCase):
     def test_history_lifecycle(self):
         now = timezone.now()
 
-        # History may exist before any Game row is created.
-        history = GameHistory.objects.create(game=None, creation_time=now)
-        self.assertIsNone(history.game)
+        # History is created with a draft Game immediately.
+        game = Game.objects.create(
+            title="Game", state=Game.State.DRAFT, creation_time=now
+        )
+        history = GameHistory.objects.create(game=game, creation_time=now)
+        self.assertEqual(history.game, game)
         self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
         self.assertEqual(history.auto_updates, GameHistory.AutoUpdate.ACCEPT)
 
@@ -325,9 +342,45 @@ class HistoryListViewTest(TestCase):
         )
         self.client.force_login(self.user)
 
+    @patch("curation.views.discover_blueprints")
+    def test_blueprint_list_shows_discovered_blueprints(self, discover_mock):
+        blueprint = ModuleType("play.blueprints.test_blueprint")
+
+        def get_spec() -> BlueprintSpec:
+            return BlueprintSpec(name="Test blueprint", versions=["1.0"])
+
+        def generate(_spec: GenerateSpec) -> None:
+            pass
+
+        setattr(blueprint, "get_spec", get_spec)
+        setattr(blueprint, "generate", generate)
+        discover_mock.return_value = [
+            BlueprintInfo("test-blueprint", cast(BlueprintModule, blueprint))
+        ]
+
+        response = self.client.get("/curation/blueprints/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "curation/blueprint_list.html")
+        self.assertEqual(
+            response.context["blueprints"],
+            [{"display_name": "Test blueprint", "slug": "test-blueprint"}],
+        )
+        self.assertContains(response, "Проигрыватели")
+        self.assertContains(
+            response,
+            "<title>Проигрыватели - Модерация - db.crem.xyz</title>",
+        )
+        self.assertContains(response, ">Проигрыватели</a>")
+        self.assertContains(response, 'href="/curation/blueprints/"')
+        self.assertContains(response, "Test blueprint")
+        self.assertContains(response, "test-blueprint")
+        discover_mock.assert_called_once_with()
+
     def test_history_list_is_compact_and_uses_short_labels(self):
         ts = timezone.now()
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title="Very Long Game Title That Should Be Truncated",
             creation_time=ts,
             added_by=self.user,
@@ -356,6 +409,7 @@ class HistoryListViewTest(TestCase):
     def test_history_list_links_note_object_refs(self):
         ts = timezone.now()
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title="Linked Game",
             creation_time=ts,
             added_by=self.user,
@@ -388,7 +442,13 @@ class HistoryListViewTest(TestCase):
         )
 
     def test_user_settling_history_clears_note(self):
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Note Game",
+            creation_time=timezone.now(),
+        )
         history = GameHistory.objects.create(
+            game=game,
             creation_time=timezone.now(),
             state=GameHistory.State.NEEDS_ATTENTION,
             note="Needs manual review",
@@ -452,6 +512,7 @@ class HistoryListViewTest(TestCase):
         ts = timezone.now()
         games = Game.objects.bulk_create([
             Game(
+                state=Game.State.PUBLISHED,
                 title=f"Paginated Game {i:03}",
                 creation_time=ts,
                 added_by=self.user,
@@ -555,6 +616,7 @@ class HistoryListViewTest(TestCase):
 
     def _create_history(self, title, updated, *, state):
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title=title,
             creation_time=updated,
             added_by=self.user,
@@ -585,7 +647,10 @@ class HistoryDetailViewTest(TestCase):
         self.client.force_login(self.user)
         self.now = timezone.now()
         self.game = Game.objects.create(
-            title="Commented Game", creation_time=self.now, added_by=self.user
+            state=Game.State.PUBLISHED,
+            title="Commented Game",
+            creation_time=self.now,
+            added_by=self.user,
         )
         self.history = GameHistory.objects.create(
             game=self.game, creation_time=self.now
@@ -687,7 +752,6 @@ class HistoryDetailViewTest(TestCase):
             type=GameSource.SourceType.IFWIKI,
             url="https://example.com/source",
         )
-        game_id = self.game.pk
 
         response = self.client.post(
             f"/curation/{self.history.pk}/delete/",
@@ -695,10 +759,11 @@ class HistoryDetailViewTest(TestCase):
         )
 
         self.assertRedirects(response, f"/curation/{self.history.pk}/")
-        self.assertFalse(Game.objects.filter(pk=game_id).exists())
+        self.game.refresh_from_db()
+        self.assertEqual(self.game.state, Game.State.ABANDONED)
         self.history.refresh_from_db()
         source.refresh_from_db()
-        self.assertIsNone(self.history.game_id)
+        self.assertEqual(self.history.game_id, self.game.pk)
         self.assertEqual(self.history.state, GameHistory.State.ABANDONED)
         self.assertIsNone(source.history_id)
         self.assertTrue(source.keep_orphan)
@@ -739,7 +804,9 @@ class HistoryMergeViewTest(TestCase):
         self.now = timezone.now()
 
     def _history(self, title):
-        game = Game.objects.create(title=title, creation_time=self.now)
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title=title, creation_time=self.now
+        )
         return GameHistory.objects.create(game=game, creation_time=self.now)
 
     def test_history_page_shows_merge_form(self):
@@ -783,7 +850,7 @@ class HistoryMergeViewTest(TestCase):
         )
         for earlier, later in [
             (
-                '<div class="card--header">ОГОРОД</div>',
+                '<div class="card--header">Модерация</div>',
                 f"Информация ({history.pk})",
             ),
             (f"Информация ({history.pk})", "Автоматическая обработка"),
@@ -848,11 +915,14 @@ class HistoryMergeViewTest(TestCase):
         )
 
         self.assertRedirects(response, f"/curation/{target.pk}/")
-        self.assertFalse(Game.objects.filter(pk=source_game_id).exists())
+        self.assertTrue(Game.objects.filter(pk=source_game_id).exists())
         target.refresh_from_db()
         source.refresh_from_db()
+        source_game = Game.objects.get(pk=source_game_id)
+        self.assertEqual(source_game.state, Game.State.REDIRECT)
+        self.assertEqual(source_game.redirect_to_id, target.game_id)
         self.assertEqual(source.state, GameHistory.State.ABANDONED)
-        self.assertIsNone(source.game_id)
+        self.assertEqual(source.game_id, source_game_id)
         self.assertEqual(
             list(target.gamesource_set.values_list("url", flat=True)),
             ["https://example.com/source"],
@@ -887,6 +957,7 @@ class HistoryReconcileViewTest(TestCase):
 
     def _history(self, title="Base"):
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title=title,
             description="Base description",
             creation_time=self.now,
@@ -1098,6 +1169,7 @@ class HistoryReconcileViewTest(TestCase):
         self.assertEqual(moving.history, split)
         self.assertEqual(moving.gamesourcefetch_set.count(), 1)
         self.assertEqual(split.game.title, "Split")
+        self.assertEqual(split.game.state, Game.State.PUBLISHED)
         self.assertEqual(split.game.description, "Base description")
         self.assertEqual(history.game.description, "Base description")
         self.assertEqual(history.game.tags.count(), 1)
@@ -1165,11 +1237,12 @@ class HistoryReconcileViewTest(TestCase):
         response = self._post(history, [col], orphan_source_ids=[source.pk])
 
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(Game.objects.filter(pk=game_id).exists())
+        game = Game.objects.get(pk=game_id)
+        self.assertEqual(game.state, Game.State.ABANDONED)
         source.refresh_from_db()
         history.refresh_from_db()
         self.assertIsNone(source.history_id)
-        self.assertIsNone(history.game_id)
+        self.assertEqual(history.game_id, game_id)
         self.assertEqual(history.state, GameHistory.State.ABANDONED)
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
@@ -1221,7 +1294,10 @@ class LlmTrajectoryViewTest(TestCase):
 
         now = timezone.now()
         self.game = Game.objects.create(
-            title="Readable Messages", creation_time=now, added_by=self.user
+            state=Game.State.PUBLISHED,
+            title="Readable Messages",
+            creation_time=now,
+            added_by=self.user,
         )
         self.history = GameHistory.objects.create(
             game=self.game, creation_time=now
@@ -1383,7 +1459,10 @@ class EditDiffViewTest(TestCase):
 
     def _edit(self, *, auto_updates=GameHistory.AutoUpdate.PROPOSE):
         game = Game.objects.create(
-            title="Old Title", creation_time=self.now, added_by=self.user
+            state=Game.State.PUBLISHED,
+            title="Old Title",
+            creation_time=self.now,
+            added_by=self.user,
         )
         history = GameHistory.objects.create(
             game=game,
@@ -1414,7 +1493,7 @@ class EditDiffViewTest(TestCase):
         self.assertContains(response, "к списку игр")
         self.assertContains(response, "к редактированию игры")
         self.assertContains(response, "к игре")
-        self.assertContains(response, "к истории игры")
+        self.assertContains(response, "к админке игры")
         self.assertContains(response, "остаться тут")
 
     def test_edit_page_shows_game_users_passes_and_llm_links(self):
@@ -1488,10 +1567,10 @@ class EditDiffViewTest(TestCase):
             f"{self.user.username} ({edit.approved_at:%d.%m.%Y %H:%M})",
         )
 
-    def test_edit_redirect_dropdown_hides_game_options_without_game(self):
+    def test_edit_redirect_dropdown_hides_game_options_for_draft_game(self):
         edit = self._edit()
-        edit.history.game = None
-        edit.history.save(update_fields=["game"])
+        edit.history.game.state = Game.State.DRAFT
+        edit.history.game.save(update_fields=["state"])
 
         response = self.client.get(f"/curation/edits/{edit.pk}/")
 
@@ -1499,7 +1578,7 @@ class EditDiffViewTest(TestCase):
         self.assertContains(response, "к списку игр")
         self.assertNotContains(response, "к редактированию игры")
         self.assertNotContains(response, "к игре")
-        self.assertContains(response, "к истории игры")
+        self.assertContains(response, "к админке игры")
         self.assertContains(response, "остаться тут")
 
     def test_non_proposed_edit_hides_actions(self):
@@ -1647,10 +1726,10 @@ class EditDiffViewTest(TestCase):
 
         self.assertRedirects(response, f"/curation/edits/{edit.pk}/")
 
-    def test_game_redirect_falls_back_to_list_without_game(self):
+    def test_game_redirect_falls_back_to_list_for_draft_game(self):
         edit = self._edit()
-        edit.history.game = None
-        edit.history.save(update_fields=["game"])
+        edit.history.game.state = Game.State.DRAFT
+        edit.history.game.save(update_fields=["state"])
 
         response = self.client.post(
             f"/curation/edits/{edit.pk}/",
@@ -1888,10 +1967,21 @@ class DiscoveryViewsTest(TestCase):
             ]
         ]
         game = Game.objects.create(
-            title="Linked Game", creation_time=ts, added_by=self.user
+            state=Game.State.PUBLISHED,
+            title="Linked Game",
+            creation_time=ts,
+            added_by=self.user,
         )
         game_history = GameHistory.objects.create(game=game, creation_time=ts)
-        empty_history = GameHistory.objects.create(game=None, creation_time=ts)
+        draft_game = Game.objects.create(
+            state=Game.State.DRAFT,
+            title="Draft Game",
+            creation_time=ts,
+            added_by=self.user,
+        )
+        empty_history = GameHistory.objects.create(
+            game=draft_game, creation_time=ts
+        )
         sources[2].history = empty_history
         sources[2].save(update_fields=["history"])
         sources[3].history = game_history
@@ -1950,12 +2040,12 @@ class DiscoveryViewsTest(TestCase):
         )
         self.assertContains(
             detail_response,
-            f'href="/curation/{game_history.pk}/">история</a>',
+            f'href="/curation/{game_history.pk}/">админка</a>',
         )
-        self.assertContains(detail_response, "(none)")
+        self.assertContains(detail_response, "Draft Game (Draft)")
         self.assertContains(
             detail_response,
-            f'href="/curation/{empty_history.pk}/">история</a>',
+            f'href="/curation/{empty_history.pk}/">админка</a>',
         )
         content = detail_response.content.decode()
         self.assertLess(
@@ -1996,11 +2086,17 @@ class TasksViewTest(TestCase):
             type=GameSource.SourceType.IFWIKI,
             url="https://example.com/unfetched",
         )
+        g1 = Game.objects.create(title="G1", creation_time=ts)
         GameHistory.objects.create(
-            creation_time=ts, state=GameHistory.State.SCHEDULED_FOR_UPDATE
+            game=g1,
+            creation_time=ts,
+            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
         )
+        g2 = Game.objects.create(title="G2", creation_time=ts)
         GameHistory.objects.create(
-            creation_time=ts, state=GameHistory.State.NEEDS_ATTENTION
+            game=g2,
+            creation_time=ts,
+            state=GameHistory.State.NEEDS_ATTENTION,
         )
 
         response = self.client.get("/curation/tasks/")
@@ -2223,10 +2319,393 @@ class SourceViewsTest(TestCase):
         )
         self.client.force_login(self.user)
 
+    def _history(self, title="Game", **kwargs):
+        if "game" not in kwargs:
+            kwargs["game"] = Game.objects.create(
+                state=Game.State.DRAFT,
+                title=title,
+                creation_time=timezone.now(),
+            )
+        kwargs.setdefault("creation_time", timezone.now())
+        return GameHistory.objects.create(**kwargs)
+
+    def _url_category(self, symbolic_id):
+        return GameURLCategory.objects.get_or_create(
+            symbolic_id=symbolic_id,
+            defaults={"title": symbolic_id},
+        )[0]
+
+    def _download_link(
+        self,
+        game,
+        original_url,
+        *,
+        original_filename=None,
+        local_filename=None,
+        local_url=None,
+        is_uploaded=False,
+        category=None,
+    ):
+        url = URL.objects.create(
+            original_url=original_url,
+            original_filename=original_filename,
+            local_filename=local_filename,
+            local_url=local_url,
+            is_uploaded=is_uploaded,
+            creation_date=timezone.now(),
+        )
+        return GameURL.objects.create(
+            game=game,
+            url=url,
+            category=category or self._url_category("download_direct"),
+        )
+
+    def _fake_blueprint(self, slug, name, accepted, paths, spec_calls):
+        blueprint = ModuleType(f"play.blueprints.{slug}")
+
+        def get_spec() -> BlueprintSpec:
+            spec_calls.append(slug)
+            return BlueprintSpec(name=name, versions=[])
+
+        def accepts(filename: Path) -> bool:
+            paths.append(filename)
+            return accepted
+
+        def generate(_spec: GenerateSpec) -> None:
+            pass
+
+        setattr(blueprint, "get_spec", get_spec)
+        setattr(blueprint, "accepts", accepts)
+        setattr(blueprint, "generate", generate)
+        return BlueprintInfo(slug, cast(BlueprintModule, blueprint))
+
+    def test_history_playable_card_requires_direct_download(self):
+        ts = timezone.now()
+        game_without_links = Game.objects.create(
+            state=Game.State.PUBLISHED, title="No downloads", creation_time=ts
+        )
+        no_downloads = GameHistory.objects.create(
+            game=game_without_links, creation_time=ts
+        )
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Other link", creation_time=ts
+        )
+        other_category = self._url_category("play_online")
+        self._download_link(
+            game,
+            "https://example.com/play",
+            category=other_category,
+        )
+        other_links = GameHistory.objects.create(game=game, creation_time=ts)
+
+        for history in [no_downloads, other_links]:
+            response = self.client.get(f"/curation/{history.pk}/")
+
+            self.assertEqual(response.context["playable_files"], [])
+            self.assertNotContains(
+                response,
+                '<div class="card--header">Проигрыватель</div>',
+                html=True,
+            )
+
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_card_lists_direct_downloads_in_order(
+        self, discover_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Downloads", creation_time=ts
+        )
+        history = GameHistory.objects.create(game=game, creation_time=ts)
+        source = GameSource.objects.create(
+            history=history,
+            type=GameSource.SourceType.IFWIKI,
+            url="https://example.com/source",
+            created_at=ts,
+        )
+        first = self._download_link(
+            game,
+            "https://example.com/first.zip",
+            original_filename="first.zip",
+        )
+        self._download_link(
+            game,
+            "https://example.com/online",
+            category=self._url_category("play_online"),
+        )
+        second = self._download_link(
+            game,
+            "https://example.com/second.zip",
+        )
+
+        response = self.client.get(f"/curation/{history.pk}/")
+        rows = response.context["playable_files"]
+        content = response.content.decode()
+
+        self.assertEqual(
+            [row.game_url.pk for row in rows], [first.pk, second.pk]
+        )
+        self.assertTrue(all(row.compatibility is None for row in rows))
+        self.assertContains(response, "Проигрыватель")
+        self.assertContains(
+            response,
+            '<table class="curation-table curation-table--compact '
+            'curation-playable-table">',
+        )
+        self.assertContains(response, ">Файл</th>")
+        self.assertContains(response, ">Локальная копия</th>")
+        self.assertContains(response, ">Совместимость</th>")
+        self.assertContains(response, "first.zip")
+        self.assertContains(response, "https://example.com/second.zip")
+        self.assertContains(response, "Проверить совместимость")
+        self.assertContains(response, "Нет", count=2)
+        self.assertNotContains(response, "https://example.com/online")
+        self.assertNotContains(response, "data-blueprint-slug")
+        self.assertLess(
+            content.index('<div class="card--header">Источники</div>'),
+            content.index('<div class="card--header">Проигрыватель</div>'),
+        )
+        self.assertLess(
+            content.index('<div class="card--header">Проигрыватель</div>'),
+            content.index("Добавлен источник"),
+        )
+        discover_mock.assert_not_called()
+        self.assertTrue(GameSource.objects.filter(pk=source.pk).exists())
+
+    @patch.object(FileSystemStorage, "exists")
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_local_copy_uses_database_marker(
+        self, discover_mock, exists_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Local files", creation_time=ts
+        )
+        history = GameHistory.objects.create(game=game, creation_time=ts)
+        backup = self._download_link(
+            game,
+            "https://example.com/backup.zip",
+            local_filename="backup.zip",
+        )
+        upload = self._download_link(
+            game,
+            "https://example.com/upload.zip",
+            local_filename="upload.zip",
+            is_uploaded=True,
+        )
+        remote = self._download_link(
+            game,
+            "https://example.com/remote.zip",
+            local_url="/f/backups/remote.zip",
+        )
+
+        response = self.client.get(f"/curation/{history.pk}/")
+        rows = response.context["playable_files"]
+
+        self.assertEqual(
+            [row.game_url.pk for row in rows],
+            [backup.pk, upload.pk, remote.pk],
+        )
+        self.assertEqual(
+            [row.has_local_copy for row in rows], [True, True, False]
+        )
+        self.assertContains(response, "Есть", count=2)
+        self.assertContains(response, "Нет")
+        discover_mock.assert_not_called()
+        exists_mock.assert_not_called()
+
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_compatibility_checks_all_local_files(
+        self, discover_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Compatibility", creation_time=ts
+        )
+        history = GameHistory.objects.create(game=game, creation_time=ts)
+        with (
+            TemporaryDirectory() as upload_root,
+            TemporaryDirectory() as backup_root,
+        ):
+            self._download_link(
+                game,
+                "https://example.com/backup.zip",
+                local_filename="games/backup.zip",
+            )
+            self._download_link(
+                game,
+                "https://example.com/remote.zip",
+                local_url="/f/backups/remote.zip",
+            )
+            self._download_link(
+                game,
+                "https://example.com/upload.zip",
+                local_filename="games/upload.zip",
+                is_uploaded=True,
+            )
+            accepting_paths = []
+            rejecting_paths = []
+            spec_calls = []
+            discover_mock.return_value = [
+                self._fake_blueprint(
+                    "accepting",
+                    "Accepting playable",
+                    True,
+                    accepting_paths,
+                    spec_calls,
+                ),
+                self._fake_blueprint(
+                    "rejecting",
+                    "Rejecting playable",
+                    False,
+                    rejecting_paths,
+                    spec_calls,
+                ),
+            ]
+            for file_path in [
+                Path(backup_root) / "games/backup.zip",
+                Path(upload_root) / "games/upload.zip",
+            ]:
+                file_path.parent.mkdir(parents=True)
+                file_path.touch()
+
+            with override_settings(
+                UPLOADS_FS=FileSystemStorage(upload_root),
+                BACKUPS_FS=FileSystemStorage(backup_root),
+            ):
+                response = self.client.get(
+                    f"/curation/{history.pk}/",
+                    {"check_compatibility": "1"},
+                )
+
+            expected_paths = [
+                Path(backup_root) / "games/backup.zip",
+                Path(upload_root) / "games/upload.zip",
+            ]
+
+        self.assertEqual(accepting_paths, expected_paths)
+        self.assertEqual(rejecting_paths, expected_paths)
+        self.assertEqual(spec_calls, ["accepting", "rejecting"])
+        discover_mock.assert_called_once_with()
+        self.assertContains(
+            response,
+            'data-blueprint-slug="accepting"',
+            count=2,
+        )
+        self.assertContains(
+            response,
+            "curation-playable-result--accepted",
+            count=2,
+        )
+        self.assertContains(response, "✓", count=2)
+        self.assertContains(
+            response,
+            'data-blueprint-slug="rejecting"',
+            count=2,
+        )
+        self.assertContains(
+            response,
+            "curation-playable-result--rejected",
+            count=2,
+        )
+        self.assertContains(response, "✕", count=2)
+        self.assertNotContains(
+            response, '<input type="checkbox" data-blueprint-slug'
+        )
+        self.assertContains(response, ">Accepting playable</span>", count=2)
+        self.assertContains(response, ">Rejecting playable</span>", count=2)
+        self.assertIsNone(response.context["playable_files"][1].compatibility)
+        self.assertContains(response, "Нет")
+
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_missing_file_is_reported(self, discover_mock):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Missing file", creation_time=ts
+        )
+        history = GameHistory.objects.create(game=game, creation_time=ts)
+        self._download_link(
+            game,
+            "https://example.com/missing.zip",
+            local_filename="missing.zip",
+        )
+        accepting_paths = []
+        spec_calls = []
+        discover_mock.return_value = [
+            self._fake_blueprint(
+                "accepting",
+                "Accepting playable",
+                True,
+                accepting_paths,
+                spec_calls,
+            )
+        ]
+
+        with TemporaryDirectory() as backup_root:
+            with override_settings(
+                BACKUPS_FS=FileSystemStorage(backup_root),
+            ):
+                response = self.client.get(
+                    f"/curation/{history.pk}/",
+                    {"check_compatibility": "1"},
+                )
+
+        row = response.context["playable_files"][0]
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(row.file_missing)
+        self.assertIsNone(row.compatibility)
+        self.assertEqual(accepting_paths, [])
+        self.assertEqual(spec_calls, ["accepting"])
+        discover_mock.assert_called_once_with()
+        self.assertContains(response, "Файл не найден.")
+        self.assertNotContains(response, "data-blueprint-slug")
+
+    @patch.object(FileSystemStorage, "exists", return_value=True)
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_compatibility_requires_exact_query_value(
+        self, discover_mock, exists_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Compatibility", creation_time=ts
+        )
+        history = GameHistory.objects.create(game=game, creation_time=ts)
+        self._download_link(
+            game,
+            "https://example.com/game.zip",
+            local_filename="game.zip",
+        )
+        path = f"/curation/{history.pk}/"
+
+        for query in [
+            {},
+            {"check_compatibility": ""},
+            {"check_compatibility": "0"},
+        ]:
+            response = self.client.get(path, query)
+            self.assertIsNone(
+                response.context["playable_files"][0].compatibility
+            )
+            self.assertNotContains(response, "data-blueprint-slug")
+        discover_mock.assert_not_called()
+
+        discover_mock.return_value = []
+        response = self.client.get(path, {"check_compatibility": "1"})
+
+        discover_mock.assert_called_once_with()
+        exists_mock.assert_called_once_with("game.zip")
+        self.assertEqual(
+            response.context["playable_files"][0].compatibility, ()
+        )
+        self.assertContains(response, "Проигрывателей нет.")
+
     def test_source_list_detail_and_fetch_content(self):
         ts = timezone.now()
         game = Game.objects.create(
-            title="Source Game", creation_time=ts, added_by=self.user
+            state=Game.State.PUBLISHED,
+            title="Source Game",
+            creation_time=ts,
+            added_by=self.user,
         )
         history = GameHistory.objects.create(game=game, creation_time=ts)
         source = GameSource.objects.create(
@@ -2267,7 +2746,7 @@ class SourceViewsTest(TestCase):
         for text in [
             "https://example.com/source",
             f'href="/game/{game.pk}/">Source Game</a>',
-            f'(<a href="/curation/{history.pk}/">история</a>)',
+            f'(<a href="/curation/{history.pk}/">админка</a>)',
             "Fetch failed",
             'class="curation-source-error"',
             ts.strftime("%Y-%m-%d %H:%M"),
@@ -2317,7 +2796,10 @@ class SourceViewsTest(TestCase):
     def test_source_list_search_filter_and_pagination(self):
         ts = timezone.now()
         wanted_game = Game.objects.create(
-            title="Wanted Game", creation_time=ts, added_by=self.user
+            state=Game.State.PUBLISHED,
+            title="Wanted Game",
+            creation_time=ts,
+            added_by=self.user,
         )
         wanted_history = GameHistory.objects.create(
             game=wanted_game, creation_time=ts
@@ -2358,7 +2840,10 @@ class SourceViewsTest(TestCase):
     def test_source_list_orphan_filter_and_sorting(self):
         ts = timezone.now()
         game = Game.objects.create(
-            title="Attached Game", creation_time=ts, added_by=self.user
+            state=Game.State.PUBLISHED,
+            title="Attached Game",
+            creation_time=ts,
+            added_by=self.user,
         )
         history = GameHistory.objects.create(game=game, creation_time=ts)
         older = GameSource.objects.create(
@@ -2429,7 +2914,10 @@ class SourceViewsTest(TestCase):
     def test_source_list_pending_orphans_and_last_new_fetch(self):
         ts = timezone.now()
         game = Game.objects.create(
-            title="Attached Game", creation_time=ts, added_by=self.user
+            state=Game.State.PUBLISHED,
+            title="Attached Game",
+            creation_time=ts,
+            added_by=self.user,
         )
         history = GameHistory.objects.create(game=game, creation_time=ts)
         attached = GameSource.objects.create(
@@ -2550,7 +3038,7 @@ class SourceViewsTest(TestCase):
 
     def test_history_links_sources_to_detail(self):
         ts = timezone.now()
-        history = GameHistory.objects.create(game=None, creation_time=ts)
+        history = self._history(creation_time=ts)
         pipeline, _ = EditPipeline.objects.update_or_create(
             name="Импорт", defaults={"passes": [{"name": "merge_sources"}]}
         )
@@ -2603,7 +3091,7 @@ class SourceViewsTest(TestCase):
     @patch("curation.views.edit_sources.delay")
     def test_history_run_edit_starts_task(self, delay):
         ts = timezone.now()
-        history = GameHistory.objects.create(game=None, creation_time=ts)
+        history = self._history(creation_time=ts)
         pipeline, _ = EditPipeline.objects.update_or_create(
             name="Импорт", defaults={"passes": [{"name": "merge_sources"}]}
         )
@@ -2619,7 +3107,7 @@ class SourceViewsTest(TestCase):
 
     def test_history_source_add_records_audit(self):
         ts = timezone.now()
-        history = GameHistory.objects.create(game=None, creation_time=ts)
+        history = self._history(creation_time=ts)
 
         response = self.client.post(
             f"/curation/{history.pk}/sources/add/",
@@ -2645,7 +3133,7 @@ class SourceViewsTest(TestCase):
 
     def test_history_source_add_reuses_orphan_with_same_type_and_url(self):
         ts = timezone.now()
-        history = GameHistory.objects.create(game=None, creation_time=ts)
+        history = self._history(creation_time=ts)
         orphan = GameSource.objects.create(
             type=GameSource.SourceType.IFWIKI,
             url="https://example.com/new",
@@ -2667,8 +3155,8 @@ class SourceViewsTest(TestCase):
 
     def test_history_source_add_rejects_attached_duplicate_url(self):
         ts = timezone.now()
-        history = GameHistory.objects.create(game=None, creation_time=ts)
-        other = GameHistory.objects.create(game=None, creation_time=ts)
+        history = self._history(title="H1", creation_time=ts)
+        other = self._history(title="H2", creation_time=ts)
         GameSource.objects.create(
             history=other,
             type=GameSource.SourceType.IFWIKI,
@@ -2689,7 +3177,7 @@ class SourceViewsTest(TestCase):
 
     def test_history_source_add_attaches_orphan_by_id(self):
         ts = timezone.now()
-        history = GameHistory.objects.create(game=None, creation_time=ts)
+        history = self._history(creation_time=ts)
         orphan = GameSource.objects.create(
             type=GameSource.SourceType.APERO,
             url="https://example.com/source",
@@ -2707,8 +3195,8 @@ class SourceViewsTest(TestCase):
 
     def test_history_source_add_rejects_attached_source_by_id(self):
         ts = timezone.now()
-        history = GameHistory.objects.create(game=None, creation_time=ts)
-        other = GameHistory.objects.create(game=None, creation_time=ts)
+        history = self._history(title="H1", creation_time=ts)
+        other = self._history(title="H2", creation_time=ts)
         source = GameSource.objects.create(
             history=other,
             type=GameSource.SourceType.APERO,
@@ -2726,9 +3214,7 @@ class SourceViewsTest(TestCase):
         self.assertFalse(GameHistoryAuditLog.objects.exists())
 
     def test_history_source_add_rejects_unknown_type(self):
-        history = GameHistory.objects.create(
-            game=None, creation_time=timezone.now()
-        )
+        history = self._history()
 
         response = self.client.post(
             f"/curation/{history.pk}/sources/add/",
@@ -2741,7 +3227,7 @@ class SourceViewsTest(TestCase):
 
     def test_history_source_detach_keeps_source_and_records_audit(self):
         ts = timezone.now()
-        history = GameHistory.objects.create(game=None, creation_time=ts)
+        history = self._history(creation_time=ts)
         source = GameSource.objects.create(
             history=history,
             type=GameSource.SourceType.APERO,
@@ -2768,7 +3254,7 @@ class SourceViewsTest(TestCase):
 
     def test_history_source_detach_can_keep_source_orphan(self):
         ts = timezone.now()
-        history = GameHistory.objects.create(game=None, creation_time=ts)
+        history = self._history(creation_time=ts)
         source = GameSource.objects.create(
             history=history,
             type=GameSource.SourceType.APERO,
@@ -2805,7 +3291,7 @@ class SourceViewsTest(TestCase):
     @patch("curation.views.fetch_sources.delay")
     def test_history_sources_fetch_now_enqueues_each_source(self, delay):
         ts = timezone.now()
-        history = GameHistory.objects.create(game=None, creation_time=ts)
+        history = self._history(creation_time=ts)
         first = GameSource.objects.create(
             history=history,
             type=GameSource.SourceType.APERO,
@@ -3008,130 +3494,7 @@ class FeedViewsTest(TestCase):
         self.assertContains(detail_response, "?page=2")
 
 
-class InitCurationCommandTest(TestCase):
-    def setUp(self):
-        self.now = timezone.now()
-        user_model = get_user_model()
-        self.bot = user_model.objects.create(
-            username=settings.MAINTENANCE_USER, email="robot@db.crem.xyz"
-        )
-        self.game_page = GameURLCategory.objects.create(
-            symbolic_id="game_page", title="Game page"
-        )
-        self.play_online = GameURLCategory.objects.create(
-            symbolic_id="play_online", title="Play online"
-        )
-        self.video = GameURLCategory.objects.create(
-            symbolic_id="video", title="Video"
-        )
-
-    def _game(self, title, edit_time=None):
-        return Game.objects.create(
-            title=title,
-            added_by=self.bot,
-            creation_time=self.now,
-            edit_time=edit_time,
-        )
-
-    def _link(self, game, original_url, category):
-        url = URL.objects.create(
-            original_url=original_url,
-            creation_date=self.now,
-            creator=self.bot,
-        )
-        GameURL.objects.create(game=game, url=url, category=category)
-
-    def _run(self):
-        call_command("initcuration", stdout=StringIO())
-
-    def test_seeds_histories_sources_and_audit(self):
-        bot_game = self._game("Bot game")
-        self._link(bot_game, "http://ifwiki.ru/Игра", self.game_page)
-        self._link(
-            bot_game,
-            "https://apero.ru/Текстовые-игры/example",
-            self.play_online,
-        )
-        # Only source categories are sources, even when another category points
-        # at a recognized provider.
-        self._link(bot_game, "http://ifwiki.ru/Видео", self.video)
-        # An unrecognized game_page link is skipped, not turned into a source.
-        self._link(bot_game, "https://youtube.com/watch?v=x", self.game_page)
-
-        # Bot-added but human-edited ⇒ PROPOSE rather than ACCEPT.
-        edited_game = self._game("Edited game", edit_time=self.now)
-        self._link(edited_game, "http://ifwiki.ru/Другая", self.game_page)
-
-        self._run()
-
-        bot_history = GameHistory.objects.get(game=bot_game)
-        self.assertEqual(
-            bot_history.auto_updates, GameHistory.AutoUpdate.ACCEPT
-        )
-        self.assertEqual(
-            bot_history.state, GameHistory.State.SCHEDULED_FOR_UPDATE
-        )
-        self.assertEqual(
-            list(
-                GameSource.objects
-                .filter(history=bot_history)
-                .order_by("pk")
-                .values_list("type", flat=True)
-            ),
-            [GameSource.SourceType.IFWIKI, GameSource.SourceType.APERO],
-        )
-        self.assertEqual(
-            GameHistoryAuditLog.objects.filter(
-                history=bot_history,
-                kind=GameHistoryAuditLog.AuditKind.INITIAL_IMPORT,
-            ).count(),
-            1,
-        )
-
-        edited_history = GameHistory.objects.get(game=edited_game)
-        self.assertEqual(
-            edited_history.auto_updates, GameHistory.AutoUpdate.PROPOSE
-        )
-
-    def test_idempotent(self):
-        game = self._game("Bot game")
-        self._link(game, "http://ifwiki.ru/Игра", self.game_page)
-
-        self._run()
-        self._run()
-
-        self.assertEqual(GameHistory.objects.count(), 1)
-        self.assertEqual(GameSource.objects.count(), 1)
-        self.assertEqual(
-            GameHistoryAuditLog.objects.filter(
-                kind=GameHistoryAuditLog.AuditKind.INITIAL_IMPORT
-            ).count(),
-            1,
-        )
-
-    def test_deduplicates_sources_by_provider_identity_per_game(self):
-        game = self._game("Bot game")
-        self._link(
-            game,
-            "https://forum.ifiction.ru/viewtopic.php?id=42&lid=1",
-            self.game_page,
-        )
-        self._link(
-            game,
-            "https://forum.ifiction.ru/viewtopic.php?id=42&lid=2",
-            self.game_page,
-        )
-
-        self._run()
-
-        history = GameHistory.objects.get(game=game)
-        self.assertEqual(GameSource.objects.filter(history=history).count(), 1)
-        self.assertEqual(
-            GameSource.objects.get(history=history).url,
-            "https://forum.ifiction.ru/viewtopic.php?id=42&lid=1",
-        )
-
-
+@override_settings(CURATION_EDIT_PASSES=["merge_sources"])
 @override_settings(CURATION_EDIT_PASSES=["merge_sources"])
 class EditRunnerTest(TestCase):
     def setUp(self):
@@ -3141,6 +3504,12 @@ class EditRunnerTest(TestCase):
         )
 
     def _history(self, **kwargs):
+        if "game" not in kwargs:
+            kwargs["game"] = Game.objects.create(
+                state=Game.State.DRAFT,
+                title="Runner Game",
+                creation_time=self.now,
+            )
         return GameHistory.objects.create(creation_time=self.now, **kwargs)
 
     def _source(self, history, type, name, desc):
@@ -3182,7 +3551,7 @@ class EditRunnerTest(TestCase):
         self.pipeline.save(update_fields=["passes"])
 
     def test_merge_applies_in_priority_order(self):
-        history = self._history(game=None)
+        history = self._history()
         wiki = self._source(
             history, GameSource.SourceType.IFWIKI, "Wiki Title", "Wiki desc"
         )
@@ -3209,7 +3578,7 @@ class EditRunnerTest(TestCase):
         self.assertEqual(set(edit.used_sources.all()), {wiki, apero})
 
     def test_rerun_is_idempotent(self):
-        history = self._history(game=None)
+        history = self._history()
         self._source(
             history, GameSource.SourceType.IFWIKI, "Wiki Title", "Wiki desc"
         )
@@ -3234,6 +3603,7 @@ class EditRunnerTest(TestCase):
 
     def test_merge_keeps_existing_related_data_and_scalar_fallbacks(self):
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title="Old Title",
             description="Old desc",
             release_date="2001-02-03",
@@ -3305,7 +3675,11 @@ Source desc"""
         )
 
     def test_merge_fills_empty_current_url_description_from_source(self):
-        game = Game.objects.create(title="Old Title", creation_time=self.now)
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Old Title",
+            creation_time=self.now,
+        )
         history = self._history(
             game=game, auto_updates=GameHistory.AutoUpdate.PROPOSE
         )
@@ -3337,7 +3711,11 @@ Source desc"""
         )
 
     def test_merge_keeps_non_empty_current_url_description(self):
-        game = Game.objects.create(title="Old Title", creation_time=self.now)
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Old Title",
+            creation_time=self.now,
+        )
         history = self._history(
             game=game, auto_updates=GameHistory.AutoUpdate.PROPOSE
         )
@@ -3374,6 +3752,7 @@ Source desc"""
 
     def test_merge_keeps_served_description_when_source_empty(self):
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title="Old Title",
             description="Old desc",
             creation_time=self.now,
@@ -3401,7 +3780,7 @@ Source desc"""
             {"name": "merge_sources"},
             {"name": "cleanup_text"},
         ])
-        history = self._history(game=None)
+        history = self._history()
         canonical = """---
 - name: Source Title
 ---
@@ -3435,7 +3814,7 @@ Second    paragraph
             {"name": "merge_sources"},
             {"name": "cleanup_text"},
         ])
-        history = self._history(game=None)
+        history = self._history()
         canonical = """---
 - name: Source Title
 ---
@@ -3476,7 +3855,7 @@ Text
             {"name": "merge_sources"},
             {"name": "cleanup_text"},
         ])
-        history = self._history(game=None)
+        history = self._history()
         wiki = GameInfo(
             name="Source Title",
             description="# Real section\nText\n\n## Empty before separator",
@@ -3495,7 +3874,9 @@ Text
         )
 
     def test_merge_deduplicates_equivalent_urls(self):
-        game = Game.objects.create(title="Tell", creation_time=self.now)
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Tell", creation_time=self.now
+        )
         history = self._history(game=game)
         play_online = GameURLCategory.objects.create(
             symbolic_id="play_online", title="Play online"
@@ -3523,7 +3904,9 @@ Text
         self.assertEqual(game_url.description, "Играть онлайн")
 
     def test_merge_deduplicates_existing_exact_url(self):
-        game = Game.objects.create(title="Tell", creation_time=self.now)
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Tell", creation_time=self.now
+        )
         history = self._history(game=game)
         game_page = GameURLCategory.objects.create(
             symbolic_id="game_page", title="Game page"
@@ -3553,6 +3936,7 @@ Text
     def test_merge_can_drop_existing_data(self):
         self._set_pipeline([{"name": "merge_sources", "keep_existing": False}])
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title="Old Title",
             description="Old desc",
             release_date="2001-02-03",
@@ -3574,9 +3958,7 @@ Text
         self.assertEqual(game.tags.count(), 0)
 
     def test_propose_policy_does_not_apply(self):
-        history = self._history(
-            game=None, auto_updates=GameHistory.AutoUpdate.PROPOSE
-        )
+        history = self._history(auto_updates=GameHistory.AutoUpdate.PROPOSE)
         self._source(
             history, GameSource.SourceType.IFWIKI, "Wiki Title", "Wiki desc"
         )
@@ -3586,15 +3968,14 @@ Text
         self.assertEqual(stats.proposed, 1)
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
-        self.assertIsNone(history.game)
+        self.assertIsNotNone(history.game)
+        self.assertEqual(history.game.state, Game.State.DRAFT)
         edit = GameEdit.objects.get(history=history)
         self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
-        self.assertEqual(Game.objects.count(), 0)
+        self.assertEqual(Game.objects.published().count(), 0)
 
     def test_proposed_edit_is_canonicalized_before_diff(self):
-        history = self._history(
-            game=None, auto_updates=GameHistory.AutoUpdate.PROPOSE
-        )
+        history = self._history(auto_updates=GameHistory.AutoUpdate.PROPOSE)
         language_cat = GameTagCategory.objects.create(
             symbolic_id="language", name="Language"
         )
@@ -3628,9 +4009,7 @@ Text
         self._set_pipeline(["merge_sources", "enrich"])
         call_command("initifdb", stdout=StringIO(), stderr=StringIO())
         call_command("initenrichment", stdout=StringIO())
-        history = self._history(
-            game=None, auto_updates=GameHistory.AutoUpdate.PROPOSE
-        )
+        history = self._history(auto_updates=GameHistory.AutoUpdate.PROPOSE)
         tag_cat = GameTagCategory.objects.get(symbolic_id="tag")
         GameTag.objects.create(category=tag_cat, name="детское")
         GameTag.objects.create(category=tag_cat, name="сказка")
@@ -3656,6 +4035,7 @@ Text
         call_command("initifdb", stdout=StringIO(), stderr=StringIO())
         call_command("initenrichment", stdout=StringIO())
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title="Old Title",
             description="Old desc",
             creation_time=self.now,

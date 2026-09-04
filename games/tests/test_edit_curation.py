@@ -45,12 +45,16 @@ class GameEditCurationViewTests(TestCase):
         }
 
     def _add_payload(self, title="New Game"):
-        data = self._payload(Game(title="", creation_time=now()), title)
+        data = self._payload(
+            Game(state=Game.State.PUBLISHED, title="", creation_time=now()),
+            title,
+        )
         del data["game_id"]
         return data
 
     def test_edit_page_button_says_propose_without_edit_perm(self):
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title="Old Title",
             creation_time=now(),
             edit_perm="@admin",
@@ -62,7 +66,9 @@ class GameEditCurationViewTests(TestCase):
         self.assertNotContains(response, ">Сохранить</button>")
 
     def test_edit_page_button_says_save_with_edit_perm(self):
-        game = Game.objects.create(title="Old Title", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
+        )
 
         response = self.client.get(reverse("edit_game", args=[game.id]))
 
@@ -70,6 +76,7 @@ class GameEditCurationViewTests(TestCase):
 
     def test_store_proposes_without_edit_perm(self):
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title="Old Title",
             creation_time=now(),
             edit_perm="@admin",
@@ -91,7 +98,9 @@ class GameEditCurationViewTests(TestCase):
         self.assertIsNone(edit.approver)
 
     def test_store_saves_with_edit_perm(self):
-        game = Game.objects.create(title="Old Title", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
+        )
 
         self.client.post(
             reverse("store_game"),
@@ -130,13 +139,16 @@ class GameEditCurationViewTests(TestCase):
         history = GameHistory.objects.get()
         edit = GameEdit.objects.get(history=history)
         self.assertRedirects(response, reverse("list_games"))
-        self.assertIsNone(history.game)
+        self.assertIsNotNone(history.game)
+        self.assertEqual(history.game.state, Game.State.DRAFT)
+        self.assertEqual(history.game.title, "New Game")
         self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
         self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
         self.assertEqual(edit.origin, GameEdit.Origin.USER_SUGGESTION)
         self.assertEqual(edit.proposed_by, self.user)
         self.assertIsNone(edit.approver)
-        self.assertEqual(Game.objects.count(), 0)
+        self.assertEqual(Game.objects.count(), 1)
+        self.assertEqual(Game.objects.published().count(), 0)
 
     def test_accepting_proposed_add_creates_game(self):
         self.client.post(
@@ -154,16 +166,19 @@ class GameEditCurationViewTests(TestCase):
         edit.refresh_from_db()
         history = edit.history
         history.refresh_from_db()
+        history.game.refresh_from_db()
         self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertIsNotNone(history.game)
         self.assertEqual(history.game.title, "New Game")
+        self.assertEqual(history.game.state, Game.State.PUBLISHED)
         self.assertEqual(history.game.added_by, self.user)
 
     def test_applied_edit_can_be_rolled_back_to_selected_fields(self):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title="New Title",
             description="New description",
             creation_time=now(),
@@ -254,6 +269,7 @@ class GameEditCurationViewTests(TestCase):
             name="Current source"
         )
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title="Title",
             description="New description",
             creation_time=now(),
@@ -304,6 +320,7 @@ class GameEditCurationViewTests(TestCase):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
         game = Game.objects.create(
+            state=Game.State.PUBLISHED,
             title="Current Title",
             description="Current description",
             creation_time=now(),
@@ -383,6 +400,7 @@ class GameEditCurationViewTests(TestCase):
         edit = GameEdit.objects.get(history=history)
         self.assertRedirects(response, reverse("show_game", args=[game.id]))
         self.assertEqual(game.title, "New Game")
+        self.assertEqual(game.state, Game.State.PUBLISHED)
         self.assertEqual(game.added_by, self.user)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
@@ -407,7 +425,9 @@ class GameEditCurationViewTests(TestCase):
         )
 
     def test_game_page_renders_unlinked_author_alias(self):
-        game = Game.objects.create(title="Old Title", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
+        )
         role = GameAuthorRole.objects.get(symbolic_id="author")
         alias = PersonalityAlias.objects.create(name="Unlinked Author")
         GameAuthor.objects.create(game=game, role=role, author=alias)
@@ -418,12 +438,14 @@ class GameEditCurationViewTests(TestCase):
 
     def test_game_page_moder_panel_links_to_curation_history(self):
         self.user.groups.add(Group.objects.create(name="gardener"))
-        game = Game.objects.create(title="Old Title", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
+        )
         history = GameHistory.objects.create(game=game, creation_time=now())
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
-        self.assertContains(response, "Огород")
+        self.assertContains(response, "Модерация")
         self.assertNotContains(response, "Объединить")
         self.assertContains(
             response, reverse("curation_history_detail", args=[history.pk])
@@ -431,19 +453,28 @@ class GameEditCurationViewTests(TestCase):
 
     def test_game_page_moder_panel_omits_curation_without_history(self):
         self.user.groups.add(Group.objects.create(name="gardener"))
-        game = Game.objects.create(title="Old Title", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
+        )
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
-        self.assertNotContains(response, "Огород")
+        self.assertNotContains(response, "Модерация")
+
+    def _make_history(self, state=None, title="Game"):
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title=title, creation_time=now()
+        )
+        kwargs = {"game": game, "creation_time": now()}
+        if state is not None:
+            kwargs["state"] = state
+        return GameHistory.objects.create(**kwargs)
 
     def test_superuser_nav_shows_needs_attention_count(self):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
-        GameHistory.objects.create(
-            creation_time=now(), state=GameHistory.State.NEEDS_ATTENTION
-        )
-        GameHistory.objects.create(creation_time=now())
+        self._make_history(state=GameHistory.State.NEEDS_ATTENTION)
+        self._make_history()
 
         response = self.client.get(reverse("list_games"))
 
@@ -451,16 +482,14 @@ class GameEditCurationViewTests(TestCase):
             response,
             (
                 f'<a class="top-nav-attention " '
-                f'href="{reverse("curation_history_list")}">ОГОРОД (1)</a>'
+                f'href="{reverse("curation_history_list")}">Модерация (1)</a>'
             ),
         )
 
     def test_selected_superuser_nav_keeps_normal_style_with_count(self):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
-        GameHistory.objects.create(
-            creation_time=now(), state=GameHistory.State.NEEDS_ATTENTION
-        )
+        self._make_history(state=GameHistory.State.NEEDS_ATTENTION)
 
         response = self.client.get(reverse("curation_history_list"))
 
@@ -468,32 +497,32 @@ class GameEditCurationViewTests(TestCase):
             response,
             (
                 f'<a class="top-nav-attention current" '
-                f'href="{reverse("curation_history_list")}">ОГОРОД (1)</a>'
+                f'href="{reverse("curation_history_list")}">Модерация (1)</a>'
             ),
         )
 
     def test_superuser_nav_omits_needs_attention_count_when_zero(self):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
-        GameHistory.objects.create(creation_time=now())
+        self._make_history()
 
         response = self.client.get(reverse("list_games"))
 
         self.assertNotContains(response, "top-nav-attention")
-        self.assertContains(response, ">ОГОРОД</a>")
+        self.assertContains(response, ">Модерация</a>")
 
     def test_non_superuser_nav_omits_needs_attention_count(self):
         self.user.groups.add(Group.objects.create(name="gardener"))
-        GameHistory.objects.create(
-            creation_time=now(), state=GameHistory.State.NEEDS_ATTENTION
-        )
+        self._make_history(state=GameHistory.State.NEEDS_ATTENTION)
 
         response = self.client.get(reverse("list_games"))
 
         self.assertNotContains(response, "top-nav-attention")
 
     def test_game_page_renders_media_without_description(self):
-        game = Game.objects.create(title="Old Title", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
+        )
         category = GameURLCategory.objects.get(symbolic_id="poster")
         url = URL.objects.create(
             original_url="https://example.com/poster.png",

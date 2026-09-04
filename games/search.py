@@ -364,8 +364,13 @@ class SB_Tag(SearchBit):
             GameTag.objects
             .select_related("category")
             .filter(category=self.cat)
-            .annotate(Count("game"))
-            .order_by("-game__count")
+            .annotate(
+                game_count=Count(
+                    "game",
+                    filter=Q(game__in=Game.objects.published()),
+                )
+            )
+            .order_by("-game_count")
         ):
             items.append({
                 "id": x.id,
@@ -605,9 +610,10 @@ def LimitListlike(q, start, limit):
 
 
 class Search:
-    def __init__(self, cls, perm):
+    def __init__(self, cls, perm, queryset=None):
         self.cls = cls
         self.perm = perm
+        self.queryset = queryset
         self.bits = []
         self.id_to_bit = {}
 
@@ -645,7 +651,11 @@ class Search:
         need_full_query = False
         partial_query = start is not None or limit is not None
 
-        q = self.cls.objects.all()
+        q = (
+            self.queryset
+            if self.queryset is not None
+            else self.cls.objects.all()
+        )
 
         # Apply annotations first so ordering can reference annotated fields
         if isinstance(annotate, dict):
@@ -683,7 +693,7 @@ class Search:
 
 
 def MakeSearch(perm):
-    s = Search(Game, perm)
+    s = Search(Game, perm, queryset=Game.objects.published())
     s.Add(SB_Sorting())
     s.Add(SB_Text())
     for x in GameTagCategory.objects.order_by("order").all():
@@ -803,7 +813,9 @@ class SB_AuthorName(SearchBit):
             if MatchesPrefix(query, tokens):
                 res.append(p)
                 continue
-            for a in p.personalityalias_set.filter(gameauthor__isnull=False):
+            for a in p.personalityalias_set.filter(
+                gameauthor__game__in=Game.objects.published()
+            ).distinct():
                 tokens = TokenizeText(a.name)
                 if MatchesPrefix(query, tokens):
                     res.append(p)
@@ -813,7 +825,15 @@ class SB_AuthorName(SearchBit):
 
 
 def MakeAuthorSearch(perm):
-    s = Search(Personality, perm)
+    s = Search(
+        Personality,
+        perm,
+        queryset=(
+            Personality.objects.filter(
+                personalityalias__gameauthor__game__in=Game.objects.published()
+            ).distinct()
+        ),
+    )
     s.Add(SB_AuthorName())
     s.Add(SB_AuthorSorting())
     return s

@@ -1,7 +1,7 @@
 {% extends "curation/base.html" %}
 {% load tags %}
 
-{% block titlesection %}ОГОРОД - {% endblock %}
+{% block titlesection %}Модерация - {% endblock %}
 
 {% block curation_main %}
 <div class="card card--green">
@@ -57,7 +57,7 @@
             <tr class="curation-history-state--{{ history.state|lower }}"
                 data-href="{% url 'curation_history_detail' history.pk %}">
                 <td class="curation-truncate">
-                    <a href="{% url 'curation_history_detail' history.pk %}" title="{{ history.game.title|default:'(не назначена)' }}">{{ history.game.title|default:"(не назначена)" }}</a>
+                    <a href="{% url 'curation_history_detail' history.pk %}" title="{{ history.game.title }}">{{ history.game.title }}</a>
                 </td>
                 <td class="curation-history-table-action">
                     {% if history.pending_edit_id %}

@@ -1,10 +1,10 @@
 from django.test import TestCase
 
 from curation.edit import Approval, GameEditState
-from curation.gameinfo import GameInfo, Person
 from curation.passes.dedup_personality_aliases import (
     DedupPersonalityAliasesPass,
 )
+from games.gameinfo import GameInfo, Person
 from games.models import Personality, PersonalityAlias
 
 

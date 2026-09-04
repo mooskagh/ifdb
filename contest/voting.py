@@ -6,6 +6,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from contest.models import CompetitionQuestion, CompetitionVote, GameListEntry
+from games.models import Game
 from games.tools import FormatDate, GetIpAddr
 from moder.userlog import LogAction
 
@@ -20,7 +21,7 @@ from moder.userlog import LogAction
 #     nomination: (id) (id's of nominations. if empty then global)
 #     optional: True/false  # if every game is optional
 #     fields: []
-#        type: CharField
+#        "type": CharField
 #        label: ""
 #        helptext: ""
 #        widget: ""
@@ -200,7 +201,11 @@ def RenderVotingImpl(request, comp, voting, group, preview):
         nomination_id = section["nomination"]
         gamelist = (
             GameListEntry.objects
-            .filter(gamelist__competition=comp, gamelist__id=nomination_id)
+            .filter(
+                gamelist__competition=comp,
+                gamelist__id=nomination_id,
+                game__in=Game.objects.published(),
+            )
             .order_by("game__title")
             .select_related()
         )
@@ -245,6 +250,8 @@ def RenderVotingImpl(request, comp, voting, group, preview):
         now = timezone.now()
         after = []
         for fs in fss:
+            # Never write votes for IDs outside the current public nomination.
+            valid_game_ids = set(fs.games.values_list("game_id", flat=True))
             after.append(fs.cleaned_data)
             if not fs.has_changed():
                 continue
@@ -252,6 +259,8 @@ def RenderVotingImpl(request, comp, voting, group, preview):
                 if not f.has_changed():
                     continue
                 cd = f.cleaned_data
+                if cd["game_id"] not in valid_game_ids:
+                    continue
                 if not cd["has_vote"]:
                     CompetitionVote.objects.filter(
                         competition=comp,
@@ -359,7 +368,11 @@ def RenderVotingImplV2(request, comp, voting, section_name, preview):
     nomination_id = section["nomination"]
     gamelist = (
         GameListEntry.objects
-        .filter(gamelist__competition=comp, gamelist__id=nomination_id)
+        .filter(
+            gamelist__competition=comp,
+            gamelist__id=nomination_id,
+            game__in=Game.objects.published(),
+        )
         .order_by("game__title")
         .select_related()
     )
@@ -402,10 +415,14 @@ def RenderVotingImplV2(request, comp, voting, section_name, preview):
     res["formset"] = fs
 
     if request.POST and fs.is_valid():
+        # Never write votes for IDs outside the current public nomination.
+        valid_game_ids = set(fs.games.values_list("game_id", flat=True))
         for f in fs:
             if not f.has_changed():
                 continue
             cd = f.cleaned_data
+            if cd["game_id"] not in valid_game_ids:
+                continue
             if not section.get("always_expanded") and not cd["has_vote"]:
                 CompetitionVote.objects.filter(
                     competition=comp,

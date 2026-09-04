@@ -18,15 +18,17 @@ check-django:
     @echo "Running Django system checks..."
     uv run python manage.py check --verbosity=2
 
-# Run ruff linting
+# Run ruff linting and formatting checks
 check-ruff:
+    @echo "Running ruff format check..."
+    uv run ruff format --check .
     @echo "Running ruff..."
     uv run ruff check .
 
-# Run mypy type checking
+# Run strict mypy on all non-exception, non-migration Python files
 check-mypy:
     @echo "Running mypy..."
-    uv run mypy .
+    uv run mypy --strict --follow-imports=skip $(git ls-files --cached --others --exclude-standard -- '*.py' | grep -Ev '(^|/)migrations/' | grep -Fvx -f mypy-exceptions.txt)
 
 # Run Django tests
 check-tests:
@@ -41,7 +43,7 @@ fix-ruff:
     uv run ruff check --fix .
 
 # Run all read-only checks
-check: check-django check-ruff check-tests
+check: check-django check-ruff check-mypy check-tests
     @echo "All checks passed!"
 
 # Run all formatting fixes
@@ -51,7 +53,7 @@ fix: fix-ruff
 # Run both fix and check
 fix_and_check: fix check
 
-pre-commit: fix_and_check
+pre-commit: check
 
 # Start PostgreSQL development server
 start-db:

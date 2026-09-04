@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.utils.timezone import now
 
+from games.gameinfo import Attribution, GameInfo, GameUrl, Person, Tag
 from games.importer.discord import PostNewGameToDiscord
 from games.models import (
     Game,
@@ -11,7 +12,6 @@ from games.models import (
     GameURLCategory,
 )
 
-from .gameinfo import Attribution, GameInfo, GameUrl, Person, Tag
 from .models import GameEdit, GameHistory, GameHistoryAuditLog
 
 
@@ -84,9 +84,25 @@ def store_manual_edit(
 
 @transaction.atomic
 def store_manual_add(data: dict, user, *, apply: bool) -> GameEdit:
-    history = GameHistory.objects.create(creation_time=now())
     info = editor_payload_to_gameinfo(data)
     canonical = info.to_canonical()
+    game, after = info.save(
+        None, state=Game.State.PUBLISHED if apply else Game.State.DRAFT
+    )
+    game.added_by = user
+    game.save(update_fields=["added_by"])
+
+    history = GameHistory.objects.create(
+        game=game,
+        creation_time=now(),
+        state=(
+            GameHistory.State.SETTLED
+            if apply
+            else GameHistory.State.NEEDS_ATTENTION
+        ),
+        note=None if apply else "Пользователь предложил новую игру",
+        edit_time=now(),
+    )
     edit = GameEdit.objects.create(
         history=history,
         proposed_at=now(),
@@ -104,28 +120,14 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameEdit:
         approved_at=now() if apply else None,
         approver=user if apply else None,
         previous_canonical_text="" if apply else None,
-        canonical_text=canonical,
+        canonical_text=after if apply else canonical,
     )
-
-    old_note = history.note
-    if apply:
-        game, after = info.save(None)
-        game.added_by = user
-        game.save(update_fields=["added_by"])
-        edit.canonical_text = after
-        edit.save(update_fields=["canonical_text"])
-        history.game = game
-        history.state = GameHistory.State.SETTLED
-        history.note = None
-        PostNewGameToDiscord(game.id)
+    if not apply:
+        GameHistoryAuditLog.record_note_change(
+            history, user, None, history.note
+        )
     else:
-        history.state = GameHistory.State.NEEDS_ATTENTION
-        history.note = "Пользователь предложил новую игру"
-    GameHistoryAuditLog.record_note_change(
-        history, user, old_note, history.note
-    )
-    history.edit_time = now()
-    history.save(update_fields=["game", "state", "note", "edit_time"])
+        PostNewGameToDiscord(game.id)
     return edit
 
 

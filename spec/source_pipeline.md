@@ -86,7 +86,7 @@ Decisions locked in A:
 - `from_importer_dict` is pure/DB-free except the rare `role`-title→slug
   fallback (no importer emits a bare `role` today).
 
-## What already exists: `curation/gameinfo.py`
+## What already exists: `games/gameinfo.py`
 
 `GameInfo` **is** the canonical-game representation (do not build a separate
 "CanonicalGame"). The file already provides, request-free:
@@ -99,8 +99,9 @@ Decisions locked in A:
 - **Merge filter** — `merge(base, incoming)` is `MergeImport` reborn (union,
   dedup by identity, concat descriptions, first-wins).
 - **Apply + alias machinery** — `save()` writes the `Game` and syncs
-  tags/authors/urls/attributions; `_resolve_alias_id` is the "name → redirect →
-  existing alias → spawn orphan alias" resolution. Replaces `games/updater.py`.
+  tags/authors/urls/attributions; alias resolution in `games.gameinfo` follows
+  the "name → redirect → existing alias → spawn orphan alias" path. Replaces
+  `games/updater.py`.
 
 ## Locked decisions
 
@@ -115,7 +116,8 @@ Decisions locked in A:
   so a plain list is simpler). First filters wrap `merge()` and `enrichment.py`'s
   `enricher` for a low-diff migration; better/LLM filters swap in later.
 - **Authors**: in scope minimally —
-  - alias resolution (already in `gameinfo._resolve_alias_id`) and
+  - alias resolution in `games.gameinfo` (name → redirect → existing alias →
+    spawn orphan alias) and
   - author-source discovery via `canonicalize_author` (apero + ifwiki only).
   - **Deferred**: any per-author Source/Fetch/Edit review history (never finished
     on the old site either).
@@ -178,7 +180,7 @@ develop against, so it ships alone.
     (imported by `edit.py` for its registration side effects).
   - **`merge_sources` shipped** — first real pass (`MergeSourcesPass`): folds the
     history's source canonicals by `_SOURCE_PRIORITY` (the old importers'
-    `priority` values) into a fresh `GameInfo` via `gameinfo.merge`
+    `priority` values) into a fresh `GameInfo` via `games.gameinfo.merge`
     (`MergeImport` reborn — first-wins name/date, `\n\n---\n\n` description
     concat, identity-dedup union). Sources only (served game is not a merge
     input → idempotent); empty-source guard keeps the served draft.
@@ -223,7 +225,7 @@ the D boundary is firm.
 
 - `curation/models.py` — `GameHistory`, `GameSource`, `GameSourceFetch`,
   `GameEdit`, `GameHistoryComment`, `GameHistoryAuditLog`.
-- `curation/gameinfo.py` — `GameInfo` (canonical form), `merge`, `parse`,
+- `games/gameinfo.py` — `GameInfo` (canonical form), `merge`, `parse`,
   `to_canonical`, `save`, alias resolution. The heart of the new system.
 - `curation/passes.py` / `curation/enrichment.py` — Phase 4 edit passes
   (`merge_sources`, `enrich`); `enrich` is driven by the `EnrichmentRule` /

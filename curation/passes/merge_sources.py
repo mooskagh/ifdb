@@ -1,8 +1,8 @@
 """Merge fetched source canonicals into a draft ``GameInfo``."""
 
 from curation.edit import GameEditPass, GameEditState, register_pass
-from curation.gameinfo import GameInfo, merge, parse
 from curation.models import GameSource
+from games.gameinfo import GameInfo, merge, parse
 
 # Source priority mirrors the old importers' ``priority`` values
 # (games/importer/*.py); higher wins first. Sources without an explicit

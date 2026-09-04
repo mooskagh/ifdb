@@ -1,9 +1,9 @@
 from django.test import TestCase
 from django.utils.timezone import now
 
+from games.gameinfo import GameInfo, GameUrl
 from games.models import URL, Game, GameURL, GameURLCategory
 
-from .gameinfo import GameInfo, GameUrl
 from .models import (
     GameHistory,
     GameHistoryAuditLog,
@@ -31,7 +31,9 @@ class RunReconcileTests(TestCase):
         return cat
 
     def _existing(self, title, url=None, urlcat="game_page"):
-        game = Game.objects.create(title=title, creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title=title, creation_time=now()
+        )
         if url:
             GameURL.objects.create(
                 game=game,
@@ -132,7 +134,10 @@ class RunReconcileTests(TestCase):
         self.assertEqual(stats[0].attached, 0)
         source.refresh_from_db()
         self.assertIsNotNone(source.history_id)
-        self.assertIsNone(source.history.game_id)
+        self.assertEqual(source.history.game.state, Game.State.DRAFT)
+        self.assertEqual(
+            source.history.game.title, "Zeta Omega Entirely Different"
+        )
         self.assertEqual(
             GameHistoryAuditLog.objects.filter(
                 history=source.history,
@@ -178,12 +183,36 @@ class RunReconcileTests(TestCase):
         self.assertEqual(stats[0].spawned, 1)
         self.assertEqual(stats[0].attached, 1)
         self.assertEqual(
-            GameHistory.objects.filter(game__isnull=True).count(), 1
+            GameHistory.objects.filter(game__state=Game.State.DRAFT).count(),
+            1,
         )
         a.refresh_from_db()
         b.refresh_from_db()
         self.assertIsNotNone(a.history_id)
         self.assertEqual(a.history_id, b.history_id)
+
+    def test_later_orphan_clusters_on_existing_draft_candidate(self):
+        shared = ("game_page", "http://newsite.ru/later")
+        first = self._orphan(
+            "http://apero.ru/first", self._canon("Later Game", [shared])
+        )
+
+        first_stats = run_reconcile()
+
+        second = self._orphan(
+            "http://apero.ru/second", self._canon("Later Game", [shared])
+        )
+        second_stats = run_reconcile()
+
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first_stats[0].spawned, 1)
+        self.assertEqual(second_stats[0].attached, 1)
+        self.assertEqual(first.history_id, second.history_id)
+        self.assertEqual(
+            GameHistory.objects.filter(game__state=Game.State.DRAFT).count(),
+            1,
+        )
 
     def test_ambiguous_match_attaches_best_and_flags_candidates(self):
         h1 = self._existing("Match This Title", url="http://ifwiki.ru/One")
@@ -319,7 +348,8 @@ class RunReconcileTests(TestCase):
         source.refresh_from_db()
         self.assertIsNone(source.history_id)
         self.assertEqual(
-            GameHistory.objects.filter(game__isnull=True).count(), 0
+            GameHistory.objects.filter(game__state=Game.State.DRAFT).count(),
+            0,
         )
         self.assertFalse(
             GameHistoryAuditLog.objects.filter(

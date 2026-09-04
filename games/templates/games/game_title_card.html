@@ -1,13 +1,13 @@
 
 <div class="card card--salad">
-    <div class="card--header">{{ game.title }}</div>
+    <div class="card--header">{{ title }}</div>
     <div class="card--body">
         <div class="game--layout">
             {% if media %}
                 {% include './game_media_panel.html' %}
             {% endif %}
             <div class="game--info">
-                <h1 class="game--title">{{ game.title }}</h1>
+                <h1 class="game--title">{{ title }}</h1>
                 {% if authors %}
                     <div class="game--authors">
                     {% for x in authors %}
@@ -27,7 +27,11 @@
                             <span class="game--meta-label">{{ category.name }}:</span>
                             <span class="game--meta-value">
                                 {% for tag in tags %}
-                                    <a href="{{ tag.search_query }}">{{ tag.name }}</a>
+                                    {% if tag.search_query %}
+                                        <a href="{{ tag.search_query }}">{{ tag.name }}</a>
+                                    {% else %}
+                                        {{ tag.name }}
+                                    {% endif %}
                                     {% if not forloop.last %}, {% endif %}
                                 {% endfor %}
                             </span>
@@ -36,49 +40,67 @@
                 </div>
                 <div class="game--tag-line">
                     {% for tag in metadata.genres %}
-                        <a href="{{ tag.search_query }}" class="game--tag game--tag-genre">{{ tag.name }}</a>
+                        {% if tag.search_query %}
+                            <a href="{{ tag.search_query }}" class="game--tag game--tag-genre">{{ tag.name }}</a>
+                        {% else %}
+                            <span class="game--tag game--tag-genre">{{ tag.name }}</span>
+                        {% endif %}
                     {% endfor %}
                     {% for tag in metadata.tags %}
-                        <a href="{{ tag.search_query }}" class="game--tag">{{ tag.name }}</a>
+                        {% if tag.search_query %}
+                            <a href="{{ tag.search_query }}" class="game--tag">{{ tag.name }}</a>
+                        {% else %}
+                            <span class="game--tag">{{ tag.name }}</span>
+                        {% endif %}
                     {% endfor %}
                 </div>
                 <div class="game--buttons-panel">
                     {% for x in online %}
-                        <a class="button button-salad"
-                            {% if x.url.is_broken %}
-                                title="Битая ссылка!"
-                            {% endif %}
-                            href="{{ x.GetRemoteUrl }}"
-                            target="_blank">
-                                <svg><use href="{% static 'iconset.svg' %}#play"></use></svg>
-                                {% if x.url.is_broken %}
+                        {% if x.remote_url %}
+                            <a class="button button-salad"
+                                {% if x.is_broken %}
+                                    title="Битая ссылка!"
+                                {% endif %}
+                                href="{{ x.remote_url }}"
+                                target="_blank">
+                                    <svg><use href="{% static 'iconset.svg' %}#play"></use></svg>
+                                    {% if x.is_broken %}
+                                        <img src="{% static 'brokenlink.svg' %}"/>
+                                    {% endif %}
+                                    {{x.description}}
+                            </a>
+                        {% else %}
+                            <span class="button button-salad">{{ x.description }}</span>
+                        {% endif %}
+                    {% endfor %}
+                    {% for x in download %}
+                        {% if x.remote_url %}
+                            <a class="button button-gray"
+                                    {% if x.is_broken %}title="Битая ссылка!"{% endif %}
+                                    href="{{ x.remote_url }}"
+                                    {% if x.category.symbolic_id == 'download_direct' %}download{% endif %}>
+                                <svg><use href="{% static 'iconset.svg' %}#download"></use></svg>
+                                {% if x.is_broken %}
                                     <img src="{% static 'brokenlink.svg' %}"/>
                                 {% endif %}
                                 {{x.description}}
-                        </a>
-                    {% endfor %}
-                    {% for x in download %}
-                        <a class="button button-gray"
-                                {% if x.url.is_broken %}title="Битая ссылка!"{% endif %}
-                                href="{{ x.GetRemoteUrl }}"
-                                {% if x.category.symbolic_id == 'download_direct' %}download{% endif %}>
-                            <svg><use href="{% static 'iconset.svg' %}#download"></use></svg>
-                            {% if x.url.is_broken %}
-                                <img src="{% static 'brokenlink.svg' %}"/>
-                            {% endif %}
-                            {{x.description}}
-                        </a>
-                        {% comment %}
-                        {% if x.HasLocalCopy %}
-                            <a class="button button-orange"
-                                title="Скачать резервную копию" href="{{ x.GetLocalUrl }}" download>
-                                <img src="{% static 'localbackup.svg' %}"/>
                             </a>
+                            {% comment %}
+                            {% if x.HasLocalCopy %}
+                                <a class="button button-orange"
+                                    title="Скачать резервную копию" href="{{ x.GetLocalUrl }}" download>
+                                    <img src="{% static 'localbackup.svg' %}"/>
+                                </a>
+                            {% endif %}
+                            {% endcomment %}
+                        {% else %}
+                            <span class="button button-gray">{{ x.description }}</span>
                         {% endif %}
-                        {% endcomment %}
                     {% endfor %}
                 </div>
-                {% include './game_voting.html' %}
+                {% if game %}
+                    {% include './game_voting.html' %}
+                {% endif %}
             </div>
         </div>
     </div>

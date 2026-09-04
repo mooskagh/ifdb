@@ -28,8 +28,9 @@ def discover_sources(types=None, auto_import_new=False, pipeline_id=None):
 
     history_ids = set()
 
-    def collect_orphan_history(_source, _outcome, history):
-        if history and history.game_id is None:
+    def collect_candidate_history(_source, outcome, history):
+        # Only spawned histories are new drafts that need immediate editing.
+        if history and outcome == "spawned":
             history_ids.add(history.pk)
 
     reconcile_stats = []
@@ -37,7 +38,7 @@ def discover_sources(types=None, auto_import_new=False, pipeline_id=None):
         reconcile_stats.extend(
             run_reconcile(
                 source_id=source_id,
-                on_source_done=collect_orphan_history,
+                on_source_done=collect_candidate_history,
             )
         )
 

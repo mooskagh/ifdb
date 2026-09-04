@@ -8,8 +8,10 @@ from django.core.management import call_command
 from django.test import TestCase, TransactionTestCase
 from django.utils.timezone import now
 
+from games.gameinfo import GameInfo
+from games.models import Game
+
 from .fetch import FetchStats, _RateLimiter, run_fetch
-from .gameinfo import GameInfo
 from .models import (
     GameHistory,
     GameHistoryAuditLog,
@@ -47,6 +49,16 @@ class FakeProvider(GameSourceProvider):
 
 
 class FetchTest(TestCase):
+    def _history(self, **kwargs):
+        if "game" not in kwargs:
+            kwargs["game"] = Game.objects.create(
+                state=Game.State.DRAFT,
+                title="Fetch Game",
+                creation_time=now(),
+            )
+        kwargs.setdefault("creation_time", now())
+        return GameHistory.objects.create(**kwargs)
+
     def source(
         self,
         source_type=GameSource.SourceType.APERO,
@@ -143,7 +155,7 @@ class FetchTest(TestCase):
 
     def test_changed_canonical_schedules_settled_history(self):
         edited_at = now()
-        history = GameHistory.objects.create(
+        history = self._history(
             creation_time=edited_at,
             state=GameHistory.State.SETTLED,
             edit_time=edited_at,
@@ -183,7 +195,7 @@ class FetchTest(TestCase):
 
     def test_unchanged_canonical_keeps_settled_history(self):
         edited_at = now()
-        history = GameHistory.objects.create(
+        history = self._history(
             creation_time=edited_at,
             state=GameHistory.State.SETTLED,
             edit_time=edited_at,
@@ -222,7 +234,7 @@ class FetchTest(TestCase):
 
     def test_changed_canonical_schedules_without_edit_time(self):
         edited_at = now()
-        history = GameHistory.objects.create(
+        history = self._history(
             creation_time=edited_at,
             state=GameHistory.State.SETTLED,
         )
@@ -381,7 +393,7 @@ class FetchTest(TestCase):
 
     def test_limit_prefers_sources_without_history_when_attempt_matches(self):
         ts = now()
-        history = GameHistory.objects.create(creation_time=ts)
+        history = self._history(creation_time=ts)
         self.source(
             url="http://example.com/with-history",
             last_attempt=ts,
@@ -401,7 +413,7 @@ class FetchTest(TestCase):
         self.assertEqual(provider.fetched_urls, [no_history.url])
 
     def test_abandoned_history_sources_are_not_fetched(self):
-        history = GameHistory.objects.create(
+        history = self._history(
             creation_time=now(), state=GameHistory.State.ABANDONED
         )
         self.source(url="http://example.com/skip", history=history)

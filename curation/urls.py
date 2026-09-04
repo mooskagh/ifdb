@@ -17,6 +17,11 @@ urlpatterns = [
         name="curation_history_list",
     ),
     path(
+        "blueprints/",
+        superuser_required(views.blueprint_list),
+        name="curation_blueprint_list",
+    ),
+    path(
         "discovery/",
         superuser_required(views.discovery_status),
         name="curation_discovery_status",

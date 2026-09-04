@@ -1,12 +1,15 @@
 import datetime
 import json
 from collections import defaultdict
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
 
 from dateutil import relativedelta
 from django import forms
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Q
 from django.forms import widgets
 from django.http import Http404
 from django.shortcuts import render
@@ -14,7 +17,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 
-from games.models import GameAuthor, GameURL
+from games.models import Game, GameAuthor, GameURL
 from games.tools import (
     ComputeGameRating,
     FormatDate,
@@ -36,19 +39,28 @@ from .models import (
 from .voting import RenderVoting
 
 
-def FormatHead(g, options):
+@dataclass
+class CompetitionHead:
+    primary: str | int | None = None
+    secondary: str | None = None
+    combined: str | None = None
+
+
+def FormatHead(
+    g: "GameListEntry", options: Mapping[str, Any]
+) -> CompetitionHead | None:
     if options.get("listtype") == "parovoz":
         if g.date:
             end = g.date + datetime.timedelta(days=6)
-            return {
-                "primary": g.date.strftime("%d.%m"),
-                "secondary": end.strftime("— %d.%m"),
-            }
+            return CompetitionHead(
+                primary=g.date.strftime("%d.%m"),
+                secondary=end.strftime("— %d.%m"),
+            )
     else:
         if g.result:
-            return {"combined": g.result}
+            return CompetitionHead(combined=g.result)
         if g.rank:
-            return {"primary": g.rank, "secondary": "место"}
+            return CompetitionHead(primary=g.rank, secondary="место")
 
 
 class CompetitionGameFetcher:
@@ -65,6 +77,9 @@ class CompetitionGameFetcher:
             unranked = []
             for y in (
                 x.gamelistentry_set
+                .filter(
+                    Q(game__isnull=True) | Q(game__in=Game.objects.published())
+                )
                 .annotate(
                     coms_count=Count("game__gamecomment"),
                     coms_recent=Max("game__gamecomment__creation_time"),
@@ -112,8 +127,6 @@ class CompetitionGameFetcher:
         author_objs = GameAuthor.objects.filter(
             game__in=games, role__symbolic_id="author"
         ).select_related("author")
-
-        from games.models import Game
 
         CATEGORY_KEY = {
             "genre": "genres",
@@ -312,11 +325,13 @@ def _render_snippet_html(items):
             if item.get("head"):
                 parts.append('<div class="card--item-head-container">')
                 head = item["head"]
-                if head.get("combined"):
-                    parts.append(str(head["combined"]))
+                if head.combined:
+                    parts.append(str(head.combined))
                 else:
-                    primary = head.get("primary", "")
-                    secondary = str(head.get("secondary", ""))
+                    primary = head.primary if head.primary is not None else ""
+                    secondary = str(
+                        head.secondary if head.secondary is not None else ""
+                    )
                     parts.append(f'<span class="rank">{primary}</span><br />')
                     parts.append(secondary)
                 parts.append("</div>")
@@ -325,12 +340,20 @@ def _render_snippet_html(items):
             if item.get("tinyhead"):
                 parts.append('<div class="card--item-head-container-tiny">')
                 tinyhead = item["tinyhead"]
-                if tinyhead.get("combined"):
-                    combined = tinyhead["combined"]
+                if tinyhead.combined:
+                    combined = tinyhead.combined
                     parts.append(f'<span class="rank-tiny">{combined}</span>')
                 else:
-                    primary = str(tinyhead.get("primary", ""))
-                    secondary = tinyhead.get("secondary", "")
+                    primary = str(
+                        tinyhead.primary
+                        if tinyhead.primary is not None
+                        else ""
+                    )
+                    secondary = (
+                        tinyhead.secondary
+                        if tinyhead.secondary is not None
+                        else ""
+                    )
                     parts.append(primary)
                     parts.append(f'<span class="rank-tiny">{secondary}</span>')
                 parts.append("</div>")

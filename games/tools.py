@@ -13,7 +13,7 @@ from markdown.util import AtomicString
 
 from games.tasks import clone_file
 
-from .models import URL, GameURL, GameVote
+from .models import URL, Game, GameURL, GameVote
 
 
 def SnippetFromList(games, populate_authors=True):
@@ -199,7 +199,8 @@ def ComputeGameRating(votes):
 def ComputeHonors(author=None):
     xs = dict()
     votes = GameVote.objects.filter(
-        game__gameauthor__role__symbolic_id="author"
+        game__in=Game.objects.published(),
+        game__gameauthor__role__symbolic_id="author",
     ).annotate(
         gameid=F("game__id"),
         author=F("game__gameauthor__author__personality__id"),

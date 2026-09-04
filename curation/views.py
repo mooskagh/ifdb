@@ -1,6 +1,8 @@
 import copy
 import json
+from dataclasses import dataclass
 from datetime import timedelta
+from pathlib import Path
 
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -29,12 +31,13 @@ from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
 from core.models import BlogFeed, FeedCache
 from core.tasks import fetch_feeds
+from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
-from games.models import Game
+from games.models import Game, GameURL
+from play.blueprint import BlueprintModule, discover_blueprints
 
 from . import openrouter
 from .diff import build_diff
-from .gameinfo import GameInfo, parse
 from .manual_reconcile import (
     column_for_game,
     initial_payload,
@@ -62,6 +65,102 @@ from .tasks import (
 )
 
 GROUP_WINDOW = timedelta(minutes=1)
+
+
+@dataclass(frozen=True, slots=True)
+class BlueprintResult:
+    slug: str
+    display_name: str
+    accepted: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PlayableFile:
+    game_url: GameURL
+    has_local_copy: bool
+    compatibility: tuple[BlueprintResult, ...] | None
+    file_missing: bool = False
+
+
+def _build_playable_files(
+    game_id: int | None, check_compatibility: bool
+) -> list[PlayableFile]:
+    if game_id is None:
+        return []
+
+    direct_downloads = list(
+        GameURL.objects
+        .filter(game_id=game_id, category__symbolic_id="download_direct")
+        .select_related("url", "category")
+        .order_by("pk")
+    )
+    playable_files = [
+        PlayableFile(
+            game_url=game_url,
+            has_local_copy=bool(game_url.url.local_filename),
+            compatibility=None,
+        )
+        for game_url in direct_downloads
+    ]
+
+    if not check_compatibility or not any(
+        playable_file.has_local_copy for playable_file in playable_files
+    ):
+        return playable_files
+
+    blueprint_specs: list[tuple[str, BlueprintModule, str]] = [
+        (info.name, info.blueprint, info.blueprint.get_spec().name)
+        for info in discover_blueprints()
+    ]
+    checked_files: list[PlayableFile] = []
+    for playable_file in playable_files:
+        url = playable_file.game_url.url
+        local_filename = url.local_filename
+        if not local_filename:
+            checked_files.append(playable_file)
+            continue
+
+        storage = url.GetFs()
+        path = Path(storage.path(local_filename))
+        if not storage.exists(local_filename):
+            checked_files.append(
+                PlayableFile(
+                    game_url=playable_file.game_url,
+                    has_local_copy=playable_file.has_local_copy,
+                    compatibility=None,
+                    file_missing=True,
+                )
+            )
+            continue
+
+        try:
+            compatibility = tuple(
+                BlueprintResult(
+                    slug=slug,
+                    display_name=display_name,
+                    accepted=blueprint.accepts(path),
+                )
+                for slug, blueprint, display_name in blueprint_specs
+            )
+        except FileNotFoundError:
+            checked_files.append(
+                PlayableFile(
+                    game_url=playable_file.game_url,
+                    has_local_copy=playable_file.has_local_copy,
+                    compatibility=None,
+                    file_missing=True,
+                )
+            )
+        else:
+            checked_files.append(
+                PlayableFile(
+                    game_url=playable_file.game_url,
+                    has_local_copy=playable_file.has_local_copy,
+                    compatibility=compatibility,
+                )
+            )
+    return checked_files
+
 
 FETCH_SOURCES_TASK_NAME = "Fetch sources"
 FETCH_SOURCES_TASK = "curation.tasks.fetch_sources"
@@ -208,6 +307,21 @@ def history_list(request):
             "state_choices": GameHistory.State.choices,
             "auto_choices": GameHistory.AutoUpdate.choices,
         },
+    )
+
+
+def blueprint_list(request):
+    blueprints = [
+        {
+            "display_name": info.blueprint.get_spec().name,
+            "slug": info.name,
+        }
+        for info in discover_blueprints()
+    ]
+    return render(
+        request,
+        "curation/blueprint_list.html",
+        {"blueprints": blueprints},
     )
 
 
@@ -1049,6 +1163,10 @@ def history_detail(request, history_id):
         GameHistory.objects.select_related("game"), pk=history_id
     )
     sources = list(GameSource.objects.filter(history=history))
+    check_compatibility = request.GET.get("check_compatibility") == "1"
+    playable_files = _build_playable_files(
+        history.game_id, check_compatibility
+    )
 
     timeline = []
     for source in sources:
@@ -1149,6 +1267,8 @@ def history_detail(request, history_id):
             "history": history,
             "game": history.game,
             "sources": sources,
+            "playable_files": playable_files,
+            "check_compatibility": check_compatibility,
             "groups": _group_timeline(timeline),
             "auto_choices": GameHistory.AutoUpdate.choices,
             "state_choices": GameHistory.State.choices,
@@ -1184,13 +1304,13 @@ def history_run_edit(request, history_id):
         return HttpResponseBadRequest("POST required.")
     history = get_object_or_404(GameHistory, pk=history_id)
     if history.state == GameHistory.State.ABANDONED:
-        messages.error(request, "Заброшенную историю нельзя обрабатывать.")
+        messages.error(request, "Заброшенную админку нельзя обрабатывать.")
         return redirect("curation_history_detail", history_id=history.pk)
     pipeline = _pipeline_from_post(request.POST)
     edit_sources.delay(
         history_id=history.pk, pipeline_id=pipeline.pk, force=True
     )
-    messages.success(request, "Задание на обработку истории запущено.")
+    messages.success(request, "Задание на обработку админки запущено.")
     return redirect("curation_history_detail", history_id=history.pk)
 
 
@@ -1377,8 +1497,6 @@ def _propose_from_settled_edit(edit, user, post):
 
 
 def _served_gameinfo(history):
-    if history.game is None:
-        return GameInfo()
     return GameInfo.from_game(history.game)
 
 
@@ -1432,9 +1550,9 @@ def _previous_applied_edit(edit):
 
 
 def _redirect_after_edit(next_page, edit, history):
-    if next_page == "edit_game" and history.game_id:
+    if next_page == "edit_game" and history.game.state == Game.State.PUBLISHED:
         return redirect("edit_game", game_id=history.game_id)
-    if next_page == "game" and history.game_id:
+    if next_page == "game" and history.game.state == Game.State.PUBLISHED:
         return redirect("show_game", game_id=history.game_id)
     if next_page == "history":
         return redirect("curation_history_detail", history_id=history.pk)
@@ -1444,8 +1562,6 @@ def _redirect_after_edit(next_page, edit, history):
 
 
 def _served_canonical(history):
-    if history.game is None:
-        return ""
     return GameInfo.from_game(history.game).to_canonical()
 
 
@@ -1471,10 +1587,12 @@ def _update_auto_accept(history, request):
 
 def _accept_edit(edit, history, before, user):
     info = parse(edit.canonical_text)
-    created_game = history.game is None
     game, after = info.save(history.game)
-    if created_game:
-        history.game = game
+    was_draft = game.state == Game.State.DRAFT
+    if was_draft:
+        game.state = Game.State.PUBLISHED
+        game.save(update_fields=["state"])
+    if was_draft and edit.proposed_by and not game.added_by:
         game.added_by = edit.proposed_by
         game.save(update_fields=["added_by"])
     edit.status = GameEdit.EditStatus.APPLIED
@@ -1499,10 +1617,8 @@ def _accept_edit(edit, history, before, user):
     )
     history.edit_time = now()
     fields = ["auto_updates", "state", "note", "edit_time"]
-    if created_game:
-        fields.append("game")
     history.save(update_fields=fields)
-    if created_game:
+    if was_draft:
         PostNewGameToDiscord(game.id)
 
 
@@ -1519,12 +1635,16 @@ def _reject_edit(edit, history, before, user):
             "previous_canonical_text",
         ]
     )
-    history.state = GameHistory.State.SETTLED
     old_note = history.note
     history.note = None
     GameHistoryAuditLog.record_note_change(
         history, user, old_note, history.note
     )
+    if history.game.state == Game.State.DRAFT:
+        history.save(update_fields=["note"])
+        history.game.abandon(user)
+        return
+    history.state = GameHistory.State.SETTLED
     history.edit_time = now()
     history.save(update_fields=["state", "note", "edit_time"])
 
@@ -1561,9 +1681,6 @@ def history_merge(request, history_id):
     history = get_object_or_404(
         GameHistory.objects.select_related("game"), pk=history_id
     )
-    if history.game is None:
-        messages.error(request, "У этой истории нет игры для объединения.")
-        return redirect("curation_history_detail", history_id=history.pk)
 
     source_game_id = _positive_int(
         request.POST.get("source_game_id"), default=None
@@ -1611,7 +1728,7 @@ def history_delete(request, history_id):
             pk=history_id,
         )
         game = history.game
-        if game is not None and (usage := contest_related_usage(game)):
+        if usage := contest_related_usage(game):
             related = ", ".join(
                 f"{item.label}: {item.count}" for item in usage
             )
@@ -1622,29 +1739,9 @@ def history_delete(request, history_id):
             )
             return redirect("curation_history_detail", history_id=history.pk)
 
-        for source in GameSource.objects.select_for_update().filter(
-            history=history
-        ):
-            _detach_source(
-                history, source, request.user, keep_orphan=keep_orphans
-            )
+        game.abandon(request.user, keep_orphan=keep_orphans)
 
-        if history.state != GameHistory.State.ABANDONED:
-            GameHistoryAuditLog.record_change(
-                history,
-                request.user,
-                GameHistoryAuditLog.AuditField.STATE,
-                history.state,
-                GameHistory.State.ABANDONED,
-            )
-        history.game = None
-        history.state = GameHistory.State.ABANDONED
-        history.edit_time = now()
-        history.save(update_fields=["game", "state", "edit_time"])
-        if game is not None:
-            game.delete()
-
-    messages.success(request, "Игра удалена, история заброшена.")
+    messages.success(request, "Игра удалена, админка заброшена.")
     return redirect("curation_history_detail", history_id=history.pk)
 
 

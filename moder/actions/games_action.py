@@ -28,7 +28,7 @@ class GameCloneAction(GameAction):
             return "Клонировать эту игру?"
 
         fro = self.obj
-        to = Game()
+        to = Game(state=Game.State.PUBLISHED)
         for field in [
             "title",
             "description",
@@ -66,7 +66,7 @@ class GameCloneAction(GameAction):
 
 @RegisterAction
 class GameCurationAction(GameAction):
-    TITLE = "Огород"
+    TITLE = "Модерация"
 
     @classmethod
     def IsAllowed(cls, request, obj):
@@ -97,7 +97,7 @@ class GameDeleteAction(GameAction):
 
     def DoAction(self, action, form, execute):
         if execute:
-            self.obj.delete()
+            self.obj.abandon(self.request.user)
             return "Удалено!"
         else:
             return "Удалить эту игру?"

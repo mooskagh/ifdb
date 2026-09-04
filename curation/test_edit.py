@@ -6,6 +6,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils.timezone import now
 
+from games.gameinfo import Person, Tag
 from games.models import (
     Game,
     GameAuthorRole,
@@ -18,7 +19,6 @@ from games.models import (
 
 from . import edit
 from .edit import Approval, GameEditPass, run_edit
-from .gameinfo import Person, Tag
 from .manual import store_manual_edit
 from .models import (
     EditPipeline,
@@ -141,7 +141,9 @@ class RunEditTests(TestCase):
         call_command("initifdb", stdout=StringIO(), stderr=StringIO())
 
     def _history(self):
-        game = Game.objects.create(title="A Game", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="A Game", creation_time=now()
+        )
         return GameHistory.objects.create(
             game=game,
             state=GameHistory.State.SCHEDULED_FOR_UPDATE,
@@ -170,6 +172,7 @@ class RunEditTests(TestCase):
         self.assertEqual(stats.applied, 1)
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.game.state, Game.State.PUBLISHED)
         edit_row = GameEdit.objects.get(history=history)
         self.assertEqual(edit_row.status, GameEdit.EditStatus.APPLIED)
         self.assertEqual(edit_row.passes, [{"name": "tag_and_approve"}])
@@ -191,19 +194,25 @@ class RunEditTests(TestCase):
         post.assert_not_called()
 
     @mock.patch("curation.edit.PostNewGameToDiscord")
-    def test_applied_orphan_posts_new_game_to_discord(self, post):
+    def test_applied_draft_posts_new_game_to_discord(self, post):
+        game = Game.objects.create(
+            state=Game.State.DRAFT, title="Candidate", creation_time=now()
+        )
         history = GameHistory.objects.create(
-            game=None,
+            game=game,
             state=GameHistory.State.SCHEDULED_FOR_UPDATE,
             creation_time=now(),
         )
+        game_id = game.pk
 
         stats = self._run_with([_TagAndApprove(Approval.APPLIED)], history)
 
         self.assertEqual(stats.applied, 1)
         history.refresh_from_db()
-        self.assertIsNotNone(history.game)
-        post.assert_called_once_with(history.game_id)
+        history.game.refresh_from_db()
+        self.assertEqual(history.game_id, game_id)
+        self.assertEqual(history.game.state, Game.State.PUBLISHED)
+        post.assert_called_once_with(game_id)
 
     def test_proposed_needs_attention_game_untouched(self):
         history = self._history()
@@ -434,10 +443,13 @@ class RunEditTests(TestCase):
         self.assertIsNone(history.processing_started_at)
         self.assertIsNone(history.processing_task_id)
 
-    def test_orphan_histories_are_claimed_before_attached_histories(self):
+    def test_draft_histories_are_claimed_before_attached_histories(self):
         attached = self._history()
-        orphan = GameHistory.objects.create(
-            game=None,
+        candidate_game = Game.objects.create(
+            state=Game.State.DRAFT, title="Candidate", creation_time=now()
+        )
+        candidate = GameHistory.objects.create(
+            game=candidate_game,
             state=GameHistory.State.SCHEDULED_FOR_UPDATE,
             creation_time=now(),
         )
@@ -453,11 +465,13 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.cancelled, 1)
         attached.refresh_from_db()
-        orphan.refresh_from_db()
+        candidate.refresh_from_db()
         self.assertEqual(
             attached.state, GameHistory.State.SCHEDULED_FOR_UPDATE
         )
-        self.assertEqual(orphan.state, GameHistory.State.SETTLED)
+        self.assertEqual(candidate.state, GameHistory.State.ABANDONED)
+        candidate_game.refresh_from_db()
+        self.assertEqual(candidate_game.state, Game.State.ABANDONED)
 
     def test_histories_are_claimed_one_at_a_time(self):
         first = self._history()
@@ -593,7 +607,9 @@ class ManualEditTests(TestCase):
         return history, fetch
 
     def test_apply_updates_game_and_records_edit(self):
-        game = Game.objects.create(title="Old Title", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
+        )
         history, fetch = self._history_with_source(game)
 
         edit_row = store_manual_edit(game, self._payload(), None, apply=True)
@@ -610,7 +626,9 @@ class ManualEditTests(TestCase):
         self.assertIn("manual source", edit_row.canonical_text)
 
     def test_propose_creates_attention_edit_without_changing_game(self):
-        game = Game.objects.create(title="Old Title", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
+        )
         history, fetch = self._history_with_source(game)
 
         edit_row = store_manual_edit(game, self._payload(), None, apply=False)
@@ -628,7 +646,9 @@ class ManualEditTests(TestCase):
         self.assertIn("manual source", edit_row.canonical_text)
 
     def test_propose_records_note_audit(self):
-        game = Game.objects.create(title="Old Title", creation_time=now())
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
+        )
         history, _ = self._history_with_source(game)
 
         store_manual_edit(game, self._payload(), None, apply=False)

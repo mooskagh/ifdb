@@ -3,7 +3,7 @@
 {% block scripts %}
     <script src="{% static 'game-details.js'%}"></script>
 {% endblock %}
-{% block titlesection %}{{ game.title }} - {% endblock %}
+{% block titlesection %}{{ title }} - {% endblock %}
 {% block content %}
 
 <main>
@@ -65,9 +65,13 @@
                         </div>
                         <div class="game--info-row-value">
                             {% for author in role.items %}
-                                <a class="author-link" href="{% url 'show_author' author_id=author.personality.id %}">
+                                {% if author.personality_id %}
+                                    <a class="author-link" href="{% url 'show_author' author_id=author.personality_id %}">
+                                        {{ author.name }}
+                                    </a>
+                                {% else %}
                                     {{ author.name }}
-                                </a>
+                                {% endif %}
                             {% endfor %}
                         </div>
                     </div>
@@ -80,18 +84,22 @@
                 <div class="card card--green">
                     <div class="card--header">Ссылки</div>
                     <div class="card--listbody">
-                        {% for link in links %}
-                            {% for x in link.items %}
-                                <a {% if x.url.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}">
-                                    {% if x.url.is_broken %}
-                                        <svg><use href="{% static 'iconset.svg' %}#broken-link"></use></svg>
-                                {% else %}
-                                        <svg><use href="{% static 'iconset.svg' %}#link-{{ link.category.symbolic_id }}"></use></svg>                                
+                            {% for link in links %}
+                                {% for x in link.items %}
+                                    {% if x.remote_url %}
+                                        <a {% if x.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.remote_url }}">
+                                            {% if x.is_broken %}
+                                                <svg><use href="{% static 'iconset.svg' %}#broken-link"></use></svg>
+                                            {% else %}
+                                                <svg><use href="{% static 'iconset.svg' %}#link-{{ link.category.symbolic_id }}"></use></svg>
+                                            {% endif %}
+                                            {{ x.description }}
+                                        </a>
+                                    {% else %}
+                                        <span>{{ x.description }}</span>
                                     {% endif %}
-                                    {{ x.description }}
-                                </a>
+                                {% endfor %}
                             {% endfor %}
-                        {% endfor %}
                     </div>
                 </div>
         {% endif %}
@@ -106,31 +114,37 @@
                     </div>
                     <div class="game--info-row-value">
                         {% for tag in tags %}
-                            <a href="{{ tag.search_query }}">{{ tag.name }}</a>
+                            {% if tag.search_query %}
+                                <a href="{{ tag.search_query }}">{{ tag.name }}</a>
+                            {% else %}
+                                {{ tag.name }}
+                            {% endif %}
                         {% endfor %}
                     </div>
                 </div>
             {% endfor %}
 
-                <div class="game--info-row">
-                    <div class="game--info-row-label">
-                            Добавлено
+                {% if game %}
+                    <div class="game--info-row">
+                        <div class="game--info-row-label">
+                                Добавлено
+                        </div>
+                        <div class="game--info-row-value">
+                            {{ added_date }}
+                        </div>
                     </div>
-                    <div class="game--info-row-value">
-                        {{ added_date }}
-                    </div>
-                </div>
 
-                {% if last_edit_date %}
-                <div class="game--info-row">
-                    <div class="game--info-row-label">
-                            Обновлено
+                    {% if last_edit_date %}
+                    <div class="game--info-row">
+                        <div class="game--info-row-label">
+                                Обновлено
+                        </div>
+                        <div class="game--info-row-value">
+                            {{ last_edit_date }}
+                        </div>
                     </div>
-                    <div class="game--info-row-value">
-                        {{ last_edit_date }}
-                    </div>
-                </div>
-                {% endif %}                
+                    {% endif %}
+                {% endif %}
 
             </div>
         </div>

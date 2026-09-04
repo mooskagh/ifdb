@@ -2631,7 +2631,7 @@ h6 {
 
 */
 
-/* ---- Curation ("ОГОРОД") ---- */
+/* ---- Curation ("Модерация") ---- */
 .reconcile-page {
     padding: 16px;
 }
@@ -3238,12 +3238,58 @@ h6 {
     width: min(28em, 100%);
 }
 
-.curation-source {
-    display: flex;
-    gap: 12px;
-    padding: 8px 12px;
-    border-bottom: 1px solid #eee;
+.curation-playable-table-wrap {
+    overflow-x: auto;
 }
+.curation-playable-table {
+    table-layout: auto;
+}
+.curation-playable-table th,
+.curation-playable-table td {
+    vertical-align: top;
+}
+.curation-playable-table-file {
+    width: 38%;
+}
+.curation-playable-table-local {
+    width: 180px;
+}
+.curation-playable-file,
+.curation-playable-file a {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+.curation-playable-compatibility {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 18px;
+}
+.curation-playable-result {
+    align-items: center;
+    display: inline-flex;
+    gap: 5px;
+}
+.curation-playable-result-mark {
+    align-items: center;
+    border-radius: 50%;
+    color: #fff;
+    display: inline-flex;
+    flex: 0 0 1.4em;
+    font-size: 14px;
+    font-weight: 700;
+    height: 1.4em;
+    justify-content: center;
+    line-height: 1;
+    text-align: center;
+    width: 1.4em;
+}
+.curation-playable-result--accepted .curation-playable-result-mark {
+    background-color: #188038;
+}
+.curation-playable-result--rejected .curation-playable-result-mark {
+    background-color: #c5221f;
+}
+
 .curation-source:last-child {
     border-bottom: none;
 }

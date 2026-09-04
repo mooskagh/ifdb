@@ -1,7 +1,7 @@
 """Collapse duplicate aliases to the same personality within a role."""
 
 from curation.edit import GameEditPass, GameEditState, register_pass
-from curation.gameinfo import Person
+from games.gameinfo import Person
 from games.models import PersonalityAlias
 
 

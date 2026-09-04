@@ -1,7 +1,7 @@
 {% extends "curation/base.html" %}
 {% load tags %}
 
-{% block titlesection %}Игра: {{ history.game.title|default:"(не назначена)" }} - {% endblock %}
+{% block titlesection %}Игра: {{ history.game.title }} - {% endblock %}
 
 {% block curation_main %}
 <div class="card card--brown">
@@ -61,6 +61,63 @@
         </form>
     </div>
 </div>
+
+{% if playable_files %}
+<div class="card card--green">
+    <div class="card--header">Проигрыватель</div>
+    <div class="curation-playable-table-wrap">
+        <table class="curation-table curation-table--compact curation-playable-table">
+            <thead>
+                <tr>
+                    <th class="curation-playable-table-file">Файл</th>
+                    <th class="curation-playable-table-local">Локальная копия</th>
+                    <th>Совместимость</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for playable_file in playable_files %}
+                <tr>
+                    <td class="curation-playable-file">
+                        <a href="{{ playable_file.game_url.url.original_url }}" title="{{ playable_file.game_url.url.original_url }}">{{ playable_file.game_url.url.original_filename|default:playable_file.game_url.url.original_url }}</a>
+                    </td>
+                    <td class="curation-playable-local">
+                        <div>{% if playable_file.has_local_copy %}Есть{% else %}Нет{% endif %}</div>
+                        {% if check_compatibility and playable_file.has_local_copy and playable_file.file_missing %}
+                        <div class="curation-meta">Файл не найден.</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if check_compatibility and playable_file.has_local_copy %}
+                            {% if playable_file.file_missing %}
+                            <span class="curation-meta">—</span>
+                            {% else %}
+                            <div class="curation-playable-compatibility">
+                                {% for result in playable_file.compatibility %}
+                                <span class="curation-playable-result{% if result.accepted %} curation-playable-result--accepted{% else %} curation-playable-result--rejected{% endif %}" data-blueprint-slug="{{ result.slug }}" title="{% if result.accepted %}Совместим{% else %}Несовместим{% endif %}: {{ result.display_name }}">
+                                    <span class="curation-playable-result-mark" aria-hidden="true">{% if result.accepted %}✓{% else %}✕{% endif %}</span>
+                                    <span>{{ result.display_name }}</span>
+                                </span>
+                                {% empty %}
+                                <span class="curation-meta">Проигрывателей нет.</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        {% else %}
+                        <span class="curation-meta">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card--body">
+        <form method="get" class="curation-source-add">
+            <button type="submit" name="check_compatibility" value="1">Проверить совместимость</button>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 {% for group in groups %}
 <div class="card card--{{ group.color }}">
@@ -138,7 +195,7 @@
 </div>
 {% empty %}
 <div class="card card--blue">
-    <div class="card--body">В истории пока пусто.</div>
+    <div class="card--body">В админке пока пусто.</div>
 </div>
 {% endfor %}
 
@@ -163,10 +220,10 @@
             <div class="game--info-row">
                 <div class="game--info-row-label">Игра</div>
                 <div class="game--info-row-value">
-                    {% if game %}
+                    {% if game.state == "PUBLISHED" %}
                     <a href="{% url 'show_game' game.pk %}">{{ game.title }}</a>
                     {% else %}
-                    (не назначена)
+                    {{ game.title }} ({{ game.get_state_display }})
                     {% endif %}
                 </div>
             </div>
@@ -177,21 +234,29 @@
             <div class="game--info-row">
                 <div class="game--info-row-label">Автообновление</div>
                 <div class="game--info-row-value">
+                    {% if history.state != "ABANDONED" %}
                     <select name="auto_updates">
                         {% for value, label in auto_choices %}
                         <option value="{{ value }}" {% if value == history.auto_updates %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
+                    {% else %}
+                    {{ history.get_auto_updates_display }}
+                    {% endif %}
                 </div>
             </div>
             <div class="game--info-row">
                 <div class="game--info-row-label">Состояние</div>
                 <div class="game--info-row-value">
+                    {% if history.state != "ABANDONED" %}
                     <select name="state">
                         {% for value, label in state_choices %}
                         <option value="{{ value }}" {% if value == history.state %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
+                    {% else %}
+                    {{ history.get_state_display }}
+                    {% endif %}
                 </div>
             </div>
             {% if history.note %}
@@ -209,9 +274,11 @@
                 <div class="game--info-row-value">{{ history.edit_time|date:"d.m.Y H:i"|default:"—" }}</div>
             </div>
         </div>
+        {% if history.state != "ABANDONED" %}
         <div class="curation-save">
             <button type="submit">Сохранить</button>
         </div>
+        {% endif %}
     </div>
 </form>
 
@@ -235,6 +302,7 @@
 </div>
 {% endif %}
 
+{% if history.state != "ABANDONED" %}
 <div class="card card--purple">
     <div class="card--header">Автоматическая обработка</div>
     <div class="card--body">
@@ -249,8 +317,9 @@
         </form>
     </div>
 </div>
+{% endif %}
 
-{% if game and history.state != "ABANDONED" %}
+{% if history.state != "ABANDONED" %}
 <div class="card card--yellow">
     <div class="card--header">Объединить с другой игрой</div>
     <div class="card--body">
@@ -258,7 +327,7 @@
             {% csrf_token %}
             <label>id присоединяемой игры <input type="number" name="source_game_id" min="1" required style="width: 7rem;"></label>
             <label><input type="checkbox" name="remap_contests"> переназначить конкурсные ссылки, голоса и вопросы</label>
-            <button type="submit" data-confirm="Присоединить указанную игру к этой? Присоединяемая игра будет удалена, её история станет заброшенной.">Объединить</button>
+            <button type="submit" data-confirm="Присоединить указанную игру к этой? Присоединяемая игра станет перенаправлением, а её админка будет заброшена.">Объединить</button>
         </form>
         <div class="curation-meta">Если у присоединяемой игры есть записи в конкурсах, без чекбокса объединение будет остановлено и покажет затронутые таблицы.</div>
     </div>

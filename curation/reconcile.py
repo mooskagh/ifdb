@@ -1,11 +1,11 @@
 """Phase 3 (reconcile): cluster fetched orphan sources into histories.
 
 Each fetched orphan ``GameSource`` (``history IS NULL``) is matched against
-the full corpus of existing/earlier-spawned histories and either linked
-to one or used to spawn a fresh ``game=None`` history.  This is a faithful port
+the full corpus of existing/candidate histories and either linked
+to one or used to spawn a fresh attached draft history. This is a faithful port
 of the old ``GameSet``/``TryMerge`` matching logic in
 ``games/tasks/game_importer.py``, run over canonical ``GameInfo`` documents
-instead of live fetches.  Reconcile only *links*; building the ``GameEdit`` and
+instead of live fetches. Reconcile only *links*; building the ``GameEdit`` and
 applying changes is Phase 4.
 """
 
@@ -15,9 +15,10 @@ from logging import getLogger
 
 from django.utils.timezone import now
 
+from games.gameinfo import parse
 from games.importer.tools import ComputeSimilarity, GetBagOfWords, HashizeUrl
+from games.models import Game
 
-from .gameinfo import parse
 from .models import (
     GameHistory,
     GameHistoryAuditLog,
@@ -44,7 +45,7 @@ class ReconcileStats:
     processed: int  # orphans with a fetch that we tried to match
     skipped_no_fetch: int  # orphan never fetched (or no usable signal)
     attached: int  # linked to an existing/earlier-spawned history
-    spawned: int  # new game=None histories created this run
+    spawned: int  # new candidate histories created this run
     ambiguous: int  # matched >=2 histories -> left orphan + flagged
 
 
@@ -192,9 +193,7 @@ def _ambiguous_reason(
     source: GameSource, target: _Target, candidates: set[_Target], action: str
 ) -> str:
     other_game_ids = sorted(
-        candidate.history.game_id
-        for candidate in candidates - {target}
-        if candidate.history.game_id is not None
+        candidate.history.game_id for candidate in candidates - {target}
     )
     other_games_text = ", ".join(f"g/{game_id}" for game_id in other_game_ids)
     other_games_text = other_games_text or "-"
@@ -207,11 +206,12 @@ def _build_index() -> _TargetIndex:
 
     existing = (
         GameHistory.objects
-        .filter(game__isnull=False)
         .exclude(state=GameHistory.State.ABANDONED)
         .select_related("game")
         .prefetch_related(
-            "game__gameurl_set__category", "game__gameurl_set__url"
+            "game__gameurl_set__category",
+            "game__gameurl_set__url",
+            "gamesource_set",
         )
     )
     for history in existing:
@@ -221,29 +221,16 @@ def _build_index() -> _TargetIndex:
             for gu in game.gameurl_set.all()
             if gu.category.symbolic_id in URLCATS_TO_HASH
         }
-        index.add(_Target(history, hash_urls, GetBagOfWords(game.title)))
-
-    # Earlier-spawned histories: union the signals of their fetched sources so
-    # a later-run orphan can still cluster onto a history spawned earlier.
-    spawned = (
-        GameHistory.objects
-        .filter(game__isnull=True)
-        .exclude(state=GameHistory.State.ABANDONED)
-        .prefetch_related("gamesource_set")
-    )
-    for history in spawned:
-        hash_urls: set[str] = set()
-        title_bow: set[str] = set()
-        fetched = False
-        for source in history.gamesource_set.all():
-            fetch = _latest_fetch(source)
-            if fetch is None:
-                continue
-            fetched = True
-            h, t = _signals(source, fetch)
-            hash_urls |= h
-            title_bow |= t
-        if fetched:
+        title_bow = set(GetBagOfWords(game.title))
+        if game.state == Game.State.DRAFT:
+            for source in history.gamesource_set.all():
+                fetch = _latest_fetch(source)
+                if fetch is None:
+                    continue
+                h, t = _signals(source, fetch)
+                hash_urls |= h
+                title_bow |= t
+        if hash_urls or title_bow:
             index.add(_Target(history, hash_urls, title_bow))
 
     return index
@@ -351,8 +338,14 @@ def run_reconcile(
                 on_source_done(source, "attached", target.history)
             continue
 
+        info = parse(fetch.canonical_text)
+        game = Game.objects.create(
+            title=info.name or "",
+            state=Game.State.DRAFT,
+            creation_time=now(),
+        )
         history = GameHistory.objects.create(
-            game=None,
+            game=game,
             state=GameHistory.State.SCHEDULED_FOR_UPDATE,
             creation_time=now(),
         )

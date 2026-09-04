@@ -21,6 +21,7 @@ interface ColumnData {
   client_id: string;
   history_id: number | null;
   game_id: number | null;
+  state: string | null;
   title: string;
   release_date: string;
   tags: Pair[];
@@ -90,7 +91,7 @@ function render(): void {
   grid.style.setProperty('--reconcile-columns', String(columns.length));
 
   addGridRow(grid, '', (col, i) => columnHeader(col, i), 'reconcile-cell--top');
-  addGridRow(grid, 'GameHistory id', historyCell);
+  addGridRow(grid, 'Админка id', historyCell);
   addGridRow(grid, 'Game id', gameCell);
   addGridRow(grid, 'and start pipeline', pipelineCell);
   addGridRow(grid, 'Удалить', deleteCell);
@@ -157,7 +158,7 @@ function columnHeader(col: ColumnData, index: number): HTMLElement {
 }
 
 function columnSubtitle(col: ColumnData): string {
-  const history = col.history_id ? `history #${col.history_id}` : 'new history';
+  const history = col.history_id ? `админка #${col.history_id}` : 'новая админка';
   const game = col.game_id ? `game #${col.game_id}` : 'new game';
   return `${history}, ${game}`;
 }
@@ -169,7 +170,9 @@ function historyCell(col: ColumnData): HTMLElement {
 
 function gameCell(col: ColumnData): HTMLElement {
   if (!col.game_id) return cell(el('span', {class: 'curation-meta', text: 'после сохранения'}));
-  return cell(link(`/game/${col.game_id}/`, `#${col.game_id}`));
+  if (col.state === 'PUBLISHED') return cell(link(`/game/${col.game_id}/`, `#${col.game_id}`));
+  if (col.history_id) return cell(link(`/curation/${col.history_id}/`, `#${col.game_id}`));
+  return cell(el('span', {text: `#${col.game_id}`}));
 }
 
 function pipelineCell(col: ColumnData): HTMLElement {
@@ -200,7 +203,7 @@ function deleteCell(col: ColumnData): HTMLElement {
       'label',
       {class: 'reconcile-check-label'},
       input,
-      el('span', {text: 'удалить игру/историю'}),
+      el('span', {text: 'удалить игру/админку'}),
     ),
     el('div', {
       class: 'curation-meta',
@@ -387,7 +390,7 @@ function confirmOrphanSource(source: SourceData): Promise<boolean | null> {
     const dialog = el(
       'dialog',
       {class: 'reconcile-source-dialog'},
-      el('p', {text: `Открепить источник #${source.id} от истории?`}),
+      el('p', {text: `Открепить источник #${source.id} от админки?`}),
       el(
         'label',
         {class: 'reconcile-check-label'},
@@ -517,6 +520,7 @@ function blankColumn(): ColumnData {
     client_id: `new-${nextNewColumn++}`,
     history_id: null,
     game_id: null,
+    state: null,
     title: '',
     release_date: '',
     tags: [],

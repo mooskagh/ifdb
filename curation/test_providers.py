@@ -5,7 +5,8 @@ from urllib.parse import quote
 from django.core.management import call_command
 from django.test import TestCase
 
-from .gameinfo import parse
+from games.gameinfo import parse
+
 from .providers import (
     AperoProvider,
     CanonicalAuthor,

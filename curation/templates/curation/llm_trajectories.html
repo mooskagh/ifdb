@@ -1,7 +1,7 @@
 {% extends "curation/base.html" %}
 {% load tags %}
 
-{% block titlesection %}Траектории LLM - ОГОРОД - {% endblock %}
+{% block titlesection %}Траектории LLM - Модерация - {% endblock %}
 
 {% block curation_main %}
 <div class="card card--purple">
@@ -78,12 +78,12 @@
                 <td class="curation-nowrap"><a href="{% url 'curation_llm_trajectory_detail' trajectory.pk %}">{{ trajectory.created_at|date:"Y-m-d H:i" }}</a></td>
                 <td>{{ trajectory.workflow.name|default:"—" }}</td>
                 <td class="curation-truncate">
-                    {% if trajectory.history.game %}
+                    {% if trajectory.history.game.state == "PUBLISHED" %}
                     <a href="{% url 'show_game' trajectory.history.game.pk %}">{{ trajectory.history.game.title }}</a>
-                    <a href="{% url 'curation_history_detail' trajectory.history.pk %}">#{{ trajectory.history.pk }}</a>
                     {% else %}
-                    <a href="{% url 'curation_history_detail' trajectory.history.pk %}">История #{{ trajectory.history.pk }}</a>
+                    {{ trajectory.history.game.title }} ({{ trajectory.history.game.get_state_display }})
                     {% endif %}
+                    <a href="{% url 'curation_history_detail' trajectory.history.pk %}">#{{ trajectory.history.pk }}</a>
                 </td>
                 <td class="num">{{ trajectory.messages_count }}</td>
                 <td class="num">{{ trajectory.prompt_tokens }}</td>
