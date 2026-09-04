@@ -37,13 +37,14 @@
         {% endif %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Игра</div>
-                <div class="curation-source-detail-value">
-                    {% if game.state == "PUBLISHED" %}
-                    <a href="{% url 'show_game' game.pk %}">{{ game.title }}</a>
-                    {% else %}
-                    {{ game.title }} ({{ game.get_state_display }})
-                    {% endif %}
-                </div>
+            <div class="curation-source-detail-value">
+                {% if game.state == "PUBLISHED" %}
+                <a href="{% url 'show_game' game.pk %}">{{ game.title }}</a>
+                {% else %}
+                {{ game.title }} ({{ game.get_state_display }})
+                {% endif %}
+            </div>
+        </div>
 
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Админка</div>
