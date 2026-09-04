@@ -8,7 +8,12 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils.timezone import now
 
-from curation.models import GameEdit, GameHistory, GameSource, GameSourceFetch
+from curation.models import (
+    GameHistory,
+    GameRevision,
+    GameSource,
+    GameSourceFetch,
+)
 from games.models import (
     URL,
     Game,
@@ -89,13 +94,13 @@ class GameEditCurationViewTests(TestCase):
 
         game.refresh_from_db()
         history = GameHistory.objects.get(game=game)
-        edit = GameEdit.objects.get(game=game)
+        edit = GameRevision.objects.get(game=game)
         self.assertEqual(game.title, "Old Title")
         self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
-        self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
-        self.assertEqual(edit.origin, GameEdit.Origin.USER_SUGGESTION)
-        self.assertEqual(edit.proposed_by, self.user)
-        self.assertIsNone(edit.approver)
+        self.assertEqual(edit.status, GameRevision.Status.PROPOSED)
+        self.assertEqual(edit.origin, GameRevision.Origin.USER_SUGGESTION)
+        self.assertEqual(edit.created_by, self.user)
+        self.assertIsNone(edit.published_by)
 
     def test_store_saves_with_edit_perm(self):
         game = Game.objects.create(
@@ -109,13 +114,13 @@ class GameEditCurationViewTests(TestCase):
 
         game.refresh_from_db()
         history = GameHistory.objects.get(game=game)
-        edit = GameEdit.objects.get(game=game)
+        edit = GameRevision.objects.get(game=game)
         self.assertEqual(game.title, "New Title")
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
-        self.assertEqual(edit.origin, GameEdit.Origin.MANUAL_EDIT)
-        self.assertEqual(edit.proposed_by, self.user)
-        self.assertEqual(edit.approver, self.user)
+        self.assertEqual(edit.status, GameRevision.Status.PUBLISHED)
+        self.assertEqual(edit.origin, GameRevision.Origin.MANUAL_EDIT)
+        self.assertEqual(edit.created_by, self.user)
+        self.assertEqual(edit.published_by, self.user)
 
     def test_add_page_button_says_propose_without_moder_perm(self):
         response = self.client.get(reverse("add_game"))
@@ -137,16 +142,16 @@ class GameEditCurationViewTests(TestCase):
         )
 
         history = GameHistory.objects.get()
-        edit = GameEdit.objects.get(game=history.game)
+        edit = GameRevision.objects.get(game=history.game)
         self.assertRedirects(response, reverse("list_games"))
         self.assertIsNotNone(history.game)
         self.assertEqual(history.game.state, Game.State.DRAFT)
         self.assertEqual(history.game.title, "New Game")
         self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
-        self.assertEqual(edit.status, GameEdit.EditStatus.PROPOSED)
-        self.assertEqual(edit.origin, GameEdit.Origin.USER_SUGGESTION)
-        self.assertEqual(edit.proposed_by, self.user)
-        self.assertIsNone(edit.approver)
+        self.assertEqual(edit.status, GameRevision.Status.PROPOSED)
+        self.assertEqual(edit.origin, GameRevision.Origin.USER_SUGGESTION)
+        self.assertEqual(edit.created_by, self.user)
+        self.assertIsNone(edit.published_by)
         self.assertEqual(Game.objects.count(), 1)
         self.assertEqual(Game.objects.published().count(), 0)
 
@@ -157,7 +162,7 @@ class GameEditCurationViewTests(TestCase):
         )
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
-        edit = GameEdit.objects.get()
+        edit = GameRevision.objects.get()
 
         self.client.post(
             reverse("curation_edit_diff", args=[edit.pk]), {"action": "accept"}
@@ -167,7 +172,7 @@ class GameEditCurationViewTests(TestCase):
         history = edit.game.gamehistory
         history.refresh_from_db()
         history.game.refresh_from_db()
-        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
+        self.assertEqual(edit.status, GameRevision.Status.PUBLISHED)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertIsNotNone(history.game)
         self.assertEqual(history.game.title, "New Game")
@@ -188,24 +193,24 @@ class GameEditCurationViewTests(TestCase):
             creation_time=now(),
             state=GameHistory.State.SETTLED,
         )
-        previous = GameEdit.objects.create(
+        previous = GameRevision.objects.create(
             game=game,
-            proposed_at=now(),
-            approved_at=now(),
-            status=GameEdit.EditStatus.APPLIED,
-            origin=GameEdit.Origin.MANUAL_EDIT,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.PUBLISHED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
             canonical_text=(
                 "---\n- name: Earlier Title\n---\nEarlier description"
             ),
         )
         previous_fetch = self._source_fetch(history)
         previous.used_sources.add(previous_fetch)
-        edit = GameEdit.objects.create(
+        edit = GameRevision.objects.create(
             game=game,
-            proposed_at=now(),
-            approved_at=now(),
-            status=GameEdit.EditStatus.APPLIED,
-            origin=GameEdit.Origin.MANUAL_EDIT,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.PUBLISHED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
             previous_canonical_text=(
                 "---\n- name: Old Title\n---\nOld description"
             ),
@@ -232,13 +237,13 @@ class GameEditCurationViewTests(TestCase):
             },
         )
 
-        new_edit = GameEdit.objects.latest("pk")
+        new_edit = GameRevision.objects.latest("pk")
         self.assertRedirects(
             response, reverse("curation_edit_diff", args=[new_edit.pk])
         )
-        self.assertEqual(new_edit.status, GameEdit.EditStatus.PROPOSED)
-        self.assertEqual(new_edit.origin, GameEdit.Origin.PARTIAL_ROLLBACK)
-        self.assertEqual(new_edit.proposed_by, self.user)
+        self.assertEqual(new_edit.status, GameRevision.Status.PROPOSED)
+        self.assertEqual(new_edit.origin, GameRevision.Origin.PARTIAL_ROLLBACK)
+        self.assertEqual(new_edit.created_by, self.user)
         self.assertIn("Old Title", new_edit.canonical_text)
         self.assertIn("New description", new_edit.canonical_text)
         self.assertNotIn("Old description", new_edit.canonical_text)
@@ -253,11 +258,11 @@ class GameEditCurationViewTests(TestCase):
             },
         )
 
-        new_edit = GameEdit.objects.latest("pk")
+        new_edit = GameRevision.objects.latest("pk")
         self.assertRedirects(
             response, reverse("curation_edit_diff", args=[new_edit.pk])
         )
-        self.assertEqual(new_edit.origin, GameEdit.Origin.ROLLBACK)
+        self.assertEqual(new_edit.origin, GameRevision.Origin.ROLLBACK)
         self.assertIn("Old Title", new_edit.canonical_text)
         self.assertIn("Old description", new_edit.canonical_text)
         self.assertEqual(list(new_edit.used_sources.all()), [previous_fetch])
@@ -280,12 +285,12 @@ class GameEditCurationViewTests(TestCase):
             creation_time=now(),
             state=GameHistory.State.SETTLED,
         )
-        edit = GameEdit.objects.create(
+        edit = GameRevision.objects.create(
             game=game,
-            proposed_at=now(),
-            approved_at=now(),
-            status=GameEdit.EditStatus.APPLIED,
-            origin=GameEdit.Origin.MANUAL_EDIT,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.PUBLISHED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
             previous_canonical_text="---\n- name: Title\n---\nOld description",
             canonical_text=(
                 "---\n- name: Title\n- attributions:\n"
@@ -308,7 +313,7 @@ class GameEditCurationViewTests(TestCase):
             },
         )
 
-        new_edit = GameEdit.objects.latest("pk")
+        new_edit = GameRevision.objects.latest("pk")
         self.assertRedirects(
             response, reverse("curation_edit_diff", args=[new_edit.pk])
         )
@@ -330,12 +335,12 @@ class GameEditCurationViewTests(TestCase):
             creation_time=now(),
             state=GameHistory.State.SETTLED,
         )
-        edit = GameEdit.objects.create(
+        edit = GameRevision.objects.create(
             game=game,
-            proposed_at=now(),
-            approved_at=now(),
-            status=GameEdit.EditStatus.REJECTED,
-            origin=GameEdit.Origin.USER_SUGGESTION,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.REJECTED,
+            origin=GameRevision.Origin.USER_SUGGESTION,
             canonical_text=(
                 "---\n- name: Rejected Title\n---\nRejected description"
             ),
@@ -358,12 +363,12 @@ class GameEditCurationViewTests(TestCase):
             },
         )
 
-        new_edit = GameEdit.objects.latest("pk")
+        new_edit = GameRevision.objects.latest("pk")
         self.assertRedirects(
             response, reverse("curation_edit_diff", args=[new_edit.pk])
         )
-        self.assertEqual(new_edit.status, GameEdit.EditStatus.PROPOSED)
-        self.assertEqual(new_edit.origin, GameEdit.Origin.PARTIAL_REAPPLY)
+        self.assertEqual(new_edit.status, GameRevision.Status.PROPOSED)
+        self.assertEqual(new_edit.origin, GameRevision.Origin.PARTIAL_REAPPLY)
         self.assertIn("Current Title", new_edit.canonical_text)
         self.assertIn("Rejected description", new_edit.canonical_text)
         self.assertNotIn("Rejected Title", new_edit.canonical_text)
@@ -378,11 +383,11 @@ class GameEditCurationViewTests(TestCase):
             },
         )
 
-        new_edit = GameEdit.objects.latest("pk")
+        new_edit = GameRevision.objects.latest("pk")
         self.assertRedirects(
             response, reverse("curation_edit_diff", args=[new_edit.pk])
         )
-        self.assertEqual(new_edit.origin, GameEdit.Origin.REAPPLICATION)
+        self.assertEqual(new_edit.origin, GameRevision.Origin.REAPPLICATION)
         self.assertIn("Rejected Title", new_edit.canonical_text)
         self.assertIn("Rejected description", new_edit.canonical_text)
         self.assertEqual(list(new_edit.used_sources.all()), [fetch])
@@ -397,16 +402,16 @@ class GameEditCurationViewTests(TestCase):
 
         game = Game.objects.get()
         history = GameHistory.objects.get(game=game)
-        edit = GameEdit.objects.get(game=game)
+        edit = GameRevision.objects.get(game=game)
         self.assertRedirects(response, reverse("show_game", args=[game.id]))
         self.assertEqual(game.title, "New Game")
         self.assertEqual(game.state, Game.State.PUBLISHED)
         self.assertEqual(game.added_by, self.user)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertEqual(edit.status, GameEdit.EditStatus.APPLIED)
-        self.assertEqual(edit.origin, GameEdit.Origin.MANUAL_EDIT)
-        self.assertEqual(edit.proposed_by, self.user)
-        self.assertEqual(edit.approver, self.user)
+        self.assertEqual(edit.status, GameRevision.Status.PUBLISHED)
+        self.assertEqual(edit.origin, GameRevision.Origin.MANUAL_EDIT)
+        self.assertEqual(edit.created_by, self.user)
+        self.assertEqual(edit.published_by, self.user)
 
     def _source_fetch(self, history):
         source = GameSource.objects.create(

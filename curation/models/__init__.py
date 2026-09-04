@@ -1,10 +1,10 @@
 from .curation import (
     EditPipeline,
     EnrichmentRule,
-    GameEdit,
     GameHistory,
     GameHistoryAuditLog,
     GameHistoryComment,
+    GameRevision,
     GameSource,
     GameSourceFetch,
     GenreMapping,
@@ -15,10 +15,10 @@ from .llm import LLMModel, LlmTrajectory, LlmWorkflow
 __all__ = [
     "EnrichmentRule",
     "EditPipeline",
-    "GameEdit",
     "GameHistory",
     "GameHistoryAuditLog",
     "GameHistoryComment",
+    "GameRevision",
     "GameSource",
     "GameSourceFetch",
     "GenreMapping",

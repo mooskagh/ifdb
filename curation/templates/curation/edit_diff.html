@@ -23,16 +23,16 @@
         </div>
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Предложена</div>
-            <div class="curation-source-detail-value">{{ edit.proposed_at|date:"d.m.Y H:i" }}</div>
+            <div class="curation-source-detail-value">{{ edit.created_at|date:"d.m.Y H:i" }}</div>
         </div>
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Предложил</div>
-            <div class="curation-source-detail-value">{{ edit.proposed_by|default:"—" }}</div>
+            <div class="curation-source-detail-value">{{ edit.created_by|default:"—" }}</div>
         </div>
-        {% if edit.approved_at %}
+        {% if edit.published_at %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">{% if edit.status == "REJECTED" %}Отклонил{% else %}Одобрил{% endif %}</div>
-            <div class="curation-source-detail-value">{{ edit.approver|default:"—" }} ({{ edit.approved_at|date:"d.m.Y H:i" }})</div>
+            <div class="curation-source-detail-value">{{ edit.published_by|default:"—" }} ({{ edit.published_at|date:"d.m.Y H:i" }})</div>
         </div>
         {% endif %}
         <div class="curation-source-detail-row">

@@ -18,7 +18,7 @@ Phase 1  discover      → GameSource (orphan, history=null)   [driver: discover
 Phase 2  fetch         → GameSourceFetch.raw_content          [orchestrator/crawler — NOT the driver]
 Phase 2.5 canonicalize → GameSourceFetch.canonical_text(+hash)[driver: canonicalize() — its whole reason to exist]
 Phase 3  reconcile     → GameSource.history set               [orchestrator]
-Phase 4  filter chain  → GameEdit                             [orchestrator]
+Phase 4  filter chain  → GameRevision                         [orchestrator]
 ```
 
 - **Fetch is the orchestrator's job, not the driver's** (network, scheduling,
@@ -95,7 +95,7 @@ Decisions locked in A:
   tags/urls/attributions).
 - **Serde** — `to_canonical()` emits the canonical doc (YAML front matter +
   markdown body); `parse()` reads canonical-or-loose docs back. *This is the
-  format stored in `GameSourceFetch.canonical_text` and `GameEdit.canonical_text`.*
+  format stored in `GameSourceFetch.canonical_text` and `GameRevision.canonical_text`.*
 - **Merge filter** — `merge(base, incoming)` is `MergeImport` reborn (union,
   dedup by identity, concat descriptions, first-wins).
 - **Apply + alias machinery** — `save()` writes the `Game` and syncs
@@ -106,7 +106,7 @@ Decisions locked in A:
 ## Locked decisions
 
 - **Canonical form** = `GameInfo.to_canonical()` (YAML front matter + markdown).
-  Both `GameSourceFetch.canonical_text` and `GameEdit.canonical_text` use it, so
+  Both `GameSourceFetch.canonical_text` and `GameRevision.canonical_text` use it, so
   the two ends of the pipeline speak the same representation. The change-detection
   hash hashes this. **Rename** `GameSourceFetch.filtered_content` →
   `canonical_text` (+ `_hash`); there is no separate "denoise" step —
@@ -123,7 +123,7 @@ Decisions locked in A:
     on the old site either).
 - **Migration safety**: the old `Importer`/`updater.py` stay live and untouched
   through phases A–C; the new pipeline populates `curation` tables in shadow. The
-  old path is retired only at the end of Phase 4, once `GameEdit` output is
+  old path is retired only at the end of Phase 4, once `GameRevision` output is
   trustworthy.
 
 ## Slice plan & status
@@ -165,18 +165,18 @@ develop against, so it ships alone.
   - Ambiguous matches leave the source orphaned and flag the best candidate
     history as `NEEDS_ATTENTION`.
   - Source attachment writes an explicit `SOURCE_ATTACHED` audit row.
-- [~] **E. Phase 4 filter chain + GameEdit + apply** — gather a history's source
+- [~] **E. Phase 4 filter chain + GameRevision + apply** — gather a history's source
   canonicals → run the filter list (`merge` core, `enricher` wrapped) → diff vs
-  `GameInfo.from_game(game)` → write `GameEdit` → apply via `GameInfo.save()`
+  `GameInfo.from_game(game)` → write `GameRevision` → apply via `GameInfo.save()`
   honoring `GameHistory.auto_updates` (REJECT/PROPOSE/ACCEPT).
   - **Scaffolded** in `curation/edit.py`: `GameEditState`, `GameEditPass` ABC,
     a pass registry, and `run_edit()` over `IN_PROGRESS` histories. Seeds the
     draft from the served game, settles unchanged drafts, and writes/applies a
-    `GameEdit` per `auto_updates`; `CANONICAL_TEXT` / `PRIORITY` audit fields
+    `GameRevision` per `auto_updates`; `CANONICAL_TEXT` / `PRIORITY` audit fields
     added. Exposed as `manage.py sources edit [--history PK] [--limit N]`.
   - **Passes register** via `@register_pass` into `PASS_REGISTRY` (keyed by
     `name`); the ordered list to run is `settings.CURATION_EDIT_PASSES` and is
-    recorded into `GameEdit.passes`. Concrete passes live in `curation/passes.py`
+    recorded into `GameRevision.passes`. Concrete passes live in `curation/passes.py`
     (imported by `edit.py` for its registration side effects).
   - **`merge_sources` shipped** — first real pass (`MergeSourcesPass`): folds the
     history's source canonicals by `_SOURCE_PRIORITY` (the old importers'
@@ -197,7 +197,7 @@ develop against, so it ships alone.
   - **LLM-pass data foundation underway** — `curation/models/llm.py` adds
     `LLMModel` (OpenRouter id + 4 `$/Mtok` rates, `cost_for(...)`), `Workflow`
     (declarative prompt template + model + allowed tools), and `Trajectory` (one
-    LLM conversation, FK to `GameHistory` always + nullable `GameEdit`, token
+    LLM conversation, FK to `GameHistory` always + nullable `GameRevision`, token
     counts and snapshotted `cost`). Gating/resolution stays in code: each LLM
     functionality will be a `GameEditPass` subclass naming a `Workflow`,
     mirroring `enrich` (code pass + `EnrichmentRule` table).
@@ -224,7 +224,7 @@ the D boundary is firm.
 ## Code map
 
 - `curation/models.py` — `GameHistory`, `GameSource`, `GameSourceFetch`,
-  `GameEdit`, `GameHistoryComment`, `GameHistoryAuditLog`.
+  `GameRevision`, `GameHistoryComment`, `GameHistoryAuditLog`.
 - `games/gameinfo.py` — `GameInfo` (canonical form), `merge`, `parse`,
   `to_canonical`, `save`, alias resolution. The heart of the new system.
 - `curation/passes.py` / `curation/enrichment.py` — Phase 4 edit passes

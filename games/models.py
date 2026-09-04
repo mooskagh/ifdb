@@ -50,9 +50,9 @@ class Game(models.Model):
     @transaction.atomic
     def abandon(self, actor: Any, *, keep_orphan: bool = False) -> None:
         from curation.models import (
-            GameEdit,
             GameHistory,
             GameHistoryAuditLog,
+            GameRevision,
             GameSource,
         )
 
@@ -93,10 +93,10 @@ class Game(models.Model):
                     "edit_time",
                 ]
             )
-            GameEdit.objects.filter(
+            GameRevision.objects.filter(
                 game=game,
-                status=GameEdit.EditStatus.PROPOSED,
-            ).update(status=GameEdit.EditStatus.REJECTED)
+                status=GameRevision.Status.PROPOSED,
+            ).update(status=GameRevision.Status.REJECTED)
             if old_state != history.state:
                 GameHistoryAuditLog.record_change(
                     game,

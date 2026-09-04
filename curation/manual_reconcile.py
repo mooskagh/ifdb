@@ -16,7 +16,12 @@ from games.models import (
 
 from .manual import editor_payload_to_gameinfo
 from .merge import contest_related_usage
-from .models import GameEdit, GameHistory, GameHistoryAuditLog, GameSource
+from .models import (
+    GameHistory,
+    GameHistoryAuditLog,
+    GameRevision,
+    GameSource,
+)
 
 
 @dataclass(frozen=True)
@@ -486,14 +491,14 @@ def _apply_game_info(
             game=game, defaults={"creation_time": now()}
         )
     if before.rstrip("\n") != after.rstrip("\n"):
-        GameEdit.objects.create(
+        GameRevision.objects.create(
             game=game,
-            proposed_at=now(),
-            approved_at=now(),
-            proposed_by=actor,
-            approver=actor,
-            status=GameEdit.EditStatus.APPLIED,
-            origin=GameEdit.Origin.MANUAL_EDIT,
+            created_at=now(),
+            published_at=now(),
+            created_by=actor,
+            published_by=actor,
+            status=GameRevision.Status.PUBLISHED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
             previous_canonical_text=before,
             canonical_text=after,
         )

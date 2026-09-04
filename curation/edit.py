@@ -1,11 +1,12 @@
-"""Phase 4 (edit): turn a history's gathered source canonicals into a GameEdit.
+"""Phase 4 (edit): turn a history's gathered source canonicals into a
+GameRevision.
 
 For each scheduled history we build a mutable ``GameInfo`` draft seeded from
 the currently served game, run it through the ordered list of
 ``GameEditPass`` mutators from the selected ``EditPipeline``, then diff
 the draft against what is already served. Unchanged drafts settle silently;
-changed drafts become a ``GameEdit`` that is applied / proposed / rejected per
-the history's ``auto_updates`` policy.
+changed drafts become a ``GameRevision`` that is applied / proposed /
+rejected per the history's ``auto_updates`` policy.
 
 Concrete passes live in the ``passes`` package and register themselves into
 ``PASS_REGISTRY`` via ``@register_pass``; the runner resolves them by name at
@@ -36,9 +37,9 @@ from games.models import Game
 
 from .models import (
     EditPipeline,
-    GameEdit,
     GameHistory,
     GameHistoryAuditLog,
+    GameRevision,
     GameSource,
     GameSourceFetch,
     LlmTrajectory,
@@ -68,9 +69,9 @@ _APPROVAL_BY_AUTO_UPDATE = {
     GameHistory.AutoUpdate.REJECT: Approval.REJECTED,
 }
 _EDIT_STATUS_BY_APPROVAL = {
-    Approval.PROPOSED: GameEdit.EditStatus.PROPOSED,
-    Approval.APPLIED: GameEdit.EditStatus.APPLIED,
-    Approval.REJECTED: GameEdit.EditStatus.REJECTED,
+    Approval.PROPOSED: GameRevision.Status.PROPOSED,
+    Approval.APPLIED: GameRevision.Status.PUBLISHED,
+    Approval.REJECTED: GameRevision.Status.REJECTED,
 }
 
 
@@ -114,7 +115,7 @@ class EditPassSpec:
 
 
 class GameEditPass(ABC):
-    name: ClassVar[str]  # registry key, also recorded into GameEdit.passes
+    name: ClassVar[str]  # registry key, also recorded into GameRevision.passes
 
     @abstractmethod
     def apply(self, state: GameEditState, params: dict[str, Any]) -> None:
@@ -198,17 +199,17 @@ def _latest_fetch(source: GameSource) -> GameSourceFetch | None:
     return source.gamesourcefetch_set.order_by("-last_fetch").first()
 
 
-def _last_applied_edit(history: GameHistory) -> GameEdit | None:
+def _last_applied_edit(history: GameHistory) -> GameRevision | None:
     return (
-        history.game.gameedit_set
-        .filter(status=GameEdit.EditStatus.APPLIED)
-        .order_by("-approved_at", "-proposed_at", "-id")
+        history.game.gamerevision_set
+        .filter(status=GameRevision.Status.PUBLISHED)
+        .order_by("-published_at", "-created_at", "-id")
         .first()
     )
 
 
 def _build_sources(
-    history: GameHistory, last_edit: GameEdit | None
+    history: GameHistory, last_edit: GameRevision | None
 ) -> list[SourceFetchInfo]:
     """Pair each current source fetch with the last-applied one it supersedes.
 
@@ -352,11 +353,11 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
         history.state = done_state
         outcome = "cancelled"
     else:
-        edit = GameEdit.objects.create(
+        edit = GameRevision.objects.create(
             game=history.game,
-            proposed_at=now(),
-            proposed_by=maintenance_user,
-            origin=GameEdit.Origin.AUTO_IMPORT,
+            created_at=now(),
+            created_by=maintenance_user,
+            origin=GameRevision.Origin.AUTO_IMPORT,
             status=_EDIT_STATUS_BY_APPROVAL[state.approval],
             passes=[spec.as_json() for spec in pass_specs],
             previous_canonical_text=(
@@ -379,10 +380,14 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
                 game.save(update_fields=["state"])
             if after != final:
                 edit.canonical_text = after
-            edit.approved_at = now()
-            edit.approver = maintenance_user
+            edit.published_at = now()
+            edit.published_by = maintenance_user
             edit.save(
-                update_fields=["canonical_text", "approved_at", "approver"]
+                update_fields=[
+                    "canonical_text",
+                    "published_at",
+                    "published_by",
+                ]
             )
             if created_game:
                 created_game_id = game.id

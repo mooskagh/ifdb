@@ -46,10 +46,10 @@ from .manual_reconcile import (
 from .merge import contest_related_usage, merge_game_into_history
 from .models import (
     EditPipeline,
-    GameEdit,
     GameHistory,
     GameHistoryAuditLog,
     GameHistoryComment,
+    GameRevision,
     GameSource,
     GameSourceFetch,
     LLMModel,
@@ -257,9 +257,9 @@ def history_list(request):
     auto = request.GET.get("auto") or ""
     sort = request.GET.get("sort") or "relevance"
 
-    pending_edits = GameEdit.objects.filter(
-        game=OuterRef("game_id"), status=GameEdit.EditStatus.PROPOSED
-    ).order_by("-proposed_at", "-pk")
+    pending_edits = GameRevision.objects.filter(
+        game=OuterRef("game_id"), status=GameRevision.Status.PROPOSED
+    ).order_by("-created_at", "-pk")
     histories = GameHistory.objects.select_related("game").annotate(
         updated=Coalesce("edit_time", "creation_time"),
         pending_edit_id=Subquery(pending_edits.values("pk")[:1]),
@@ -1204,9 +1204,9 @@ def history_detail(request, history_id):
             })
 
     edits = list(
-        GameEdit.objects
+        GameRevision.objects
         .filter(game=history.game)
-        .select_related("proposed_by", "approver")
+        .select_related("created_by", "published_by")
         .prefetch_related(
             Prefetch(
                 "llmtrajectory_set",
@@ -1220,11 +1220,11 @@ def history_detail(request, history_id):
     for edit in edits:
         edit.display_passes = _display_passes(edit.passes)
         timeline.append({
-            "ts": edit.approved_at or edit.proposed_at,
+            "ts": edit.published_at or edit.created_at,
             "kind": "edit",
             "color": "green",
             "obj": edit,
-            "who": edit.proposed_by,
+            "who": edit.created_by,
         })
 
     for trajectory in LlmTrajectory.objects.filter(
@@ -1275,7 +1275,7 @@ def history_detail(request, history_id):
             "auto_choices": GameHistory.AutoUpdate.choices,
             "state_choices": GameHistory.State.choices,
             "source_type_choices": GameSource.SourceType.choices,
-            "proposed_edit_status": GameEdit.EditStatus.PROPOSED,
+            "proposed_edit_status": GameRevision.Status.PROPOSED,
             "edit_pipelines": EditPipeline.objects.order_by("id"),
         },
     )
@@ -1320,8 +1320,8 @@ def history_run_edit(request, history_id):
 
 def edit_diff(request, edit_id):
     edit = get_object_or_404(
-        GameEdit.objects.select_related(
-            "game__gamehistory", "proposed_by", "approver"
+        GameRevision.objects.select_related(
+            "game__gamehistory", "created_by", "published_by"
         ).prefetch_related(
             Prefetch(
                 "llmtrajectory_set",
@@ -1341,8 +1341,8 @@ def edit_diff(request, edit_id):
         action = request.POST.get("action")
         if action in {"rollback", "clone"}:
             with transaction.atomic():
-                edit = GameEdit.objects.select_for_update().get(pk=edit.pk)
-                edit = GameEdit.objects.select_related(
+                edit = GameRevision.objects.select_for_update().get(pk=edit.pk)
+                edit = GameRevision.objects.select_related(
                     "game__gamehistory"
                 ).get(pk=edit.pk)
                 try:
@@ -1355,16 +1355,16 @@ def edit_diff(request, edit_id):
 
         if action not in {"accept", "reject"}:
             return HttpResponseBadRequest("Unknown edit action.")
-        if edit.status != GameEdit.EditStatus.PROPOSED:
+        if edit.status != GameRevision.Status.PROPOSED:
             return HttpResponseBadRequest(
                 "Only proposed edits can be settled."
             )
         with transaction.atomic():
-            edit = GameEdit.objects.select_for_update().get(pk=edit.pk)
-            edit = GameEdit.objects.select_related("game__gamehistory").get(
-                pk=edit.pk
-            )
-            if edit.status != GameEdit.EditStatus.PROPOSED:
+            edit = GameRevision.objects.select_for_update().get(pk=edit.pk)
+            edit = GameRevision.objects.select_related(
+                "game__gamehistory"
+            ).get(pk=edit.pk)
+            if edit.status != GameRevision.Status.PROPOSED:
                 return HttpResponseBadRequest(
                     "Only proposed edits can be settled."
                 )
@@ -1385,7 +1385,7 @@ def edit_diff(request, edit_id):
             "edit": edit,
             "game": history.game,
             "history": history,
-            "show_actions": edit.status == GameEdit.EditStatus.PROPOSED,
+            "show_actions": edit.status == GameRevision.Status.PROPOSED,
             "settled_action": _settled_edit_action(edit, history),
             "show_auto_accept": (
                 history.auto_updates != GameHistory.AutoUpdate.REJECT
@@ -1415,14 +1415,14 @@ EDIT_FIELD_LABELS = {
 
 
 def _settled_edit_action(edit, history):
-    if edit.status == GameEdit.EditStatus.APPLIED:
+    if edit.status == GameRevision.Status.PUBLISHED:
         if edit.previous_canonical_text is None:
             return None
         action = "rollback"
         button = "откатить"
         title = "Откатить правку"
         target = parse(edit.previous_canonical_text)
-    elif edit.status == GameEdit.EditStatus.REJECTED:
+    elif edit.status == GameRevision.Status.REJECTED:
         action = "clone"
         button = "применить эту правку"
         title = "Применить эту правку"
@@ -1448,13 +1448,13 @@ def _propose_from_settled_edit(edit, user, post):
     base = (
         _served_gameinfo(history) if history else GameInfo.from_game(edit.game)
     )
-    if edit.status == GameEdit.EditStatus.APPLIED:
+    if edit.status == GameRevision.Status.PUBLISHED:
         if post.get("action") != "rollback":
             raise ValueError("Applied edits can only be rolled back.")
         if edit.previous_canonical_text is None:
             raise ValueError("This edit cannot be rolled back.")
         target = parse(edit.previous_canonical_text)
-    elif edit.status == GameEdit.EditStatus.REJECTED:
+    elif edit.status == GameRevision.Status.REJECTED:
         if post.get("action") != "clone":
             raise ValueError("Rejected edits can only be cloned.")
         target = parse(edit.canonical_text)
@@ -1471,28 +1471,28 @@ def _propose_from_settled_edit(edit, user, post):
         raise ValueError("No changed fields selected.")
 
     is_partial = fields != changed
-    if edit.status == GameEdit.EditStatus.APPLIED:
+    if edit.status == GameRevision.Status.PUBLISHED:
         origin = (
-            GameEdit.Origin.PARTIAL_ROLLBACK
+            GameRevision.Origin.PARTIAL_ROLLBACK
             if is_partial
-            else GameEdit.Origin.ROLLBACK
+            else GameRevision.Origin.ROLLBACK
         )
         source_edit = edit if is_partial else _previous_applied_edit(edit)
     else:
         origin = (
-            GameEdit.Origin.PARTIAL_REAPPLY
+            GameRevision.Origin.PARTIAL_REAPPLY
             if is_partial
-            else GameEdit.Origin.REAPPLICATION
+            else GameRevision.Origin.REAPPLICATION
         )
         source_edit = edit
 
     info = _mix_gameinfo(base, target, fields)
-    new_edit = GameEdit.objects.create(
+    new_edit = GameRevision.objects.create(
         game=edit.game,
-        proposed_at=now(),
-        proposed_by=user,
+        created_at=now(),
+        created_by=user,
         origin=origin,
-        status=GameEdit.EditStatus.PROPOSED,
+        status=GameRevision.Status.PROPOSED,
         canonical_text=info.to_canonical(),
     )
     if source_edit is not None:
@@ -1548,9 +1548,9 @@ def _changed_edit_fields(base, target):
 
 def _previous_applied_edit(edit):
     previous = None
-    for candidate in edit.game.gameedit_set.filter(
-        status=GameEdit.EditStatus.APPLIED
-    ).order_by("approved_at", "proposed_at", "id"):
+    for candidate in edit.game.gamerevision_set.filter(
+        status=GameRevision.Status.PUBLISHED
+    ).order_by("published_at", "created_at", "id"):
         if candidate.pk == edit.pk:
             return previous
         previous = candidate
@@ -1600,19 +1600,19 @@ def _accept_edit(edit, history, before, user):
     if was_draft:
         game.state = Game.State.PUBLISHED
         game.save(update_fields=["state"])
-    if was_draft and edit.proposed_by and not game.added_by:
-        game.added_by = edit.proposed_by
+    if was_draft and edit.created_by and not game.added_by:
+        game.added_by = edit.created_by
         game.save(update_fields=["added_by"])
-    edit.status = GameEdit.EditStatus.APPLIED
-    edit.approved_at = now()
-    edit.approver = user
+    edit.status = GameRevision.Status.PUBLISHED
+    edit.published_at = now()
+    edit.published_by = user
     edit.previous_canonical_text = before
     edit.canonical_text = after
     edit.save(
         update_fields=[
             "status",
-            "approved_at",
-            "approver",
+            "published_at",
+            "published_by",
             "previous_canonical_text",
             "canonical_text",
         ]
@@ -1631,15 +1631,15 @@ def _accept_edit(edit, history, before, user):
 
 
 def _reject_edit(edit, history, before, user):
-    edit.status = GameEdit.EditStatus.REJECTED
-    edit.approved_at = now()
-    edit.approver = user
+    edit.status = GameRevision.Status.REJECTED
+    edit.published_at = now()
+    edit.published_by = user
     edit.previous_canonical_text = before
     edit.save(
         update_fields=[
             "status",
-            "approved_at",
-            "approver",
+            "published_at",
+            "published_by",
             "previous_canonical_text",
         ]
     )
