@@ -18,6 +18,7 @@ from games.models import (
     GameAuthor,
     GameAuthorRole,
     GameComment,
+    GameRevision,
     GameURL,
     GameURLCategory,
     GameVote,
@@ -40,7 +41,7 @@ class GameLifecycleTests(TestCase):
         state: Game.State = Game.State.PUBLISHED,
         redirect_to: Game | None = None,
     ) -> Game:
-        return Game.objects.create(
+        game = Game.objects.create(
             title=title,
             creation_time=now(),
             state=state,
@@ -49,6 +50,18 @@ class GameLifecycleTests(TestCase):
             vote_perm="@all",
             comment_perm="@all",
         )
+        if state == Game.State.PUBLISHED:
+            rev = GameRevision.objects.create(
+                game=game,
+                created_at=now(),
+                published_at=now(),
+                status=GameRevision.Status.ACCEPTED,
+                origin=GameRevision.Origin.MANUAL_EDIT,
+                canonical_text=f'---\n- name: "{title}"\n---\n',
+            )
+            game.published_revision = rev
+            game.save(update_fields=["published_revision"])
+        return game
 
     def test_published_queryset_keeps_only_public_rows(self) -> None:
         published = self._game("Published")

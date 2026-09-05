@@ -33,11 +33,12 @@ from core.models import BlogFeed, FeedCache
 from core.tasks import fetch_feeds
 from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
-from games.models import Game, GameURL
+from games.models import Game, GameRevision, GameURL
 from play.blueprint import BlueprintModule, discover_blueprints
 
 from . import openrouter
 from .diff import build_diff
+from .manual import _latest_applied_edit
 from .manual_reconcile import (
     column_for_game,
     initial_payload,
@@ -49,7 +50,6 @@ from .models import (
     GameHistory,
     GameHistoryAuditLog,
     GameHistoryComment,
-    GameRevision,
     GameSource,
     GameSourceFetch,
     LLMModel,
@@ -1415,7 +1415,7 @@ EDIT_FIELD_LABELS = {
 
 
 def _settled_edit_action(edit, history):
-    if edit.status == GameRevision.Status.PUBLISHED:
+    if edit.status == GameRevision.Status.ACCEPTED:
         if edit.previous_canonical_text is None:
             return None
         action = "rollback"
@@ -1445,10 +1445,12 @@ def _settled_edit_action(edit, history):
 
 def _propose_from_settled_edit(edit, user, post):
     history = getattr(edit.game, "gamehistory", None)
-    base = (
-        _served_gameinfo(history) if history else GameInfo.from_game(edit.game)
-    )
-    if edit.status == GameRevision.Status.PUBLISHED:
+    if history:
+        base = _served_gameinfo(history)
+    else:
+        latest = _latest_applied_edit(edit.game)
+        base = parse(latest.canonical_text) if latest else GameInfo()
+    if edit.status == GameRevision.Status.ACCEPTED:
         if post.get("action") != "rollback":
             raise ValueError("Applied edits can only be rolled back.")
         if edit.previous_canonical_text is None:
@@ -1471,7 +1473,7 @@ def _propose_from_settled_edit(edit, user, post):
         raise ValueError("No changed fields selected.")
 
     is_partial = fields != changed
-    if edit.status == GameRevision.Status.PUBLISHED:
+    if edit.status == GameRevision.Status.ACCEPTED:
         origin = (
             GameRevision.Origin.PARTIAL_ROLLBACK
             if is_partial
@@ -1505,7 +1507,8 @@ def _propose_from_settled_edit(edit, user, post):
 
 
 def _served_gameinfo(history):
-    return GameInfo.from_game(history.game)
+    edit = _latest_applied_edit(history)
+    return parse(edit.canonical_text) if edit else GameInfo()
 
 
 def _mix_gameinfo(base, target, fields):
@@ -1549,7 +1552,7 @@ def _changed_edit_fields(base, target):
 def _previous_applied_edit(edit):
     previous = None
     for candidate in edit.game.gamerevision_set.filter(
-        status=GameRevision.Status.PUBLISHED
+        status=GameRevision.Status.ACCEPTED
     ).order_by("published_at", "created_at", "id"):
         if candidate.pk == edit.pk:
             return previous
@@ -1570,7 +1573,8 @@ def _redirect_after_edit(next_page, edit, history):
 
 
 def _served_canonical(history):
-    return GameInfo.from_game(history.game).to_canonical()
+    edit = _latest_applied_edit(history)
+    return edit.canonical_text if edit else ""
 
 
 def _update_auto_accept(history, request):
@@ -1594,28 +1598,12 @@ def _update_auto_accept(history, request):
 
 
 def _accept_edit(edit, history, before, user):
-    info = parse(edit.canonical_text)
-    game, after = info.save(history.game)
-    was_draft = game.state == Game.State.DRAFT
-    if was_draft:
-        game.state = Game.State.PUBLISHED
-        game.save(update_fields=["state"])
-    if was_draft and edit.created_by and not game.added_by:
-        game.added_by = edit.created_by
-        game.save(update_fields=["added_by"])
-    edit.status = GameRevision.Status.PUBLISHED
-    edit.published_at = now()
-    edit.published_by = user
-    edit.previous_canonical_text = before
-    edit.canonical_text = after
-    edit.save(
-        update_fields=[
-            "status",
-            "published_at",
-            "published_by",
-            "previous_canonical_text",
-            "canonical_text",
-        ]
+    was_draft = history.game.state == Game.State.DRAFT
+    if was_draft and edit.created_by and not history.game.added_by:
+        history.game.added_by = edit.created_by
+        history.game.save(update_fields=["added_by"])
+    history.game.publish_revision(
+        edit, actor=user, previous_canonical_text=before
     )
     history.state = GameHistory.State.SETTLED
     old_note = history.note
@@ -1627,7 +1615,7 @@ def _accept_edit(edit, history, before, user):
     fields = ["auto_updates", "state", "note", "edit_time"]
     history.save(update_fields=fields)
     if was_draft:
-        PostNewGameToDiscord(game.id)
+        PostNewGameToDiscord(history.game.id)
 
 
 def _reject_edit(edit, history, before, user):

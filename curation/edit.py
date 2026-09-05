@@ -33,13 +33,12 @@ from django.utils.timezone import now
 
 from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
-from games.models import Game
+from games.models import Game, GameRevision
 
 from .models import (
     EditPipeline,
     GameHistory,
     GameHistoryAuditLog,
-    GameRevision,
     GameSource,
     GameSourceFetch,
     LlmTrajectory,
@@ -70,7 +69,7 @@ _APPROVAL_BY_AUTO_UPDATE = {
 }
 _EDIT_STATUS_BY_APPROVAL = {
     Approval.PROPOSED: GameRevision.Status.PROPOSED,
-    Approval.APPLIED: GameRevision.Status.PUBLISHED,
+    Approval.APPLIED: GameRevision.Status.ACCEPTED,
     Approval.REJECTED: GameRevision.Status.REJECTED,
 }
 
@@ -99,6 +98,7 @@ class GameEditState:
     # passes may also mutate these:
     notes: list[str] = field(default_factory=list)
     needs_attention: bool = False
+    last_applied_canonical: str = ""
 
     def add_note(self, note: str | None) -> None:
         if note and note not in self.notes:
@@ -200,9 +200,11 @@ def _latest_fetch(source: GameSource) -> GameSourceFetch | None:
 
 
 def _last_applied_edit(history: GameHistory) -> GameRevision | None:
+    if history.game.published_revision_id:
+        return history.game.published_revision
     return (
         history.game.gamerevision_set
-        .filter(status=GameRevision.Status.PUBLISHED)
+        .filter(status=GameRevision.Status.ACCEPTED)
         .order_by("-published_at", "-created_at", "-id")
         .first()
     )
@@ -274,13 +276,9 @@ def _build_sources(
 def _build_state(
     history: GameHistory,
 ) -> GameEditState:
-    served = (
-        GameInfo.from_game(history.game)
-        if history.game.state == Game.State.PUBLISHED
-        else GameInfo()
-    )
     last_edit = _last_applied_edit(history)
     last_applied = parse(last_edit.canonical_text) if last_edit else GameInfo()
+    served = copy.deepcopy(last_applied)
     notes = history.note.splitlines() if history.note else []
     if history.auto_updates is GameHistory.AutoUpdate.PROPOSE:
         note = "Автообновление отключено"
@@ -295,6 +293,7 @@ def _build_state(
         last_applied=last_applied,
         sources=_build_sources(history, last_edit),
         notes=notes,
+        last_applied_canonical=last_edit.canonical_text if last_edit else "",
     )
     return state
 
@@ -338,7 +337,7 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
         state.current.canonicalize()
 
     final = state.current.to_canonical()
-    base = state.served.to_canonical()
+    base = state.last_applied_canonical
     done_state = (
         GameHistory.State.NEEDS_ATTENTION
         if state.needs_attention
@@ -373,24 +372,10 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
         ).update(edit=edit)
 
         if state.approval is Approval.APPLIED:
-            game, after = state.current.save(history.game)
-            created_game = game.state == Game.State.DRAFT
+            created_game = history.game.state == Game.State.DRAFT
+            history.game.publish_revision(edit, actor=maintenance_user)
             if created_game:
-                game.state = Game.State.PUBLISHED
-                game.save(update_fields=["state"])
-            if after != final:
-                edit.canonical_text = after
-            edit.published_at = now()
-            edit.published_by = maintenance_user
-            edit.save(
-                update_fields=[
-                    "canonical_text",
-                    "published_at",
-                    "published_by",
-                ]
-            )
-            if created_game:
-                created_game_id = game.id
+                created_game_id = history.game.id
             history.state = done_state
             outcome = "applied"
         elif state.approval is Approval.PROPOSED:

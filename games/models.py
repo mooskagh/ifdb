@@ -52,7 +52,6 @@ class Game(models.Model):
         from curation.models import (
             GameHistory,
             GameHistoryAuditLog,
-            GameRevision,
             GameSource,
         )
 
@@ -111,6 +110,55 @@ class Game(models.Model):
         game.edit_time = timestamp
         game.save(update_fields=["state", "redirect_to", "edit_time"])
 
+    @transaction.atomic
+    def publish_revision(
+        self,
+        revision: "GameRevision",
+        *,
+        actor: Any = None,
+        timestamp: Any = None,
+        previous_canonical_text: str | None = None,
+    ) -> "GameRevision":
+        from games.gameinfo import parse
+
+        ts = timestamp or now()
+        info = parse(revision.canonical_text)
+        _, backfilled_text = info.save(self)
+        if self.state == Game.State.DRAFT:
+            self.state = Game.State.PUBLISHED
+            self.save(update_fields=["state"])
+
+        revision.game = self
+        revision.status = GameRevision.Status.ACCEPTED
+        revision.published_at = ts
+        if actor is not None:
+            revision.published_by = actor
+        if previous_canonical_text is not None:
+            revision.previous_canonical_text = previous_canonical_text
+        elif (
+            revision.previous_canonical_text is None
+            and self.published_revision_id
+            and self.published_revision_id != revision.pk
+        ):
+            if "published_revision" in self._state.fields_cache:
+                revision.previous_canonical_text = (
+                    self.published_revision.canonical_text
+                )
+            else:
+                prev = GameRevision.objects.filter(
+                    id=self.published_revision_id
+                ).first()
+                if prev:
+                    revision.previous_canonical_text = prev.canonical_text
+
+        revision.canonical_text = backfilled_text
+        revision.save()
+
+        self.published_revision = revision
+        self.published_revision_id = revision.pk
+        self.save(update_fields=["published_revision"])
+        return revision
+
     def __str__(self):
         return self.title
 
@@ -130,6 +178,14 @@ class Game(models.Model):
         choices=State,
         default=State.DRAFT,
         db_index=True,
+    )
+    published_revision = models.ForeignKey(
+        "GameRevision",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name=_("Published revision"),
     )
     redirect_to = models.ForeignKey(
         "self",
@@ -164,6 +220,97 @@ class Game(models.Model):
     # -(GameContestEntry)
     # (LoadLog) // For computing popularity
     # -(GamePopularity)
+
+
+class GameRevision(models.Model):
+    class Meta:
+        default_permissions = ()
+        constraints = [
+            models.UniqueConstraint(
+                fields=["game"],
+                condition=models.Q(status="PROPOSED"),
+                name="games_gamerevision_one_proposed_per_game",
+            )
+        ]
+
+    class Status(models.TextChoices):
+        PROPOSED = "PROPOSED", _("Proposed")
+        ACCEPTED = "ACCEPTED", _("Accepted")
+        REJECTED = "REJECTED", _("Rejected")
+
+    class Origin(models.TextChoices):
+        AUTO_IMPORT = "AUTO_IMPORT", _("Automatic import")
+        MANUAL_EDIT = "MANUAL_EDIT", _("Manual edit")
+        USER_SUGGESTION = "USER_SUGGESTION", _("User suggestion")
+        BACKFILL = "BACKFILL", _("Backfill")
+        ROLLBACK = "ROLLBACK", _("Rollback")
+        PARTIAL_ROLLBACK = "PARTIAL_ROLLBACK", _("Partial rollback")
+        REAPPLICATION = "REAPPLICATION", _("Reapplication")
+        PARTIAL_REAPPLY = "PARTIAL_REAPPLY", _("Partial reapplication")
+        CLONE = "CLONE", _("Clone")
+        MERGE = "MERGE", _("Merge")
+
+    def __str__(self) -> str:
+        return f"Revision #{self.pk} ({self.get_status_display()})"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        if self.status == self.Status.PROPOSED:
+            with transaction.atomic():
+                Game.objects.select_for_update().get(pk=self.game_id)
+                pending_edits = GameRevision.objects.filter(
+                    game_id=self.game_id, status=self.Status.PROPOSED
+                )
+                if self.pk:
+                    pending_edits = pending_edits.exclude(pk=self.pk)
+                pending_edits.update(status=self.Status.REJECTED)
+                super().save(*args, **kwargs)
+        else:
+            super().save(*args, **kwargs)
+
+        if self.status == self.Status.ACCEPTED:
+            latest_id = (
+                GameRevision.objects
+                .filter(game_id=self.game_id, status=self.Status.ACCEPTED)
+                .order_by("-published_at", "-created_at", "-id")
+                .values_list("id", flat=True)
+                .first()
+            )
+            if latest_id == self.pk:
+                Game.objects.filter(pk=self.game_id).update(
+                    published_revision_id=self.pk
+                )
+                if "game" in self._state.fields_cache:
+                    self.game.published_revision_id = self.pk
+                    self.game.published_revision = self
+
+    game = models.ForeignKey(Game, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(_("Created at"))
+    published_at = models.DateTimeField(
+        _("Published at"), null=True, blank=True
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_game_revisions",
+    )
+    published_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    status = models.CharField(_("Status"), max_length=16, choices=Status)
+    origin = models.CharField(_("Origin"), max_length=16, choices=Origin)
+    used_sources = models.ManyToManyField(
+        "curation.GameSourceFetch", blank=True
+    )
+    passes = models.JSONField(_("Passes"), default=list)
+    previous_canonical_text = models.TextField(
+        _("Previous canonical text"), null=True, blank=True
+    )
+    canonical_text = models.TextField(_("Canonical text"))
 
 
 class GameDescriptionAttribution(models.Model):

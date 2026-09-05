@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 from io import StringIO
 
 from django.contrib.auth import get_user_model
@@ -10,18 +11,15 @@ from django.utils.timezone import now
 
 from curation.models import (
     GameHistory,
-    GameRevision,
     GameSource,
     GameSourceFetch,
 )
+from games.gameinfo import GameInfo, GameUrl, Person
 from games.models import (
     URL,
     Game,
-    GameAuthor,
-    GameAuthorRole,
     GameDescriptionAttribution,
-    GameURL,
-    GameURLCategory,
+    GameRevision,
     PersonalityAlias,
 )
 
@@ -56,6 +54,26 @@ class GameEditCurationViewTests(TestCase):
         )
         del data["game_id"]
         return data
+
+    def _published_game(self, title="Old Title", description="", **kwargs):
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title=title,
+            description=description,
+            creation_time=now(),
+            **kwargs,
+        )
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text=f'---\n- name: "{title}"\n---\n{description}',
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
+        return game
 
     def test_edit_page_button_says_propose_without_edit_perm(self):
         game = Game.objects.create(
@@ -117,7 +135,7 @@ class GameEditCurationViewTests(TestCase):
         edit = GameRevision.objects.get(game=game)
         self.assertEqual(game.title, "New Title")
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertEqual(edit.status, GameRevision.Status.PUBLISHED)
+        self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(edit.origin, GameRevision.Origin.MANUAL_EDIT)
         self.assertEqual(edit.created_by, self.user)
         self.assertEqual(edit.published_by, self.user)
@@ -172,7 +190,7 @@ class GameEditCurationViewTests(TestCase):
         history = edit.game.gamehistory
         history.refresh_from_db()
         history.game.refresh_from_db()
-        self.assertEqual(edit.status, GameRevision.Status.PUBLISHED)
+        self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertIsNotNone(history.game)
         self.assertEqual(history.game.title, "New Game")
@@ -197,7 +215,7 @@ class GameEditCurationViewTests(TestCase):
             game=game,
             created_at=now(),
             published_at=now(),
-            status=GameRevision.Status.PUBLISHED,
+            status=GameRevision.Status.ACCEPTED,
             origin=GameRevision.Origin.MANUAL_EDIT,
             canonical_text=(
                 "---\n- name: Earlier Title\n---\nEarlier description"
@@ -209,7 +227,7 @@ class GameEditCurationViewTests(TestCase):
             game=game,
             created_at=now(),
             published_at=now(),
-            status=GameRevision.Status.PUBLISHED,
+            status=GameRevision.Status.ACCEPTED,
             origin=GameRevision.Origin.MANUAL_EDIT,
             previous_canonical_text=(
                 "---\n- name: Old Title\n---\nOld description"
@@ -289,7 +307,7 @@ class GameEditCurationViewTests(TestCase):
             game=game,
             created_at=now(),
             published_at=now(),
-            status=GameRevision.Status.PUBLISHED,
+            status=GameRevision.Status.ACCEPTED,
             origin=GameRevision.Origin.MANUAL_EDIT,
             previous_canonical_text="---\n- name: Title\n---\nOld description",
             canonical_text=(
@@ -324,11 +342,9 @@ class GameEditCurationViewTests(TestCase):
     def test_rejected_edit_can_be_cloned_to_selected_fields(self):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
-        game = Game.objects.create(
-            state=Game.State.PUBLISHED,
+        game = self._published_game(
             title="Current Title",
             description="Current description",
-            creation_time=now(),
         )
         history = GameHistory.objects.create(
             game=game,
@@ -408,7 +424,7 @@ class GameEditCurationViewTests(TestCase):
         self.assertEqual(game.state, Game.State.PUBLISHED)
         self.assertEqual(game.added_by, self.user)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertEqual(edit.status, GameRevision.Status.PUBLISHED)
+        self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(edit.origin, GameRevision.Origin.MANUAL_EDIT)
         self.assertEqual(edit.created_by, self.user)
         self.assertEqual(edit.published_by, self.user)
@@ -430,12 +446,22 @@ class GameEditCurationViewTests(TestCase):
         )
 
     def test_game_page_renders_unlinked_author_alias(self):
-        game = Game.objects.create(
-            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
-        )
-        role = GameAuthorRole.objects.get(symbolic_id="author")
         alias = PersonalityAlias.objects.create(name="Unlinked Author")
-        GameAuthor.objects.create(game=game, role=role, author=alias)
+        info = GameInfo(
+            name="Old Title",
+            personalities={"author": [Person(alias.id, "")]},
+        )
+        game, canonical = info.save()
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text=canonical,
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
@@ -443,9 +469,7 @@ class GameEditCurationViewTests(TestCase):
 
     def test_game_page_moder_panel_links_to_curation_history(self):
         self.user.groups.add(Group.objects.create(name="gardener"))
-        game = Game.objects.create(
-            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
-        )
+        game = self._published_game("Old Title")
         history = GameHistory.objects.create(game=game, creation_time=now())
 
         response = self.client.get(reverse("show_game", args=[game.id]))
@@ -458,9 +482,7 @@ class GameEditCurationViewTests(TestCase):
 
     def test_game_page_moder_panel_omits_curation_without_history(self):
         self.user.groups.add(Group.objects.create(name="gardener"))
-        game = Game.objects.create(
-            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
-        )
+        game = self._published_game("Old Title")
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
@@ -525,16 +547,108 @@ class GameEditCurationViewTests(TestCase):
         self.assertNotContains(response, "top-nav-attention")
 
     def test_game_page_renders_media_without_description(self):
-        game = Game.objects.create(
-            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
-        )
-        category = GameURLCategory.objects.get(symbolic_id="poster")
         url = URL.objects.create(
             original_url="https://example.com/poster.png",
             creation_date=now(),
         )
-        GameURL.objects.create(game=game, category=category, url=url)
+        info = GameInfo(
+            name="Old Title",
+            urls=[GameUrl("poster", url.id, "", url.original_url)],
+        )
+        game, canonical = info.save()
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text=canonical,
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
         self.assertEqual(response.status_code, 200)
+
+    def test_game_published_revision_lifecycle(self):
+        t0 = now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Rev Game", creation_time=t0
+        )
+        self.assertIsNone(game.published_revision)
+
+        # Proposed revision does not set published_revision
+        GameRevision.objects.create(
+            game=game,
+            created_at=t0,
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text="prop",
+        )
+        game.refresh_from_db()
+        self.assertIsNone(game.published_revision)
+
+        # First accepted revision sets published_revision
+        rev1 = GameRevision.objects.create(
+            game=game,
+            created_at=t0 + timedelta(minutes=1),
+            published_at=t0 + timedelta(minutes=1),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text="rev1",
+        )
+        game.refresh_from_db()
+        self.assertEqual(game.published_revision, rev1)
+
+        # Newer accepted revision updates published_revision
+        rev2 = GameRevision.objects.create(
+            game=game,
+            created_at=t0 + timedelta(minutes=2),
+            published_at=t0 + timedelta(minutes=2),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text="rev2",
+        )
+        game.refresh_from_db()
+        self.assertEqual(game.published_revision, rev2)
+
+        # Modifying an older revision does not overwrite published_revision
+        rev1.passes = ["some_pass"]
+        rev1.save(update_fields=["passes"])
+        game.refresh_from_db()
+        self.assertEqual(game.published_revision, rev2)
+
+        # Transitioning proposed to accepted updates published_revision
+        prop2 = GameRevision.objects.create(
+            game=game,
+            created_at=t0 + timedelta(minutes=3),
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text="prop2",
+        )
+        prop2.status = GameRevision.Status.ACCEPTED
+        prop2.published_at = t0 + timedelta(minutes=4)
+        prop2.save(update_fields=["status", "published_at"])
+        game.refresh_from_db()
+        self.assertEqual(game.published_revision, prop2)
+
+    def test_store_game_direct_apply_updates_published_revision(self):
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Initial Title",
+            creation_time=now(),
+        )
+        self.assertIsNone(game.published_revision)
+
+        self.client.post(
+            reverse("store_game"),
+            {"json": json.dumps(self._payload(game, title="Updated Title"))},
+        )
+
+        game.refresh_from_db()
+        self.assertEqual(game.title, "Updated Title")
+        self.assertIsNotNone(game.published_revision)
+        self.assertEqual(
+            game.published_revision.status, GameRevision.Status.ACCEPTED
+        )

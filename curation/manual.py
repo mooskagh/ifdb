@@ -7,12 +7,13 @@ from games.models import (
     Game,
     GameAuthorRole,
     GameDescriptionAttribution,
+    GameRevision,
     GameTag,
     GameTagCategory,
     GameURLCategory,
 )
 
-from .models import GameHistory, GameHistoryAuditLog, GameRevision
+from .models import GameHistory, GameHistoryAuditLog
 
 
 def editor_payload_to_gameinfo(data: dict) -> GameInfo:
@@ -38,10 +39,10 @@ def store_manual_edit(
     game: Game, data: dict, user, *, apply: bool
 ) -> GameRevision:
     history = _history_for_game(game)
-    before = GameInfo.from_game(game).to_canonical()
+    previous_edit = _latest_applied_edit(game)
+    before = previous_edit.canonical_text if previous_edit else ""
     info = editor_payload_to_gameinfo(data)
     canonical = info.to_canonical()
-    previous_edit = _latest_applied_edit(game)
     edit = GameRevision.objects.create(
         game=game,
         created_at=now(),
@@ -52,7 +53,7 @@ def store_manual_edit(
             else GameRevision.Origin.USER_SUGGESTION
         ),
         status=(
-            GameRevision.Status.PUBLISHED
+            GameRevision.Status.ACCEPTED
             if apply
             else GameRevision.Status.PROPOSED
         ),
@@ -66,9 +67,7 @@ def store_manual_edit(
 
     old_note = history.note
     if apply:
-        _, after = info.save(game)
-        edit.canonical_text = after
-        edit.save(update_fields=["canonical_text"])
+        game.publish_revision(edit, actor=user)
         history.state = GameHistory.State.SETTLED
         history.note = None
     else:
@@ -111,7 +110,7 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameRevision:
             else GameRevision.Origin.USER_SUGGESTION
         ),
         status=(
-            GameRevision.Status.PUBLISHED
+            GameRevision.Status.ACCEPTED
             if apply
             else GameRevision.Status.PROPOSED
         ),
@@ -123,6 +122,7 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameRevision:
     if not apply:
         GameHistoryAuditLog.record_note_change(game, user, None, history.note)
     else:
+        game.publish_revision(edit, actor=user)
         PostNewGameToDiscord(game.id)
     return edit
 
@@ -137,9 +137,11 @@ def _history_for_game(game: Game) -> GameHistory:
 
 def _latest_applied_edit(target: Game | GameHistory) -> GameRevision | None:
     game = target.game if isinstance(target, GameHistory) else target
+    if game.published_revision_id:
+        return game.published_revision
     return (
         game.gamerevision_set
-        .filter(status=GameRevision.Status.PUBLISHED)
+        .filter(status=GameRevision.Status.ACCEPTED)
         .order_by("-published_at", "-created_at", "-id")
         .first()
     )

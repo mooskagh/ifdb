@@ -1,8 +1,9 @@
 from html import escape
 
 from django.urls import reverse
+from django.utils.timezone import now
 
-from games.models import Game, GameAuthor, GameURL
+from games.models import Game, GameAuthor, GameRevision, GameURL
 from moder.actions.tools import ModerAction, RegisterAction
 
 
@@ -56,6 +57,20 @@ class GameCloneAction(GameAction):
             x.pk = None
             x.game = to
             x.save()
+
+        canonical_text = (
+            fro.published_revision.canonical_text
+            if fro.published_revision
+            else f'---\n- name: "{to.title}"\n---\n{to.description or ""}'
+        )
+        rev = GameRevision(
+            game=to,
+            created_at=now(),
+            created_by=self.request.user,
+            origin=GameRevision.Origin.CLONE,
+            canonical_text=canonical_text,
+        )
+        to.publish_revision(rev, actor=self.request.user)
 
         return GenLinkButton(
             "Ссылка на клон",

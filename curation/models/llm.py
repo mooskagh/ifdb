@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from .curation import GameRevision
+from games.models import GameRevision
 
 _MTOK = Decimal(1_000_000)
 

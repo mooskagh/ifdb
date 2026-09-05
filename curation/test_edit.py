@@ -11,6 +11,7 @@ from games.models import (
     Game,
     GameAuthorRole,
     GameDescriptionAttribution,
+    GameRevision,
     GameTag,
     GameTagCategory,
     GameURLCategory,
@@ -24,7 +25,6 @@ from .models import (
     EditPipeline,
     GameHistory,
     GameHistoryAuditLog,
-    GameRevision,
     GameSource,
     GameSourceFetch,
     LLMModel,
@@ -174,14 +174,40 @@ class RunEditTests(TestCase):
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertEqual(history.game.state, Game.State.PUBLISHED)
         edit_row = GameRevision.objects.get(game=history.game)
-        self.assertEqual(edit_row.status, GameRevision.Status.PUBLISHED)
+        self.assertEqual(edit_row.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(edit_row.passes, [{"name": "tag_and_approve"}])
         self.assertIsNotNone(edit_row.previous_canonical_text)
-        self.assertIn("A Game", edit_row.previous_canonical_text)
+        self.assertEqual(edit_row.previous_canonical_text, "")
         self.assertIsNotNone(edit_row.published_at)
         self.assertEqual(
             edit_row.created_by.username, settings.MAINTENANCE_USER
         )
+
+    def test_applied_with_previous_revision_records_previous_canonical_text(
+        self,
+    ):
+        history = self._history()
+        rev = GameRevision.objects.create(
+            game=history.game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.BACKFILL,
+            canonical_text='---\n- name: "A Game"\n---\n',
+        )
+        history.game.published_revision = rev
+        history.game.save(update_fields=["published_revision"])
+
+        stats = self._run_with([_TagAndApprove(Approval.APPLIED)], history)
+
+        self.assertEqual(stats.applied, 1)
+        edit_row = (
+            GameRevision.objects
+            .filter(game=history.game)
+            .exclude(pk=rev.pk)
+            .get()
+        )
+        self.assertEqual(edit_row.previous_canonical_text, rev.canonical_text)
         self.assertEqual(
             edit_row.published_by.username, settings.MAINTENANCE_USER
         )
@@ -248,7 +274,7 @@ class RunEditTests(TestCase):
             GameRevision.Status.REJECTED,
         )
         self.assertIsNotNone(edit_row.previous_canonical_text)
-        self.assertIn("A Game", edit_row.previous_canonical_text)
+        self.assertEqual(edit_row.previous_canonical_text, "")
         self.assertFalse(self._has_os_win(history.game))
 
     def test_rejected_with_note_settles_and_preserves_note(self):
@@ -308,7 +334,7 @@ class RunEditTests(TestCase):
         self.assertTrue(self._has_os_win(history.game))
         self.assertEqual(
             GameRevision.objects.get(game=history.game).status,
-            GameRevision.Status.PUBLISHED,
+            GameRevision.Status.ACCEPTED,
         )
 
     def test_cancelled_settles_without_edit(self):
@@ -508,8 +534,16 @@ class RunEditTests(TestCase):
 
     def test_final_trailing_newline_only_change_is_noop(self):
         history = self._history()
-        history.game.description = "Text"
-        history.game.save(update_fields=["description"])
+        rev = GameRevision.objects.create(
+            game=history.game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.BACKFILL,
+            canonical_text="---\n\n---\nText",
+        )
+        history.game.published_revision = rev
+        history.game.save(update_fields=["published_revision"])
 
         stats = self._run_with(
             [_SetDescription()],
@@ -520,8 +554,8 @@ class RunEditTests(TestCase):
         self.assertEqual(stats.unchanged, 1)
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertFalse(
-            GameRevision.objects.filter(game=history.game).exists()
+        self.assertEqual(
+            GameRevision.objects.filter(game=history.game).count(), 1
         )
 
     def test_pass_params_are_applied_and_recorded(self):
@@ -611,7 +645,7 @@ class ManualEditTests(TestCase):
             game=game,
             created_at=now(),
             published_at=now(),
-            status=GameRevision.Status.PUBLISHED,
+            status=GameRevision.Status.ACCEPTED,
             origin=GameRevision.Origin.AUTO_IMPORT,
             canonical_text=fetch.canonical_text,
         )
@@ -632,7 +666,7 @@ class ManualEditTests(TestCase):
         self.assertEqual(game.description, "New description")
         self.assertEqual(game.release_date.isoformat(), "2020-01-02")
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertEqual(edit_row.status, GameRevision.Status.PUBLISHED)
+        self.assertEqual(edit_row.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(edit_row.origin, GameRevision.Origin.MANUAL_EDIT)
         self.assertEqual(list(edit_row.used_sources.all()), [fetch])
         self.assertIn("manual source", edit_row.canonical_text)

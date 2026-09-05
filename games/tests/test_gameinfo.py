@@ -18,6 +18,7 @@ from games.models import (
     URL,
     GameAuthor,
     GameDescriptionAttribution,
+    GameRevision,
     GameTag,
     GameTagCategory,
     GameURL,
@@ -193,10 +194,25 @@ class CanonicalRoundTripTest(GameInfoTestBase):
 
     def test_from_game_round_trips(self) -> None:
         game, canonical = self._seeded_info().save()
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=timezone.now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text=canonical,
+            published_at=timezone.now(),
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
         rebuilt = GameInfo.from_game(game)
         self.assertEqual(
             rebuilt.to_canonical(), parse(canonical).to_canonical()
         )
+
+    def test_from_game_without_published_revision_raises_error(self) -> None:
+        game, _ = self._seeded_info().save()
+        with self.assertRaises(ValueError):
+            GameInfo.from_game(game)
 
     def test_slug_tags_sort_by_slug_not_id(self) -> None:
         fairy = GameTag.objects.get(symbolic_id="g_fairytale")

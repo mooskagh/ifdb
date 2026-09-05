@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Any
 
 from django.db import connection
@@ -18,7 +19,8 @@ class GameRevisionBackfillMigrationTest(TransactionTestCase):
         self._create_old_data(apps)
 
     def tearDown(self) -> None:
-        MigrationExecutor(connection).migrate(self.migrate_to)
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
         super().tearDown()
 
     def _create_old_data(self, apps: Any) -> None:
@@ -147,3 +149,169 @@ class GameRevisionBackfillMigrationTest(TransactionTestCase):
             set(GameRevision.objects.values_list("status", flat=True)),
             {"APPLIED"},
         )
+
+
+class MoveGameRevisionToGamesMigrationTest(TransactionTestCase):
+    migrate_from = [
+        ("curation", "0036_backfill_game_revisions"),
+        (
+            "games",
+            "0026_remove_game_games_game_state_redirect_target_and_more",
+        ),
+    ]
+    migrate_to = [
+        ("curation", "0038_alter_llmtrajectory_edit_delete_gamerevision"),
+        ("games", "0027_gamerevision"),
+    ]
+
+    def setUp(self) -> None:
+        super().setUp()
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_from)
+        apps = executor.loader.project_state(self.migrate_from).apps
+        self._create_old_data(apps)
+
+    def tearDown(self) -> None:
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+        super().tearDown()
+
+    def _create_old_data(self, apps: Any) -> None:
+        Game = apps.get_model("games", "Game")
+        GameRevision = apps.get_model("curation", "GameRevision")
+        timestamp = timezone.now()
+
+        game = Game.objects.create(
+            title="Migrated Game",
+            creation_time=timestamp,
+            state="PUBLISHED",
+        )
+        self.game_id = game.id
+        self.published_rev = GameRevision.objects.create(
+            game=game,
+            created_at=timestamp,
+            published_at=timestamp,
+            status="PUBLISHED",
+            origin="AUTO_IMPORT",
+            canonical_text="canonical",
+        )
+        self.proposed_rev = GameRevision.objects.create(
+            game=game,
+            created_at=timestamp,
+            status="PROPOSED",
+            origin="AUTO_IMPORT",
+            canonical_text="canonical",
+        )
+
+    def test_move_and_status_migration(self) -> None:
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_to)
+        apps = executor.loader.project_state(self.migrate_to).apps
+
+        NewGameRevision = apps.get_model("games", "GameRevision")
+        self.assertEqual(NewGameRevision.objects.count(), 2)
+
+        published = NewGameRevision.objects.get(id=self.published_rev.id)
+        self.assertEqual(published.status, "ACCEPTED")
+
+        proposed = NewGameRevision.objects.get(id=self.proposed_rev.id)
+        self.assertEqual(proposed.status, "PROPOSED")
+
+        # Test reverse migration
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_from)
+        apps = executor.loader.project_state(self.migrate_from).apps
+        OldGameRevision = apps.get_model("curation", "GameRevision")
+        self.assertEqual(OldGameRevision.objects.count(), 2)
+
+        rev = OldGameRevision.objects.get(id=self.published_rev.id)
+        self.assertEqual(rev.status, "PUBLISHED")
+
+
+class GamePublishedRevisionMigrationTest(TransactionTestCase):
+    migrate_from = [("games", "0027_gamerevision")]
+    migrate_to = [("games", "0028_game_published_revision")]
+
+    def setUp(self) -> None:
+        super().setUp()
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_from)
+        apps = executor.loader.project_state(self.migrate_from).apps
+        self._create_old_data(apps)
+
+    def tearDown(self) -> None:
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+        super().tearDown()
+
+    def _create_old_data(self, apps: Any) -> None:
+        Game = apps.get_model("games", "Game")
+        GameRevision = apps.get_model("games", "GameRevision")
+        timestamp = timezone.now()
+
+        game_multi = Game.objects.create(
+            title="Multi Rev Game",
+            creation_time=timestamp,
+            state="PUBLISHED",
+        )
+        self.game_multi_id = game_multi.id
+        self.rev_old = GameRevision.objects.create(
+            game=game_multi,
+            created_at=timestamp - timedelta(days=2),
+            published_at=timestamp - timedelta(days=2),
+            status="ACCEPTED",
+            origin="AUTO_IMPORT",
+            canonical_text="old",
+        )
+        self.rev_latest = GameRevision.objects.create(
+            game=game_multi,
+            created_at=timestamp - timedelta(days=1),
+            published_at=timestamp - timedelta(days=1),
+            status="ACCEPTED",
+            origin="AUTO_IMPORT",
+            canonical_text="latest",
+        )
+
+        game_proposed = Game.objects.create(
+            title="Proposed Game",
+            creation_time=timestamp,
+            state="DRAFT",
+        )
+        self.game_proposed_id = game_proposed.id
+        GameRevision.objects.create(
+            game=game_proposed,
+            created_at=timestamp,
+            status="PROPOSED",
+            origin="AUTO_IMPORT",
+            canonical_text="proposed",
+        )
+
+        game_empty = Game.objects.create(
+            title="Empty Game",
+            creation_time=timestamp,
+            state="PUBLISHED",
+        )
+        self.game_empty_id = game_empty.id
+
+    def test_backfill_published_revision(self) -> None:
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_to)
+        apps = executor.loader.project_state(self.migrate_to).apps
+
+        Game = apps.get_model("games", "Game")
+        multi = Game.objects.get(id=self.game_multi_id)
+        self.assertEqual(multi.published_revision_id, self.rev_latest.id)
+
+        proposed = Game.objects.get(id=self.game_proposed_id)
+        self.assertIsNone(proposed.published_revision_id)
+
+        empty = Game.objects.get(id=self.game_empty_id)
+        self.assertIsNone(empty.published_revision_id)
+
+        # Test reverse migration
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_from)
+        apps = executor.loader.project_state(self.migrate_from).apps
+        OldGame = apps.get_model("games", "Game")
+        old_game = OldGame.objects.get(id=self.game_multi_id)
+        self.assertFalse(hasattr(old_game, "published_revision"))

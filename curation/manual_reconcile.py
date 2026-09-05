@@ -4,22 +4,21 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils.timezone import now
 
-from games.gameinfo import GameInfo
 from games.models import (
     Game,
     GameAuthorRole,
+    GameRevision,
     GameTag,
     GameTagCategory,
     GameURLCategory,
     PersonalityAlias,
 )
 
-from .manual import editor_payload_to_gameinfo
+from .manual import _latest_applied_edit, editor_payload_to_gameinfo
 from .merge import contest_related_usage
 from .models import (
     GameHistory,
     GameHistoryAuditLog,
-    GameRevision,
     GameSource,
 )
 
@@ -461,11 +460,8 @@ def _has_game_data(col: dict) -> bool:
 def _apply_game_info(
     col: dict, game: Game | None, history: GameHistory | None, actor
 ) -> Game:
-    before = (
-        GameInfo.from_game(game).to_canonical()
-        if game and game.state == Game.State.PUBLISHED
-        else ""
-    )
+    previous_edit = _latest_applied_edit(game) if game else None
+    before = previous_edit.canonical_text if previous_edit else ""
     info = editor_payload_to_gameinfo({
         "title": col["title"],
         "release_date": col["release_date"],
@@ -491,17 +487,15 @@ def _apply_game_info(
             game=game, defaults={"creation_time": now()}
         )
     if before.rstrip("\n") != after.rstrip("\n"):
-        GameRevision.objects.create(
+        rev = GameRevision(
             game=game,
             created_at=now(),
-            published_at=now(),
             created_by=actor,
-            published_by=actor,
-            status=GameRevision.Status.PUBLISHED,
             origin=GameRevision.Origin.MANUAL_EDIT,
             previous_canonical_text=before,
             canonical_text=after,
         )
+        game.publish_revision(rev, actor=actor)
     return game
 
 

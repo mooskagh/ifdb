@@ -8,6 +8,7 @@ from .models import (
     GameComment,
     GameCommentVote,
     GameDescriptionAttribution,
+    GameRevision,
     GameTag,
     GameTagCategory,
     GameURL,
@@ -56,6 +57,28 @@ class GameAdmin(admin.ModelAdmin):
     filter_horizontal = ["description_attributions"]
 
     inlines = [GameAuthorAdmin, InlineGameURLAdmin]
+
+
+@admin.register(GameRevision)
+class GameRevisionAdmin(admin.ModelAdmin):
+    list_display = [
+        "pk",
+        "game",
+        "status",
+        "origin",
+        "created_at",
+        "created_by",
+        "published_by",
+    ]
+
+    list_filter = ["status", "origin"]
+    search_fields = ["pk"]
+    raw_id_fields = [
+        "game",
+        "created_by",
+        "published_by",
+        "used_sources",
+    ]
 
 
 @admin.register(GameDescriptionAttribution)
