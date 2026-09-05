@@ -487,19 +487,15 @@ def _apply_game_info(
             game=game, defaults={"creation_time": now()}
         )
     if before.rstrip("\n") != after.rstrip("\n"):
-        rev = GameRevision.objects.create(
+        rev = GameRevision(
             game=game,
             created_at=now(),
-            published_at=now(),
             created_by=actor,
-            published_by=actor,
-            status=GameRevision.Status.ACCEPTED,
             origin=GameRevision.Origin.MANUAL_EDIT,
             previous_canonical_text=before,
             canonical_text=after,
         )
-        game.published_revision = rev
-        game.save(update_fields=["published_revision"])
+        game.publish_revision(rev, actor=actor)
     return game
 
 

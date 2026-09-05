@@ -372,26 +372,10 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
         ).update(edit=edit)
 
         if state.approval is Approval.APPLIED:
-            game, after = state.current.save(history.game)
-            created_game = game.state == Game.State.DRAFT
+            created_game = history.game.state == Game.State.DRAFT
+            history.game.publish_revision(edit, actor=maintenance_user)
             if created_game:
-                game.state = Game.State.PUBLISHED
-                game.save(update_fields=["state"])
-            if after != final:
-                edit.canonical_text = after
-            edit.published_at = now()
-            edit.published_by = maintenance_user
-            edit.save(
-                update_fields=[
-                    "canonical_text",
-                    "published_at",
-                    "published_by",
-                ]
-            )
-            game.published_revision = edit
-            game.save(update_fields=["published_revision"])
-            if created_game:
-                created_game_id = game.id
+                created_game_id = history.game.id
             history.state = done_state
             outcome = "applied"
         elif state.approval is Approval.PROPOSED:

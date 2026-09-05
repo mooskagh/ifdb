@@ -110,6 +110,55 @@ class Game(models.Model):
         game.edit_time = timestamp
         game.save(update_fields=["state", "redirect_to", "edit_time"])
 
+    @transaction.atomic
+    def publish_revision(
+        self,
+        revision: "GameRevision",
+        *,
+        actor: Any = None,
+        timestamp: Any = None,
+        previous_canonical_text: str | None = None,
+    ) -> "GameRevision":
+        from games.gameinfo import parse
+
+        ts = timestamp or now()
+        info = parse(revision.canonical_text)
+        _, backfilled_text = info.save(self)
+        if self.state == Game.State.DRAFT:
+            self.state = Game.State.PUBLISHED
+            self.save(update_fields=["state"])
+
+        revision.game = self
+        revision.status = GameRevision.Status.ACCEPTED
+        revision.published_at = ts
+        if actor is not None:
+            revision.published_by = actor
+        if previous_canonical_text is not None:
+            revision.previous_canonical_text = previous_canonical_text
+        elif (
+            revision.previous_canonical_text is None
+            and self.published_revision_id
+            and self.published_revision_id != revision.pk
+        ):
+            if "published_revision" in self._state.fields_cache:
+                revision.previous_canonical_text = (
+                    self.published_revision.canonical_text
+                )
+            else:
+                prev = GameRevision.objects.filter(
+                    id=self.published_revision_id
+                ).first()
+                if prev:
+                    revision.previous_canonical_text = prev.canonical_text
+
+        revision.canonical_text = backfilled_text
+        revision.save()
+
+        self.published_revision = revision
+        self.published_revision_id = revision.pk
+        self.save(update_fields=["published_revision"])
+        return revision
+
     def __str__(self):
         return self.title
 
@@ -198,6 +247,8 @@ class GameRevision(models.Model):
         PARTIAL_ROLLBACK = "PARTIAL_ROLLBACK", _("Partial rollback")
         REAPPLICATION = "REAPPLICATION", _("Reapplication")
         PARTIAL_REAPPLY = "PARTIAL_REAPPLY", _("Partial reapplication")
+        CLONE = "CLONE", _("Clone")
+        MERGE = "MERGE", _("Merge")
 
     def __str__(self) -> str:
         return f"Revision #{self.pk} ({self.get_status_display()})"

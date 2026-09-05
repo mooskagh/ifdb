@@ -6,7 +6,15 @@ from django.utils.timezone import now
 
 from contest.models import CompetitionQuestion, CompetitionVote, GameListEntry
 from core.models import Package
-from games.models import Game, GameAuthor, GameComment, GameURL, GameVote
+from games.gameinfo import GameInfo, merge
+from games.models import (
+    Game,
+    GameAuthor,
+    GameComment,
+    GameRevision,
+    GameURL,
+    GameVote,
+)
 
 from .models import GameHistory, GameHistoryAuditLog, GameSource
 
@@ -81,6 +89,53 @@ def merge_game_into_history(
     if remap_contests:
         for model in CONTEST_RELATED_MODELS:
             _move_related(model, source_game, target_game)
+
+    target_info = (
+        GameInfo.from_game(target_game)
+        if target_game.published_revision_id
+        else None
+    )
+    source_info = (
+        GameInfo.from_game(source_game)
+        if source_game.published_revision_id
+        else None
+    )
+    if target_info and source_info:
+        merged_info = merge(target_info, source_info)
+    elif target_info:
+        merged_info = target_info
+        if not merged_info.date and target_game.release_date:
+            merged_info.date = target_game.release_date.isoformat()
+        merged_info.description = target_game.description
+    elif source_info:
+        merged_info = source_info
+        merged_info.name = target_game.title
+        merged_info.description = target_game.description
+    else:
+        merged_info = GameInfo(
+            name=target_game.title,
+            description=target_game.description,
+            date=(
+                target_game.release_date.isoformat()
+                if target_game.release_date
+                else None
+            ),
+        )
+
+    previous_canonical_text = (
+        target_game.published_revision.canonical_text
+        if target_game.published_revision_id
+        else ""
+    )
+    rev = GameRevision(
+        game=target_game,
+        created_at=now(),
+        created_by=actor,
+        origin=GameRevision.Origin.MERGE,
+        previous_canonical_text=previous_canonical_text,
+        canonical_text=merged_info.to_canonical(),
+    )
+    target_game.publish_revision(rev, actor=actor)
 
     GameSource.objects.filter(game=source_game).update(game=target_game)
     GameHistoryAuditLog.record_game_merge(

@@ -1598,31 +1598,13 @@ def _update_auto_accept(history, request):
 
 
 def _accept_edit(edit, history, before, user):
-    info = parse(edit.canonical_text)
-    game, after = info.save(history.game)
-    was_draft = game.state == Game.State.DRAFT
-    if was_draft:
-        game.state = Game.State.PUBLISHED
-        game.save(update_fields=["state"])
-    if was_draft and edit.created_by and not game.added_by:
-        game.added_by = edit.created_by
-        game.save(update_fields=["added_by"])
-    edit.status = GameRevision.Status.ACCEPTED
-    edit.published_at = now()
-    edit.published_by = user
-    edit.previous_canonical_text = before
-    edit.canonical_text = after
-    edit.save(
-        update_fields=[
-            "status",
-            "published_at",
-            "published_by",
-            "previous_canonical_text",
-            "canonical_text",
-        ]
+    was_draft = history.game.state == Game.State.DRAFT
+    if was_draft and edit.created_by and not history.game.added_by:
+        history.game.added_by = edit.created_by
+        history.game.save(update_fields=["added_by"])
+    history.game.publish_revision(
+        edit, actor=user, previous_canonical_text=before
     )
-    game.published_revision = edit
-    game.save(update_fields=["published_revision"])
     history.state = GameHistory.State.SETTLED
     old_note = history.note
     history.note = None
@@ -1633,7 +1615,7 @@ def _accept_edit(edit, history, before, user):
     fields = ["auto_updates", "state", "note", "edit_time"]
     history.save(update_fields=fields)
     if was_draft:
-        PostNewGameToDiscord(game.id)
+        PostNewGameToDiscord(history.game.id)
 
 
 def _reject_edit(edit, history, before, user):

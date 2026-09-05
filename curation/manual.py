@@ -67,11 +67,7 @@ def store_manual_edit(
 
     old_note = history.note
     if apply:
-        _, after = info.save(game)
-        edit.canonical_text = after
-        edit.save(update_fields=["canonical_text"])
-        game.published_revision = edit
-        game.save(update_fields=["published_revision"])
+        game.publish_revision(edit, actor=user)
         history.state = GameHistory.State.SETTLED
         history.note = None
     else:
@@ -126,8 +122,7 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameRevision:
     if not apply:
         GameHistoryAuditLog.record_note_change(game, user, None, history.note)
     else:
-        game.published_revision = edit
-        game.save(update_fields=["published_revision"])
+        game.publish_revision(edit, actor=user)
         PostNewGameToDiscord(game.id)
     return edit
 
