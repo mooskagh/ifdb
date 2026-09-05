@@ -14,7 +14,7 @@ from moder.userlog import LogAction
 #
 # voting:
 #   open: bool
-#   allow_vote: '@notor'
+#   allow_vote: '@auth'
 #   start: timestamp
 #   end: timestamp
 #   sections:

@@ -3,16 +3,12 @@
 #   [user id]
 #   (func)
 
-import dns.resolver
-from django.core.cache import caches
 from django.core.exceptions import PermissionDenied
 
 EVERYONE_GROUP = "@all"
 UNAUTH_GROUP = "@guest"
 AUTH_GROUP = "@auth"
 SUPERUSER_GROUP = "@admin"
-NOTOR_GROUP = "@notor"
-TOR_GROUP = "@tor"
 CRAWLER_GROUP = "@crawler"
 
 # Add groups to the right if it's to the left.
@@ -24,7 +20,6 @@ GROUP_ALIAS = {
     "game_view": "@all",
     "game_edit": "(a @auth (n @ban))",
     "game_comment": "(a @auth (n @ban))",
-    # 'game_comment': '(a @notor (n @ban))',
     "game_delete": "@moder",
     "game_vote": "(a @auth (n @ban))",
     "personality_view": "@all",
@@ -60,36 +55,6 @@ def IsCrawler(request):
     return False
 
 
-def IsTor(request):
-    ip = None
-    try:
-        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(",")[0]
-        else:
-            ip = request.META.get("REMOTE_ADDR")
-
-        m = caches["tor-ips"].get(ip)
-        if m is not None:
-            return m
-
-        addr_to_query = (
-            "%s.%s.%s.%s.443.192.32.76.45.ip-port.exitlist.torproject.org"
-            % tuple(reversed(ip.split(".")))
-        )
-
-        for x in dns.resolver.query(addr_to_query):
-            if str(x) == "127.0.0.2":
-                caches["tor-ips"].set(ip, True)
-                return True
-    except Exception:
-        pass
-
-    if ip:
-        caches["tor-ips"].set(ip, False)
-    return False
-
-
 def parse_sexp(s):
     res = [[]]
     token = ""
@@ -122,10 +87,6 @@ class Permissioner:
         user = request.user
         self.tokens = set()
         self.tokens.add(EVERYONE_GROUP)
-        if IsTor(request):
-            self.tokens.add(TOR_GROUP)
-        else:
-            self.tokens.add(NOTOR_GROUP)
         if IsCrawler(request):
             self.tokens.add(CRAWLER_GROUP)
 
