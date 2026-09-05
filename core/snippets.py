@@ -597,9 +597,6 @@ def ContestSnippet(
         comp = Competition.objects.get(slug=slug)
     except Competition.DoesNotExist:
         return {}
-    # TODO(crem) Check permisions when there is support for them.
-    # if not request.perm(comp.view_perm):
-    #    return {}
 
     res = []
     if show_schedule:

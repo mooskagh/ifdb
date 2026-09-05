@@ -17,13 +17,11 @@ from moder.actions.tools import ModerAction, RegisterAction
 
 
 class AuthorAction(ModerAction):
-    PERM = "@gardener"
     MODEL = Personality
 
 
 @RegisterAction
 class AuthorAdminzAction(AuthorAction):
-    PERM = "@admin"
     TITLE = "Админки"
 
     def OnAction(self, action, form):

@@ -610,9 +610,9 @@ def store_game(request):
            if self.added_by == user:
                return True
            # Check permission system
-           from ifdb.permissioner import check_permission
+           from games.permissions import can_edit_game
 
-           return check_permission(user, self.edit_perm)
+           return can_edit_game(user, self)
    ```
 
 3. **Service class for cross-model operations**:

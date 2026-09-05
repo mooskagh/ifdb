@@ -678,9 +678,7 @@ class Search:
         if not two_stage_fetch:
             q = LimitListlike(q, start, limit)
 
-        if callable(self.user):
-            items = [x for x in q if self.user(x.view_perm)]
-        elif self.cls == Game:
+        if self.cls == Game:
             items = [x for x in q if can_view_game(self.user, x)]
         else:
             items = [x for x in q if can_view_author(self.user, x)]

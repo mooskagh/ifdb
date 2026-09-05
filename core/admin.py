@@ -44,7 +44,7 @@ class InlinePackageVersionAdmin(admin.TabularInline):
 @admin.register(Package)
 class PackageAdmin(admin.ModelAdmin):
     search_fields = ["pk", "name", "game__title"]
-    list_display = ["name", "download_perm", "edit_perm", "game"]
+    list_display = ["name", "game"]
     raw_id_fields = ["game"]
     inlines = [InlinePackageVersionAdmin]
 
@@ -68,14 +68,13 @@ class PackageSessionAdmin(admin.ModelAdmin):
 class SnippetAdmin(admin.ModelAdmin):
     list_display = [
         "title",
-        "view_perm",
         "order",
         "show_start",
         "show_end",
         "is_async",
     ]
     search_fields = ["pk", "title"]
-    list_filter = ["view_perm", "order", "is_async"]
+    list_filter = ["order", "is_async"]
 
 
 @admin.register(SnippetPin)

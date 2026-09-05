@@ -46,9 +46,6 @@ class GameLifecycleTests(TestCase):
             creation_time=now(),
             state=state,
             redirect_to=redirect_to,
-            view_perm="@all",
-            vote_perm="@all",
-            comment_perm="@all",
         )
         if state == Game.State.PUBLISHED:
             rev = GameRevision.objects.create(

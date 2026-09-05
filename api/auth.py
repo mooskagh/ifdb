@@ -5,8 +5,6 @@ from typing import Any
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone
 
-from ifdb.permissioner import Permissioner
-
 from .models import APIToken
 
 
@@ -70,7 +68,6 @@ def api_auth(
 
             request.user = token.user
             setattr(request, "api_token", token)
-            setattr(request, "perm", Permissioner(request))
 
             return view_func(request, *args, **kwargs)
 

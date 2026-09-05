@@ -8,7 +8,6 @@ from moder.actions.tools import ModerAction, RegisterAction
 
 
 class CompetitionAction(ModerAction):
-    PERM = "@admin"
     MODEL = CompetitionDocument
 
 
@@ -35,7 +34,6 @@ class CompetitionAdminPageAction(CompetitionAction):
 @RegisterAction
 class CompetitionDocLink(CompetitionAction):
     TITLE = "Править текст"
-    PERM = "@auth"
 
     def GetUrl(self):
         return reverse("edit_compdoc", args=(self.obj.id,))
@@ -51,7 +49,6 @@ class CompetitionDocLink(CompetitionAction):
 @RegisterAction
 class CompetitionEditorLink(CompetitionAction):
     TITLE = "Править событие"
-    PERM = "@auth"
 
     def GetUrl(self):
         return reverse("edit_competition", args=(self.obj.competition.id,))
@@ -67,7 +64,6 @@ class CompetitionEditorLink(CompetitionAction):
 @RegisterAction
 class CompetitionListLink(CompetitionAction):
     TITLE = "Править список игр"
-    PERM = "@auth"
 
     def GetUrl(self):
         return reverse("edit_complist", args=(self.obj.competition.id,))
@@ -83,7 +79,6 @@ class CompetitionListLink(CompetitionAction):
 @RegisterAction
 class VotingLink(CompetitionAction):
     TITLE = "Голосование"
-    PERM = "@auth"
 
     def GetUrl(self):
         return reverse("view_compvotes", args=(self.obj.competition.id,))

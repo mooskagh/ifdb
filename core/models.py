@@ -110,8 +110,6 @@ class Package(models.Model):
         return self.name
 
     name = models.CharField(db_index=True, max_length=128)
-    download_perm = models.CharField(max_length=256, default="@all")
-    edit_perm = models.CharField(max_length=256, default="@pkgadm")
     game = models.ForeignKey(
         Game, null=True, blank=True, on_delete=models.CASCADE
     )
@@ -163,7 +161,6 @@ class Snippet(models.Model):
     url = models.CharField(max_length=256, null=True, blank=True)
     style_json = models.CharField(max_length=256)
     content_json = models.TextField()
-    view_perm = models.CharField(max_length=256, default="@all")
     order = models.SmallIntegerField(default=0)
     show_start = models.DateTimeField(null=True, blank=True)
     show_end = models.DateTimeField(null=True, blank=True)

@@ -25,7 +25,6 @@ def LogAction(
     x.ip_addr = GetIpAddr(request)
     x.session = request.session.session_key
     x.timestamp = timezone.now()
-    x.perm = str(request.perm)
     x.action = action
     x.useragent = request.META.get("HTTP_USER_AGENT")
     x.is_mutation = is_mutation

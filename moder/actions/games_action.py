@@ -17,7 +17,6 @@ def GenLinkButton(text, link, new_tab=False):
 
 
 class GameAction(ModerAction):
-    PERM = "@gardener"
     MODEL = Game
 
 
@@ -36,11 +35,6 @@ class GameCloneAction(GameAction):
             "description",
             "release_date",
             "creation_time",
-            "view_perm",
-            "edit_perm",
-            "comment_perm",
-            "delete_perm",
-            "vote_perm",
             "added_by",
         ]:
             setattr(to, field, getattr(fro, field))
@@ -94,7 +88,6 @@ class GameCurationAction(GameAction):
 
 @RegisterAction
 class GameAdminzAction(GameAction):
-    PERM = "@admin"
     TITLE = "Админка"
 
     def GetUrl(self):
