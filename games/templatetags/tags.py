@@ -121,16 +121,8 @@ def rupl(value, arg):
     return ""
 
 
-@register.simple_tag(takes_context=True)
-def has_perm(context, expr):
-    return context["request"].perm(expr)
-
-
-@register.simple_tag(takes_context=True)
-def needs_attention_history_count(context):
-    user = context["request"].user
-    if not user.is_superuser:
-        return 0
+@register.simple_tag
+def needs_attention_history_count():
     from curation.models import GameCuration
 
     return GameCuration.objects.filter(

@@ -189,21 +189,6 @@ class Game(models.Model):
         blank=True,
         related_name="redirects",
     )
-    view_perm = models.CharField(
-        _("Game view permission"), max_length=255, default="(alias game_view)"
-    )
-    edit_perm = models.CharField(
-        _("Edit permission"), max_length=255, default="(alias game_edit)"
-    )
-    comment_perm = models.CharField(
-        _("Comment permission"), max_length=255, default="(alias game_comment)"
-    )
-    delete_perm = models.CharField(
-        _("Delete permission"), max_length=255, default="(alias game_delete)"
-    )
-    vote_perm = models.CharField(
-        _("Vote permission"), max_length=255, default="(alias game_vote)"
-    )
     tags = models.ManyToManyField("GameTag", blank=True)
     added_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -433,16 +418,6 @@ class Personality(models.Model):
 
     name = models.CharField(max_length=255)
     bio = models.TextField(null=True, blank=True)
-    view_perm = models.CharField(
-        _("Game view permission"),
-        max_length=255,
-        default="(alias personality_view)",
-    )
-    edit_perm = models.CharField(
-        _("Edit permission"),
-        max_length=255,
-        default="(alias personality_edit)",
-    )
 
 
 class PersonalityUrl(models.Model):
@@ -519,9 +494,6 @@ class GameTagCategory(models.Model):
     )
     name = models.CharField(max_length=255, db_index=True)
     allow_new_tags = models.BooleanField(default=True)
-    show_in_edit_perm = models.CharField(max_length=255, default="@all")
-    show_in_search_perm = models.CharField(max_length=255, default="@all")
-    show_in_details_perm = models.CharField(max_length=255, default="@all")
     order = models.SmallIntegerField(default=0)
 
 

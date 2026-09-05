@@ -15,7 +15,6 @@ BUTTON_LABELS = {
 class ModerAction:
     TITLE = "(no title)"
     ICON = None
-    PERM = "@admin"
     MODEL = None
     BUTTONS = ["ok", "cancel"]
     BUTTONS_NEED_FORM = {"ok"}
@@ -121,7 +120,10 @@ class ModerAction:
 
     @classmethod
     def IsAllowed(cls, request, object):
-        return request.perm(cls.PERM)
+        user = request.user
+        return bool(
+            user.is_authenticated and (user.is_staff or user.is_superuser)
+        )
 
     @classmethod
     def EnsureObj(cls, obj):

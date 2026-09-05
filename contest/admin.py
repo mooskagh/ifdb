@@ -41,7 +41,7 @@ class CompetitionURLAdmin(admin.ModelAdmin):
 
 @admin.register(CompetitionDocument)
 class CompetitionDocumentAdmin(admin.ModelAdmin):
-    list_display = ["competition", "slug", "title", "view_perm", "order"]
+    list_display = ["competition", "slug", "title", "order"]
     search_fields = ["competition__title", "slug", "title", "text"]
     list_filter = ["competition"]
 

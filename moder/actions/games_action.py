@@ -4,6 +4,7 @@ from django.urls import reverse
 from django.utils.timezone import now
 
 from games.models import Game, GameAuthor, GameRevision, GameURL
+from games.permissions import can_delete_game, can_edit_game
 from moder.actions.tools import ModerAction, RegisterAction
 
 
@@ -16,7 +17,6 @@ def GenLinkButton(text, link, new_tab=False):
 
 
 class GameAction(ModerAction):
-    PERM = "@gardener"
     MODEL = Game
 
 
@@ -35,11 +35,6 @@ class GameCloneAction(GameAction):
             "description",
             "release_date",
             "creation_time",
-            "view_perm",
-            "edit_perm",
-            "comment_perm",
-            "delete_perm",
-            "vote_perm",
             "added_by",
         ]:
             setattr(to, field, getattr(fro, field))
@@ -93,7 +88,6 @@ class GameCurationAction(GameAction):
 
 @RegisterAction
 class GameAdminzAction(GameAction):
-    PERM = "@admin"
     TITLE = "Админка"
 
     def GetUrl(self):
@@ -106,7 +100,7 @@ class GameDeleteAction(GameAction):
 
     @classmethod
     def IsAllowed(cls, request, obj):
-        return request.perm(obj.delete_perm)
+        return can_delete_game(request.user, obj)
 
     def DoAction(self, action, form, execute):
         if execute:
@@ -122,7 +116,7 @@ class GameEditAction(GameAction):
 
     @classmethod
     def IsAllowed(cls, request, obj):
-        return request.perm(obj.edit_perm)
+        return can_edit_game(request.user, obj)
 
     def GetUrl(self):
         return reverse("edit_game", kwargs={"game_id": self.obj.id})

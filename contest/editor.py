@@ -1,4 +1,5 @@
 from django import forms
+from django.core.exceptions import PermissionDenied
 from django.forms import widgets
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -13,11 +14,10 @@ from contest.models import (
     GameList,
     GameListEntry,
 )
+from contest.permissions import can_admin_competition
 from games.tools import CreateUrl
 
 YEARS = range(timezone.now().year + 1, 1990, -1)
-
-EDIT_PERM = "@auth"
 
 
 class CompetitionForm(forms.Form):
@@ -133,10 +133,8 @@ class DocumentsFormSet(forms.BaseFormSet):
 
 def edit_competition(request, id):
     comp = Competition.objects.get(pk=id)
-    if comp.owner:
-        request.perm.Ensure("(o @admin [%d])" % comp.owner_id)
-    else:
-        request.perm.Ensure(EDIT_PERM)
+    if not can_admin_competition(request.user, comp):
+        raise PermissionDenied
 
     main = CompetitionForm(
         request.POST or None,
@@ -335,10 +333,8 @@ class ListEntryForm(forms.Form):
 
 def edit_complist(request, id):
     comp = Competition.objects.get(pk=id)
-    if comp.owner:
-        request.perm.Ensure("(o @admin [%d])" % comp.owner_id)
-    else:
-        request.perm.Ensure(EDIT_PERM)
+    if not can_admin_competition(request.user, comp):
+        raise PermissionDenied
 
     ListEntries = forms.formset_factory(
         ListEntryForm,
@@ -421,10 +417,8 @@ def edit_compdoc(request, id):
     doc = CompetitionDocument.objects.get(pk=id)
     comp = doc.competition
 
-    if comp.owner:
-        request.perm.Ensure("(o @admin [%d])" % comp.owner_id)
-    else:
-        request.perm.Ensure(EDIT_PERM)
+    if not can_admin_competition(request.user, comp):
+        raise PermissionDenied
 
     form = DocumentForm(
         request.POST or None,

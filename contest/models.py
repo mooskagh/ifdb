@@ -24,7 +24,6 @@ class Competition(models.Model):
         blank=True,
     )
     published = models.BooleanField()
-    # Support for private contests (view_perm?)
 
 
 class CompetitionURLCategory(models.Model):
@@ -78,7 +77,6 @@ class CompetitionDocument(models.Model):
     title = models.CharField(max_length=256)
     order = models.SmallIntegerField(default=0)
     text = models.TextField()
-    view_perm = models.CharField(max_length=256, default="@all")
 
 
 class CompetitionSchedule(models.Model):
@@ -106,7 +104,6 @@ class GameList(models.Model):
     )
     title = models.CharField(null=True, blank=True, max_length=255)
     order = models.SmallIntegerField(default=0)
-    # edit_perm = models.CharField(max_length=255, default="@admin")
 
 
 class GameListEntry(models.Model):
@@ -166,7 +163,6 @@ class CompetitionVote(models.Model):
     text_val = models.TextField(null=True, blank=True)
     ip_addr = models.CharField(max_length=50, null=True, blank=True)
     session = models.CharField(max_length=32, null=True, blank=True)
-    perm = models.TextField(null=True, blank=True)
 
 
 class CompetitionQuestion(models.Model):

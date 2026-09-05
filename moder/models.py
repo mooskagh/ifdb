@@ -16,7 +16,6 @@ class UserLog(models.Model):
     ip_addr = models.CharField(max_length=50, null=True, blank=True)
     session = models.CharField(max_length=32, null=True, blank=True)
     timestamp = models.DateTimeField()
-    perm = models.TextField(null=True, blank=True)
     is_mutation = models.BooleanField()
     obj_type = models.CharField(max_length=32, null=True, blank=True)
     obj_id = models.IntegerField(null=True, blank=True)

@@ -43,22 +43,6 @@ def RenameUrls():
         x.save()
 
 
-def ResetPermissions():
-    for x in Game.objects.all():
-        print(x.title)
-        x.comment_perm = "(alias game_comment)"
-        x.view_perm = "(alias game_view)"
-        x.edit_perm = "(alias game_edit)"
-        x.delete_perm = "(alias game_delete)"
-        x.vote_perm = "(alias game_vote)"
-        x.save()
-    for x in Personality.objects.all():
-        print(x.name)
-        x.view_perm = "(alias personality_view)"
-        x.edit_perm = "(alias personality_edit)"
-        x.save()
-
-
 def HasTag(tags, tag):
     for x in tags:
         if tag in x.lower():
@@ -244,7 +228,6 @@ class Command(BaseCommand):
         options = {
             "fixgameauthors": FixGameAuthors,
             "fixurldups": FixDuplicateUrls,
-            "resetperms": ResetPermissions,
         }
         if cmd in options:
             options[cmd]()

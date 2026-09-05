@@ -91,7 +91,6 @@ games/tests/test_url_categorizer.py
 games/tools.py
 games/updater.py
 games/views.py
-ifdb/permissioner.py
 ifdb/settings.py
 kontigr/settings.py
 moder/actions/author_action.py

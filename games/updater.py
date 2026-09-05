@@ -2,6 +2,7 @@ import re
 from logging import getLogger
 
 from dateutil.parser import parse as parse_date
+from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 
 from games.tools import CreateUrl
@@ -23,8 +24,8 @@ from .models import (
     PersonalityUrl,
     PersonalityURLCategory,
 )
+from .permissions import can_add_game, can_edit_game
 
-PERM_ADD_GAME = "@auth"  # Also for file upload, game import, vote
 logger = getLogger("web")
 
 NON_CHAR_RE = re.compile(r"\W+")
@@ -105,8 +106,6 @@ def UpdateGameTags(request, game, tags, update):
     existing_tags = set()  # tag_id
     if update:
         for x in game.tags.select_related("category").all():
-            if not request.perm(x.category.show_in_edit_perm):
-                continue
             existing_tags.add(x.id)
 
     if tags:
@@ -345,11 +344,13 @@ def UpdateGameUrls(request, game, data, update, kill_existing=True):
 def UpdateGame(request, j, update_edit_time=True, kill_existing_urls=True):
     if "game_id" in j:
         g = Game.objects.get(id=j["game_id"])
-        request.perm.Ensure(g.edit_perm)
+        if not can_edit_game(request.user, g):
+            raise PermissionDenied
         if update_edit_time:
             g.edit_time = timezone.now()
     else:
-        request.perm.Ensure(PERM_ADD_GAME)
+        if not can_add_game(request.user):
+            raise PermissionDenied
         g = Game(state=Game.State.PUBLISHED)
         g.creation_time = timezone.now()
         g.added_by = request.user

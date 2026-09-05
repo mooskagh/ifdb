@@ -24,18 +24,17 @@ AUTHOR_ROLES = [
 ]
 
 TAG_CATS = [
-    ["admin", "Служебные", False, {"all": "@gardener"}],
-    ["state", "Стадия разработки", False, {"search": "@all"}],
-    ["genre", "Жанр", False, {}],
-    ["platform", "Платформа", True, {}],
-    ["country", "Страна", True, {"search": "@all"}],
-    ["control", "Управление", False, {}],
-    ["os", "Операционная система", False, {}],
-    ["competition", "Участник конкурса", True, {}],
-    ["tag", "Тэг", True, {}],
-    ["language", "Язык", True, {"search": "@all"}],
-    ["ifid", "IFID", True, {"search": "@all"}],
-    ["version", "Версия", True, {"search": "@all"}],
+    ["state", "Стадия разработки", False],
+    ["genre", "Жанр", False],
+    ["platform", "Платформа", True],
+    ["country", "Страна", True],
+    ["control", "Управление", False],
+    ["os", "Операционная система", False],
+    ["competition", "Участник конкурса", True],
+    ["tag", "Тэг", True],
+    ["language", "Язык", True],
+    ["ifid", "IFID", True],
+    ["version", "Версия", True],
 ]
 
 TAGS = [
@@ -128,19 +127,9 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING("already exists."))
 
         for x in TAG_CATS:
-            (slug, desc, allow_new, perm) = x
+            (slug, desc, allow_new) = x
             self.stdout.write("Tag cat: %s (%s)... " % (slug, desc), ending="")
             updates = {"name": desc, "allow_new_tags": allow_new}
-            if "all" in perm:
-                updates["show_in_edit_perm"] = perm["all"]
-                updates["show_in_search_perm"] = perm["all"]
-                updates["show_in_details_perm"] = perm["all"]
-            if "search" in perm:
-                updates["show_in_search_perm"] = perm["search"]
-            if "edit" in perm:
-                updates["show_in_search_perm"] = perm["edit"]
-            if "details" in perm:
-                updates["show_in_search_perm"] = perm["details"]
             _, created = GameTagCategory.objects.update_or_create(
                 symbolic_id=slug, defaults=updates
             )

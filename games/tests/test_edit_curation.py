@@ -80,7 +80,6 @@ class GameEditCurationViewTests(TestCase):
             state=Game.State.PUBLISHED,
             title="Old Title",
             creation_time=now(),
-            edit_perm="@admin",
         )
 
         response = self.client.get(reverse("edit_game", args=[game.id]))
@@ -89,6 +88,8 @@ class GameEditCurationViewTests(TestCase):
         self.assertNotContains(response, ">Сохранить</button>")
 
     def test_edit_page_button_says_save_with_edit_perm(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
         game = Game.objects.create(
             state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
         )
@@ -102,7 +103,6 @@ class GameEditCurationViewTests(TestCase):
             state=Game.State.PUBLISHED,
             title="Old Title",
             creation_time=now(),
-            edit_perm="@admin",
         )
 
         self.client.post(
@@ -121,6 +121,8 @@ class GameEditCurationViewTests(TestCase):
         self.assertIsNone(edit.published_by)
 
     def test_store_saves_with_edit_perm(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
         game = Game.objects.create(
             state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
         )
@@ -465,25 +467,27 @@ class GameEditCurationViewTests(TestCase):
         self.assertContains(response, "Unlinked Author")
 
     def test_game_page_moder_panel_links_to_curation_history(self):
-        self.user.groups.add(Group.objects.create(name="gardener"))
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
         game = self._published_game("Old Title")
         history = GameCuration.objects.create(game=game)
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
-        self.assertContains(response, "Модерация")
+        self.assertContains(response, 'title="Модерация"')
         self.assertNotContains(response, "Объединить")
         self.assertContains(
             response, reverse("curation_history_detail", args=[history.pk])
         )
 
     def test_game_page_moder_panel_omits_curation_without_history(self):
-        self.user.groups.add(Group.objects.create(name="gardener"))
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
         game = self._published_game("Old Title")
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
-        self.assertNotContains(response, "Модерация")
+        self.assertNotContains(response, 'title="Модерация"')
 
     def _make_history(self, state=None, title="Game"):
         game = Game.objects.create(
@@ -536,7 +540,6 @@ class GameEditCurationViewTests(TestCase):
         self.assertContains(response, ">Модерация</a>")
 
     def test_non_superuser_nav_omits_needs_attention_count(self):
-        self.user.groups.add(Group.objects.create(name="gardener"))
         self._make_history(state=GameCuration.State.NEEDS_ATTENTION)
 
         response = self.client.get(reverse("list_games"))
@@ -631,6 +634,8 @@ class GameEditCurationViewTests(TestCase):
         self.assertEqual(game.published_revision, prop2)
 
     def test_store_game_direct_apply_updates_published_revision(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
         game = Game.objects.create(
             state=Game.State.PUBLISHED,
             title="Initial Title",

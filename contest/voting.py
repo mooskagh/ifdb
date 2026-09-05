@@ -14,7 +14,7 @@ from moder.userlog import LogAction
 #
 # voting:
 #   open: bool
-#   allow_vote: '@notor'
+#   allow_vote: '@auth'
 #   start: timestamp
 #   end: timestamp
 #   sections:
@@ -296,7 +296,6 @@ def RenderVotingImpl(request, comp, voting, group, preview):
                     vote.SetVal(field["type"], cd[field["name"]])
                     vote.ip_addr = GetIpAddr(request)
                     vote.session = request.session.session_key
-                    vote.perm = str(request.perm)
                     vote.save()
         LogAction(
             request,
@@ -467,7 +466,6 @@ def RenderVotingImplV2(request, comp, voting, section_name, preview):
                 vote.SetVal(field["type"], cd[field["name"]])
                 vote.ip_addr = GetIpAddr(request)
                 vote.session = request.session.session_key
-                vote.perm = str(request.perm)
                 vote.save()
 
         LogAction(

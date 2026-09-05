@@ -1,6 +1,5 @@
 import json
 from collections import defaultdict
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from logging import getLogger
@@ -30,6 +29,7 @@ from .models import (
     GameURLCategory,
     PersonalityAlias,
 )
+from .permissions import can_comment_game, can_vote_game
 from .search import BaseXWriter
 from .tools import (
     ExtractYoutubeId,
@@ -40,10 +40,6 @@ from .tools import (
 )
 
 logger = getLogger("web")
-
-
-class Request(HttpRequest):
-    perm: Callable[[str], bool]
 
 
 class RoleCategory(Protocol):
@@ -62,7 +58,6 @@ class TagCategory(Protocol):
     id: int | None
     name: str
     order: int
-    show_in_details_perm: str
 
 
 _CategoryT = TypeVar("_CategoryT")
@@ -220,7 +215,6 @@ def _Category(row: _CategoryT | None, symbolic_id: str | None) -> _CategoryT:
             title=label,
             order=1000,
             allow_cloning=False,
-            show_in_details_perm="@all",
         ),
     )
 
@@ -315,7 +309,9 @@ class GameDetailsBuilder:
     def __init__(self, info: GameInfo):
         self.info = info
 
-    def GetContentDict(self, request: Request | None = None) -> GameContent:
+    def GetContentDict(
+        self, request: HttpRequest | None = None
+    ) -> GameContent:
         people = self.GetPeople()
         urls = _PartitionUrls(self.GetUrls())
         return GameContent(
@@ -333,12 +329,12 @@ class GameDetailsBuilder:
             description_attributions=self.GetAttributions(),
         )
 
-    def GetGameDict(self, game: Game, request: Request) -> GamePage:
+    def GetGameDict(self, game: Game, request: HttpRequest) -> GamePage:
         content = self.GetContentDict(request)
         return GamePage(
             **vars(content),
-            comment_perm=request.perm(game.comment_perm),
-            vote_perm=request.perm(game.vote_perm),
+            comment_perm=can_comment_game(request.user, game),
+            vote_perm=can_vote_game(request.user, game),
             added_date=FormatDate(game.creation_time),
             game=game,
             moder_actions=GetModerActions(request, "Game", game),
@@ -471,7 +467,7 @@ class GameDetailsBuilder:
         return result
 
     def GetTagsForDetails(
-        self, request: Request | None = None
+        self, request: HttpRequest | None = None
     ) -> GameTagDetails:
         primary_sids = {"version", "language", "platform", "age"}
         stored = {
@@ -507,12 +503,6 @@ class GameDetailsBuilder:
             category: TagCategory = cast(
                 TagCategory, _Category(category_row, category_id)
             )
-            if (
-                request is not None
-                and category_row is not None
-                and not request.perm(category_row.show_in_details_perm)
-            ):
-                continue
             if tag_row:
                 writer = BaseXWriter()
                 writer.addHeader(2, category.id)
@@ -591,7 +581,7 @@ class GameDetailsBuilder:
             for entry in comps
         ]
 
-    def GetGameScore(self, game: Game, request: Request) -> GameScore:
+    def GetGameScore(self, game: Game, request: HttpRequest) -> GameScore:
         user = request.user if request.user.is_authenticated else None
         votes = list(game.gamevote_set.all())
         scores = [vote.star_rating for vote in votes]
@@ -607,7 +597,7 @@ class GameDetailsBuilder:
         return result
 
     def GetGameComments(
-        self, game: Game, request: Request
+        self, game: Game, request: HttpRequest
     ) -> list[GameCommentValue]:
         comments = []
         for comment in game.gamecomment_set.select_related(

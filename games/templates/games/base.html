@@ -69,8 +69,7 @@
                     {% if user.is_staff %}
                         <a href="/adminz/">Django Admin</a>
                     {% endif %}
-                    {% has_perm "(alias curation_admin)" as can_curate %}
-                    {% if can_curate %}
+                    {% if user.is_staff or user.is_superuser %}
                         {% needs_attention_history_count as needs_attention_count %}
                         {% if needs_attention_count %}
                             <a class="top-nav-attention {% current 'curation_history_list' %}" href="{% url 'curation_history_list' %}">Модерация ({{ needs_attention_count }})</a>

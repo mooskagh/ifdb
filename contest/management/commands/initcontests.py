@@ -223,7 +223,6 @@ class Command(BaseCommand):
                 )
                 doc.text = data["desc"]
                 doc.competition = comp
-                doc.view_perm = "@all"
                 doc.save()
 
                 for x in data["urls"]:
@@ -278,7 +277,6 @@ class Command(BaseCommand):
             doc.title = "Результаты" if is_comp else "Участники"
             doc.text = "{{RESULTS}}" if is_comp else "{{PARTICIPANTS}}"
             doc.competition = comp
-            doc.view_perm = "@all"
             doc.save()
 
             tag = TitleToTag(title)

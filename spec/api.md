@@ -2,13 +2,85 @@
 
 The IFDB REST API allows clients to programmatically create, retrieve, update, and publish games using the canonical text format, as well as upload game files and attach download links.
 
-Interactive documentation (Redoc) is available at `/api/docs/` and the machine-readable OpenAPI 3.0 specification is served at `/api/openapi.json`.
+The machine-readable OpenAPI 3.0 specification is served at `/api/openapi.json`.
+
+---
+
+## Canonical Format Reference
+
+The **canonical format** is the YAML front matter + Markdown representation of a game.
+
+```yaml
+---
+- name: "The Lost Cavern"
+- release_date: "2026-03-01"
+- personalities:
+  - author:
+    - "John Doe"
+  - translator:
+    - "Jane Smith"
+- tags:
+  - ["genre", "Приключения"]
+  - ["os", "Windows"]
+  - ["platform", "QSP"]
+  - ["control", "Парсерная"]
+  - ["state", "Готовая"]
+- urls:
+  - ["download_direct", "Windows archive", "https://ifdb.example.com/f/uploads/games/42/game.zip"]
+  - ["play_online", "Play in browser", "https://example.com/play/"]
+- attributions:
+  - "ifwiki.ru"
+---
+Markdown description body...
+```
+
+### Supported Front Matter Fields:
+1. `name`: Game title (string).
+2. `release_date`: Release date (`YYYY-MM-DD` or year `YYYY`).
+3. `personalities`: Grouped by role. Names are scalar strings or database alias IDs. Supported roles:
+   - `author`: Author
+   - `orig_author`: Original author
+   - `programmer`: Programmer
+   - `artist`: Artist / illustrator
+   - `composer`: Composer / musician
+   - `voiceover`: Voice actor
+   - `tester`: Playtester
+   - `translator`: Translator
+   - `porter`: Platform porter
+   - `character`: Character
+   - `member`: Other team member
+4. `tags`: Pairs of `[category, value]`, `[category, tag_id]`, or tag slugs (`"os_win"`, `"g_adventure"`). Categories:
+   - `genre`: Genres (`Приключения`, `Фэнтези`, `Детектив`, `Хоррор`, `Юмор`, `Фантастика`, `Боевик`, `Драма`, `Дистопия`, `Сказка`, `Фанфик`, `Мистика`, `Головоломка`, `Романтика`, `RPG`, `Симулятор`, `Детское`, `18+`, `Экспериментальное`)
+   - `platform`: Game engine/platform (free text, e.g. `QSP`, `URQ`, `Twine`, `INSTEAD`, `Ren'Py`, `Inform`, `AXMA`, `HTML`)
+   - `os`: Operating system (`Windows`, `Web (online)`, `Linux`, `MacOs`, `Android`, `iOS`, `DOS`, `Другая ОС`)
+   - `control`: Controls (`Парсерная`, `Менюшная`)
+   - `state`: Development state (`Готовая`, `В разработке`, `Бета`, `Демо`)
+   - `language`: Language (`ru`, `en`, etc.)
+   - `country`: Country of origin
+   - `competition`: Competition participation
+   - `version`: Game version
+   - `ifid`: IFID identifier
+   - `tag`: Freeform user tags (e.g. `ifwiki_featured`)
+   - `admin`: Administrative flags
+5. `urls`: Items of `[category, description, url_or_id]` or `[category, url_or_id]`. Categories:
+   - `download_direct`: Direct download link to game archive/file
+   - `download_landing`: File hosting / landing page download link
+   - `play_online`: Online playable web link
+   - `game_page`: External game page (itch.io, Steam, etc.)
+   - `poster`: Poster / cover art
+   - `screenshot`: Screenshot
+   - `forum`: Forum discussion thread
+   - `review`: Review
+   - `video`: Video (walkthrough, review, trailer)
+   - `other`: Other link
+   - `unknown`: Uncategorized
+6. `attributions`: List of source strings (e.g. `"ifwiki.ru"`, `"Википедия"`) or numeric IDs.
 
 ---
 
 ## Authentication & Authorization
 
-All mutating endpoints require an API token. API tokens can be created in the Django Admin (`/adminz/api/apitoken/`).
+All mutating endpoints require an API token.
 
 ### Headers
 
@@ -33,11 +105,7 @@ Each token is linked to a user account and has a `permissions` list. If the list
 
 ### Attribution
 
-Actions performed via the API record:
-- `Game.added_by` is set to the token owner.
-- `GameRevision.created_by` and `GameRevision.published_by` are set to the token owner.
-- `GameRevision.origin` is set to `API`.
-- `URL.creator` is set to the token owner.
+All actions and edits performed via the API appear as the user associated with the token.
 
 ---
 
@@ -55,7 +123,7 @@ Create a new game.
 **JSON Request Body**:
 ```json
 {
-  "canonical_text": "---\n- name: \"The Lost Cavern\"\n- release_date: 2026-03-01\n- tags:\n  - [\"genre\", \"Приключения\"]\n---\nA thrilling text adventure in a sunken cave system.",
+  "canonical_text": "---\n- name: \"The Lost Cavern\"\n- release_date: 2026-03-01\n- personalities:\n  - author:\n    - \"John Doe\"\n- tags:\n  - [\"genre\", \"Приключения\"]\n---\nA thrilling text adventure in a sunken cave system.",
   "state": "draft"
 }
 ```
@@ -65,6 +133,9 @@ Create a new game.
 ---
 - name: "The Lost Cavern"
 - release_date: 2026-03-01
+- personalities:
+  - author:
+    - "John Doe"
 - tags:
   - ["genre", "Приключения"]
 ---
@@ -223,7 +294,6 @@ Upload a file directly connected to an existing game.
 
 ---
 
-### 3. Documentation
+### 3. OpenAPI Specification
 
-- **Interactive UI**: `GET /api/docs/`
 - **OpenAPI Schema**: `GET /api/openapi.json`

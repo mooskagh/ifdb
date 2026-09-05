@@ -24,7 +24,6 @@ from games.models import (
     Personality,
     PersonalityAlias,
 )
-from ifdb.permissioner import Permissioner
 
 
 class GameDetailsContentTests(TestCase):
@@ -35,7 +34,6 @@ class GameDetailsContentTests(TestCase):
     def _request(self) -> Any:
         request = RequestFactory().get("/game/draft/")
         request.user = AnonymousUser()
-        setattr(request, "perm", Permissioner(request))
         return request
 
     def _counts(self) -> dict[str, int]:
