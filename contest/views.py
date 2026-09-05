@@ -17,6 +17,10 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 
+from contest.permissions import (
+    can_admin_competition,
+    can_view_competition_document,
+)
 from games.models import Game, GameAuthor, GameURL
 from games.tools import (
     ComputeGameRating,
@@ -211,7 +215,8 @@ def show_competition(request, slug, doc=""):
     except ObjectDoesNotExist:
         raise Http404()
 
-    request.perm.Ensure(docobj.view_perm)
+    if not can_view_competition_document(request.user, docobj):
+        raise PermissionDenied
     LogAction(request, "comp-view", is_mutation=False, obj=comp, obj2=docobj)
 
     logos = CompetitionURL.objects.filter(
@@ -223,7 +228,7 @@ def show_competition(request, slug, doc=""):
     for x in CompetitionDocument.objects.filter(competition=comp).order_by(
         "order", "slug"
     ):
-        if not request.perm(x.view_perm):
+        if not can_view_competition_document(request.user, x):
             continue
         x.current = x.slug == doc
         links.append(x)
@@ -632,10 +637,8 @@ def list_votes(request, id):
     voting = options.get("voting")
     if not voting:
         raise PermissionDenied
-    if comp.owner:
-        request.perm.Ensure("(o @admin [%d])" % comp.owner_id)
-    else:
-        request.perm.Ensure("(o @admin)")
+    if not can_admin_competition(request.user, comp):
+        raise PermissionDenied
 
     if "category" in request.GET:
         nomination_form = NominationSelectionForm(

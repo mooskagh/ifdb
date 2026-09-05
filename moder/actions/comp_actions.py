@@ -3,6 +3,7 @@ import json
 from django.urls import reverse
 
 from contest.models import CompetitionDocument
+from contest.permissions import can_admin_competition
 from moder.actions.tools import ModerAction, RegisterAction
 
 
@@ -42,10 +43,9 @@ class CompetitionDocLink(CompetitionAction):
     @classmethod
     def IsAllowed(cls, request, object):
         obj = cls.EnsureObj(object)
-        if obj and obj.competition and obj.competition.owner:
-            return request.perm(("(o @admin [%d])" % obj.competition.owner.id))
-        else:
-            return request.perm(cls.PERM)
+        if obj and obj.competition:
+            return can_admin_competition(request.user, obj.competition)
+        return False
 
 
 @RegisterAction
@@ -59,10 +59,9 @@ class CompetitionEditorLink(CompetitionAction):
     @classmethod
     def IsAllowed(cls, request, object):
         obj = cls.EnsureObj(object)
-        if obj and obj.competition and obj.competition.owner:
-            return request.perm(("(o @admin [%d])" % obj.competition.owner.id))
-        else:
-            return request.perm(cls.PERM)
+        if obj and obj.competition:
+            return can_admin_competition(request.user, obj.competition)
+        return False
 
 
 @RegisterAction
@@ -76,10 +75,9 @@ class CompetitionListLink(CompetitionAction):
     @classmethod
     def IsAllowed(cls, request, object):
         obj = cls.EnsureObj(object)
-        if obj and obj.competition and obj.competition.owner:
-            return request.perm(("(o @admin [%d])" % obj.competition.owner.id))
-        else:
-            return request.perm(cls.PERM)
+        if obj and obj.competition:
+            return can_admin_competition(request.user, obj.competition)
+        return False
 
 
 @RegisterAction
@@ -93,11 +91,10 @@ class VotingLink(CompetitionAction):
     @classmethod
     def IsAllowed(cls, request, object):
         obj = cls.EnsureObj(object)
+        if not obj or not obj.competition:
+            return False
         options = json.loads(obj.competition.options)
         voting = options.get("voting")
         if not voting:
             return False
-        if obj and obj.competition and obj.competition.owner:
-            return request.perm(("(o @admin [%d])" % obj.competition.owner.id))
-        else:
-            return request.perm(cls.PERM)
+        return can_admin_competition(request.user, obj.competition)

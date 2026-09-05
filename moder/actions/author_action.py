@@ -12,6 +12,7 @@ from games.models import (
     PersonalityAliasRedirect,
     PersonalityUrl,
 )
+from games.permissions import can_delete_author
 from moder.actions.tools import ModerAction, RegisterAction
 
 
@@ -327,7 +328,7 @@ class AuthorDeleteAction(AuthorAction):
 
     @classmethod
     def IsAllowed(cls, request, obj):
-        return request.perm(obj.edit_perm)
+        return can_delete_author(request.user, obj)
 
     def DoAction(self, action, form, execute):
         if execute:

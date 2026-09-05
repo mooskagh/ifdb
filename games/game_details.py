@@ -30,6 +30,7 @@ from .models import (
     GameURLCategory,
     PersonalityAlias,
 )
+from .permissions import can_comment_game, can_vote_game
 from .search import BaseXWriter
 from .tools import (
     ExtractYoutubeId,
@@ -337,8 +338,8 @@ class GameDetailsBuilder:
         content = self.GetContentDict(request)
         return GamePage(
             **vars(content),
-            comment_perm=request.perm(game.comment_perm),
-            vote_perm=request.perm(game.vote_perm),
+            comment_perm=can_comment_game(request.user, game),
+            vote_perm=can_vote_game(request.user, game),
             added_date=FormatDate(game.creation_time),
             game=game,
             moder_actions=GetModerActions(request, "Game", game),
@@ -507,12 +508,6 @@ class GameDetailsBuilder:
             category: TagCategory = cast(
                 TagCategory, _Category(category_row, category_id)
             )
-            if (
-                request is not None
-                and category_row is not None
-                and not request.perm(category_row.show_in_details_perm)
-            ):
-                continue
             if tag_row:
                 writer = BaseXWriter()
                 writer.addHeader(2, category.id)

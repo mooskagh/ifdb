@@ -89,6 +89,8 @@ class GameEditCurationViewTests(TestCase):
         self.assertNotContains(response, ">Сохранить</button>")
 
     def test_edit_page_button_says_save_with_edit_perm(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
         game = Game.objects.create(
             state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
         )
@@ -121,6 +123,8 @@ class GameEditCurationViewTests(TestCase):
         self.assertIsNone(edit.published_by)
 
     def test_store_saves_with_edit_perm(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
         game = Game.objects.create(
             state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
         )
@@ -631,6 +635,8 @@ class GameEditCurationViewTests(TestCase):
         self.assertEqual(game.published_revision, prop2)
 
     def test_store_game_direct_apply_updates_published_revision(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
         game = Game.objects.create(
             state=Game.State.PUBLISHED,
             title="Initial Title",

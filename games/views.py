@@ -5,6 +5,7 @@ from logging import getLogger
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.db import models
 from django.db.models import Count, OuterRef, Subquery
 from django.db.models.functions import Coalesce
@@ -17,7 +18,6 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 
 from core.snippets import RenderSnippets
 from curation.manual import store_manual_add, store_manual_edit
-from ifdb.permissioner import perm_required
 from moder.actions import GetModerActions
 from moder.userlog import LogAction
 
@@ -39,6 +39,13 @@ from .models import (
     Personality,
     PersonalityAlias,
 )
+from .permissions import (
+    can_add_game,
+    can_comment_game,
+    can_edit_game,
+    can_view_game,
+    can_vote_game,
+)
 from .search import EncodeSearch, MakeAuthorSearch, MakeSearch
 from .tools import (
     ComputeGameRating,
@@ -48,8 +55,6 @@ from .tools import (
 )
 from .updater import Importer2Json
 
-PERM_ADD_GAME = "@auth"  # Also for file upload, game import, vote
-PERM_ACCEPT_GAME_ADD = "(alias curation_admin)"
 logger = getLogger("web")
 
 
@@ -62,16 +67,15 @@ def index(request):
 
 @ensure_csrf_cookie
 @login_required
-@perm_required(PERM_ADD_GAME)
 def add_game(request):
+    if not can_add_game(request.user):
+        raise PermissionDenied
     return render(
         request,
         "games/edit.html",
         {
             "submit_label": (
-                "Сохранить"
-                if request.perm(PERM_ACCEPT_GAME_ADD)
-                else "Предложить"
+                "Сохранить" if can_edit_game(request.user) else "Предложить"
             ),
         },
     )
@@ -87,7 +91,9 @@ def edit_game(request, game_id):
         {
             "game_id": game.id,
             "submit_label": (
-                "Сохранить" if request.perm(game.edit_perm) else "Предложить"
+                "Сохранить"
+                if can_edit_game(request.user, game)
+                else "Предложить"
             ),
         },
     )
@@ -115,9 +121,11 @@ def store_game(request):
     is_new_game = "game_id" not in j
     if not is_new_game:
         game = get_object_or_404(Game.objects.published(), id=j["game_id"])
-        can_save = request.perm(game.edit_perm)
-        if not can_save:
-            request.perm.Ensure("@auth")
+        can_save = can_edit_game(request.user, game)
+        if not can_save and not (
+            request.user.is_authenticated and request.user.is_active
+        ):
+            raise PermissionDenied
         edit = store_manual_edit(game, j, request.user, apply=can_save)
         LogAction(
             request,
@@ -129,7 +137,9 @@ def store_game(request):
         )
         return redirect(reverse("show_game", kwargs={"game_id": game.id}))
 
-    can_save = request.perm(PERM_ACCEPT_GAME_ADD)
+    if not can_add_game(request.user):
+        raise PermissionDenied
+    can_save = can_edit_game(request.user)
     edit = store_manual_add(j, request.user, apply=can_save)
     game = edit.game
     LogAction(
@@ -154,7 +164,8 @@ def vote_game(request):
     if resolved is None:
         raise Http404()
     game, _ = resolved
-    request.perm.Ensure(game.vote_perm)
+    if not can_vote_game(request.user, game):
+        raise PermissionDenied
 
     before = None
     try:
@@ -295,7 +306,8 @@ def comment_game(request):
     if resolved is None:
         raise Http404()
     game, _ = resolved
-    request.perm.Ensure(game.comment_perm)
+    if not can_comment_game(request.user, game):
+        raise PermissionDenied
 
     comment = GameComment()
     comment.game = game
@@ -412,7 +424,8 @@ def show_game(request, game_id):
     if resolved is None:
         raise Http404()
     game, redirected = resolved
-    request.perm.Ensure(game.view_perm)
+    if not can_view_game(request.user, game):
+        raise PermissionDenied
     if redirected:
         location = reverse("show_game", kwargs={"game_id": game.id})
         if query_string := request.META.get("QUERY_STRING"):
@@ -533,21 +546,23 @@ def show_author(request, author_id):
 
 
 def list_games(request):
-    s = MakeSearch(request.perm)
+    s = MakeSearch(request.user)
     query = request.GET.get("q", "")
     s.UpdateFromQuery(query)
     return render(request, "games/search.html", s.ProduceBits())
 
 
 def list_authors(request):
-    s = MakeAuthorSearch(request.perm)
+    s = MakeAuthorSearch(request.user)
     query = request.GET.get("q", "")
     s.UpdateFromQuery(query)
     return render(request, "games/authors.html", s.ProduceBits())
 
 
-@perm_required(PERM_ADD_GAME)
+@login_required
 def upload(request):
+    if not can_add_game(request.user):
+        raise PermissionDenied
     file = request.FILES["file"]
     fs = settings.UPLOADS_FS
     filename = fs.save(file.name, file, max_length=64)
@@ -589,8 +604,6 @@ def authors(request):
 def tags(request):
     res = {"categories": [], "value": []}
     for x in GameTagCategory.objects.order_by("order", "name"):
-        if not request.perm(x.show_in_edit_perm):
-            continue
         val = {
             "id": x.id,
             "name": x.name,
@@ -622,7 +635,8 @@ def BuildJsonGameInfo(request, game_id):
     g = {}
     if game_id:
         game = get_object_or_404(Game.objects.published(), id=game_id)
-        request.perm.Ensure(game.view_perm)
+        if not can_view_game(request.user, game):
+            raise PermissionDenied
         g["title"] = game.title or ""
         g["desc"] = game.description or ""
         g["description_attributions"] = [
@@ -636,8 +650,6 @@ def BuildJsonGameInfo(request, game_id):
 
         g["tags"] = []
         for x in game.tags.select_related("category").all():
-            if not request.perm(x.category.show_in_edit_perm):
-                continue
             g["tags"].append((x.category_id, x.id))
 
         g["links"] = []
@@ -685,7 +697,7 @@ def json_author_search(request):
     limit = int(request.GET.get("limit", "30"))
     start_time = timeit.default_timer()
 
-    s = MakeAuthorSearch(request.perm)
+    s = MakeAuthorSearch(request.user)
     s.UpdateFromQuery(query)
     authors = s.Search(
         prefetch_related=["personalityalias_set__gameauthor_set__role"],
@@ -751,7 +763,7 @@ def json_search(request):
     limit = int(request.GET.get("limit", "80"))
 
     start_time = timeit.default_timer()
-    s = MakeSearch(request.perm)
+    s = MakeSearch(request.user)
     s.UpdateFromQuery(query)
     games = s.Search(
         prefetch_related=["gameauthor_set__author", "gameauthor_set__role"],
@@ -787,8 +799,10 @@ def json_search(request):
     return res
 
 
-@perm_required(PERM_ADD_GAME)
+@login_required
 def doImport(request):
+    if not can_add_game(request.user):
+        raise PermissionDenied
     importer = Importer()
     (raw_import, _) = importer.Import(request.GET.get("url"))
     if "error" in raw_import:

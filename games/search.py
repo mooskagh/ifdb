@@ -12,6 +12,7 @@ from .models import (
     Personality,
     PersonalityAlias,
 )
+from .permissions import can_view_author, can_view_game
 from .tools import (
     ComputeGameRating,
     ComputeHonors,
@@ -610,9 +611,9 @@ def LimitListlike(q, start, limit):
 
 
 class Search:
-    def __init__(self, cls, perm, queryset=None):
+    def __init__(self, cls, user=None, queryset=None):
         self.cls = cls
-        self.perm = perm
+        self.user = user
         self.queryset = queryset
         self.bits = []
         self.id_to_bit = {}
@@ -677,7 +678,12 @@ class Search:
         if not two_stage_fetch:
             q = LimitListlike(q, start, limit)
 
-        items = [x for x in q if self.perm(x.view_perm)]
+        if callable(self.user):
+            items = [x for x in q if self.user(x.view_perm)]
+        elif self.cls == Game:
+            items = [x for x in q if can_view_game(self.user, x)]
+        else:
+            items = [x for x in q if can_view_author(self.user, x)]
         for g in items:
             g.ds = {}
         for x in self.bits:
@@ -692,15 +698,18 @@ class Search:
         return items
 
 
-def MakeSearch(perm):
-    s = Search(Game, perm, queryset=Game.objects.published())
+def MakeSearch(user=None):
+    s = Search(Game, user, queryset=Game.objects.published())
     s.Add(SB_Sorting())
     s.Add(SB_Text())
     for x in GameTagCategory.objects.order_by("order").all():
-        if not perm(x.show_in_search_perm):
-            continue
         s.Add(SB_Tag(x))
-    if perm("@admin"):
+    is_admin = False
+    if callable(user):
+        is_admin = user("@admin")
+    elif user and getattr(user, "is_superuser", False):
+        is_admin = True
+    if is_admin:
         for x in GameAuthorRole.objects.all():
             s.Add(SB_Authors(x))
     s.Add(SB_UserFlags())
@@ -824,10 +833,10 @@ class SB_AuthorName(SearchBit):
         return res
 
 
-def MakeAuthorSearch(perm):
+def MakeAuthorSearch(user=None):
     s = Search(
         Personality,
-        perm,
+        user,
         queryset=(
             Personality.objects.filter(
                 personalityalias__gameauthor__game__in=Game.objects.published()
@@ -842,7 +851,7 @@ def MakeAuthorSearch(perm):
 def GameListFromSearch(
     request, query, reltime_field, max_secs, min_count, max_count
 ):
-    s = MakeSearch(request.perm)
+    s = MakeSearch(request.user)
     s.UpdateFromQuery(query)
     # TODO(crem) Game permissions!
     games = s.Search(

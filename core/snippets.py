@@ -82,7 +82,7 @@ def GameListSnippet(
     min_count=5,
     max_count=30,
 ):
-    s = MakeSearch(request.perm)
+    s = MakeSearch(request.user)
     s.UpdateFromQuery(query)
 
     prefetch_related = ["gameauthor_set__author", "gameauthor_set__role"]
@@ -767,16 +767,12 @@ def RenderSnippetContent(request, snippet):
 def AsyncSnippet(request):
     id = request.GET.get("s")
     snippet = Snippet.objects.get(pk=id)
-    if not request.perm(snippet.view_perm):
-        raise PermissionDenied()
     x = RenderSnippetContent(request, snippet)
     return HttpResponse(x.get("content", ""))
 
 
 def SnippetVisible(request, snippet):
     now = timezone.now()
-    if not request.perm(snippet.view_perm):
-        return False
     if snippet.show_start and snippet.show_start > now:
         return False
     if snippet.show_end and snippet.show_end < now:
