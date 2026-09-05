@@ -31,6 +31,7 @@ urlpatterns = [
     path("jam/", include("contest.urls"), name="contest"),
     path("rss/", include("rss.urls"), name="rss"),
     path("curation/", include("curation.urls"), name="curation"),
+    path("api/", include("api.urls")),
 ]
 
 if settings.DEBUG:
