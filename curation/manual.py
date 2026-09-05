@@ -13,7 +13,7 @@ from games.models import (
     GameURLCategory,
 )
 
-from .models import GameHistory, GameHistoryAuditLog
+from .models import GameCuration, GameHistoryAuditLog
 
 
 def editor_payload_to_gameinfo(data: dict) -> GameInfo:
@@ -38,7 +38,7 @@ def editor_payload_to_gameinfo(data: dict) -> GameInfo:
 def store_manual_edit(
     game: Game, data: dict, user, *, apply: bool
 ) -> GameRevision:
-    history = _history_for_game(game)
+    curation = _curation_for_game(game)
     previous_edit = _latest_applied_edit(game)
     before = previous_edit.canonical_text if previous_edit else ""
     info = editor_payload_to_gameinfo(data)
@@ -65,17 +65,16 @@ def store_manual_edit(
     if previous_edit is not None:
         edit.used_sources.set(previous_edit.used_sources.all())
 
-    old_note = history.note
+    old_note = curation.note
     if apply:
         game.publish_revision(edit, actor=user)
-        history.state = GameHistory.State.SETTLED
-        history.note = None
+        curation.state = GameCuration.State.SETTLED
+        curation.note = None
     else:
-        history.state = GameHistory.State.NEEDS_ATTENTION
-        history.note = "Пользователь предложил правку"
-    GameHistoryAuditLog.record_note_change(game, user, old_note, history.note)
-    history.edit_time = now()
-    history.save(update_fields=["state", "note", "edit_time"])
+        curation.state = GameCuration.State.NEEDS_ATTENTION
+        curation.note = "Пользователь предложил правку"
+    GameHistoryAuditLog.record_note_change(game, user, old_note, curation.note)
+    curation.save(update_fields=["state", "note"])
     return edit
 
 
@@ -89,16 +88,14 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameRevision:
     game.added_by = user
     game.save(update_fields=["added_by"])
 
-    history = GameHistory.objects.create(
+    curation = GameCuration.objects.create(
         game=game,
-        creation_time=now(),
         state=(
-            GameHistory.State.SETTLED
+            GameCuration.State.SETTLED
             if apply
-            else GameHistory.State.NEEDS_ATTENTION
+            else GameCuration.State.NEEDS_ATTENTION
         ),
         note=None if apply else "Пользователь предложил новую игру",
-        edit_time=now(),
     )
     edit = GameRevision.objects.create(
         game=game,
@@ -120,23 +117,23 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameRevision:
         canonical_text=after if apply else canonical,
     )
     if not apply:
-        GameHistoryAuditLog.record_note_change(game, user, None, history.note)
+        GameHistoryAuditLog.record_note_change(game, user, None, curation.note)
     else:
         game.publish_revision(edit, actor=user)
         PostNewGameToDiscord(game.id)
     return edit
 
 
-def _history_for_game(game: Game) -> GameHistory:
-    history, _ = GameHistory.objects.get_or_create(
-        game=game,
-        defaults={"creation_time": now()},
-    )
-    return history
+def _curation_for_game(game: Game) -> GameCuration:
+    curation, _ = GameCuration.objects.get_or_create(game=game)
+    return curation
 
 
-def _latest_applied_edit(target: Game | GameHistory) -> GameRevision | None:
-    game = target.game if isinstance(target, GameHistory) else target
+_history_for_game = _curation_for_game
+
+
+def _latest_applied_edit(target: Game | GameCuration) -> GameRevision | None:
+    game = target.game if isinstance(target, GameCuration) else target
     if game.published_revision_id:
         return game.published_revision
     return (

@@ -11,7 +11,7 @@ from games.models import Personality, PersonalityAlias
 class DedupPersonalityAliasesPassTest(TestCase):
     def _state(self, current: GameInfo, served: GameInfo | None = None):
         return GameEditState(
-            history=None,
+            curation=None,
             current=current,
             approval=Approval.APPLIED,
             served=served or GameInfo(),

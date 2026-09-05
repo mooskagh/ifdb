@@ -44,10 +44,13 @@ from .manual_reconcile import (
     initial_payload,
     save_reconcile_payload,
 )
-from .merge import contest_related_usage, merge_game_into_history
+from .merge import (
+    contest_related_usage,
+    merge_game_into_game,
+)
 from .models import (
     EditPipeline,
-    GameHistory,
+    GameCuration,
     GameHistoryAuditLog,
     GameHistoryComment,
     GameSource,
@@ -231,23 +234,23 @@ COMMENT_TYPE_COLORS = {
 # Fields editable from the detail view, mapped to their model choices.
 EDITABLE_FIELDS = {
     "auto_updates": (
-        GameHistory.AutoUpdate,
+        GameCuration.AutoUpdate,
         GameHistoryAuditLog.AuditField.AUTO_UPDATES,
     ),
-    "state": (GameHistory.State, GameHistoryAuditLog.AuditField.STATE),
+    "state": (GameCuration.State, GameHistoryAuditLog.AuditField.STATE),
 }
 
 HISTORY_STATE_SHORT = {
-    GameHistory.State.SETTLED: "готово",
-    GameHistory.State.SCHEDULED_FOR_UPDATE: "заплан.",
-    GameHistory.State.PROCESSING: "обраб.",
-    GameHistory.State.NEEDS_ATTENTION: "внимание",
-    GameHistory.State.ABANDONED: "заброш.",
+    GameCuration.State.SETTLED: "готово",
+    GameCuration.State.SCHEDULED_FOR_UPDATE: "заплан.",
+    GameCuration.State.PROCESSING: "обраб.",
+    GameCuration.State.NEEDS_ATTENTION: "внимание",
+    GameCuration.State.ABANDONED: "заброш.",
 }
 HISTORY_AUTO_SHORT = {
-    GameHistory.AutoUpdate.REJECT: "откл.",
-    GameHistory.AutoUpdate.PROPOSE: "предл.",
-    GameHistory.AutoUpdate.ACCEPT: "авто",
+    GameCuration.AutoUpdate.REJECT: "откл.",
+    GameCuration.AutoUpdate.PROPOSE: "предл.",
+    GameCuration.AutoUpdate.ACCEPT: "авто",
 }
 
 
@@ -260,8 +263,8 @@ def history_list(request):
     pending_edits = GameRevision.objects.filter(
         game=OuterRef("game_id"), status=GameRevision.Status.PROPOSED
     ).order_by("-created_at", "-pk")
-    histories = GameHistory.objects.select_related("game").annotate(
-        updated=Coalesce("edit_time", "creation_time"),
+    histories = GameCuration.objects.select_related("game").annotate(
+        updated=Coalesce("game__edit_time", "game__creation_time"),
         pending_edit_id=Subquery(pending_edits.values("pk")[:1]),
     )
     if q:
@@ -277,7 +280,7 @@ def history_list(request):
         sort = "relevance"
         histories = histories.annotate(
             attention_rank=Case(
-                When(state=GameHistory.State.NEEDS_ATTENTION, then=0),
+                When(state=GameCuration.State.NEEDS_ATTENTION, then=0),
                 default=1,
                 output_field=IntegerField(),
             ),
@@ -304,8 +307,8 @@ def history_list(request):
             "state": state,
             "auto": auto,
             "sort": sort,
-            "state_choices": GameHistory.State.choices,
-            "auto_choices": GameHistory.AutoUpdate.choices,
+            "state_choices": GameCuration.State.choices,
+            "auto_choices": GameCuration.AutoUpdate.choices,
         },
     )
 
@@ -454,8 +457,8 @@ def _render_tasks(request):
         .distinct()
         .count()
     )
-    scheduled_histories = GameHistory.objects.filter(
-        state=GameHistory.State.SCHEDULED_FOR_UPDATE
+    scheduled_histories = GameCuration.objects.filter(
+        state=GameCuration.State.SCHEDULED_FOR_UPDATE
     ).count()
     return render(
         request,
@@ -925,13 +928,11 @@ def source_fetch_content(request, fetch_id, kind):
     return HttpResponse(content, content_type="text/plain; charset=utf-8")
 
 
-def history_source_add(request, history_id):
+def history_source_add(request, game_id):
     if request.method != "POST":
         return HttpResponseBadRequest("Only POST is supported.")
 
-    history = get_object_or_404(
-        GameHistory.objects.select_related("game"), pk=history_id
-    )
+    game = get_object_or_404(Game, pk=game_id)
     source_id = (request.POST.get("source_id") or "").strip()
     if source_id:
         with transaction.atomic():
@@ -940,8 +941,8 @@ def history_source_add(request, history_id):
             )
             if source.game_id is not None:
                 return HttpResponseBadRequest("Source is already attached.")
-            _attach_source(history, source, request.user)
-        return redirect("curation_history_detail", history_id=history.pk)
+            _attach_source(game, source, request.user)
+        return redirect("curation_history_detail", game_id=game.pk)
 
     source_type = request.POST.get("type")
     if source_type not in GameSource.SourceType.values:
@@ -967,27 +968,25 @@ def history_source_add(request, history_id):
                 url=url,
                 created_at=now(),
             )
-        _attach_source(history, source, request.user)
+        _attach_source(game, source, request.user)
 
-    return redirect("curation_history_detail", history_id=history.pk)
+    return redirect("curation_history_detail", game_id=game.pk)
 
 
-def _attach_source(history, source, user):
-    source.game = history.game
+def _attach_source(game, source, user):
+    source.game = game
     source.save(update_fields=["game"])
     GameHistoryAuditLog.record_source(
-        history.game,
+        game,
         user,
         GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
         source,
     )
-    history.edit_time = now()
-    history.save(update_fields=["edit_time"])
 
 
-def _detach_source(history, source, user, *, keep_orphan=False):
+def _detach_source(game, source, user, *, keep_orphan=False):
     GameHistoryAuditLog.record_source(
-        history.game,
+        game,
         user,
         GameHistoryAuditLog.AuditKind.SOURCE_DETACHED,
         source,
@@ -997,22 +996,20 @@ def _detach_source(history, source, user, *, keep_orphan=False):
     source.save(update_fields=["game", "keep_orphan"])
 
 
-def history_sources_fetch_now(request, history_id):
+def history_sources_fetch_now(request, game_id):
     if request.method != "POST":
         return HttpResponseBadRequest("Only POST is supported.")
 
-    history = get_object_or_404(GameHistory, pk=history_id)
+    game = get_object_or_404(Game, pk=game_id)
     source_ids = list(
-        GameSource.objects.filter(game=history.game).values_list(
-            "pk", flat=True
-        )
+        GameSource.objects.filter(game=game).values_list("pk", flat=True)
     )
     for source_id in source_ids:
         fetch_sources.delay(limit=None, source_id=source_id)
     messages.success(
         request, f"Источники поставлены в очередь: {len(source_ids)}."
     )
-    return redirect("curation_history_detail", history_id=history.pk)
+    return redirect("curation_history_detail", game_id=game.pk)
 
 
 # LLMModel fields synced from OpenRouter, compared to skip unchanged rows.
@@ -1072,29 +1069,25 @@ def _llm_models_post(request):
     return redirect("curation_llm_models")
 
 
-def history_source_detach(request, history_id, source_id):
+def history_source_detach(request, game_id, source_id):
     if request.method != "POST":
         return HttpResponseBadRequest("Only POST is supported.")
 
     with transaction.atomic():
-        history = get_object_or_404(
-            GameHistory.objects.select_for_update(), pk=history_id
-        )
+        game = get_object_or_404(Game, pk=game_id)
         source = get_object_or_404(
             GameSource.objects.select_for_update(),
             pk=source_id,
-            game=history.game,
+            game=game,
         )
         _detach_source(
-            history,
+            game,
             source,
             request.user,
             keep_orphan=request.POST.get("keep_orphan") == "on",
         )
-        history.edit_time = now()
-        history.save(update_fields=["edit_time"])
 
-    return redirect("curation_history_detail", history_id=history.pk)
+    return redirect("curation_history_detail", game_id=game.pk)
 
 
 def _sources_by_ids(ids):
@@ -1160,15 +1153,12 @@ def discovery_detail(request, status_id):
     )
 
 
-def history_detail(request, history_id):
-    history = get_object_or_404(
-        GameHistory.objects.select_related("game"), pk=history_id
-    )
-    sources = list(GameSource.objects.filter(game=history.game))
+def history_detail(request, game_id):
+    game = get_object_or_404(Game, pk=game_id)
+    curation, _ = GameCuration.objects.get_or_create(game=game)
+    sources = list(GameSource.objects.filter(game=game))
     check_compatibility = request.GET.get("check_compatibility") == "1"
-    playable_files = _build_playable_files(
-        history.game_id, check_compatibility
-    )
+    playable_files = _build_playable_files(game.pk, check_compatibility)
 
     timeline = []
     for source in sources:
@@ -1181,9 +1171,9 @@ def history_detail(request, history_id):
                 "who": None,
             })
 
-    fetches = GameSourceFetch.objects.filter(
-        source__game=history.game
-    ).select_related("source")
+    fetches = GameSourceFetch.objects.filter(source__game=game).select_related(
+        "source"
+    )
     for fetch in fetches:
         timeline.append({
             "ts": fetch.first_fetch,
@@ -1205,7 +1195,7 @@ def history_detail(request, history_id):
 
     edits = list(
         GameRevision.objects
-        .filter(game=history.game)
+        .filter(game=game)
         .select_related("created_by", "published_by")
         .prefetch_related(
             Prefetch(
@@ -1228,7 +1218,7 @@ def history_detail(request, history_id):
         })
 
     for trajectory in LlmTrajectory.objects.filter(
-        game=history.game, edit__isnull=True
+        game=game, edit__isnull=True
     ).select_related("workflow", "model"):
         timeline.append({
             "ts": trajectory.created_at,
@@ -1238,9 +1228,9 @@ def history_detail(request, history_id):
             "who": None,
         })
 
-    for comment in GameHistoryComment.objects.filter(
-        game=history.game
-    ).select_related("user"):
+    for comment in GameHistoryComment.objects.filter(game=game).select_related(
+        "user"
+    ):
         timeline.append({
             "ts": comment.creation_time,
             "kind": "comment",
@@ -1249,9 +1239,9 @@ def history_detail(request, history_id):
             "who": comment.user,
         })
 
-    for log in GameHistoryAuditLog.objects.filter(
-        game=history.game
-    ).select_related("actor"):
+    for log in GameHistoryAuditLog.objects.filter(game=game).select_related(
+        "actor"
+    ):
         timeline.append({
             "ts": log.created_at,
             "kind": "audit",
@@ -1266,14 +1256,15 @@ def history_detail(request, history_id):
         request,
         "curation/history_detail.html",
         {
-            "history": history,
-            "game": history.game,
+            "history": curation,
+            "curation": curation,
+            "game": game,
             "sources": sources,
             "playable_files": playable_files,
             "check_compatibility": check_compatibility,
             "groups": _group_timeline(timeline),
-            "auto_choices": GameHistory.AutoUpdate.choices,
-            "state_choices": GameHistory.State.choices,
+            "auto_choices": GameCuration.AutoUpdate.choices,
+            "state_choices": GameCuration.State.choices,
             "source_type_choices": GameSource.SourceType.choices,
             "proposed_edit_status": GameRevision.Status.PROPOSED,
             "edit_pipelines": EditPipeline.objects.order_by("id"),
@@ -1281,47 +1272,45 @@ def history_detail(request, history_id):
     )
 
 
-def history_comment_add(request, history_id):
+def history_comment_add(request, game_id):
     if request.method != "POST":
         return HttpResponseBadRequest("POST required.")
-    history = get_object_or_404(
-        GameHistory.objects.select_related("game"), pk=history_id
-    )
+    game = get_object_or_404(Game, pk=game_id)
     text = request.POST.get("text", "").strip()
     if not text:
         messages.error(request, "Комментарий не может быть пустым.")
-        return redirect("curation_history_detail", history_id=history.pk)
+        return redirect("curation_history_detail", game_id=game.pk)
 
     GameHistoryComment.objects.create(
-        game=history.game,
+        game=game,
         user=request.user,
         type=GameHistoryComment.CommentType.MODS_COMMENT,
         text=text,
         creation_time=now(),
     )
     messages.success(request, "Комментарий добавлен.")
-    return redirect("curation_history_detail", history_id=history.pk)
+    return redirect("curation_history_detail", game_id=game.pk)
 
 
-def history_run_edit(request, history_id):
+def history_run_edit(request, game_id):
     if request.method != "POST":
         return HttpResponseBadRequest("POST required.")
-    history = get_object_or_404(GameHistory, pk=history_id)
-    if history.state == GameHistory.State.ABANDONED:
+    curation = get_object_or_404(GameCuration, pk=game_id)
+    if curation.state == GameCuration.State.ABANDONED:
         messages.error(request, "Заброшенную админку нельзя обрабатывать.")
-        return redirect("curation_history_detail", history_id=history.pk)
+        return redirect("curation_history_detail", game_id=curation.pk)
     pipeline = _pipeline_from_post(request.POST)
     edit_sources.delay(
-        history_id=history.pk, pipeline_id=pipeline.pk, force=True
+        game_id=curation.pk, pipeline_id=pipeline.pk, force=True
     )
     messages.success(request, "Задание на обработку админки запущено.")
-    return redirect("curation_history_detail", history_id=history.pk)
+    return redirect("curation_history_detail", game_id=curation.pk)
 
 
 def edit_diff(request, edit_id):
     edit = get_object_or_404(
         GameRevision.objects.select_related(
-            "game__gamehistory", "created_by", "published_by"
+            "game__curation", "created_by", "published_by"
         ).prefetch_related(
             Prefetch(
                 "llmtrajectory_set",
@@ -1333,8 +1322,8 @@ def edit_diff(request, edit_id):
         ),
         pk=edit_id,
     )
-    history = getattr(edit.game, "gamehistory", None)
-    before = _served_canonical(history) if history else ""
+    curation = getattr(edit.game, "curation", None)
+    before = _served_canonical(curation or edit.game)
     edit.display_passes = _display_passes(edit.passes)
 
     if request.method == "POST":
@@ -1343,7 +1332,7 @@ def edit_diff(request, edit_id):
             with transaction.atomic():
                 edit = GameRevision.objects.select_for_update().get(pk=edit.pk)
                 edit = GameRevision.objects.select_related(
-                    "game__gamehistory"
+                    "game__curation"
                 ).get(pk=edit.pk)
                 try:
                     new_edit = _propose_from_settled_edit(
@@ -1361,37 +1350,44 @@ def edit_diff(request, edit_id):
             )
         with transaction.atomic():
             edit = GameRevision.objects.select_for_update().get(pk=edit.pk)
-            edit = GameRevision.objects.select_related(
-                "game__gamehistory"
-            ).get(pk=edit.pk)
+            edit = GameRevision.objects.select_related("game__curation").get(
+                pk=edit.pk
+            )
             if edit.status != GameRevision.Status.PROPOSED:
                 return HttpResponseBadRequest(
                     "Only proposed edits can be settled."
                 )
-            history = getattr(edit.game, "gamehistory", None)
-            before = _served_canonical(history) if history else ""
+            curation = getattr(edit.game, "curation", None)
+            before = _served_canonical(curation or edit.game)
             if action == "accept":
-                if history:
-                    _update_auto_accept(history, request)
-                _accept_edit(edit, history, before, request.user)
+                if curation:
+                    _update_auto_accept(curation, request)
+                _accept_edit(edit, curation, before, request.user)
             else:
-                _reject_edit(edit, history, before, request.user)
-        return _redirect_after_edit(request.POST.get("next"), edit, history)
+                _reject_edit(edit, curation, before, request.user)
+        return _redirect_after_edit(
+            request.POST.get("next"), edit, curation or edit.game
+        )
 
     return render(
         request,
         "curation/edit_diff.html",
         {
             "edit": edit,
-            "game": history.game,
-            "history": history,
+            "game": edit.game,
+            "history": curation,
+            "curation": curation,
             "show_actions": edit.status == GameRevision.Status.PROPOSED,
-            "settled_action": _settled_edit_action(edit, history),
+            "settled_action": _settled_edit_action(
+                edit, curation or edit.game
+            ),
             "show_auto_accept": (
-                history.auto_updates != GameHistory.AutoUpdate.REJECT
+                curation is not None
+                and curation.auto_updates != GameCuration.AutoUpdate.REJECT
             ),
             "auto_accept_checked": (
-                history.auto_updates == GameHistory.AutoUpdate.ACCEPT
+                curation is not None
+                and curation.auto_updates == GameCuration.AutoUpdate.ACCEPT
             ),
             "rows": build_diff(
                 edit.previous_canonical_text
@@ -1444,9 +1440,9 @@ def _settled_edit_action(edit, history):
 
 
 def _propose_from_settled_edit(edit, user, post):
-    history = getattr(edit.game, "gamehistory", None)
-    if history:
-        base = _served_gameinfo(history)
+    curation = getattr(edit.game, "curation", None)
+    if curation:
+        base = _served_gameinfo(curation)
     else:
         latest = _latest_applied_edit(edit.game)
         base = parse(latest.canonical_text) if latest else GameInfo()
@@ -1499,15 +1495,15 @@ def _propose_from_settled_edit(edit, user, post):
     )
     if source_edit is not None:
         new_edit.used_sources.set(source_edit.used_sources.all())
-    if history is not None:
-        history.state = GameHistory.State.NEEDS_ATTENTION
-        history.edit_time = now()
-        history.save(update_fields=["state", "edit_time"])
+    if curation is not None:
+        curation.state = GameCuration.State.NEEDS_ATTENTION
+        curation.save(update_fields=["state"])
     return new_edit
 
 
-def _served_gameinfo(history):
-    edit = _latest_applied_edit(history)
+def _served_gameinfo(target):
+    game = getattr(target, "game", target)
+    edit = _latest_applied_edit(game)
     return parse(edit.canonical_text) if edit else GameInfo()
 
 
@@ -1560,65 +1556,66 @@ def _previous_applied_edit(edit):
     return previous
 
 
-def _redirect_after_edit(next_page, edit, history):
-    if next_page == "edit_game" and history.game.state == Game.State.PUBLISHED:
-        return redirect("edit_game", game_id=history.game_id)
-    if next_page == "game" and history.game.state == Game.State.PUBLISHED:
-        return redirect("show_game", game_id=history.game_id)
+def _redirect_after_edit(next_page, edit, target):
+    game = getattr(target, "game", target)
+    if next_page == "edit_game" and game.state == Game.State.PUBLISHED:
+        return redirect("edit_game", game_id=game.pk)
+    if next_page == "game" and game.state == Game.State.PUBLISHED:
+        return redirect("show_game", game_id=game.pk)
     if next_page == "history":
-        return redirect("curation_history_detail", history_id=history.pk)
+        return redirect("curation_history_detail", game_id=game.pk)
     if next_page == "stay":
         return redirect("curation_edit_diff", edit_id=edit.pk)
     return redirect("curation_history_list")
 
 
-def _served_canonical(history):
-    edit = _latest_applied_edit(history)
+def _served_canonical(target):
+    game = getattr(target, "game", target)
+    edit = _latest_applied_edit(game)
     return edit.canonical_text if edit else ""
 
 
-def _update_auto_accept(history, request):
-    if history.auto_updates == GameHistory.AutoUpdate.REJECT:
+def _update_auto_accept(curation, request):
+    if curation.auto_updates == GameCuration.AutoUpdate.REJECT:
         return
     new = (
-        GameHistory.AutoUpdate.ACCEPT
+        GameCuration.AutoUpdate.ACCEPT
         if request.POST.get("auto_accept") == "on"
-        else GameHistory.AutoUpdate.PROPOSE
+        else GameCuration.AutoUpdate.PROPOSE
     )
-    if history.auto_updates == new:
+    if curation.auto_updates == new:
         return
     GameHistoryAuditLog.record_change(
-        history,
+        curation.game,
         request.user,
         GameHistoryAuditLog.AuditField.AUTO_UPDATES,
-        history.auto_updates,
+        curation.auto_updates,
         new,
     )
-    history.auto_updates = new
+    curation.auto_updates = new
 
 
-def _accept_edit(edit, history, before, user):
-    was_draft = history.game.state == Game.State.DRAFT
-    if was_draft and edit.created_by and not history.game.added_by:
-        history.game.added_by = edit.created_by
-        history.game.save(update_fields=["added_by"])
-    history.game.publish_revision(
-        edit, actor=user, previous_canonical_text=before
-    )
-    history.state = GameHistory.State.SETTLED
-    old_note = history.note
-    history.note = None
-    GameHistoryAuditLog.record_note_change(
-        history, user, old_note, history.note
-    )
-    history.edit_time = now()
-    fields = ["auto_updates", "state", "note", "edit_time"]
-    history.save(update_fields=fields)
+def _accept_edit(edit, curation, before, user):
+    game = curation.game if curation else edit.game
+    was_draft = game.state == Game.State.DRAFT
+    if was_draft and edit.created_by and not game.added_by:
+        game.added_by = edit.created_by
+        game.save(update_fields=["added_by"])
+    game.publish_revision(edit, actor=user, previous_canonical_text=before)
+    if curation:
+        curation.state = GameCuration.State.SETTLED
+        old_note = curation.note
+        curation.note = None
+        GameHistoryAuditLog.record_note_change(
+            game, user, old_note, curation.note
+        )
+        fields = ["auto_updates", "state", "note"]
+        curation.save(update_fields=fields)
     if was_draft:
-        PostNewGameToDiscord(history.game.id)
+        PostNewGameToDiscord(game.id)
 
 
-def _reject_edit(edit, history, before, user):
+def _reject_edit(edit, curation, before, user):
     edit.status = GameRevision.Status.REJECTED
     edit.published_at = now()
     edit.published_by = user
@@ -1631,51 +1628,53 @@ def _reject_edit(edit, history, before, user):
             "previous_canonical_text",
         ]
     )
-    old_note = history.note
-    history.note = None
-    GameHistoryAuditLog.record_note_change(
-        history, user, old_note, history.note
-    )
-    if history.game.state == Game.State.DRAFT:
-        history.save(update_fields=["note"])
-        history.game.abandon(user)
-        return
-    history.state = GameHistory.State.SETTLED
-    history.edit_time = now()
-    history.save(update_fields=["state", "note", "edit_time"])
+    game = curation.game if curation else edit.game
+    if curation:
+        old_note = curation.note
+        curation.note = None
+        GameHistoryAuditLog.record_note_change(
+            game, user, old_note, curation.note
+        )
+        if game.state == Game.State.DRAFT:
+            curation.save(update_fields=["note"])
+            game.abandon(user)
+            return
+        curation.state = GameCuration.State.SETTLED
+        curation.save(update_fields=["state", "note"])
+    elif game.state == Game.State.DRAFT:
+        game.abandon(user)
 
 
-def history_edit(request, history_id):
-    history = get_object_or_404(GameHistory, pk=history_id)
+def history_edit(request, game_id):
+    curation = get_object_or_404(GameCuration, pk=game_id)
     if request.method == "POST":
         changed = False
         for field, (choices, audit_field) in EDITABLE_FIELDS.items():
             value = request.POST.get(field)
-            old = getattr(history, field)
+            old = getattr(curation, field)
             if value in choices.values and old != value:
                 GameHistoryAuditLog.record_change(
-                    history, request.user, audit_field, old, value
+                    curation.game, request.user, audit_field, old, value
                 )
-                setattr(history, field, value)
-                if field == "state" and value == GameHistory.State.SETTLED:
-                    old_note = history.note
-                    history.note = None
+                setattr(curation, field, value)
+                if field == "state" and value == GameCuration.State.SETTLED:
+                    old_note = curation.note
+                    curation.note = None
                     GameHistoryAuditLog.record_note_change(
-                        history, request.user, old_note, history.note
+                        curation.game, request.user, old_note, curation.note
                     )
                 changed = True
         if changed:
-            history.edit_time = now()
-            history.save()
+            curation.save()
 
-    return redirect("curation_history_detail", history_id=history.pk)
+    return redirect("curation_history_detail", game_id=curation.pk)
 
 
-def history_merge(request, history_id):
+def history_merge(request, game_id):
     if request.method != "POST":
         return HttpResponseBadRequest("POST required.")
-    history = get_object_or_404(
-        GameHistory.objects.select_related("game"), pk=history_id
+    curation = get_object_or_404(
+        GameCuration.objects.select_related("game"), pk=game_id
     )
 
     source_game_id = _positive_int(
@@ -1683,7 +1682,7 @@ def history_merge(request, history_id):
     )
     if source_game_id is None:
         messages.error(request, "Укажите id игры, которую нужно присоединить.")
-        return redirect("curation_history_detail", history_id=history.pk)
+        return redirect("curation_history_detail", game_id=curation.pk)
 
     source_game = get_object_or_404(Game, pk=source_game_id)
     remap_contests = request.POST.get("remap_contests") == "on"
@@ -1695,11 +1694,11 @@ def history_merge(request, history_id):
             "У присоединяемой игры есть конкурсные ссылки. "
             f"Подтвердите переназначение чекбоксом: {related}.",
         )
-        return redirect("curation_history_detail", history_id=history.pk)
+        return redirect("curation_history_detail", game_id=curation.pk)
 
     try:
-        merge_game_into_history(
-            target_history=history,
+        merge_game_into_game(
+            target_game=curation.game,
             source_game=source_game,
             actor=request.user,
             remap_contests=remap_contests,
@@ -1708,22 +1707,19 @@ def history_merge(request, history_id):
         messages.error(request, str(exc))
     else:
         messages.success(request, "Игры объединены.")
-    return redirect("curation_history_detail", history_id=history.pk)
+    return redirect("curation_history_detail", game_id=curation.pk)
 
 
-def history_delete(request, history_id):
+def history_delete(request, game_id):
     if request.method != "POST":
         return HttpResponseBadRequest("POST required.")
 
     keep_orphans = request.POST.get("keep_orphans") == "on"
     with transaction.atomic():
-        history = get_object_or_404(
-            GameHistory.objects.select_related("game").select_for_update(
-                of=("self",)
-            ),
-            pk=history_id,
+        game = get_object_or_404(
+            Game.objects.select_for_update(),
+            pk=game_id,
         )
-        game = history.game
         if usage := contest_related_usage(game):
             related = ", ".join(
                 f"{item.label}: {item.count}" for item in usage
@@ -1733,17 +1729,17 @@ def history_delete(request, history_id):
                 f"Игру #{game.id} нельзя удалить: "
                 f"есть конкурсные ссылки ({related}).",
             )
-            return redirect("curation_history_detail", history_id=history.pk)
+            return redirect("curation_history_detail", game_id=game.pk)
 
         game.abandon(request.user, keep_orphan=keep_orphans)
 
     messages.success(request, "Игра удалена, админка заброшена.")
-    return redirect("curation_history_detail", history_id=history.pk)
+    return redirect("curation_history_detail", game_id=game.pk)
 
 
-def history_reconcile(request, history_id):
-    history = get_object_or_404(
-        GameHistory.objects.select_related("game"), pk=history_id
+def history_reconcile(request, game_id):
+    curation, _ = GameCuration.objects.select_related("game").get_or_create(
+        game_id=game_id
     )
     if request.method == "POST":
         try:
@@ -1755,10 +1751,10 @@ def history_reconcile(request, history_id):
         started = 0
         for client_id, pipeline in pipelines_by_client_id.items():
             target = result.histories_by_client_id.get(client_id)
-            if target is None or target.state == GameHistory.State.ABANDONED:
+            if target is None or target.state == GameCuration.State.ABANDONED:
                 continue
             edit_sources.delay(
-                history_id=target.pk, pipeline_id=pipeline.pk, force=True
+                game_id=target.pk, pipeline_id=pipeline.pk, force=True
             )
             started += 1
         if started:
@@ -1773,7 +1769,7 @@ def history_reconcile(request, history_id):
             )
         })
 
-    payload = initial_payload(history)
+    payload = initial_payload(curation)
     payload["edit_pipelines"] = [
         {"id": pipeline.pk, "name": pipeline.name}
         for pipeline in EditPipeline.objects.order_by("id")
@@ -1782,7 +1778,8 @@ def history_reconcile(request, history_id):
         request,
         "curation/history_reconcile.html",
         {
-            "history": history,
+            "history": curation,
+            "curation": curation,
             "payload": payload,
         },
     )

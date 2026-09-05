@@ -131,10 +131,10 @@ def needs_attention_history_count(context):
     user = context["request"].user
     if not user.is_superuser:
         return 0
-    from curation.models import GameHistory
+    from curation.models import GameCuration
 
-    return GameHistory.objects.filter(
-        state=GameHistory.State.NEEDS_ATTENTION
+    return GameCuration.objects.filter(
+        state=GameCuration.State.NEEDS_ATTENTION
     ).count()
 
 

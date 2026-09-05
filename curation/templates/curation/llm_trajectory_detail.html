@@ -27,20 +27,20 @@
                 {% else %}
                 {{ trajectory.game.title }} ({{ trajectory.game.get_state_display }})
                 {% endif %}
-                {% if trajectory.game.gamehistory %}
-                <a href="{% url 'curation_history_detail' trajectory.game.gamehistory.pk %}">админка #{{ trajectory.game.gamehistory.pk }}</a>
+                {% if trajectory.game %}
+                <a href="{% url 'curation_history_detail' trajectory.game.pk %}">админка #{{ trajectory.game.pk }}</a>
                 {% endif %}
             </div>
         </div>
-        {% if trajectory.game.gamehistory %}
+        {% if trajectory.game.curation %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Состояние</div>
-            <div class="curation-source-detail-value">{{ trajectory.game.gamehistory.get_state_display }}</div>
+            <div class="curation-source-detail-value">{{ trajectory.game.curation.get_state_display }}</div>
         </div>
-        {% if trajectory.game.gamehistory.note %}
+        {% if trajectory.game.curation.note %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Заметка</div>
-            <div class="curation-source-detail-value">{{ trajectory.game.gamehistory.note|object_refs }}</div>
+            <div class="curation-source-detail-value">{{ trajectory.game.curation.note|object_refs }}</div>
         </div>
         {% endif %}
         {% endif %}

@@ -83,8 +83,8 @@
                     {% else %}
                     {{ trajectory.game.title }} ({{ trajectory.game.get_state_display }})
                     {% endif %}
-                    {% if trajectory.game.gamehistory %}
-                    <a href="{% url 'curation_history_detail' trajectory.game.gamehistory.pk %}">#{{ trajectory.game.gamehistory.pk }}</a>
+                    {% if trajectory.game %}
+                    <a href="{% url 'curation_history_detail' trajectory.game.pk %}">#{{ trajectory.game.pk }}</a>
                     {% endif %}
                 </td>
                 <td class="num">{{ trajectory.messages_count }}</td>

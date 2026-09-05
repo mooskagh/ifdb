@@ -13,7 +13,7 @@ from games.models import Game
 
 from .fetch import FetchStats, _RateLimiter, run_fetch
 from .models import (
-    GameHistory,
+    GameCuration,
     GameHistoryAuditLog,
     GameSource,
     GameSourceFetch,
@@ -56,8 +56,14 @@ class FetchTest(TestCase):
                 title="Fetch Game",
                 creation_time=now(),
             )
-        kwargs.setdefault("creation_time", now())
-        return GameHistory.objects.create(**kwargs)
+        game = kwargs["game"]
+        if "edit_time" in kwargs:
+            game.edit_time = kwargs.pop("edit_time")
+            game.save(update_fields=["edit_time"])
+        if "creation_time" in kwargs:
+            game.creation_time = kwargs.pop("creation_time")
+            game.save(update_fields=["creation_time"])
+        return GameCuration.objects.create(**kwargs)
 
     def source(
         self,
@@ -157,7 +163,7 @@ class FetchTest(TestCase):
         edited_at = now()
         history = self._history(
             creation_time=edited_at,
-            state=GameHistory.State.SETTLED,
+            state=GameCuration.State.SETTLED,
             edit_time=edited_at,
         )
         source = self.source(game=history.game)
@@ -183,13 +189,15 @@ class FetchTest(TestCase):
 
         history.refresh_from_db()
         self.assertEqual(stats, [FetchStats("APERO", 1, 1, 0, 1, 0)])
-        self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
+        self.assertEqual(
+            history.state, GameCuration.State.SCHEDULED_FOR_UPDATE
+        )
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
                 game=history.game,
                 kind=GameHistoryAuditLog.AuditKind.AUTO_UPDATE_SCHEDULED,
-                old_text=GameHistory.State.SETTLED,
-                new_text=GameHistory.State.SCHEDULED_FOR_UPDATE,
+                old_text=GameCuration.State.SETTLED,
+                new_text=GameCuration.State.SCHEDULED_FOR_UPDATE,
             ).exists()
         )
 
@@ -197,7 +205,7 @@ class FetchTest(TestCase):
         edited_at = now()
         history = self._history(
             creation_time=edited_at,
-            state=GameHistory.State.SETTLED,
+            state=GameCuration.State.SETTLED,
             edit_time=edited_at,
         )
         source = self.source(game=history.game)
@@ -224,7 +232,7 @@ class FetchTest(TestCase):
 
         history.refresh_from_db()
         self.assertEqual(stats, [FetchStats("APERO", 1, 1, 0, 0, 1)])
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertFalse(
             GameHistoryAuditLog.objects.filter(
                 game=history.game,
@@ -236,7 +244,7 @@ class FetchTest(TestCase):
         edited_at = now()
         history = self._history(
             creation_time=edited_at,
-            state=GameHistory.State.SETTLED,
+            state=GameCuration.State.SETTLED,
         )
         source = self.source(game=history.game)
         GameSourceFetch.objects.create(
@@ -256,7 +264,9 @@ class FetchTest(TestCase):
         self.run_with(provider)
 
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
+        self.assertEqual(
+            history.state, GameCuration.State.SCHEDULED_FOR_UPDATE
+        )
 
     def test_changed_canonical_without_history_does_not_schedule(self):
         self.source()
@@ -414,7 +424,7 @@ class FetchTest(TestCase):
 
     def test_abandoned_history_sources_are_not_fetched(self):
         history = self._history(
-            creation_time=now(), state=GameHistory.State.ABANDONED
+            creation_time=now(), state=GameCuration.State.ABANDONED
         )
         self.source(url="http://example.com/skip", game=history.game)
         wanted = self.source(url="http://example.com/wanted")

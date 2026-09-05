@@ -67,7 +67,7 @@
                 <td>{{ history.state_short }}</td>
                 <td class="curation-truncate" title="{{ history.note|default:'' }}">{{ history.note|default:""|object_refs }}</td>
                 <td>{{ history.auto_short }}</td>
-                <td>{{ history.creation_time|date:"d.m.Y" }}</td>
+                <td>{{ history.game.creation_time|date:"d.m.Y" }}</td>
                 <td>{{ history.updated|date:"d.m.Y" }}</td>
             </tr>
             {% empty %}

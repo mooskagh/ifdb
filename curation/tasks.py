@@ -26,25 +26,25 @@ def discover_sources(types=None, auto_import_new=False, pipeline_id=None):
     for source_id in new_ids:
         fetch_stats.extend(run_fetch(source_id=source_id))
 
-    history_ids = set()
+    game_ids = set()
 
-    def collect_candidate_history(_source, outcome, history):
-        # Only spawned histories are new drafts that need immediate editing.
-        if history and outcome == "spawned":
-            history_ids.add(history.pk)
+    def collect_candidate_curation(_source, outcome, curation):
+        # Only spawned curations are new drafts that need immediate editing.
+        if curation and outcome == "spawned":
+            game_ids.add(curation.pk)
 
     reconcile_stats = []
     for source_id in new_ids:
         reconcile_stats.extend(
             run_reconcile(
                 source_id=source_id,
-                on_source_done=collect_candidate_history,
+                on_source_done=collect_candidate_curation,
             )
         )
 
     edit_stats = [
-        run_edit(history_id=history_id, pipeline_id=pipeline_id).__dict__
-        for history_id in sorted(history_ids)
+        run_edit(game_id=game_id, pipeline_id=pipeline_id).__dict__
+        for game_id in sorted(game_ids)
     ]
     return {
         "discovered": dict(discovered),
@@ -71,10 +71,11 @@ def fetch_sources(limit=5, source_id=None):
 
 @shared_task(bind=True)
 def edit_sources(
-    self, limit=5, history_id=None, pipeline_id=None, force=False
+    self, limit=5, game_id=None, history_id=None, pipeline_id=None, force=False
 ):
     return run_edit(
         limit=limit,
+        game_id=game_id,
         history_id=history_id,
         pipeline_id=pipeline_id,
         task_id=self.request.id,

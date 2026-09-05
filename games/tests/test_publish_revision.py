@@ -8,7 +8,7 @@ from django.utils.timezone import now
 
 from core.models import User
 from curation.merge import merge_game_into_history
-from curation.models import GameHistory
+from curation.models import GameCuration
 from games.gameinfo import Attribution, GameInfo, GameUrl, Person, Tag
 from games.models import (
     Game,
@@ -190,9 +190,7 @@ class PublishRevisionTests(TestCase):
             ).to_canonical(),
         )
         target_game.publish_revision(target_rev, actor=self.user)
-        target_history = GameHistory.objects.create(
-            game=target_game, creation_time=now()
-        )
+        target_history = GameCuration.objects.create(game=target_game)
 
         source_game = Game.objects.create(
             title="Source Game",

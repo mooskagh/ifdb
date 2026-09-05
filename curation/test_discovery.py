@@ -12,7 +12,7 @@ from games.models import URL, Game, GameURL, GameURLCategory
 from .discovery import DiscoveryStats, run_discover
 from .edit import EditStats
 from .fetch import FetchStats
-from .models import GameHistory, GameSource, SourceDiscoveryStatus
+from .models import GameCuration, GameSource, SourceDiscoveryStatus
 from .providers import (
     DiscoveredSource,
     GameSourceProvider,
@@ -71,7 +71,7 @@ class DiscoveryTest(TestCase):
         game = Game.objects.create(
             state=Game.State.DRAFT, title="Existing", creation_time=now()
         )
-        GameHistory.objects.create(game=game, creation_time=now())
+        GameCuration.objects.create(game=game)
         GameSource.objects.create(
             type=GameSource.SourceType.APERO,
             url="http://example.com/existing",
@@ -103,7 +103,7 @@ class DiscoveryTest(TestCase):
         game = Game.objects.create(
             state=Game.State.DRAFT, title="Dup", creation_time=now()
         )
-        GameHistory.objects.create(game=game, creation_time=now())
+        GameCuration.objects.create(game=game)
         used_dup = GameSource.objects.create(
             type=GameSource.SourceType.INSTEAD,
             url="http://example.com/dup",
@@ -467,7 +467,7 @@ class SourceDiscoveryStatusRecordTest(TestCase):
 class DiscoverSourcesTaskTest(TestCase):
     def test_auto_import_fetches_reconciles_and_edits_new_orphans(self):
         calls = []
-        orphan_history = GameHistory(pk=51, game=None)
+        orphan_curation = GameCuration(game_id=51)
 
         def fake_run_discover(types, on_provider_done=None):
             self.assertEqual(types, [GameSource.SourceType.APERO])
@@ -495,12 +495,14 @@ class DiscoverSourcesTaskTest(TestCase):
             on_source_done(
                 GameSource(pk=source_id, type=GameSource.SourceType.APERO),
                 "spawned",
-                orphan_history,
+                orphan_curation,
             )
             return [ReconcileStats(GameSource.SourceType.APERO, 1, 0, 0, 1, 0)]
 
-        def fake_run_edit(history_id, pipeline_id):
-            calls.append(("edit", history_id, pipeline_id))
+        def fake_run_edit(
+            game_id=None, history_id=None, pipeline_id=None, **_kwargs
+        ):
+            calls.append(("edit", game_id or history_id, pipeline_id))
             return EditStats(1, 0, 0, 1, 0, 0, 0)
 
         with (

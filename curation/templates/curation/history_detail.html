@@ -267,11 +267,11 @@
             {% endif %}
             <div class="game--info-row">
                 <div class="game--info-row-label">Создана</div>
-                <div class="game--info-row-value">{{ history.creation_time|date:"d.m.Y H:i" }}</div>
+                <div class="game--info-row-value">{{ game.creation_time|date:"d.m.Y H:i" }}</div>
             </div>
             <div class="game--info-row">
                 <div class="game--info-row-label">Обновлена</div>
-                <div class="game--info-row-value">{{ history.edit_time|date:"d.m.Y H:i"|default:"—" }}</div>
+                <div class="game--info-row-value">{{ game.edit_time|date:"d.m.Y H:i"|default:"—" }}</div>
             </div>
         </div>
         {% if history.state != "ABANDONED" %}

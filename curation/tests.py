@@ -50,7 +50,7 @@ from play.blueprint import (
 from .edit import run_edit
 from .models import (
     EditPipeline,
-    GameHistory,
+    GameCuration,
     GameHistoryAuditLog,
     GameHistoryComment,
     GameSource,
@@ -70,8 +70,8 @@ class CurationSmokeTest(TestCase):
                 title="Smoke Game",
                 creation_time=timezone.now(),
             )
-        kwargs.setdefault("creation_time", timezone.now())
-        return GameHistory.objects.create(**kwargs)
+        kwargs.pop("creation_time", None)
+        return GameCuration.objects.create(**kwargs)
 
     def _proposed_edit(self, history):
         return GameRevision.objects.create(
@@ -91,7 +91,7 @@ class CurationSmokeTest(TestCase):
     def test_needs_attention_creation_sends_notification(self):
         with self.captureOnCommitCallbacks(execute=True):
             history = self._history(
-                state=GameHistory.State.NEEDS_ATTENTION,
+                state=GameCuration.State.NEEDS_ATTENTION,
                 note='Needs "manual" review & more',
             )
 
@@ -116,7 +116,7 @@ class CurationSmokeTest(TestCase):
         history = self._history()
 
         with self.captureOnCommitCallbacks(execute=True):
-            history.state = GameHistory.State.NEEDS_ATTENTION
+            history.state = GameCuration.State.NEEDS_ATTENTION
             history.save(update_fields=["state"])
 
         self.assertEqual(len(mail.outbox), 1)
@@ -131,7 +131,7 @@ class CurationSmokeTest(TestCase):
     ):
         with self.captureOnCommitCallbacks(execute=True):
             history = self._history(
-                state=GameHistory.State.NEEDS_ATTENTION,
+                state=GameCuration.State.NEEDS_ATTENTION,
             )
 
         with self.captureOnCommitCallbacks(execute=True):
@@ -146,18 +146,18 @@ class CurationSmokeTest(TestCase):
     def test_needs_attention_notification_can_be_disabled(self):
         with self.captureOnCommitCallbacks(execute=True):
             self._history(
-                state=GameHistory.State.NEEDS_ATTENTION,
+                state=GameCuration.State.NEEDS_ATTENTION,
             )
 
         self.assertEqual(mail.outbox, [])
 
     def test_note_survives_non_attention_model_save(self):
         history = self._history(
-            state=GameHistory.State.NEEDS_ATTENTION,
+            state=GameCuration.State.NEEDS_ATTENTION,
             note="Needs manual review",
         )
 
-        history.state = GameHistory.State.SETTLED
+        history.state = GameCuration.State.SETTLED
         history.save()
 
         history.refresh_from_db()
@@ -165,11 +165,11 @@ class CurationSmokeTest(TestCase):
 
     def test_note_survives_non_attention_update_fields_save(self):
         history = self._history(
-            state=GameHistory.State.NEEDS_ATTENTION,
+            state=GameCuration.State.NEEDS_ATTENTION,
             note="Needs manual review",
         )
 
-        history.state = GameHistory.State.SCHEDULED_FOR_UPDATE
+        history.state = GameCuration.State.SCHEDULED_FOR_UPDATE
         history.save(update_fields=["state"])
 
         history.refresh_from_db()
@@ -177,11 +177,11 @@ class CurationSmokeTest(TestCase):
 
     def test_leaving_needs_attention_rejects_pending_edit(self):
         history = self._history(
-            state=GameHistory.State.NEEDS_ATTENTION,
+            state=GameCuration.State.NEEDS_ATTENTION,
         )
         edit = self._proposed_edit(history)
 
-        history.state = GameHistory.State.SETTLED
+        history.state = GameCuration.State.SETTLED
         history.save()
 
         edit.refresh_from_db()
@@ -191,11 +191,11 @@ class CurationSmokeTest(TestCase):
         self,
     ):
         history = self._history(
-            state=GameHistory.State.NEEDS_ATTENTION,
+            state=GameCuration.State.NEEDS_ATTENTION,
         )
         edit = self._proposed_edit(history)
 
-        history.state = GameHistory.State.SCHEDULED_FOR_UPDATE
+        history.state = GameCuration.State.SCHEDULED_FOR_UPDATE
         history.save(update_fields=["state"])
 
         edit.refresh_from_db()
@@ -205,7 +205,7 @@ class CurationSmokeTest(TestCase):
         self,
     ):
         history = self._history(
-            state=GameHistory.State.NEEDS_ATTENTION,
+            state=GameCuration.State.NEEDS_ATTENTION,
             note="Needs manual review",
         )
         edit = self._proposed_edit(history)
@@ -218,14 +218,14 @@ class CurationSmokeTest(TestCase):
 
     def test_applied_edit_survives_history_state_change(self):
         history = self._history(
-            state=GameHistory.State.NEEDS_ATTENTION,
+            state=GameCuration.State.NEEDS_ATTENTION,
         )
         edit = self._proposed_edit(history)
 
         edit.status = GameRevision.Status.ACCEPTED
         edit.published_at = timezone.now()
         edit.save(update_fields=["status", "published_at"])
-        history.state = GameHistory.State.SETTLED
+        history.state = GameCuration.State.SETTLED
         history.save(update_fields=["state"])
 
         edit.refresh_from_db()
@@ -238,10 +238,12 @@ class CurationSmokeTest(TestCase):
         game = Game.objects.create(
             title="Game", state=Game.State.DRAFT, creation_time=now
         )
-        history = GameHistory.objects.create(game=game, creation_time=now)
+        history = GameCuration.objects.create(game=game)
         self.assertEqual(history.game, game)
-        self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
-        self.assertEqual(history.auto_updates, GameHistory.AutoUpdate.ACCEPT)
+        self.assertEqual(
+            history.state, GameCuration.State.SCHEDULED_FOR_UPDATE
+        )
+        self.assertEqual(history.auto_updates, GameCuration.AutoUpdate.ACCEPT)
 
         source = GameSource.objects.create(
             game=game,
@@ -385,11 +387,10 @@ class HistoryListViewTest(TestCase):
             creation_time=ts,
             added_by=self.user,
         )
-        GameHistory.objects.create(
+        GameCuration.objects.create(
             game=game,
-            creation_time=ts,
-            state=GameHistory.State.NEEDS_ATTENTION,
-            auto_updates=GameHistory.AutoUpdate.PROPOSE,
+            state=GameCuration.State.NEEDS_ATTENTION,
+            auto_updates=GameCuration.AutoUpdate.PROPOSE,
             note="Needs manual review",
         )
 
@@ -414,10 +415,9 @@ class HistoryListViewTest(TestCase):
             creation_time=ts,
             added_by=self.user,
         )
-        history = GameHistory.objects.create(
+        history = GameCuration.objects.create(
             game=game,
-            creation_time=ts,
-            state=GameHistory.State.NEEDS_ATTENTION,
+            state=GameCuration.State.NEEDS_ATTENTION,
             note="",
         )
         source = GameSource.objects.create(
@@ -447,21 +447,20 @@ class HistoryListViewTest(TestCase):
             title="Note Game",
             creation_time=timezone.now(),
         )
-        history = GameHistory.objects.create(
+        history = GameCuration.objects.create(
             game=game,
-            creation_time=timezone.now(),
-            state=GameHistory.State.NEEDS_ATTENTION,
+            state=GameCuration.State.NEEDS_ATTENTION,
             note="Needs manual review",
         )
 
         response = self.client.post(
             f"/curation/{history.pk}/edit/",
-            {"state": GameHistory.State.SETTLED},
+            {"state": GameCuration.State.SETTLED},
         )
 
         self.assertEqual(response.status_code, 302)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertIsNone(history.note)
 
     def test_history_list_defaults_to_relevance_sort(self):
@@ -469,22 +468,22 @@ class HistoryListViewTest(TestCase):
         old_settled = self._create_history(
             "Old settled",
             ts,
-            state=GameHistory.State.SETTLED,
+            state=GameCuration.State.SETTLED,
         )
         recent_progress = self._create_history(
             "Recent progress",
             ts + timezone.timedelta(days=1),
-            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
+            state=GameCuration.State.SCHEDULED_FOR_UPDATE,
         )
         older_attention = self._create_history(
             "Older attention",
             ts + timezone.timedelta(days=2),
-            state=GameHistory.State.NEEDS_ATTENTION,
+            state=GameCuration.State.NEEDS_ATTENTION,
         )
         newer_attention = self._create_history(
             "Newer attention",
             ts + timezone.timedelta(days=3),
-            state=GameHistory.State.NEEDS_ATTENTION,
+            state=GameCuration.State.NEEDS_ATTENTION,
         )
 
         response = self.client.get("/curation/")
@@ -498,9 +497,11 @@ class HistoryListViewTest(TestCase):
     def test_history_list_filters_by_name(self):
         ts = timezone.now()
         self._create_history(
-            "Wanted Game", ts, state=GameHistory.State.SETTLED
+            "Wanted Game", ts, state=GameCuration.State.SETTLED
         )
-        self._create_history("Other Game", ts, state=GameHistory.State.SETTLED)
+        self._create_history(
+            "Other Game", ts, state=GameCuration.State.SETTLED
+        )
 
         response = self.client.get("/curation/", {"q": "wanted"})
 
@@ -519,13 +520,11 @@ class HistoryListViewTest(TestCase):
             )
             for i in range(501)
         ])
-        GameHistory.objects.bulk_create([
-            GameHistory(
+        GameCuration.objects.bulk_create([
+            GameCuration(
                 game=game,
-                creation_time=ts,
-                edit_time=ts,
-                state=GameHistory.State.SCHEDULED_FOR_UPDATE,
-                auto_updates=GameHistory.AutoUpdate.PROPOSE,
+                state=GameCuration.State.SCHEDULED_FOR_UPDATE,
+                auto_updates=GameCuration.AutoUpdate.PROPOSE,
             )
             for game in games
         ])
@@ -534,8 +533,8 @@ class HistoryListViewTest(TestCase):
             "/curation/",
             {
                 "q": "Paginated",
-                "state": GameHistory.State.SCHEDULED_FOR_UPDATE,
-                "auto": GameHistory.AutoUpdate.PROPOSE,
+                "state": GameCuration.State.SCHEDULED_FOR_UPDATE,
+                "auto": GameCuration.AutoUpdate.PROPOSE,
                 "sort": "updated",
             },
         )
@@ -552,17 +551,17 @@ class HistoryListViewTest(TestCase):
         self._create_history(
             "Needs attention",
             ts,
-            state=GameHistory.State.NEEDS_ATTENTION,
+            state=GameCuration.State.NEEDS_ATTENTION,
         )
         self._create_history(
             "Scheduled",
             ts,
-            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
+            state=GameCuration.State.SCHEDULED_FOR_UPDATE,
         )
         self._create_history(
             "Processing",
             ts,
-            state=GameHistory.State.PROCESSING,
+            state=GameCuration.State.PROCESSING,
         )
 
         response = self.client.get("/curation/")
@@ -577,7 +576,7 @@ class HistoryListViewTest(TestCase):
     def test_history_list_links_pending_edit(self):
         ts = timezone.now()
         pending_history = self._create_history(
-            "Pending", ts, state=GameHistory.State.SETTLED
+            "Pending", ts, state=GameCuration.State.SETTLED
         )
         old_pending = self._create_edit(
             pending_history,
@@ -592,7 +591,7 @@ class HistoryListViewTest(TestCase):
         old_pending.refresh_from_db()
         self.assertEqual(old_pending.status, GameRevision.Status.REJECTED)
         done_history = self._create_history(
-            "Done", ts, state=GameHistory.State.SETTLED
+            "Done", ts, state=GameCuration.State.SETTLED
         )
         done_edit = self._create_edit(
             done_history,
@@ -621,10 +620,10 @@ class HistoryListViewTest(TestCase):
             creation_time=updated,
             added_by=self.user,
         )
-        return GameHistory.objects.create(
+        game.edit_time = updated
+        game.save(update_fields=["edit_time"])
+        return GameCuration.objects.create(
             game=game,
-            creation_time=updated,
-            edit_time=updated,
             state=state,
         )
 
@@ -652,9 +651,7 @@ class HistoryDetailViewTest(TestCase):
             creation_time=self.now,
             added_by=self.user,
         )
-        self.history = GameHistory.objects.create(
-            game=self.game, creation_time=self.now
-        )
+        self.history = GameCuration.objects.create(game=self.game)
 
     def test_history_page_shows_comments_and_comment_form(self):
         GameHistoryComment.objects.create(
@@ -764,7 +761,7 @@ class HistoryDetailViewTest(TestCase):
         self.history.refresh_from_db()
         source.refresh_from_db()
         self.assertEqual(self.history.game_id, self.game.pk)
-        self.assertEqual(self.history.state, GameHistory.State.ABANDONED)
+        self.assertEqual(self.history.state, GameCuration.State.ABANDONED)
         self.assertIsNone(source.game_id)
         self.assertTrue(source.keep_orphan)
         self.assertTrue(
@@ -778,7 +775,7 @@ class HistoryDetailViewTest(TestCase):
             GameHistoryAuditLog.objects.filter(
                 game=self.game,
                 field=GameHistoryAuditLog.AuditField.STATE,
-                new_text=GameHistory.State.ABANDONED,
+                new_text=GameCuration.State.ABANDONED,
             ).exists()
         )
 
@@ -792,7 +789,7 @@ class HistoryDetailViewTest(TestCase):
         self.assertTrue(Game.objects.filter(pk=self.game.pk).exists())
         self.history.refresh_from_db()
         self.assertEqual(self.history.game_id, self.game.pk)
-        self.assertNotEqual(self.history.state, GameHistory.State.ABANDONED)
+        self.assertNotEqual(self.history.state, GameCuration.State.ABANDONED)
 
 
 class HistoryMergeViewTest(TestCase):
@@ -807,7 +804,7 @@ class HistoryMergeViewTest(TestCase):
         game = Game.objects.create(
             state=Game.State.PUBLISHED, title=title, creation_time=self.now
         )
-        return GameHistory.objects.create(game=game, creation_time=self.now)
+        return GameCuration.objects.create(game=game)
 
     def test_history_page_shows_merge_form(self):
         history = self._history("Target")
@@ -921,7 +918,7 @@ class HistoryMergeViewTest(TestCase):
         source_game = Game.objects.get(pk=source_game_id)
         self.assertEqual(source_game.state, Game.State.REDIRECT)
         self.assertEqual(source_game.redirect_to_id, target.game_id)
-        self.assertEqual(source.state, GameHistory.State.ABANDONED)
+        self.assertEqual(source.state, GameCuration.State.ABANDONED)
         self.assertEqual(source.game_id, source_game_id)
         self.assertEqual(
             list(target.game.gamesource_set.values_list("url", flat=True)),
@@ -942,7 +939,7 @@ class HistoryMergeViewTest(TestCase):
             GameHistoryAuditLog.objects.filter(
                 game=source_game,
                 field=GameHistoryAuditLog.AuditField.STATE,
-                new_text=GameHistory.State.ABANDONED,
+                new_text=GameCuration.State.ABANDONED,
             ).exists()
         )
 
@@ -962,7 +959,7 @@ class HistoryReconcileViewTest(TestCase):
             description="Base description",
             creation_time=self.now,
         )
-        return GameHistory.objects.create(game=game, creation_time=self.now)
+        return GameCuration.objects.create(game=game)
 
     def _source(self, history, url):
         source = GameSource.objects.create(
@@ -1098,7 +1095,7 @@ class HistoryReconcileViewTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         delay.assert_called_once_with(
-            history_id=history.pk, pipeline_id=pipeline.pk, force=True
+            game_id=history.pk, pipeline_id=pipeline.pk, force=True
         )
 
     @patch("curation.views.edit_sources.delay")
@@ -1122,10 +1119,10 @@ class HistoryReconcileViewTest(TestCase):
             pipeline_by_client_id={"new-1": pipeline.pk},
         )
 
-        split = GameHistory.objects.exclude(pk=history.pk).get()
+        split = GameCuration.objects.exclude(pk=history.pk).get()
         self.assertEqual(response.status_code, 200)
         delay.assert_called_once_with(
-            history_id=split.pk, pipeline_id=pipeline.pk, force=True
+            game_id=split.pk, pipeline_id=pipeline.pk, force=True
         )
 
     @patch("curation.views.edit_sources.delay")
@@ -1159,7 +1156,7 @@ class HistoryReconcileViewTest(TestCase):
             [self._column(history, sources=[staying]), new_col],
         )
 
-        split = GameHistory.objects.exclude(pk=history.pk).get()
+        split = GameCuration.objects.exclude(pk=history.pk).get()
         self.assertEqual(response.status_code, 200)
         self.assertIn("redirect", response.json())
         staying.refresh_from_db()
@@ -1178,8 +1175,10 @@ class HistoryReconcileViewTest(TestCase):
         self.assertEqual(split.game.gameauthor_set.count(), 1)
         self.assertEqual(history.game.gameurl_set.count(), 1)
         self.assertEqual(split.game.gameurl_set.count(), 1)
-        self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
-        self.assertEqual(split.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
+        self.assertEqual(
+            history.state, GameCuration.State.SCHEDULED_FOR_UPDATE
+        )
+        self.assertEqual(split.state, GameCuration.State.SCHEDULED_FOR_UPDATE)
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
                 game=history.game,
@@ -1243,7 +1242,7 @@ class HistoryReconcileViewTest(TestCase):
         history.refresh_from_db()
         self.assertIsNone(source.game_id)
         self.assertEqual(history.game_id, game_id)
-        self.assertEqual(history.state, GameHistory.State.ABANDONED)
+        self.assertEqual(history.state, GameCuration.State.ABANDONED)
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
                 game=history.game,
@@ -1299,9 +1298,7 @@ class LlmTrajectoryViewTest(TestCase):
             creation_time=now,
             added_by=self.user,
         )
-        self.history = GameHistory.objects.create(
-            game=self.game, creation_time=now
-        )
+        self.history = GameCuration.objects.create(game=self.game)
         self.model = LLMModel.objects.create(
             name="test/model",
             context_length=1000,
@@ -1419,7 +1416,7 @@ class LlmTrajectoryViewTest(TestCase):
             self.assertIn(text, content)
 
     def test_detail_shows_current_history_status_and_note(self):
-        self.history.state = GameHistory.State.NEEDS_ATTENTION
+        self.history.state = GameCuration.State.NEEDS_ATTENTION
         self.history.note = "Current note\nSecond line"
         self.history.save(update_fields=["state", "note"])
 
@@ -1457,7 +1454,7 @@ class EditDiffViewTest(TestCase):
         self.client.force_login(self.user)
         self.now = timezone.now()
 
-    def _edit(self, *, auto_updates=GameHistory.AutoUpdate.PROPOSE):
+    def _edit(self, *, auto_updates=GameCuration.AutoUpdate.PROPOSE):
         game = Game.objects.create(
             state=Game.State.PUBLISHED,
             title="Old Title",
@@ -1474,10 +1471,9 @@ class EditDiffViewTest(TestCase):
         )
         game.published_revision = rev
         game.save(update_fields=["published_revision"])
-        history = GameHistory.objects.create(
+        history = GameCuration.objects.create(
             game=game,
-            creation_time=self.now,
-            state=GameHistory.State.NEEDS_ATTENTION,
+            state=GameCuration.State.NEEDS_ATTENTION,
             auto_updates=auto_updates,
         )
         edit = GameRevision.objects.create(
@@ -1491,7 +1487,7 @@ class EditDiffViewTest(TestCase):
         return edit
 
     def test_proposed_edit_shows_actions_and_auto_accept_checkbox(self):
-        edit = self._edit(auto_updates=GameHistory.AutoUpdate.ACCEPT)
+        edit = self._edit(auto_updates=GameCuration.AutoUpdate.ACCEPT)
 
         response = self.client.get(f"/curation/edits/{edit.pk}/")
 
@@ -1508,8 +1504,8 @@ class EditDiffViewTest(TestCase):
 
     def test_edit_page_shows_game_users_passes_and_llm_links(self):
         edit = self._edit()
-        history = edit.game.gamehistory
-        history.state = GameHistory.State.NEEDS_ATTENTION
+        history = edit.game.curation
+        history.state = GameCuration.State.NEEDS_ATTENTION
         history.note = "Current note\nSecond line"
         history.save(update_fields=["state", "note"])
         edit.passes = [
@@ -1614,13 +1610,13 @@ class EditDiffViewTest(TestCase):
 
         self.assertRedirects(response, "/curation/")
         edit.refresh_from_db()
-        history = edit.game.gamehistory
+        history = edit.game.curation
         history.refresh_from_db()
         edit.game.refresh_from_db()
         self.assertEqual(edit.status, GameRevision.Status.REJECTED)
         self.assertEqual(edit.published_by, self.user)
         self.assertIn("Old Title", edit.previous_canonical_text)
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertEqual(edit.game.title, "Old Title")
 
     def test_accept_applies_and_settles(self):
@@ -1632,13 +1628,13 @@ class EditDiffViewTest(TestCase):
 
         self.assertRedirects(response, "/curation/")
         edit.refresh_from_db()
-        history = edit.game.gamehistory
+        history = edit.game.curation
         history.refresh_from_db()
         edit.game.refresh_from_db()
         self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(edit.published_by, self.user)
         self.assertIn("Old Title", edit.previous_canonical_text)
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertEqual(edit.game.title, "New Title")
 
     def test_accept_preserves_proposed_description_for_bare_url_id(self):
@@ -1725,9 +1721,7 @@ class EditDiffViewTest(TestCase):
             {"action": "accept", "next": "history"},
         )
 
-        self.assertRedirects(
-            response, f"/curation/{edit.game.gamehistory.pk}/"
-        )
+        self.assertRedirects(response, f"/curation/{edit.game.pk}/")
 
     def test_accept_redirects_to_edit_when_stay_requested(self):
         edit = self._edit()
@@ -1752,29 +1746,29 @@ class EditDiffViewTest(TestCase):
         self.assertRedirects(response, "/curation/")
 
     def test_accept_updates_auto_accept_with_audit(self):
-        edit = self._edit(auto_updates=GameHistory.AutoUpdate.PROPOSE)
+        edit = self._edit(auto_updates=GameCuration.AutoUpdate.PROPOSE)
 
         self.client.post(
             f"/curation/edits/{edit.pk}/",
             {"action": "accept", "auto_accept": "on"},
         )
 
-        history = edit.game.gamehistory
+        history = edit.game.curation
         history.refresh_from_db()
-        self.assertEqual(history.auto_updates, GameHistory.AutoUpdate.ACCEPT)
+        self.assertEqual(history.auto_updates, GameCuration.AutoUpdate.ACCEPT)
         self.assertTrue(
             GameHistoryAuditLog.objects.filter(
                 game=edit.game,
                 actor=self.user,
                 field=GameHistoryAuditLog.AuditField.AUTO_UPDATES,
-                old_text=GameHistory.AutoUpdate.PROPOSE,
-                new_text=GameHistory.AutoUpdate.ACCEPT,
+                old_text=GameCuration.AutoUpdate.PROPOSE,
+                new_text=GameCuration.AutoUpdate.ACCEPT,
             ).exists()
         )
 
     def test_accept_clears_note_with_audit(self):
         edit = self._edit()
-        history = edit.game.gamehistory
+        history = edit.game.curation
         history.note = "Needs manual review"
         history.save(update_fields=["note"])
 
@@ -1793,7 +1787,7 @@ class EditDiffViewTest(TestCase):
         )
 
     def test_auto_accept_hidden_for_reject_policy(self):
-        edit = self._edit(auto_updates=GameHistory.AutoUpdate.REJECT)
+        edit = self._edit(auto_updates=GameCuration.AutoUpdate.REJECT)
 
         response = self.client.get(f"/curation/edits/{edit.pk}/")
 
@@ -1814,9 +1808,7 @@ class EditDiffViewTest(TestCase):
             canonical_text=GameInfo(name="Rejected Title").to_canonical(),
         )
 
-        response = self.client.get(
-            f"/curation/{proposed.game.gamehistory.pk}/"
-        )
+        response = self.client.get(f"/curation/{proposed.game.pk}/")
 
         self.assertContains(
             response,
@@ -1855,9 +1847,7 @@ class EditDiffViewTest(TestCase):
             canonical_text=GameInfo(name="Approved Title").to_canonical(),
         )
 
-        response = self.client.get(
-            f"/curation/{proposed.game.gamehistory.pk}/"
-        )
+        response = self.client.get(f"/curation/{proposed.game.pk}/")
         content = response.content.decode()
 
         self.assertContains(
@@ -1906,7 +1896,7 @@ class EditDiffViewTest(TestCase):
             cost="0.000000",
         )
 
-        response = self.client.get(f"/curation/{edit.game.gamehistory.pk}/")
+        response = self.client.get(f"/curation/{edit.game.pk}/")
         content = unescape(response.content.decode())
 
         self.assertNotContains(response, "Траектория LLM")
@@ -1946,7 +1936,7 @@ class EditDiffViewTest(TestCase):
             cost="0.000000",
         )
 
-        response = self.client.get(f"/curation/{edit.game.gamehistory.pk}/")
+        response = self.client.get(f"/curation/{edit.game.pk}/")
 
         self.assertContains(response, "Сиротская траектория LLM")
         self.assertContains(
@@ -1989,15 +1979,15 @@ class DiscoveryViewsTest(TestCase):
             creation_time=ts,
             added_by=self.user,
         )
-        game_history = GameHistory.objects.create(game=game, creation_time=ts)
+        game_history = GameCuration.objects.create(game=game)
         draft_game = Game.objects.create(
             state=Game.State.DRAFT,
             title="Draft Game",
             creation_time=ts,
             added_by=self.user,
         )
-        empty_history = GameHistory.objects.create(
-            game=draft_game, creation_time=ts
+        empty_history = GameCuration.objects.create(
+            game=draft_game,
         )
         sources[2].game = draft_game
         sources[2].save(update_fields=["game"])
@@ -2104,16 +2094,14 @@ class TasksViewTest(TestCase):
             url="https://example.com/unfetched",
         )
         g1 = Game.objects.create(title="G1", creation_time=ts)
-        GameHistory.objects.create(
+        GameCuration.objects.create(
             game=g1,
-            creation_time=ts,
-            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
+            state=GameCuration.State.SCHEDULED_FOR_UPDATE,
         )
         g2 = Game.objects.create(title="G2", creation_time=ts)
-        GameHistory.objects.create(
+        GameCuration.objects.create(
             game=g2,
-            creation_time=ts,
-            state=GameHistory.State.NEEDS_ATTENTION,
+            state=GameCuration.State.NEEDS_ATTENTION,
         )
 
         response = self.client.get("/curation/tasks/")
@@ -2343,8 +2331,8 @@ class SourceViewsTest(TestCase):
                 title=title,
                 creation_time=timezone.now(),
             )
-        kwargs.setdefault("creation_time", timezone.now())
-        return GameHistory.objects.create(**kwargs)
+        kwargs.pop("creation_time", None)
+        return GameCuration.objects.create(**kwargs)
 
     def _url_category(self, symbolic_id):
         return GameURLCategory.objects.get_or_create(
@@ -2401,9 +2389,7 @@ class SourceViewsTest(TestCase):
         game_without_links = Game.objects.create(
             state=Game.State.PUBLISHED, title="No downloads", creation_time=ts
         )
-        no_downloads = GameHistory.objects.create(
-            game=game_without_links, creation_time=ts
-        )
+        no_downloads = GameCuration.objects.create(game=game_without_links)
         game = Game.objects.create(
             state=Game.State.PUBLISHED, title="Other link", creation_time=ts
         )
@@ -2413,7 +2399,7 @@ class SourceViewsTest(TestCase):
             "https://example.com/play",
             category=other_category,
         )
-        other_links = GameHistory.objects.create(game=game, creation_time=ts)
+        other_links = GameCuration.objects.create(game=game)
 
         for history in [no_downloads, other_links]:
             response = self.client.get(f"/curation/{history.pk}/")
@@ -2433,7 +2419,7 @@ class SourceViewsTest(TestCase):
         game = Game.objects.create(
             state=Game.State.PUBLISHED, title="Downloads", creation_time=ts
         )
-        history = GameHistory.objects.create(game=game, creation_time=ts)
+        history = GameCuration.objects.create(game=game)
         source = GameSource.objects.create(
             game=game,
             type=GameSource.SourceType.IFWIKI,
@@ -2498,7 +2484,7 @@ class SourceViewsTest(TestCase):
         game = Game.objects.create(
             state=Game.State.PUBLISHED, title="Local files", creation_time=ts
         )
-        history = GameHistory.objects.create(game=game, creation_time=ts)
+        history = GameCuration.objects.create(game=game)
         backup = self._download_link(
             game,
             "https://example.com/backup.zip",
@@ -2539,7 +2525,7 @@ class SourceViewsTest(TestCase):
         game = Game.objects.create(
             state=Game.State.PUBLISHED, title="Compatibility", creation_time=ts
         )
-        history = GameHistory.objects.create(game=game, creation_time=ts)
+        history = GameCuration.objects.create(game=game)
         with (
             TemporaryDirectory() as upload_root,
             TemporaryDirectory() as backup_root,
@@ -2640,7 +2626,7 @@ class SourceViewsTest(TestCase):
         game = Game.objects.create(
             state=Game.State.PUBLISHED, title="Missing file", creation_time=ts
         )
-        history = GameHistory.objects.create(game=game, creation_time=ts)
+        history = GameCuration.objects.create(game=game)
         self._download_link(
             game,
             "https://example.com/missing.zip",
@@ -2686,7 +2672,7 @@ class SourceViewsTest(TestCase):
         game = Game.objects.create(
             state=Game.State.PUBLISHED, title="Compatibility", creation_time=ts
         )
-        history = GameHistory.objects.create(game=game, creation_time=ts)
+        history = GameCuration.objects.create(game=game)
         self._download_link(
             game,
             "https://example.com/game.zip",
@@ -2724,7 +2710,7 @@ class SourceViewsTest(TestCase):
             creation_time=ts,
             added_by=self.user,
         )
-        history = GameHistory.objects.create(game=game, creation_time=ts)
+        history = GameCuration.objects.create(game=game)
         source = GameSource.objects.create(
             game=game,
             url="https://example.com/source",
@@ -2818,7 +2804,7 @@ class SourceViewsTest(TestCase):
             creation_time=ts,
             added_by=self.user,
         )
-        GameHistory.objects.create(game=wanted_game, creation_time=ts)
+        GameCuration.objects.create(game=wanted_game)
         wanted = GameSource.objects.create(
             game=wanted_game,
             url="https://example.com/wanted",
@@ -2860,7 +2846,7 @@ class SourceViewsTest(TestCase):
             creation_time=ts,
             added_by=self.user,
         )
-        GameHistory.objects.create(game=game, creation_time=ts)
+        GameCuration.objects.create(game=game)
         older = GameSource.objects.create(
             game=game,
             url="https://example.com/older",
@@ -2934,7 +2920,7 @@ class SourceViewsTest(TestCase):
             creation_time=ts,
             added_by=self.user,
         )
-        GameHistory.objects.create(game=game, creation_time=ts)
+        GameCuration.objects.create(game=game)
         attached = GameSource.objects.create(
             game=game,
             url="https://example.com/attached",
@@ -3117,7 +3103,7 @@ class SourceViewsTest(TestCase):
 
         self.assertRedirects(response, f"/curation/{history.pk}/")
         delay.assert_called_once_with(
-            history_id=history.pk, pipeline_id=pipeline.pk, force=True
+            game_id=history.pk, pipeline_id=pipeline.pk, force=True
         )
 
     def test_history_source_add_records_audit(self):
@@ -3143,8 +3129,6 @@ class SourceViewsTest(TestCase):
         self.assertEqual(audit.actor, self.user)
         self.assertEqual(audit.new_id, source.pk)
         self.assertIn("IFWiki", audit.new_text)
-        history.refresh_from_db()
-        self.assertIsNotNone(history.edit_time)
 
     def test_history_source_add_reuses_orphan_with_same_type_and_url(self):
         ts = timezone.now()
@@ -3264,8 +3248,6 @@ class SourceViewsTest(TestCase):
         self.assertEqual(audit.actor, self.user)
         self.assertEqual(audit.old_id, source.pk)
         self.assertIn("Apero", audit.old_text)
-        history.refresh_from_db()
-        self.assertIsNotNone(history.edit_time)
 
     def test_history_source_detach_can_keep_source_orphan(self):
         ts = timezone.now()
@@ -3525,7 +3507,8 @@ class EditRunnerTest(TestCase):
                 title="Runner Game",
                 creation_time=self.now,
             )
-        return GameHistory.objects.create(creation_time=self.now, **kwargs)
+        kwargs.pop("creation_time", None)
+        return GameCuration.objects.create(**kwargs)
 
     def _source(self, history, type, name, desc):
         source = GameSource.objects.create(
@@ -3578,7 +3561,7 @@ class EditRunnerTest(TestCase):
 
         self.assertEqual(stats.applied, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertIsNotNone(history.game)
         # IFWIKI (priority 100) wins the title over APERO (49).
         self.assertEqual(history.game.title, "Wiki Title")
@@ -3603,8 +3586,8 @@ class EditRunnerTest(TestCase):
         run_edit(pipeline_id=self.pipeline.pk)
 
         history.refresh_from_db()
-        GameHistory.objects.filter(pk=history.pk).update(
-            state=GameHistory.State.SCHEDULED_FOR_UPDATE
+        GameCuration.objects.filter(pk=history.pk).update(
+            state=GameCuration.State.SCHEDULED_FOR_UPDATE
         )
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
@@ -3721,7 +3704,7 @@ Source desc"""
             creation_time=self.now,
         )
         history = self._history(
-            game=game, auto_updates=GameHistory.AutoUpdate.PROPOSE
+            game=game, auto_updates=GameCuration.AutoUpdate.PROPOSE
         )
         category = GameURLCategory.objects.create(
             symbolic_id="download_landing", title="Download"
@@ -3757,7 +3740,7 @@ Source desc"""
             creation_time=self.now,
         )
         history = self._history(
-            game=game, auto_updates=GameHistory.AutoUpdate.PROPOSE
+            game=game, auto_updates=GameCuration.AutoUpdate.PROPOSE
         )
         category = GameURLCategory.objects.create(
             symbolic_id="download_landing", title="Download"
@@ -4060,7 +4043,7 @@ Text
         self.assertEqual(game.tags.count(), 0)
 
     def test_propose_policy_does_not_apply(self):
-        history = self._history(auto_updates=GameHistory.AutoUpdate.PROPOSE)
+        history = self._history(auto_updates=GameCuration.AutoUpdate.PROPOSE)
         self._source(
             history, GameSource.SourceType.IFWIKI, "Wiki Title", "Wiki desc"
         )
@@ -4069,7 +4052,7 @@ Text
 
         self.assertEqual(stats.proposed, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(history.state, GameCuration.State.NEEDS_ATTENTION)
         self.assertIsNotNone(history.game)
         self.assertEqual(history.game.state, Game.State.DRAFT)
         edit = GameRevision.objects.get(game=history.game)
@@ -4077,7 +4060,7 @@ Text
         self.assertEqual(Game.objects.published().count(), 0)
 
     def test_proposed_edit_is_canonicalized_before_diff(self):
-        history = self._history(auto_updates=GameHistory.AutoUpdate.PROPOSE)
+        history = self._history(auto_updates=GameCuration.AutoUpdate.PROPOSE)
         language_cat = GameTagCategory.objects.create(
             symbolic_id="language", name="Language"
         )
@@ -4111,7 +4094,7 @@ Text
         self._set_pipeline(["merge_sources", "enrich"])
         call_command("initifdb", stdout=StringIO(), stderr=StringIO())
         call_command("initenrichment", stdout=StringIO())
-        history = self._history(auto_updates=GameHistory.AutoUpdate.PROPOSE)
+        history = self._history(auto_updates=GameCuration.AutoUpdate.PROPOSE)
         tag_cat = GameTagCategory.objects.get(symbolic_id="tag")
         GameTag.objects.create(category=tag_cat, name="детское")
         GameTag.objects.create(category=tag_cat, name="сказка")
@@ -4145,7 +4128,7 @@ Text
         fantasy = GameTag.objects.get(symbolic_id="g_fantasy")
         game.tags.add(fantasy)
         history = self._history(
-            game=game, auto_updates=GameHistory.AutoUpdate.PROPOSE
+            game=game, auto_updates=GameCuration.AutoUpdate.PROPOSE
         )
         tag_cat = GameTagCategory.objects.get(symbolic_id="tag")
         GameTag.objects.create(category=tag_cat, name="фэнтези")

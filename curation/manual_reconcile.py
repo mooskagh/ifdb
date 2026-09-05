@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 from django.db import transaction
 from django.urls import reverse
@@ -17,7 +18,7 @@ from games.models import (
 from .manual import _latest_applied_edit, editor_payload_to_gameinfo
 from .merge import contest_related_usage
 from .models import (
-    GameHistory,
+    GameCuration,
     GameHistoryAuditLog,
     GameSource,
 )
@@ -25,8 +26,27 @@ from .models import (
 
 @dataclass(frozen=True)
 class ReconcileResult:
-    redirect_history: GameHistory
-    histories_by_client_id: dict[str, GameHistory | None]
+    redirect_curation: GameCuration
+    curations_by_client_id: dict[str, GameCuration | None]
+
+    @property
+    def redirect_game(self) -> Game:
+        return self.redirect_curation.game
+
+    @property
+    def redirect_history(self) -> GameCuration:
+        return self.redirect_curation
+
+    @property
+    def games_by_client_id(self) -> dict[str, Game | None]:
+        return {
+            k: (v.game if v else None)
+            for k, v in self.curations_by_client_id.items()
+        }
+
+    @property
+    def histories_by_client_id(self) -> dict[str, GameCuration | None]:
+        return self.curations_by_client_id
 
 
 def choices_payload():
@@ -75,12 +95,10 @@ def source_payload(source: GameSource) -> dict:
     }
 
 
-def column_for_game(game: Game, *, history: GameHistory | None = None) -> dict:
-    if history is None:
-        history = getattr(game, "gamehistory", None)
+def column_for_game(game: Game, *, history: Any = None) -> dict:
     return {
         "client_id": f"game-{game.id}",
-        "history_id": history.id if history else None,
+        "history_id": game.id,
         "game_id": game.id,
         "state": game.state,
         "title": game.title or "",
@@ -121,10 +139,12 @@ def column_for_game(game: Game, *, history: GameHistory | None = None) -> dict:
     }
 
 
-def initial_payload(history: GameHistory) -> dict:
+def initial_payload(target: Any) -> dict:
+    game = target.game if hasattr(target, "game") else target
     return {
-        "base_history_id": history.id,
-        "columns": [column_for_game(history.game, history=history)],
+        "base_history_id": game.id,
+        "base_game_id": game.id,
+        "columns": [column_for_game(game)],
         "choices": choices_payload(),
     }
 
@@ -147,7 +167,7 @@ def save_reconcile_payload(data: dict, actor) -> ReconcileResult:
     _validate_deletions(columns, histories, games, orphan_source_ids)
     sources = _lock_sources(columns, histories, orphan_source_ids)
 
-    targets: dict[str, GameHistory | None] = {}
+    targets: dict[str, GameCuration | None] = {}
     for col in columns:
         targets[col["client_id"]] = _save_column(col, histories, games, actor)
 
@@ -161,14 +181,14 @@ def save_reconcile_payload(data: dict, actor) -> ReconcileResult:
     )
     _delete_marked_columns(columns, histories, games, actor)
 
-    for history in {h for h in targets.values() if h is not None}:
-        _schedule_history(history, actor)
+    for curation in {h for h in targets.values() if h is not None}:
+        _schedule_curation(curation, actor)
 
-    for history in histories.values():
-        history.refresh_from_db()
+    for curation in histories.values():
+        curation.refresh_from_db()
     return ReconcileResult(
-        redirect_history=_redirect_history(columns, histories, targets),
-        histories_by_client_id=targets,
+        redirect_curation=_redirect_curation(columns, histories, targets),
+        curations_by_client_id=targets,
     )
 
 
@@ -272,24 +292,29 @@ def _is_empty_new_column(col: dict) -> bool:
     )
 
 
-def _lock_histories(columns: list[dict]) -> dict[int, GameHistory]:
+def _lock_histories(columns: list[dict]) -> dict[int, GameCuration]:
     ids = {col["history_id"] for col in columns if col["history_id"]}
-    histories = {
-        row.id: row
-        for row in GameHistory.objects.select_for_update().filter(id__in=ids)
+    existing_curations = set(
+        GameCuration.objects.filter(pk__in=ids).values_list("pk", flat=True)
+    )
+    for missing_id in ids - existing_curations:
+        if Game.objects.filter(id=missing_id).exists():
+            GameCuration.objects.get_or_create(game_id=missing_id)
+
+    curations = {
+        row.pk: row
+        for row in GameCuration.objects.select_for_update().filter(pk__in=ids)
     }
-    if missing := ids - set(histories):
-        raise ValueError(f"Админки не найдены: {sorted(missing)}.")
-    return histories
+    if missing := ids - set(curations):
+        raise ValueError(f"Кураторские записи не найдены: {sorted(missing)}.")
+    return curations
 
 
 def _lock_games(
-    columns: list[dict], histories: dict[int, GameHistory]
+    columns: list[dict], curations: dict[int, GameCuration]
 ) -> dict[int, Game]:
     ids = {col["game_id"] for col in columns if col["game_id"]}
-    ids |= {
-        history.game_id for history in histories.values() if history.game_id
-    }
+    ids |= {curation.pk for curation in curations.values()}
     games = {
         row.id: row
         for row in Game.objects.select_for_update().filter(id__in=ids)
@@ -301,7 +326,7 @@ def _lock_games(
 
 def _validate_columns(
     columns: list[dict],
-    histories: dict[int, GameHistory],
+    curations: dict[int, GameCuration],
     games: dict[int, Game],
 ):
     client_ids = [col["client_id"] for col in columns]
@@ -310,20 +335,16 @@ def _validate_columns(
     for col in columns:
         if not col["client_id"]:
             raise ValueError("У колонки нет технического id.")
-        history = histories.get(col["history_id"])
+        curation = curations.get(col["history_id"])
         game = games.get(col["game_id"])
-        if history and game and history.game_id != game.id:
+        if curation and game and curation.pk != game.id:
             raise ValueError(
-                f"Админка #{history.id} не относится к игре #{game.id}."
+                f"Кураторская запись #{curation.pk} "
+                f"не относится к игре #{game.id}."
             )
         if col["delete"]:
             continue
-        has_or_creates_game = bool(
-            game
-            or (history and history.game_id)
-            or not history
-            or _has_game_data(col)
-        )
+        has_or_creates_game = bool(game or curation or _has_game_data(col))
         if has_or_creates_game:
             if not col["title"]:
                 raise ValueError(
@@ -334,7 +355,7 @@ def _validate_columns(
 
 def _validate_deletions(
     columns: list[dict],
-    histories: dict[int, GameHistory],
+    curations: dict[int, GameCuration],
     games: dict[int, Game],
     orphan_source_ids: list[int],
 ):
@@ -361,9 +382,10 @@ def _validate_deletions(
             )
         if col["history_id"] is None:
             continue
+        curation = curations.get(col["history_id"])
         current_source_ids = set(
             GameSource.objects.filter(
-                game=histories[col["history_id"]].game
+                game=curation.game if curation else game
             ).values_list("id", flat=True)
         )
         remaining = sorted(
@@ -382,7 +404,7 @@ def _validate_deletions(
 
 def _lock_sources(
     columns: list[dict],
-    histories: dict[int, GameHistory],
+    curations: dict[int, GameCuration],
     orphan_source_ids: list[int],
 ) -> dict[int, GameSource]:
     source_ids = [source["id"] for col in columns for source in col["sources"]]
@@ -404,45 +426,45 @@ def _lock_sources(
     }
     if missing := set(wanted_source_ids) - set(sources):
         raise ValueError(f"Источники не найдены: {sorted(missing)}.")
-    allowed_game_ids = {h.game_id for h in histories.values() if h.game_id}
+    allowed_game_ids = {c.pk for c in curations.values()}
     for source in sources.values():
         if (
             source.game_id is not None
             and source.game_id not in allowed_game_ids
         ):
             raise ValueError(
-                f"Источник #{source.id} уже не принадлежит открытым админкам."
+                f"Источник #{source.id} уже не принадлежит открытым играм."
             )
     return sources
 
 
 def _save_column(
     col: dict,
-    histories: dict[int, GameHistory],
+    curations: dict[int, GameCuration],
     games: dict[int, Game],
     actor,
-) -> GameHistory | None:
-    history = histories.get(col["history_id"])
+) -> GameCuration | None:
+    curation = curations.get(col["history_id"])
     if col["delete"]:
         return None
 
     game = games.get(col["game_id"])
-    if game is None and history:
-        game = games[history.game_id]
+    if game is None and curation:
+        game = curation.game
     if game is None and _has_game_data(col):
-        game = _apply_game_info(col, None, history, actor)
+        game = _apply_game_info(col, None, curation, actor)
         game.added_by = (
             actor if getattr(actor, "is_authenticated", False) else None
         )
         game.save(update_fields=["added_by"])
     elif game is not None:
-        game = _apply_game_info(col, game, history, actor)
+        game = _apply_game_info(col, game, curation, actor)
 
-    if history is None and game is not None:
-        history, _ = GameHistory.objects.select_for_update().get_or_create(
-            game=game, defaults={"creation_time": now()}
+    if curation is None and game is not None:
+        curation, _ = GameCuration.objects.select_for_update().get_or_create(
+            game=game
         )
-    return history
+    return curation
 
 
 def _has_game_data(col: dict) -> bool:
@@ -458,7 +480,7 @@ def _has_game_data(col: dict) -> bool:
 
 
 def _apply_game_info(
-    col: dict, game: Game | None, history: GameHistory | None, actor
+    col: dict, game: Game | None, curation: GameCuration | None, actor
 ) -> Game:
     previous_edit = _latest_applied_edit(game) if game else None
     before = previous_edit.canonical_text if previous_edit else ""
@@ -482,10 +504,8 @@ def _apply_game_info(
         else Game.State.DRAFT
     )
     game, after = info.save(game, state=target_state)
-    if history is None:
-        history, _ = GameHistory.objects.get_or_create(
-            game=game, defaults={"creation_time": now()}
-        )
+    if curation is None:
+        curation, _ = GameCuration.objects.get_or_create(game=game)
     if before.rstrip("\n") != after.rstrip("\n"):
         rev = GameRevision(
             game=game,
@@ -502,7 +522,7 @@ def _apply_game_info(
 def _move_sources(
     columns: list[dict],
     sources: dict[int, GameSource],
-    targets: dict[str, GameHistory | None],
+    targets: dict[str, GameCuration | None],
     orphan_source_ids: list[int],
     keep_orphan_source_ids: list[int],
     actor,
@@ -516,23 +536,23 @@ def _move_sources(
             keep_orphan=source_id in keep_orphan_ids,
         )
 
-    history_by_source = {
+    curation_by_source = {
         source["id"]: targets[col["client_id"]]
         for col in columns
         for source in col["sources"]
     }
-    for source_id, target_history in history_by_source.items():
-        _move_source(sources[source_id], target_history, actor)
+    for source_id, target_curation in curation_by_source.items():
+        _move_source(sources[source_id], target_curation, actor)
 
 
 def _move_source(
     source: GameSource,
-    target_history: GameHistory | None,
+    target_curation: GameCuration | None,
     actor,
     *,
     keep_orphan=False,
 ):
-    target_game = target_history.game if target_history else None
+    target_game = target_curation.game if target_curation else None
     if source.game_id == (target_game.id if target_game else None) and (
         target_game is not None or source.keep_orphan == keep_orphan
     ):
@@ -562,57 +582,61 @@ def _move_source(
 
 def _delete_marked_columns(
     columns: list[dict],
-    histories: dict[int, GameHistory],
+    curations: dict[int, GameCuration],
     games: dict[int, Game],
     actor,
 ):
     for col in columns:
         if not col["delete"]:
             continue
-        history = histories.get(col["history_id"])
+        curation = curations.get(col["history_id"])
         game = games.get(col["game_id"])
-        if history is not None:
-            game = history.game
+        if curation is not None:
+            game = curation.game
         if game is not None:
             game.abandon(actor)
 
 
-def _schedule_history(history: GameHistory, actor):
-    history.refresh_from_db()
-    if history.state == GameHistory.State.ABANDONED:
+def _schedule_curation(curation: GameCuration, actor):
+    curation.refresh_from_db()
+    if curation.state == GameCuration.State.ABANDONED:
         return
-    old_state = history.state
-    history.state = GameHistory.State.SCHEDULED_FOR_UPDATE
-    history.processing_started_at = None
-    history.processing_task_id = None
-    history.edit_time = now()
-    history.save(
+    old_state = curation.state
+    curation.state = GameCuration.State.SCHEDULED_FOR_UPDATE
+    curation.processing_started_at = None
+    curation.processing_task_id = None
+    curation.save(
         update_fields=[
             "state",
             "processing_started_at",
             "processing_task_id",
-            "edit_time",
         ]
     )
-    if old_state != history.state:
+    if old_state != curation.state:
         GameHistoryAuditLog.record_change(
-            history,
+            curation.game,
             actor,
             GameHistoryAuditLog.AuditField.STATE,
             old_state,
-            history.state,
+            curation.state,
         )
 
 
-def _redirect_history(
+_schedule_history = _schedule_curation
+
+
+def _redirect_curation(
     columns: list[dict],
-    histories: dict[int, GameHistory],
-    targets: dict[str, GameHistory | None],
-) -> GameHistory:
+    curations: dict[int, GameCuration],
+    targets: dict[str, GameCuration | None],
+) -> GameCuration:
     for col in columns:
         if not col["delete"] and targets.get(col["client_id"]):
-            return targets[col["client_id"]]
+            return targets[col["client_id"]]  # type: ignore[return-value]
     for col in columns:
-        if col["history_id"] and col["history_id"] in histories:
-            return histories[col["history_id"]]
+        if col["history_id"] and col["history_id"] in curations:
+            return curations[col["history_id"]]
     raise ValueError("Не удалось выбрать страницу для перехода.")
+
+
+_redirect_history = _redirect_curation

@@ -9,7 +9,7 @@ from django.utils.translation import gettext_lazy as _
 from games.models import GameRevision
 
 
-class GameHistory(models.Model):
+class GameCuration(models.Model):
     class Meta:
         default_permissions = ()
 
@@ -29,7 +29,7 @@ class GameHistory(models.Model):
         ABANDONED = "ABANDONED", _("Abandoned")
 
     def __str__(self):
-        return f"History #{self.pk} ({self.get_state_display()})"
+        return f"Curation #{self.pk} ({self.get_state_display()})"
 
     def _send_needs_attention_notification(self):
         recipient = getattr(settings, "CURATION_NOTIFICATION_EMAIL", None)
@@ -40,7 +40,12 @@ class GameHistory(models.Model):
             settings.CURATION_NOTIFICATION_BASE_URL.rstrip("/"),
             reverse("curation_history_detail", args=[self.pk]),
         )
-        context = {"history": self, "game": self.game, "url": url}
+        context = {
+            "curation": self,
+            "history": self,
+            "game": self.game,
+            "url": url,
+        }
         send_mail(
             render_to_string(
                 "curation/email/actionable_subject.txt", context
@@ -61,7 +66,7 @@ class GameHistory(models.Model):
         if not self._state.adding and changes_state:
             with transaction.atomic():
                 old_state = (
-                    GameHistory.objects
+                    GameCuration.objects
                     .select_for_update()
                     .values_list("state", flat=True)
                     .get(pk=self.pk)
@@ -91,6 +96,8 @@ class GameHistory(models.Model):
     game = models.OneToOneField(
         "games.Game",
         on_delete=models.CASCADE,
+        primary_key=True,
+        related_name="curation",
     )
     auto_updates = models.CharField(
         _("Auto-update policy"),
@@ -111,8 +118,10 @@ class GameHistory(models.Model):
     processing_task_id = models.CharField(
         _("Processing task id"), max_length=255, null=True, blank=True
     )
-    creation_time = models.DateTimeField(_("Created at"))
-    edit_time = models.DateTimeField(_("Last edit"), null=True, blank=True)
+
+    @property
+    def id(self) -> int:
+        return self.game_id
 
 
 class GameSource(models.Model):

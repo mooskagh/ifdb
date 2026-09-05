@@ -5,30 +5,22 @@ from games.gameinfo import GameInfo, GameUrl
 from games.models import URL, Game, GameURL, GameURLCategory
 
 from .models import (
-    GameHistory,
+    GameCuration,
     GameHistoryAuditLog,
     GameSource,
     GameSourceFetch,
 )
-from .providers import PROVIDER_BY_TYPE
 from .reconcile import run_reconcile
 
 
-def _provider_type():
-    return next(iter(PROVIDER_BY_TYPE))
-
-
-class RunReconcileTests(TestCase):
+class ReconcileTest(TestCase):
     def setUp(self):
-        self.stype = _provider_type()
+        self.stype = GameSource.SourceType.APERO
 
-    # -- fixtures ---------------------------------------------------------
-
-    def _category(self, symbolic_id="game_page"):
-        cat, _ = GameURLCategory.objects.get_or_create(
-            symbolic_id=symbolic_id, defaults={"title": symbolic_id}
-        )
-        return cat
+    def _category(self, name):
+        return GameURLCategory.objects.get_or_create(
+            symbolic_id=name, defaults={"title": name, "order": 0}
+        )[0]
 
     def _existing(self, title, url=None, urlcat="game_page"):
         game = Game.objects.create(
@@ -40,10 +32,9 @@ class RunReconcileTests(TestCase):
                 url=URL.objects.create(original_url=url, creation_date=now()),
                 category=self._category(urlcat),
             )
-        return GameHistory.objects.create(
+        return GameCuration.objects.create(
             game=game,
-            state=GameHistory.State.SETTLED,
-            creation_time=now(),
+            state=GameCuration.State.SETTLED,
         )
 
     def _canon(self, name, urls=()):
@@ -181,7 +172,7 @@ class RunReconcileTests(TestCase):
         self.assertEqual(stats[0].spawned, 1)
         self.assertEqual(stats[0].attached, 1)
         self.assertEqual(
-            GameHistory.objects.filter(game__state=Game.State.DRAFT).count(),
+            GameCuration.objects.filter(game__state=Game.State.DRAFT).count(),
             1,
         )
         a.refresh_from_db()
@@ -208,7 +199,7 @@ class RunReconcileTests(TestCase):
         self.assertEqual(second_stats[0].attached, 1)
         self.assertEqual(first.game_id, second.game_id)
         self.assertEqual(
-            GameHistory.objects.filter(game__state=Game.State.DRAFT).count(),
+            GameCuration.objects.filter(game__state=Game.State.DRAFT).count(),
             1,
         )
 
@@ -234,13 +225,13 @@ class RunReconcileTests(TestCase):
         self.assertEqual(source.game_id, h1.game_id)
         h1.refresh_from_db()
         h2.refresh_from_db()
-        self.assertEqual(h1.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(h1.state, GameCuration.State.NEEDS_ATTENTION)
         self.assertEqual(
             h1.note,
             f"Источник s/{source.pk} присоединён неоднозначно; "
             f"другие игры: g/{h2.game_id}",
         )
-        self.assertEqual(h2.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(h2.state, GameCuration.State.NEEDS_ATTENTION)
         self.assertEqual(
             h2.note,
             f"Источник s/{source.pk} похож на эту игру; "
@@ -257,8 +248,8 @@ class RunReconcileTests(TestCase):
             GameHistoryAuditLog.objects.filter(
                 kind=GameHistoryAuditLog.AuditKind.FIELD_CHANGE,
                 field=GameHistoryAuditLog.AuditField.STATE,
-                old_text=GameHistory.State.SETTLED,
-                new_text=GameHistory.State.NEEDS_ATTENTION,
+                old_text=GameCuration.State.SETTLED,
+                new_text=GameCuration.State.NEEDS_ATTENTION,
             ).count(),
             2,
         )
@@ -266,7 +257,7 @@ class RunReconcileTests(TestCase):
     def test_ambiguous_match_appends_note(self):
         h1 = self._existing("Match This Title", url="http://ifwiki.ru/One")
         h2 = self._existing("Totally Other Name", url="http://ifwiki.ru/Two")
-        h2.state = GameHistory.State.NEEDS_ATTENTION
+        h2.state = GameCuration.State.NEEDS_ATTENTION
         h2.note = "Старая причина"
         h2.save(update_fields=["state", "note"])
         source = self._orphan(
@@ -346,7 +337,7 @@ class RunReconcileTests(TestCase):
         source.refresh_from_db()
         self.assertIsNone(source.game_id)
         self.assertEqual(
-            GameHistory.objects.filter(game__state=Game.State.DRAFT).count(),
+            GameCuration.objects.filter(game__state=Game.State.DRAFT).count(),
             0,
         )
         self.assertFalse(
