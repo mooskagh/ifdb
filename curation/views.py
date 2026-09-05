@@ -1616,6 +1616,8 @@ def _accept_edit(edit, history, before, user):
             "canonical_text",
         ]
     )
+    game.published_revision = edit
+    game.save(update_fields=["published_revision"])
     history.state = GameHistory.State.SETTLED
     old_note = history.note
     history.note = None

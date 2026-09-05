@@ -130,6 +130,14 @@ class Game(models.Model):
         default=State.DRAFT,
         db_index=True,
     )
+    published_revision = models.ForeignKey(
+        "GameRevision",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name=_("Published revision"),
+    )
     redirect_to = models.ForeignKey(
         "self",
         on_delete=models.PROTECT,
@@ -195,19 +203,34 @@ class GameRevision(models.Model):
         return f"Revision #{self.pk} ({self.get_status_display()})"
 
     def save(self, *args: Any, **kwargs: Any) -> None:
-        if self.status != self.Status.PROPOSED:
+        if self.status == self.Status.PROPOSED:
+            with transaction.atomic():
+                Game.objects.select_for_update().get(pk=self.game_id)
+                pending_edits = GameRevision.objects.filter(
+                    game_id=self.game_id, status=self.Status.PROPOSED
+                )
+                if self.pk:
+                    pending_edits = pending_edits.exclude(pk=self.pk)
+                pending_edits.update(status=self.Status.REJECTED)
+                super().save(*args, **kwargs)
+        else:
             super().save(*args, **kwargs)
-            return
 
-        with transaction.atomic():
-            Game.objects.select_for_update().get(pk=self.game_id)
-            pending_edits = GameRevision.objects.filter(
-                game_id=self.game_id, status=self.Status.PROPOSED
+        if self.status == self.Status.ACCEPTED:
+            latest_id = (
+                GameRevision.objects
+                .filter(game_id=self.game_id, status=self.Status.ACCEPTED)
+                .order_by("-published_at", "-created_at", "-id")
+                .values_list("id", flat=True)
+                .first()
             )
-            if self.pk:
-                pending_edits = pending_edits.exclude(pk=self.pk)
-            pending_edits.update(status=self.Status.REJECTED)
-            super().save(*args, **kwargs)
+            if latest_id == self.pk:
+                Game.objects.filter(pk=self.game_id).update(
+                    published_revision_id=self.pk
+                )
+                if "game" in self._state.fields_cache:
+                    self.game.published_revision_id = self.pk
+                    self.game.published_revision = self
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     created_at = models.DateTimeField(_("Created at"))

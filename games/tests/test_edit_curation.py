@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 from io import StringIO
 
 from django.contrib.auth import get_user_model
@@ -538,3 +539,85 @@ class GameEditCurationViewTests(TestCase):
         response = self.client.get(reverse("show_game", args=[game.id]))
 
         self.assertEqual(response.status_code, 200)
+
+    def test_game_published_revision_lifecycle(self):
+        t0 = now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Rev Game", creation_time=t0
+        )
+        self.assertIsNone(game.published_revision)
+
+        # Proposed revision does not set published_revision
+        GameRevision.objects.create(
+            game=game,
+            created_at=t0,
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text="prop",
+        )
+        game.refresh_from_db()
+        self.assertIsNone(game.published_revision)
+
+        # First accepted revision sets published_revision
+        rev1 = GameRevision.objects.create(
+            game=game,
+            created_at=t0 + timedelta(minutes=1),
+            published_at=t0 + timedelta(minutes=1),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text="rev1",
+        )
+        game.refresh_from_db()
+        self.assertEqual(game.published_revision, rev1)
+
+        # Newer accepted revision updates published_revision
+        rev2 = GameRevision.objects.create(
+            game=game,
+            created_at=t0 + timedelta(minutes=2),
+            published_at=t0 + timedelta(minutes=2),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text="rev2",
+        )
+        game.refresh_from_db()
+        self.assertEqual(game.published_revision, rev2)
+
+        # Modifying an older revision does not overwrite published_revision
+        rev1.passes = ["some_pass"]
+        rev1.save(update_fields=["passes"])
+        game.refresh_from_db()
+        self.assertEqual(game.published_revision, rev2)
+
+        # Transitioning proposed to accepted updates published_revision
+        prop2 = GameRevision.objects.create(
+            game=game,
+            created_at=t0 + timedelta(minutes=3),
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text="prop2",
+        )
+        prop2.status = GameRevision.Status.ACCEPTED
+        prop2.published_at = t0 + timedelta(minutes=4)
+        prop2.save(update_fields=["status", "published_at"])
+        game.refresh_from_db()
+        self.assertEqual(game.published_revision, prop2)
+
+    def test_store_game_direct_apply_updates_published_revision(self):
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Initial Title",
+            creation_time=now(),
+        )
+        self.assertIsNone(game.published_revision)
+
+        self.client.post(
+            reverse("store_game"),
+            {"json": json.dumps(self._payload(game, title="Updated Title"))},
+        )
+
+        game.refresh_from_db()
+        self.assertEqual(game.title, "Updated Title")
+        self.assertIsNotNone(game.published_revision)
+        self.assertEqual(
+            game.published_revision.status, GameRevision.Status.ACCEPTED
+        )

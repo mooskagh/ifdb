@@ -199,6 +199,8 @@ def _latest_fetch(source: GameSource) -> GameSourceFetch | None:
 
 
 def _last_applied_edit(history: GameHistory) -> GameRevision | None:
+    if history.game.published_revision_id:
+        return history.game.published_revision
     return (
         history.game.gamerevision_set
         .filter(status=GameRevision.Status.ACCEPTED)
@@ -388,6 +390,8 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
                     "published_by",
                 ]
             )
+            game.published_revision = edit
+            game.save(update_fields=["published_revision"])
             if created_game:
                 created_game_id = game.id
             history.state = done_state
