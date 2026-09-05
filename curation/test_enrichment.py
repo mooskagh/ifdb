@@ -54,16 +54,27 @@ class DefaultRuleTests(TestCase):
         )
 
     def test_existing_language_is_not_overridden(self):
-        info = GameInfo(tags=[Tag("language", None, None, "english")])
+        info = GameInfo(tags=[Tag("language", None, None, "французский")])
         _enrich(info)
         languages = [t.text for t in info.tags if t.category == "language"]
-        self.assertEqual(languages, ["english"])
+        self.assertEqual(languages, ["французский"])
 
     def test_language_is_lowercased(self):
         info = GameInfo(tags=[Tag("language", None, None, "Русский")])
         _enrich(info)
         languages = [t.text for t in info.tags if t.category == "language"]
         self.assertEqual(languages, ["русский"])
+
+    def test_language_normalization_aliases_and_split(self):
+        info = GameInfo(
+            tags=[
+                Tag("language", None, None, "english"),
+                Tag("language", None, None, "Белорусский, Эсперанто"),
+            ]
+        )
+        _enrich(info)
+        languages = [t.text for t in info.tags if t.category == "language"]
+        self.assertEqual(languages, ["английский", "беларусский", "эсперанто"])
 
     def test_rerun_is_idempotent(self):
         info = GameInfo(

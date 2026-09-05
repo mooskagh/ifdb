@@ -511,7 +511,11 @@ class WikiParsingContext:
             "название": lambda v: setattr(self, "title", v),
             "вышла": lambda v: setattr(self, "release_date", parse_date(v)),
             "платформа": lambda v: add_tag("platform", v),
-            "язык": lambda v: add_tag("language", v),
+            "язык": lambda v: [
+                add_tag("language", lang.strip())
+                for lang in v.split(",")
+                if lang.strip()
+            ],
             "темы": lambda v: [
                 add_tag("tag", t.strip()) for t in v.split(",") if t.strip()
             ],

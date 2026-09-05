@@ -25,7 +25,14 @@ from dataclasses import dataclass, field
 from html2text import HTML2Text
 
 from core.crawler import FetchUrlToString
-from games.gameinfo import Attribution, GameInfo, GameUrl, Person, Tag
+from games.gameinfo import (
+    LANGUAGE_NORMALIZATION,
+    Attribution,
+    GameInfo,
+    GameUrl,
+    Person,
+    Tag,
+)
 from games.importer.apero import (
     APERO_URL,
     FetchApero,
@@ -305,7 +312,10 @@ def _qsp_description(html: str) -> str | None:
 
 
 def _qsp_language(lang: str | None) -> str | None:
-    return {"ru": "русский", "en": "english"}.get(lang or "")
+    if not lang:
+        return None
+    cleaned = lang.strip().lower()
+    return LANGUAGE_NORMALIZATION.get(cleaned, cleaned)
 
 
 def _qsp_game_info(game: dict) -> GameInfo:

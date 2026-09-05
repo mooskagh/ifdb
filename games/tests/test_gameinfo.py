@@ -317,6 +317,23 @@ class LooseParseTest(GameInfoTestBase):
             ],
         )
 
+    def test_frontmatter_language_split_and_normalized(self) -> None:
+        info = parse(
+            "---\n- tags:\n"
+            '  - ["language", "Русский, English, Белорусский"]\n'
+            '  - ["language", "Китайский (упр.)"]\n---\n'
+        )
+
+        self.assertEqual(
+            info.tags,
+            [
+                Tag("language", None, None, "русский"),
+                Tag("language", None, None, "английский"),
+                Tag("language", None, None, "беларусский"),
+                Tag("language", None, None, "китайский (упр.)"),
+            ],
+        )
+
 
 class CanonicalizeTest(GameInfoTestBase):
     def test_resolves_existing_references_without_creating_new_ones(
@@ -465,6 +482,28 @@ class FromImporterDictTest(GameInfoTestBase):
                 Tag("platform", None, None, "INSTEAD"),
                 Tag("competition", None, None, "ЛОК-2020"),
                 Tag("ifid", None, None, "12345-ABCDE"),
+            ],
+        )
+
+    def test_imported_language_tags_split_and_normalized(self) -> None:
+        info = GameInfo.from_importer_dict({
+            "tags": [
+                {"cat_slug": "language", "tag": "Русский, английский"},
+                {"cat_slug": "language", "tag": "Белорусский"},
+                {"cat_slug": "language", "tag": "english"},
+                {"cat_slug": "language", "tag": "ru, en"},
+                {"cat_slug": "language", "tag": "Китайский (упр.)"},
+                {"cat_slug": "language", "tag": "русский"},  # duplicate
+            ]
+        })
+
+        self.assertEqual(
+            info.tags,
+            [
+                Tag("language", None, None, "русский"),
+                Tag("language", None, None, "английский"),
+                Tag("language", None, None, "беларусский"),
+                Tag("language", None, None, "китайский (упр.)"),
             ],
         )
 
