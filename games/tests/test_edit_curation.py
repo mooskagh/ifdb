@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils.timezone import now
 
 from curation.models import (
-    GameHistory,
+    GameCuration,
     GameSource,
     GameSourceFetch,
 )
@@ -111,10 +111,10 @@ class GameEditCurationViewTests(TestCase):
         )
 
         game.refresh_from_db()
-        history = GameHistory.objects.get(game=game)
+        history = GameCuration.objects.get(game=game)
         edit = GameRevision.objects.get(game=game)
         self.assertEqual(game.title, "Old Title")
-        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(history.state, GameCuration.State.NEEDS_ATTENTION)
         self.assertEqual(edit.status, GameRevision.Status.PROPOSED)
         self.assertEqual(edit.origin, GameRevision.Origin.USER_SUGGESTION)
         self.assertEqual(edit.created_by, self.user)
@@ -131,10 +131,10 @@ class GameEditCurationViewTests(TestCase):
         )
 
         game.refresh_from_db()
-        history = GameHistory.objects.get(game=game)
+        history = GameCuration.objects.get(game=game)
         edit = GameRevision.objects.get(game=game)
         self.assertEqual(game.title, "New Title")
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(edit.origin, GameRevision.Origin.MANUAL_EDIT)
         self.assertEqual(edit.created_by, self.user)
@@ -159,13 +159,13 @@ class GameEditCurationViewTests(TestCase):
             {"json": json.dumps(self._add_payload())},
         )
 
-        history = GameHistory.objects.get()
+        history = GameCuration.objects.get()
         edit = GameRevision.objects.get(game=history.game)
         self.assertRedirects(response, reverse("list_games"))
         self.assertIsNotNone(history.game)
         self.assertEqual(history.game.state, Game.State.DRAFT)
         self.assertEqual(history.game.title, "New Game")
-        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(history.state, GameCuration.State.NEEDS_ATTENTION)
         self.assertEqual(edit.status, GameRevision.Status.PROPOSED)
         self.assertEqual(edit.origin, GameRevision.Origin.USER_SUGGESTION)
         self.assertEqual(edit.created_by, self.user)
@@ -187,11 +187,11 @@ class GameEditCurationViewTests(TestCase):
         )
 
         edit.refresh_from_db()
-        history = edit.game.gamehistory
+        history = edit.game.curation
         history.refresh_from_db()
         history.game.refresh_from_db()
         self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertIsNotNone(history.game)
         self.assertEqual(history.game.title, "New Game")
         self.assertEqual(history.game.state, Game.State.PUBLISHED)
@@ -206,10 +206,9 @@ class GameEditCurationViewTests(TestCase):
             description="New description",
             creation_time=now(),
         )
-        history = GameHistory.objects.create(
+        history = GameCuration.objects.create(
             game=game,
-            creation_time=now(),
-            state=GameHistory.State.SETTLED,
+            state=GameCuration.State.SETTLED,
         )
         previous = GameRevision.objects.create(
             game=game,
@@ -298,10 +297,9 @@ class GameEditCurationViewTests(TestCase):
             creation_time=now(),
         )
         game.description_attributions.add(attribution)
-        GameHistory.objects.create(
+        GameCuration.objects.create(
             game=game,
-            creation_time=now(),
-            state=GameHistory.State.SETTLED,
+            state=GameCuration.State.SETTLED,
         )
         edit = GameRevision.objects.create(
             game=game,
@@ -346,10 +344,9 @@ class GameEditCurationViewTests(TestCase):
             title="Current Title",
             description="Current description",
         )
-        history = GameHistory.objects.create(
+        history = GameCuration.objects.create(
             game=game,
-            creation_time=now(),
-            state=GameHistory.State.SETTLED,
+            state=GameCuration.State.SETTLED,
         )
         edit = GameRevision.objects.create(
             game=game,
@@ -417,13 +414,13 @@ class GameEditCurationViewTests(TestCase):
         )
 
         game = Game.objects.get()
-        history = GameHistory.objects.get(game=game)
+        history = GameCuration.objects.get(game=game)
         edit = GameRevision.objects.get(game=game)
         self.assertRedirects(response, reverse("show_game", args=[game.id]))
         self.assertEqual(game.title, "New Game")
         self.assertEqual(game.state, Game.State.PUBLISHED)
         self.assertEqual(game.added_by, self.user)
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(edit.origin, GameRevision.Origin.MANUAL_EDIT)
         self.assertEqual(edit.created_by, self.user)
@@ -470,7 +467,7 @@ class GameEditCurationViewTests(TestCase):
     def test_game_page_moder_panel_links_to_curation_history(self):
         self.user.groups.add(Group.objects.create(name="gardener"))
         game = self._published_game("Old Title")
-        history = GameHistory.objects.create(game=game, creation_time=now())
+        history = GameCuration.objects.create(game=game)
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
@@ -492,15 +489,15 @@ class GameEditCurationViewTests(TestCase):
         game = Game.objects.create(
             state=Game.State.PUBLISHED, title=title, creation_time=now()
         )
-        kwargs = {"game": game, "creation_time": now()}
+        kwargs = {"game": game}
         if state is not None:
             kwargs["state"] = state
-        return GameHistory.objects.create(**kwargs)
+        return GameCuration.objects.create(**kwargs)
 
     def test_superuser_nav_shows_needs_attention_count(self):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
-        self._make_history(state=GameHistory.State.NEEDS_ATTENTION)
+        self._make_history(state=GameCuration.State.NEEDS_ATTENTION)
         self._make_history()
 
         response = self.client.get(reverse("list_games"))
@@ -516,7 +513,7 @@ class GameEditCurationViewTests(TestCase):
     def test_selected_superuser_nav_keeps_normal_style_with_count(self):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
-        self._make_history(state=GameHistory.State.NEEDS_ATTENTION)
+        self._make_history(state=GameCuration.State.NEEDS_ATTENTION)
 
         response = self.client.get(reverse("curation_history_list"))
 
@@ -540,7 +537,7 @@ class GameEditCurationViewTests(TestCase):
 
     def test_non_superuser_nav_omits_needs_attention_count(self):
         self.user.groups.add(Group.objects.create(name="gardener"))
-        self._make_history(state=GameHistory.State.NEEDS_ATTENTION)
+        self._make_history(state=GameCuration.State.NEEDS_ATTENTION)
 
         response = self.client.get(reverse("list_games"))
 

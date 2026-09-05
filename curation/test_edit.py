@@ -23,7 +23,7 @@ from .edit import Approval, GameEditPass, run_edit
 from .manual import store_manual_edit
 from .models import (
     EditPipeline,
-    GameHistory,
+    GameCuration,
     GameHistoryAuditLog,
     GameSource,
     GameSourceFetch,
@@ -129,8 +129,8 @@ class _AssertPeerScheduled(GameEditPass):
 
     def apply(self, state, params):
         if state.history.pk == self.first_id:
-            peer = GameHistory.objects.get(pk=self.peer_id)
-            assert peer.state == GameHistory.State.SCHEDULED_FOR_UPDATE
+            peer = GameCuration.objects.get(pk=self.peer_id)
+            assert peer.state == GameCuration.State.SCHEDULED_FOR_UPDATE
         state.current.tags.append(Tag("os", "os_win", None, None))
         state.approval = Approval.CANCELLED
 
@@ -144,10 +144,9 @@ class RunEditTests(TestCase):
         game = Game.objects.create(
             state=Game.State.PUBLISHED, title="A Game", creation_time=now()
         )
-        return GameHistory.objects.create(
+        return GameCuration.objects.create(
             game=game,
-            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
-            creation_time=now(),
+            state=GameCuration.State.SCHEDULED_FOR_UPDATE,
         )
 
     def _run_with(self, passes, history, specs=None, **kwargs):
@@ -171,7 +170,7 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.applied, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertEqual(history.game.state, Game.State.PUBLISHED)
         edit_row = GameRevision.objects.get(game=history.game)
         self.assertEqual(edit_row.status, GameRevision.Status.ACCEPTED)
@@ -226,10 +225,9 @@ class RunEditTests(TestCase):
         game = Game.objects.create(
             state=Game.State.DRAFT, title="Candidate", creation_time=now()
         )
-        history = GameHistory.objects.create(
+        history = GameCuration.objects.create(
             game=game,
-            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
-            creation_time=now(),
+            state=GameCuration.State.SCHEDULED_FOR_UPDATE,
         )
         game_id = game.pk
 
@@ -249,7 +247,7 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.proposed, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(history.state, GameCuration.State.NEEDS_ATTENTION)
         self.assertEqual(
             (edit_row := GameRevision.objects.get(game=history.game)).status,
             GameRevision.Status.PROPOSED,
@@ -268,7 +266,7 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.rejected, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertEqual(
             (edit_row := GameRevision.objects.get(game=history.game)).status,
             GameRevision.Status.REJECTED,
@@ -286,7 +284,7 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.rejected, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertEqual(history.note, "Needs review")
         self.assertEqual(
             GameRevision.objects.get(game=history.game).status,
@@ -316,7 +314,7 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.rejected, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(history.state, GameCuration.State.NEEDS_ATTENTION)
         self.assertEqual(history.note, "Needs review")
 
     def test_applied_with_needs_attention_commits_and_sets_attention(self):
@@ -329,7 +327,7 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.applied, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(history.state, GameCuration.State.NEEDS_ATTENTION)
         self.assertEqual(history.note, "Needs review")
         self.assertTrue(self._has_os_win(history.game))
         self.assertEqual(
@@ -344,7 +342,7 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.cancelled, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertFalse(
             GameRevision.objects.filter(game=history.game).exists()
         )
@@ -357,14 +355,14 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.unchanged, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertFalse(
             GameRevision.objects.filter(game=history.game).exists()
         )
 
     def test_processing_history_is_not_claimed_again(self):
         history = self._history()
-        history.state = GameHistory.State.PROCESSING
+        history.state = GameCuration.State.PROCESSING
         history.processing_started_at = now()
         history.processing_task_id = "running-task"
         history.save()
@@ -376,12 +374,12 @@ class RunEditTests(TestCase):
             GameRevision.objects.filter(game=history.game).exists()
         )
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.PROCESSING)
+        self.assertEqual(history.state, GameCuration.State.PROCESSING)
         self.assertEqual(history.processing_task_id, "running-task")
 
     def test_force_processes_settled_history(self):
         history = self._history()
-        history.state = GameHistory.State.SETTLED
+        history.state = GameCuration.State.SETTLED
         history.save(update_fields=["state"])
 
         stats = self._run_with(
@@ -390,12 +388,12 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.applied, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertTrue(self._has_os_win(history.game))
 
     def test_force_processes_needs_attention_history(self):
         history = self._history()
-        history.state = GameHistory.State.NEEDS_ATTENTION
+        history.state = GameCuration.State.NEEDS_ATTENTION
         history.save(update_fields=["state"])
 
         stats = self._run_with(
@@ -404,12 +402,12 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.applied, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertTrue(self._has_os_win(history.game))
 
     def test_force_does_not_process_abandoned_history(self):
         history = self._history()
-        history.state = GameHistory.State.ABANDONED
+        history.state = GameCuration.State.ABANDONED
         history.save(update_fields=["state"])
 
         stats = self._run_with(
@@ -418,12 +416,12 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.processed, 0)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.ABANDONED)
+        self.assertEqual(history.state, GameCuration.State.ABANDONED)
         self.assertFalse(self._has_os_win(history.game))
 
     def test_force_does_not_claim_fresh_processing_history(self):
         history = self._history()
-        history.state = GameHistory.State.PROCESSING
+        history.state = GameCuration.State.PROCESSING
         history.processing_started_at = now()
         history.processing_task_id = "running-task"
         history.save()
@@ -437,25 +435,25 @@ class RunEditTests(TestCase):
             GameRevision.objects.filter(game=history.game).exists()
         )
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.PROCESSING)
+        self.assertEqual(history.state, GameCuration.State.PROCESSING)
         self.assertEqual(history.processing_task_id, "running-task")
 
     def test_failed_forced_history_restores_original_state(self):
         history = self._history()
-        history.state = GameHistory.State.NEEDS_ATTENTION
+        history.state = GameCuration.State.NEEDS_ATTENTION
         history.save(update_fields=["state"])
 
         stats = self._run_with([_Fail()], history, force=True)
 
         self.assertEqual(stats.errors, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(history.state, GameCuration.State.NEEDS_ATTENTION)
         self.assertIsNone(history.processing_started_at)
         self.assertIsNone(history.processing_task_id)
 
     def test_stale_processing_history_is_reclaimed(self):
         history = self._history()
-        history.state = GameHistory.State.PROCESSING
+        history.state = GameCuration.State.PROCESSING
         history.processing_started_at = now() - edit.EDIT_LEASE_TIMEOUT * 2
         history.processing_task_id = "dead-task"
         history.save()
@@ -464,7 +462,7 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.applied, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertIsNone(history.processing_started_at)
         self.assertIsNone(history.processing_task_id)
 
@@ -475,7 +473,9 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.errors, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SCHEDULED_FOR_UPDATE)
+        self.assertEqual(
+            history.state, GameCuration.State.SCHEDULED_FOR_UPDATE
+        )
         self.assertIsNone(history.processing_started_at)
         self.assertIsNone(history.processing_task_id)
 
@@ -484,10 +484,9 @@ class RunEditTests(TestCase):
         candidate_game = Game.objects.create(
             state=Game.State.DRAFT, title="Candidate", creation_time=now()
         )
-        candidate = GameHistory.objects.create(
+        candidate = GameCuration.objects.create(
             game=candidate_game,
-            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
-            creation_time=now(),
+            state=GameCuration.State.SCHEDULED_FOR_UPDATE,
         )
         pipeline = EditPipeline.objects.create(
             name="Test", passes=["tag_and_approve"]
@@ -503,9 +502,9 @@ class RunEditTests(TestCase):
         attached.refresh_from_db()
         candidate.refresh_from_db()
         self.assertEqual(
-            attached.state, GameHistory.State.SCHEDULED_FOR_UPDATE
+            attached.state, GameCuration.State.SCHEDULED_FOR_UPDATE
         )
-        self.assertEqual(candidate.state, GameHistory.State.ABANDONED)
+        self.assertEqual(candidate.state, GameCuration.State.ABANDONED)
         candidate_game.refresh_from_db()
         self.assertEqual(candidate_game.state, Game.State.ABANDONED)
 
@@ -529,8 +528,8 @@ class RunEditTests(TestCase):
         self.assertEqual(stats.cancelled, 2)
         first.refresh_from_db()
         second.refresh_from_db()
-        self.assertEqual(first.state, GameHistory.State.SETTLED)
-        self.assertEqual(second.state, GameHistory.State.SETTLED)
+        self.assertEqual(first.state, GameCuration.State.SETTLED)
+        self.assertEqual(second.state, GameCuration.State.SETTLED)
 
     def test_final_trailing_newline_only_change_is_noop(self):
         history = self._history()
@@ -553,7 +552,7 @@ class RunEditTests(TestCase):
 
         self.assertEqual(stats.unchanged, 1)
         history.refresh_from_db()
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertEqual(
             GameRevision.objects.filter(game=history.game).count(), 1
         )
@@ -627,7 +626,7 @@ class ManualEditTests(TestCase):
         }
 
     def _history_with_source(self, game):
-        history = GameHistory.objects.create(game=game, creation_time=now())
+        history = GameCuration.objects.create(game=game)
         source = GameSource.objects.create(
             game=game,
             type=GameSource.SourceType.IFWIKI,
@@ -665,7 +664,7 @@ class ManualEditTests(TestCase):
         self.assertEqual(game.title, "New Title")
         self.assertEqual(game.description, "New description")
         self.assertEqual(game.release_date.isoformat(), "2020-01-02")
-        self.assertEqual(history.state, GameHistory.State.SETTLED)
+        self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertEqual(edit_row.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(edit_row.origin, GameRevision.Origin.MANUAL_EDIT)
         self.assertEqual(list(edit_row.used_sources.all()), [fetch])
@@ -682,7 +681,7 @@ class ManualEditTests(TestCase):
         game.refresh_from_db()
         history.refresh_from_db()
         self.assertEqual(game.title, "Old Title")
-        self.assertEqual(history.state, GameHistory.State.NEEDS_ATTENTION)
+        self.assertEqual(history.state, GameCuration.State.NEEDS_ATTENTION)
         self.assertEqual(history.note, "Пользователь предложил правку")
         self.assertEqual(edit_row.status, GameRevision.Status.PROPOSED)
         self.assertEqual(edit_row.origin, GameRevision.Origin.USER_SUGGESTION)

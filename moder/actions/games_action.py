@@ -85,12 +85,10 @@ class GameCurationAction(GameAction):
 
     @classmethod
     def IsAllowed(cls, request, obj):
-        return super().IsAllowed(request, obj) and hasattr(obj, "gamehistory")
+        return super().IsAllowed(request, obj) and hasattr(obj, "curation")
 
     def GetUrl(self):
-        return reverse(
-            "curation_history_detail", args=(self.obj.gamehistory.pk,)
-        )
+        return reverse("curation_history_detail", args=(self.obj.pk,))
 
 
 @RegisterAction

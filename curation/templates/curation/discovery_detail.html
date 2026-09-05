@@ -58,9 +58,7 @@
                         {% else %}
                         {{ source.game.title }} ({{ source.game.get_state_display }})
                         {% endif %}
-                        {% if source.game.gamehistory %}
-                        (<a href="{% url 'curation_history_detail' source.game.gamehistory.pk %}">админка</a>)
-                        {% endif %}
+                        (<a href="{% url 'curation_history_detail' source.game.pk %}">админка</a>)
                     {% else %}
                         —
                     {% endif %}
@@ -92,9 +90,7 @@
                     {% else %}
                     {{ source.game.title }} ({{ source.game.get_state_display }})
                     {% endif %}
-                    {% if source.game.gamehistory %}
-                    (<a href="{% url 'curation_history_detail' source.game.gamehistory.pk %}">админка</a>)
-                    {% endif %}
+                    (<a href="{% url 'curation_history_detail' source.game.pk %}">админка</a>)
                 {% else %}
                     —
                 {% endif %}

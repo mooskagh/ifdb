@@ -20,7 +20,7 @@ from games.importer.tools import ComputeSimilarity, GetBagOfWords, HashizeUrl
 from games.models import Game
 
 from .models import (
-    GameHistory,
+    GameCuration,
     GameHistoryAuditLog,
     GameSource,
     GameSourceFetch,
@@ -70,14 +70,14 @@ class _ReconcileTotals:
 
 
 # outcome in {"attached", "spawned", "ambiguous", "skipped"}
-SourceDone = Callable[[GameSource, str, GameHistory | None], None]
+SourceDone = Callable[[GameSource, str, GameCuration | None], None]
 
 
 @dataclass(eq=False)  # identity-hashable: targets live in sets/dict values
 class _Target:
     """A history plus the URL/title signals an orphan can match against."""
 
-    history: GameHistory
+    history: GameCuration
     hash_urls: set[str]
     title_bow: set[str]
     is_new: bool = False  # spawned this run, so still growable
@@ -156,9 +156,11 @@ def _signals(
     return hash_urls, GetBagOfWords(info.name or "")
 
 
-def _record_source_attached(source: GameSource, history: GameHistory) -> None:
+def _record_source_attached(
+    source: GameSource, curation: GameCuration
+) -> None:
     GameHistoryAuditLog.objects.create(
-        game=history.game,
+        game=curation.game,
         actor=None,
         created_at=now(),
         kind=GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
@@ -167,25 +169,25 @@ def _record_source_attached(source: GameSource, history: GameHistory) -> None:
     )
 
 
-def _mark_needs_attention(history: GameHistory, reason: str) -> None:
-    old_state = history.state
-    old_note = history.note
-    history.state = GameHistory.State.NEEDS_ATTENTION
-    if history.note:
-        history.note += f"\n{reason}"
+def _mark_needs_attention(curation: GameCuration, reason: str) -> None:
+    old_state = curation.state
+    old_note = curation.note
+    curation.state = GameCuration.State.NEEDS_ATTENTION
+    if curation.note:
+        curation.note += f"\n{reason}"
     else:
-        history.note = reason
-    history.save(update_fields=["state", "note"])
-    if old_state != history.state:
+        curation.note = reason
+    curation.save(update_fields=["state", "note"])
+    if old_state != curation.state:
         GameHistoryAuditLog.record_change(
-            history.game,
+            curation.game,
             None,
             GameHistoryAuditLog.AuditField.STATE,
             old_state,
-            history.state,
+            curation.state,
         )
     GameHistoryAuditLog.record_note_change(
-        history.game, None, old_note, history.note
+        curation.game, None, old_note, curation.note
     )
 
 
@@ -205,8 +207,8 @@ def _build_index() -> _TargetIndex:
     index = _TargetIndex()
 
     existing = (
-        GameHistory.objects
-        .exclude(state=GameHistory.State.ABANDONED)
+        GameCuration.objects
+        .exclude(state=GameCuration.State.ABANDONED)
         .select_related("game")
         .prefetch_related(
             "game__gameurl_set__category",
@@ -344,20 +346,19 @@ def run_reconcile(
             state=Game.State.DRAFT,
             creation_time=now(),
         )
-        history = GameHistory.objects.create(
+        curation = GameCuration.objects.create(
             game=game,
-            state=GameHistory.State.SCHEDULED_FOR_UPDATE,
-            creation_time=now(),
+            state=GameCuration.State.SCHEDULED_FOR_UPDATE,
         )
         source.game = game
         source.save(update_fields=["game"])
-        _record_source_attached(source, history)
+        _record_source_attached(source, curation)
         index.add(
-            _Target(history, set(hash_urls), set(title_bow), is_new=True)
+            _Target(curation, set(hash_urls), set(title_bow), is_new=True)
         )
         totals.spawned += 1
         if on_source_done is not None:
-            on_source_done(source, "spawned", history)
+            on_source_done(source, "spawned", curation)
 
     stats = [totals.as_stats() for totals in totals_by_type.values()]
     summary = ", ".join(

@@ -1,7 +1,7 @@
 from .curation import (
     EditPipeline,
     EnrichmentRule,
-    GameHistory,
+    GameCuration,
     GameHistoryAuditLog,
     GameHistoryComment,
     GameSource,
@@ -14,7 +14,7 @@ from .llm import LLMModel, LlmTrajectory, LlmWorkflow
 __all__ = [
     "EnrichmentRule",
     "EditPipeline",
-    "GameHistory",
+    "GameCuration",
     "GameHistoryAuditLog",
     "GameHistoryComment",
     "GameSource",

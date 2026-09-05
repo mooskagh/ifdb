@@ -37,7 +37,7 @@ from .llm_runners.content_editor import (
 )
 from .llm_runners.status_review import SetStatusParams
 from .models import (
-    GameHistory,
+    GameCuration,
     GameSource,
     GameSourceFetch,
     LLMModel,
@@ -275,11 +275,9 @@ class LlmWorkflowRunnerTests(TestCase):
         game = Game.objects.create(
             state=Game.State.DRAFT, title="LLM Game", creation_time=now()
         )
-        self.history = GameHistory.objects.create(
-            game=game, creation_time=now()
-        )
+        self.history = GameCuration.objects.create(game=game)
         self.state = GameEditState(
-            history=self.history,
+            curation=self.history,
             current=GameInfo(),
             approval=Approval.APPLIED,
             served=GameInfo(),
@@ -870,9 +868,7 @@ class HumanReviewRunnerTests(TestCase):
         game = Game.objects.create(
             state=Game.State.DRAFT, title="LLM Game", creation_time=now()
         )
-        self.history = GameHistory.objects.create(
-            game=game, creation_time=now()
-        )
+        self.history = GameCuration.objects.create(game=game)
         self.source = GameSource.objects.create(
             game=game,
             type=GameSource.SourceType.IFWIKI,
@@ -887,7 +883,7 @@ class HumanReviewRunnerTests(TestCase):
             last_fetch=now(),
         )
         self.state = GameEditState(
-            history=self.history,
+            curation=self.history,
             current=GameInfo(
                 name="Title", date="2025-01-02", description="Short"
             ),
@@ -1038,11 +1034,9 @@ class StatusReviewRunnerTests(TestCase):
         game = Game.objects.create(
             state=Game.State.DRAFT, title="LLM Game", creation_time=now()
         )
-        self.history = GameHistory.objects.create(
-            game=game, creation_time=now()
-        )
+        self.history = GameCuration.objects.create(game=game)
         self.state = GameEditState(
-            history=self.history,
+            curation=self.history,
             current=GameInfo(name="Title", description="New"),
             approval=Approval.PROPOSED,
             served=GameInfo(name="Title", description="Old"),
@@ -1200,11 +1194,9 @@ class ContentEditorRunnerTests(TestCase):
         game = Game.objects.create(
             state=Game.State.DRAFT, title="LLM Game", creation_time=now()
         )
-        self.history = GameHistory.objects.create(
-            game=game, creation_time=now()
-        )
+        self.history = GameCuration.objects.create(game=game)
         self.state = GameEditState(
-            history=self.history,
+            curation=self.history,
             current=GameInfo(
                 name="Title",
                 description="First line\nSecond line\nThird line",

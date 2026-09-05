@@ -11,7 +11,7 @@ from django.db.models import Count, F
 from django.utils.timezone import now
 
 from .models import (
-    GameHistory,
+    GameCuration,
     GameHistoryAuditLog,
     GameSource,
     GameSourceFetch,
@@ -112,19 +112,21 @@ def _fetch_remote(
 
 
 def _maybe_schedule_update(source: GameSource, fetch: GameSourceFetch) -> None:
-    history = (
-        getattr(source.game, "gamehistory", None) if source.game else None
-    )
-    if not history or history.state != GameHistory.State.SETTLED:
+    curation = getattr(source.game, "curation", None) if source.game else None
+    if not curation or curation.state != GameCuration.State.SETTLED:
         return
-    if history.edit_time and fetch.first_fetch <= history.edit_time:
+    if (
+        source.game
+        and source.game.edit_time
+        and fetch.first_fetch <= source.game.edit_time
+    ):
         return
 
-    old_state = history.state
-    history.state = GameHistory.State.SCHEDULED_FOR_UPDATE
-    history.save(update_fields=["state"])
+    old_state = curation.state
+    curation.state = GameCuration.State.SCHEDULED_FOR_UPDATE
+    curation.save(update_fields=["state"])
     GameHistoryAuditLog.record_auto_update_scheduled(
-        source.game, old_state, history.state
+        source.game, old_state, curation.state
     )
 
 
@@ -197,10 +199,10 @@ def run_fetch(
     sources = (
         GameSource.objects
         .filter(type__in=source_types)
-        .exclude(game__gamehistory__state=GameHistory.State.ABANDONED)
+        .exclude(game__curation__state=GameCuration.State.ABANDONED)
         .exclude(url__isnull=True)
         .exclude(url="")
-        .select_related("game__gamehistory")
+        .select_related("game__curation")
         .annotate(fetch_count=Count("gamesourcefetch"))
         .order_by(
             F("last_attempt").asc(nulls_first=True),

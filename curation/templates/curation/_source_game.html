@@ -1,3 +1,3 @@
 {% spaceless %}
-{% if source.game %}{% if source.game.state == "PUBLISHED" %}<a href="{% url 'show_game' source.game.pk %}">{{ source.game.title }}</a>{% else %}{{ source.game.title }} ({{ source.game.get_state_display }}){% endif %} ({% if source.game.gamehistory %}<a href="{% url 'curation_history_detail' source.game.gamehistory.pk %}">админка</a>{% endif %}){% else %}—{% endif %}
+{% if source.game %}{% if source.game.state == "PUBLISHED" %}<a href="{% url 'show_game' source.game.pk %}">{{ source.game.title }}</a>{% else %}{{ source.game.title }} ({{ source.game.get_state_display }}){% endif %} (<a href="{% url 'curation_history_detail' source.game.pk %}">админка</a>){% else %}—{% endif %}
 {% endspaceless %}

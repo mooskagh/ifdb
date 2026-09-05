@@ -50,20 +50,17 @@ class Game(models.Model):
     @transaction.atomic
     def abandon(self, actor: Any, *, keep_orphan: bool = False) -> None:
         from curation.models import (
-            GameHistory,
+            GameCuration,
             GameHistoryAuditLog,
             GameSource,
         )
 
         game = Game.objects.select_for_update().get(pk=self.pk)
-        history = (
-            GameHistory.objects
-            .select_for_update()
-            .filter(game_id=game.pk)
-            .first()
+        curation = (
+            GameCuration.objects.select_for_update().filter(pk=game.pk).first()
         )
         timestamp = now()
-        if history is not None:
+        if curation is not None:
             for source in GameSource.objects.select_for_update().filter(
                 game=game
             ):
@@ -77,32 +74,30 @@ class Game(models.Model):
                 source.keep_orphan = keep_orphan
                 source.save(update_fields=["game", "keep_orphan"])
 
-            old_state = history.state
-            history.state = GameHistory.State.ABANDONED
-            history.auto_updates = GameHistory.AutoUpdate.REJECT
-            history.processing_started_at = None
-            history.processing_task_id = None
-            history.edit_time = timestamp
-            history.save(
+            old_state = curation.state
+            curation.state = GameCuration.State.ABANDONED
+            curation.auto_updates = GameCuration.AutoUpdate.REJECT
+            curation.processing_started_at = None
+            curation.processing_task_id = None
+            curation.save(
                 update_fields=[
                     "state",
                     "auto_updates",
                     "processing_started_at",
                     "processing_task_id",
-                    "edit_time",
                 ]
             )
             GameRevision.objects.filter(
                 game=game,
                 status=GameRevision.Status.PROPOSED,
             ).update(status=GameRevision.Status.REJECTED)
-            if old_state != history.state:
+            if old_state != curation.state:
                 GameHistoryAuditLog.record_change(
                     game,
                     actor,
                     GameHistoryAuditLog.AuditField.STATE,
                     old_state,
-                    history.state,
+                    curation.state,
                 )
 
         game.state = Game.State.ABANDONED

@@ -40,7 +40,13 @@ class Command(BaseCommand):
             default=0,
             help="Minimum seconds between fetch starts per source type.",
         )
-        parser.add_argument("--history", type=int, help="Edit one history pk.")
+        parser.add_argument(
+            "--game",
+            "--history",
+            dest="game",
+            type=int,
+            help="Edit one game pk.",
+        )
         parser.add_argument("--pipeline", type=int, help="Edit pipeline pk.")
 
     def handle(self, *args, **options):
@@ -101,10 +107,10 @@ class Command(BaseCommand):
         if options["phase"] == "edit":
 
             def edit_done(history, outcome):
-                self.stdout.write(f"history #{history.pk}: {outcome}")
+                self.stdout.write(f"game #{history.pk}: {outcome}")
 
             stats = run_edit(
-                history_id=options["history"],
+                game_id=options["game"],
                 limit=options["limit"],
                 pipeline_id=options["pipeline"],
                 on_history_done=edit_done if verbose else None,

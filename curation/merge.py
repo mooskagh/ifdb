@@ -16,7 +16,7 @@ from games.models import (
     GameVote,
 )
 
-from .models import GameHistory, GameHistoryAuditLog, GameSource
+from .models import GameCuration, GameHistoryAuditLog, GameSource
 
 CONTEST_RELATED_MODELS = [GameListEntry, CompetitionVote, CompetitionQuestion]
 CONTEST_RELATED_LABELS = {
@@ -47,19 +47,14 @@ def contest_related_usage(game: Game) -> list[RelatedUsage]:
 
 
 @transaction.atomic
-def merge_game_into_history(
+def merge_game_into_game(
     *,
-    target_history: GameHistory,
+    target_game: Game,
     source_game: Game,
     actor,
     remap_contests: bool,
 ) -> None:
-    target_game = target_history.game
     if source_game.pk == target_game.pk:
-        raise ValueError("Cannot merge a game into itself.")
-
-    source_history = getattr(source_game, "gamehistory", None)
-    if source_history and source_history.pk == target_history.pk:
         raise ValueError("Cannot merge a game into itself.")
 
     usage = contest_related_usage(source_game)
@@ -68,7 +63,7 @@ def merge_game_into_history(
 
     target_game = Game.objects.select_for_update().get(pk=target_game.pk)
     source_game = Game.objects.select_for_update().get(pk=source_game.pk)
-    source_history = getattr(source_game, "gamehistory", None)
+    source_curation = getattr(source_game, "curation", None)
 
     if not target_game.release_date:
         target_game.release_date = source_game.release_date
@@ -141,23 +136,21 @@ def merge_game_into_history(
     GameHistoryAuditLog.record_game_merge(
         target_game, actor, source_game, target_game
     )
-    if source_history is not None:
+    if source_curation is not None:
         GameHistoryAuditLog.record_game_merge(
             source_game, actor, source_game, target_game
         )
-        old_state = source_history.state
-        source_history.state = GameHistory.State.ABANDONED
-        source_history.auto_updates = GameHistory.AutoUpdate.REJECT
-        source_history.processing_started_at = None
-        source_history.processing_task_id = None
-        source_history.edit_time = now()
-        source_history.save(
+        old_state = source_curation.state
+        source_curation.state = GameCuration.State.ABANDONED
+        source_curation.auto_updates = GameCuration.AutoUpdate.REJECT
+        source_curation.processing_started_at = None
+        source_curation.processing_task_id = None
+        source_curation.save(
             update_fields=[
                 "state",
                 "auto_updates",
                 "processing_started_at",
                 "processing_task_id",
-                "edit_time",
             ]
         )
         GameHistoryAuditLog.record_change(
@@ -165,14 +158,32 @@ def merge_game_into_history(
             actor,
             GameHistoryAuditLog.AuditField.STATE,
             old_state,
-            source_history.state,
+            source_curation.state,
         )
 
     source_game.state = Game.State.REDIRECT
     source_game.redirect_to = target_game
     source_game.save(update_fields=["state", "redirect_to"])
-    target_history.edit_time = now()
-    target_history.save(update_fields=["edit_time"])
+
+
+def merge_game_into_history(
+    *,
+    target_history,
+    source_game: Game,
+    actor,
+    remap_contests: bool,
+) -> None:
+    target_game = (
+        target_history.game
+        if hasattr(target_history, "game")
+        else target_history
+    )
+    return merge_game_into_game(
+        target_game=target_game,
+        source_game=source_game,
+        actor=actor,
+        remap_contests=remap_contests,
+    )
 
 
 def _merged_description(left: str | None, right: str | None) -> str:

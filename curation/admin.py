@@ -3,7 +3,7 @@ from django.contrib import admin
 from .models import (
     EditPipeline,
     EnrichmentRule,
-    GameHistory,
+    GameCuration,
     GameHistoryAuditLog,
     GameHistoryComment,
     GameSource,
@@ -15,14 +15,13 @@ from .models import (
 )
 
 
-@admin.register(GameHistory)
-class GameHistoryAdmin(admin.ModelAdmin):
+@admin.register(GameCuration)
+class GameCurationAdmin(admin.ModelAdmin):
     list_display = [
         "pk",
         "game",
         "state",
         "auto_updates",
-        "creation_time",
     ]
     list_filter = ["state", "auto_updates"]
     search_fields = ["pk", "note"]
