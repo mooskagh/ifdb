@@ -52,7 +52,6 @@ class Game(models.Model):
         from curation.models import (
             GameHistory,
             GameHistoryAuditLog,
-            GameRevision,
             GameSource,
         )
 
@@ -164,6 +163,80 @@ class Game(models.Model):
     # -(GameContestEntry)
     # (LoadLog) // For computing popularity
     # -(GamePopularity)
+
+
+class GameRevision(models.Model):
+    class Meta:
+        default_permissions = ()
+        constraints = [
+            models.UniqueConstraint(
+                fields=["game"],
+                condition=models.Q(status="PROPOSED"),
+                name="games_gamerevision_one_proposed_per_game",
+            )
+        ]
+
+    class Status(models.TextChoices):
+        PROPOSED = "PROPOSED", _("Proposed")
+        ACCEPTED = "ACCEPTED", _("Accepted")
+        REJECTED = "REJECTED", _("Rejected")
+
+    class Origin(models.TextChoices):
+        AUTO_IMPORT = "AUTO_IMPORT", _("Automatic import")
+        MANUAL_EDIT = "MANUAL_EDIT", _("Manual edit")
+        USER_SUGGESTION = "USER_SUGGESTION", _("User suggestion")
+        BACKFILL = "BACKFILL", _("Backfill")
+        ROLLBACK = "ROLLBACK", _("Rollback")
+        PARTIAL_ROLLBACK = "PARTIAL_ROLLBACK", _("Partial rollback")
+        REAPPLICATION = "REAPPLICATION", _("Reapplication")
+        PARTIAL_REAPPLY = "PARTIAL_REAPPLY", _("Partial reapplication")
+
+    def __str__(self) -> str:
+        return f"Revision #{self.pk} ({self.get_status_display()})"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        if self.status != self.Status.PROPOSED:
+            super().save(*args, **kwargs)
+            return
+
+        with transaction.atomic():
+            Game.objects.select_for_update().get(pk=self.game_id)
+            pending_edits = GameRevision.objects.filter(
+                game_id=self.game_id, status=self.Status.PROPOSED
+            )
+            if self.pk:
+                pending_edits = pending_edits.exclude(pk=self.pk)
+            pending_edits.update(status=self.Status.REJECTED)
+            super().save(*args, **kwargs)
+
+    game = models.ForeignKey(Game, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(_("Created at"))
+    published_at = models.DateTimeField(
+        _("Published at"), null=True, blank=True
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_game_revisions",
+    )
+    published_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    status = models.CharField(_("Status"), max_length=16, choices=Status)
+    origin = models.CharField(_("Origin"), max_length=16, choices=Origin)
+    used_sources = models.ManyToManyField(
+        "curation.GameSourceFetch", blank=True
+    )
+    passes = models.JSONField(_("Passes"), default=list)
+    previous_canonical_text = models.TextField(
+        _("Previous canonical text"), null=True, blank=True
+    )
+    canonical_text = models.TextField(_("Canonical text"))
 
 
 class GameDescriptionAttribution(models.Model):

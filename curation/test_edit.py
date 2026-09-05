@@ -11,6 +11,7 @@ from games.models import (
     Game,
     GameAuthorRole,
     GameDescriptionAttribution,
+    GameRevision,
     GameTag,
     GameTagCategory,
     GameURLCategory,
@@ -24,7 +25,6 @@ from .models import (
     EditPipeline,
     GameHistory,
     GameHistoryAuditLog,
-    GameRevision,
     GameSource,
     GameSourceFetch,
     LLMModel,
@@ -174,7 +174,7 @@ class RunEditTests(TestCase):
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertEqual(history.game.state, Game.State.PUBLISHED)
         edit_row = GameRevision.objects.get(game=history.game)
-        self.assertEqual(edit_row.status, GameRevision.Status.PUBLISHED)
+        self.assertEqual(edit_row.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(edit_row.passes, [{"name": "tag_and_approve"}])
         self.assertIsNotNone(edit_row.previous_canonical_text)
         self.assertIn("A Game", edit_row.previous_canonical_text)
@@ -308,7 +308,7 @@ class RunEditTests(TestCase):
         self.assertTrue(self._has_os_win(history.game))
         self.assertEqual(
             GameRevision.objects.get(game=history.game).status,
-            GameRevision.Status.PUBLISHED,
+            GameRevision.Status.ACCEPTED,
         )
 
     def test_cancelled_settles_without_edit(self):
@@ -611,7 +611,7 @@ class ManualEditTests(TestCase):
             game=game,
             created_at=now(),
             published_at=now(),
-            status=GameRevision.Status.PUBLISHED,
+            status=GameRevision.Status.ACCEPTED,
             origin=GameRevision.Origin.AUTO_IMPORT,
             canonical_text=fetch.canonical_text,
         )
@@ -632,7 +632,7 @@ class ManualEditTests(TestCase):
         self.assertEqual(game.description, "New description")
         self.assertEqual(game.release_date.isoformat(), "2020-01-02")
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertEqual(edit_row.status, GameRevision.Status.PUBLISHED)
+        self.assertEqual(edit_row.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(edit_row.origin, GameRevision.Origin.MANUAL_EDIT)
         self.assertEqual(list(edit_row.used_sources.all()), [fetch])
         self.assertIn("manual source", edit_row.canonical_text)

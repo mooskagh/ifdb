@@ -7,12 +7,13 @@ from games.models import (
     Game,
     GameAuthorRole,
     GameDescriptionAttribution,
+    GameRevision,
     GameTag,
     GameTagCategory,
     GameURLCategory,
 )
 
-from .models import GameHistory, GameHistoryAuditLog, GameRevision
+from .models import GameHistory, GameHistoryAuditLog
 
 
 def editor_payload_to_gameinfo(data: dict) -> GameInfo:
@@ -52,7 +53,7 @@ def store_manual_edit(
             else GameRevision.Origin.USER_SUGGESTION
         ),
         status=(
-            GameRevision.Status.PUBLISHED
+            GameRevision.Status.ACCEPTED
             if apply
             else GameRevision.Status.PROPOSED
         ),
@@ -111,7 +112,7 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameRevision:
             else GameRevision.Origin.USER_SUGGESTION
         ),
         status=(
-            GameRevision.Status.PUBLISHED
+            GameRevision.Status.ACCEPTED
             if apply
             else GameRevision.Status.PROPOSED
         ),
@@ -139,7 +140,7 @@ def _latest_applied_edit(target: Game | GameHistory) -> GameRevision | None:
     game = target.game if isinstance(target, GameHistory) else target
     return (
         game.gamerevision_set
-        .filter(status=GameRevision.Status.PUBLISHED)
+        .filter(status=GameRevision.Status.ACCEPTED)
         .order_by("-published_at", "-created_at", "-id")
         .first()
     )

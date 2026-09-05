@@ -33,13 +33,12 @@ from django.utils.timezone import now
 
 from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
-from games.models import Game
+from games.models import Game, GameRevision
 
 from .models import (
     EditPipeline,
     GameHistory,
     GameHistoryAuditLog,
-    GameRevision,
     GameSource,
     GameSourceFetch,
     LlmTrajectory,
@@ -70,7 +69,7 @@ _APPROVAL_BY_AUTO_UPDATE = {
 }
 _EDIT_STATUS_BY_APPROVAL = {
     Approval.PROPOSED: GameRevision.Status.PROPOSED,
-    Approval.APPLIED: GameRevision.Status.PUBLISHED,
+    Approval.APPLIED: GameRevision.Status.ACCEPTED,
     Approval.REJECTED: GameRevision.Status.REJECTED,
 }
 
@@ -202,7 +201,7 @@ def _latest_fetch(source: GameSource) -> GameSourceFetch | None:
 def _last_applied_edit(history: GameHistory) -> GameRevision | None:
     return (
         history.game.gamerevision_set
-        .filter(status=GameRevision.Status.PUBLISHED)
+        .filter(status=GameRevision.Status.ACCEPTED)
         .order_by("-published_at", "-created_at", "-id")
         .first()
     )

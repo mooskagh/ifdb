@@ -33,7 +33,7 @@ from core.models import BlogFeed, FeedCache
 from core.tasks import fetch_feeds
 from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
-from games.models import Game, GameURL
+from games.models import Game, GameRevision, GameURL
 from play.blueprint import BlueprintModule, discover_blueprints
 
 from . import openrouter
@@ -49,7 +49,6 @@ from .models import (
     GameHistory,
     GameHistoryAuditLog,
     GameHistoryComment,
-    GameRevision,
     GameSource,
     GameSourceFetch,
     LLMModel,
@@ -1415,7 +1414,7 @@ EDIT_FIELD_LABELS = {
 
 
 def _settled_edit_action(edit, history):
-    if edit.status == GameRevision.Status.PUBLISHED:
+    if edit.status == GameRevision.Status.ACCEPTED:
         if edit.previous_canonical_text is None:
             return None
         action = "rollback"
@@ -1448,7 +1447,7 @@ def _propose_from_settled_edit(edit, user, post):
     base = (
         _served_gameinfo(history) if history else GameInfo.from_game(edit.game)
     )
-    if edit.status == GameRevision.Status.PUBLISHED:
+    if edit.status == GameRevision.Status.ACCEPTED:
         if post.get("action") != "rollback":
             raise ValueError("Applied edits can only be rolled back.")
         if edit.previous_canonical_text is None:
@@ -1471,7 +1470,7 @@ def _propose_from_settled_edit(edit, user, post):
         raise ValueError("No changed fields selected.")
 
     is_partial = fields != changed
-    if edit.status == GameRevision.Status.PUBLISHED:
+    if edit.status == GameRevision.Status.ACCEPTED:
         origin = (
             GameRevision.Origin.PARTIAL_ROLLBACK
             if is_partial
@@ -1549,7 +1548,7 @@ def _changed_edit_fields(base, target):
 def _previous_applied_edit(edit):
     previous = None
     for candidate in edit.game.gamerevision_set.filter(
-        status=GameRevision.Status.PUBLISHED
+        status=GameRevision.Status.ACCEPTED
     ).order_by("published_at", "created_at", "id"):
         if candidate.pk == edit.pk:
             return previous
@@ -1603,7 +1602,7 @@ def _accept_edit(edit, history, before, user):
     if was_draft and edit.created_by and not game.added_by:
         game.added_by = edit.created_by
         game.save(update_fields=["added_by"])
-    edit.status = GameRevision.Status.PUBLISHED
+    edit.status = GameRevision.Status.ACCEPTED
     edit.published_at = now()
     edit.published_by = user
     edit.previous_canonical_text = before

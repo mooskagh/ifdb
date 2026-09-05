@@ -8,6 +8,7 @@ from games.gameinfo import GameInfo
 from games.models import (
     Game,
     GameAuthorRole,
+    GameRevision,
     GameTag,
     GameTagCategory,
     GameURLCategory,
@@ -19,7 +20,6 @@ from .merge import contest_related_usage
 from .models import (
     GameHistory,
     GameHistoryAuditLog,
-    GameRevision,
     GameSource,
 )
 
@@ -497,7 +497,7 @@ def _apply_game_info(
             published_at=now(),
             created_by=actor,
             published_by=actor,
-            status=GameRevision.Status.PUBLISHED,
+            status=GameRevision.Status.ACCEPTED,
             origin=GameRevision.Origin.MANUAL_EDIT,
             previous_canonical_text=before,
             canonical_text=after,

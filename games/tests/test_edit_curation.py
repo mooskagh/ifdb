@@ -10,7 +10,6 @@ from django.utils.timezone import now
 
 from curation.models import (
     GameHistory,
-    GameRevision,
     GameSource,
     GameSourceFetch,
 )
@@ -20,6 +19,7 @@ from games.models import (
     GameAuthor,
     GameAuthorRole,
     GameDescriptionAttribution,
+    GameRevision,
     GameURL,
     GameURLCategory,
     PersonalityAlias,
@@ -117,7 +117,7 @@ class GameEditCurationViewTests(TestCase):
         edit = GameRevision.objects.get(game=game)
         self.assertEqual(game.title, "New Title")
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertEqual(edit.status, GameRevision.Status.PUBLISHED)
+        self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(edit.origin, GameRevision.Origin.MANUAL_EDIT)
         self.assertEqual(edit.created_by, self.user)
         self.assertEqual(edit.published_by, self.user)
@@ -172,7 +172,7 @@ class GameEditCurationViewTests(TestCase):
         history = edit.game.gamehistory
         history.refresh_from_db()
         history.game.refresh_from_db()
-        self.assertEqual(edit.status, GameRevision.Status.PUBLISHED)
+        self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
         self.assertIsNotNone(history.game)
         self.assertEqual(history.game.title, "New Game")
@@ -197,7 +197,7 @@ class GameEditCurationViewTests(TestCase):
             game=game,
             created_at=now(),
             published_at=now(),
-            status=GameRevision.Status.PUBLISHED,
+            status=GameRevision.Status.ACCEPTED,
             origin=GameRevision.Origin.MANUAL_EDIT,
             canonical_text=(
                 "---\n- name: Earlier Title\n---\nEarlier description"
@@ -209,7 +209,7 @@ class GameEditCurationViewTests(TestCase):
             game=game,
             created_at=now(),
             published_at=now(),
-            status=GameRevision.Status.PUBLISHED,
+            status=GameRevision.Status.ACCEPTED,
             origin=GameRevision.Origin.MANUAL_EDIT,
             previous_canonical_text=(
                 "---\n- name: Old Title\n---\nOld description"
@@ -289,7 +289,7 @@ class GameEditCurationViewTests(TestCase):
             game=game,
             created_at=now(),
             published_at=now(),
-            status=GameRevision.Status.PUBLISHED,
+            status=GameRevision.Status.ACCEPTED,
             origin=GameRevision.Origin.MANUAL_EDIT,
             previous_canonical_text="---\n- name: Title\n---\nOld description",
             canonical_text=(
@@ -408,7 +408,7 @@ class GameEditCurationViewTests(TestCase):
         self.assertEqual(game.state, Game.State.PUBLISHED)
         self.assertEqual(game.added_by, self.user)
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertEqual(edit.status, GameRevision.Status.PUBLISHED)
+        self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(edit.origin, GameRevision.Origin.MANUAL_EDIT)
         self.assertEqual(edit.created_by, self.user)
         self.assertEqual(edit.published_by, self.user)

@@ -6,7 +6,6 @@ from .models import (
     GameHistory,
     GameHistoryAuditLog,
     GameHistoryComment,
-    GameRevision,
     GameSource,
     GameSourceFetch,
     GenreMapping,
@@ -57,28 +56,6 @@ class GameSourceFetchAdmin(admin.ModelAdmin):
     ]
     search_fields = ["pk", "canonical_text_hash"]
     raw_id_fields = ["source"]
-
-
-@admin.register(GameRevision)
-class GameRevisionAdmin(admin.ModelAdmin):
-    list_display = [
-        "pk",
-        "game",
-        "status",
-        "origin",
-        "created_at",
-        "created_by",
-        "published_by",
-    ]
-
-    list_filter = ["status", "origin"]
-    search_fields = ["pk"]
-    raw_id_fields = [
-        "game",
-        "created_by",
-        "published_by",
-        "used_sources",
-    ]
 
 
 @admin.register(EditPipeline)
