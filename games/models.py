@@ -244,6 +244,7 @@ class GameRevision(models.Model):
         PARTIAL_REAPPLY = "PARTIAL_REAPPLY", _("Partial reapplication")
         CLONE = "CLONE", _("Clone")
         MERGE = "MERGE", _("Merge")
+        API = "API", _("API")
 
     def __str__(self) -> str:
         return f"Revision #{self.pk} ({self.get_status_display()})"
