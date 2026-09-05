@@ -177,11 +177,37 @@ class RunEditTests(TestCase):
         self.assertEqual(edit_row.status, GameRevision.Status.ACCEPTED)
         self.assertEqual(edit_row.passes, [{"name": "tag_and_approve"}])
         self.assertIsNotNone(edit_row.previous_canonical_text)
-        self.assertIn("A Game", edit_row.previous_canonical_text)
+        self.assertEqual(edit_row.previous_canonical_text, "")
         self.assertIsNotNone(edit_row.published_at)
         self.assertEqual(
             edit_row.created_by.username, settings.MAINTENANCE_USER
         )
+
+    def test_applied_with_previous_revision_records_previous_canonical_text(
+        self,
+    ):
+        history = self._history()
+        rev = GameRevision.objects.create(
+            game=history.game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.BACKFILL,
+            canonical_text='---\n- name: "A Game"\n---\n',
+        )
+        history.game.published_revision = rev
+        history.game.save(update_fields=["published_revision"])
+
+        stats = self._run_with([_TagAndApprove(Approval.APPLIED)], history)
+
+        self.assertEqual(stats.applied, 1)
+        edit_row = (
+            GameRevision.objects
+            .filter(game=history.game)
+            .exclude(pk=rev.pk)
+            .get()
+        )
+        self.assertEqual(edit_row.previous_canonical_text, rev.canonical_text)
         self.assertEqual(
             edit_row.published_by.username, settings.MAINTENANCE_USER
         )
@@ -248,7 +274,7 @@ class RunEditTests(TestCase):
             GameRevision.Status.REJECTED,
         )
         self.assertIsNotNone(edit_row.previous_canonical_text)
-        self.assertIn("A Game", edit_row.previous_canonical_text)
+        self.assertEqual(edit_row.previous_canonical_text, "")
         self.assertFalse(self._has_os_win(history.game))
 
     def test_rejected_with_note_settles_and_preserves_note(self):
@@ -508,8 +534,16 @@ class RunEditTests(TestCase):
 
     def test_final_trailing_newline_only_change_is_noop(self):
         history = self._history()
-        history.game.description = "Text"
-        history.game.save(update_fields=["description"])
+        rev = GameRevision.objects.create(
+            game=history.game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.BACKFILL,
+            canonical_text="---\n\n---\nText",
+        )
+        history.game.published_revision = rev
+        history.game.save(update_fields=["published_revision"])
 
         stats = self._run_with(
             [_SetDescription()],
@@ -520,8 +554,8 @@ class RunEditTests(TestCase):
         self.assertEqual(stats.unchanged, 1)
         history.refresh_from_db()
         self.assertEqual(history.state, GameHistory.State.SETTLED)
-        self.assertFalse(
-            GameRevision.objects.filter(game=history.game).exists()
+        self.assertEqual(
+            GameRevision.objects.filter(game=history.game).count(), 1
         )
 
     def test_pass_params_are_applied_and_recorded(self):

@@ -39,10 +39,10 @@ def store_manual_edit(
     game: Game, data: dict, user, *, apply: bool
 ) -> GameRevision:
     history = _history_for_game(game)
-    before = GameInfo.from_game(game).to_canonical()
+    previous_edit = _latest_applied_edit(game)
+    before = previous_edit.canonical_text if previous_edit else ""
     info = editor_payload_to_gameinfo(data)
     canonical = info.to_canonical()
-    previous_edit = _latest_applied_edit(game)
     edit = GameRevision.objects.create(
         game=game,
         created_at=now(),

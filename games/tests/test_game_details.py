@@ -1,7 +1,6 @@
 from copy import deepcopy
 from io import StringIO
 from typing import Any
-from unittest import mock
 
 from django.contrib.auth.models import AnonymousUser
 from django.core.management import call_command
@@ -19,6 +18,7 @@ from games.models import (
     Game,
     GameAuthor,
     GameDescriptionAttribution,
+    GameRevision,
     GameTag,
     GameURL,
     Personality,
@@ -213,26 +213,72 @@ A **markdown** description.
         )
         self.assertEqual(info, original)
 
-    @mock.patch("games.views.GameInfo.from_game")
-    def test_public_page_uses_gameinfo_for_content(
-        self, from_game: Any
-    ) -> None:
+    def test_public_page_without_published_revision_returns_500(self) -> None:
         game = Game.objects.create(
             state=Game.State.PUBLISHED,
-            title="Persisted title",
-            description="Persisted body",
+            title="Unrevised Game",
             creation_time=now(),
-        )
-        from_game.return_value = GameInfo(
-            name="Canonical title", description="Canonical body"
         )
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
+        self.assertEqual(response.status_code, 500)
+        self.assertTemplateUsed(response, "games/error.html")
+        self.assertContains(
+            response, "У игры нет опубликованной версии.", status_code=500
+        )
+
+    def test_public_page_renders_from_published_revision(self) -> None:
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Direct Game Title",
+            description="Direct Game Body",
+            creation_time=now(),
+        )
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text="""---
+- name: "Revision Title"
+---
+Revision Body
+""",
+        )
+        game.refresh_from_db()
+        self.assertEqual(game.published_revision, rev)
+
+        response = self.client.get(reverse("show_game", args=[game.id]))
+
         self.assertEqual(response.status_code, 200)
-        from_game.assert_called_once_with(game)
-        self.assertContains(response, "Canonical title")
-        self.assertContains(response, "Canonical body")
-        self.assertNotContains(response, "Persisted title")
+        self.assertContains(response, "Revision Title")
+        self.assertContains(response, "Revision Body")
+        self.assertNotContains(response, "Direct Game Title")
+        self.assertNotContains(response, "Direct Game Body")
         self.assertEqual(response.context["game"].id, game.id)
-        self.assertTrue(response.context["added_date"])
+
+    def test_from_game_uses_published_revision_when_present(self) -> None:
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Direct Game Title",
+            description="Direct Game Body",
+            creation_time=now(),
+        )
+        GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text="""---
+- name: "Revision Title"
+---
+Revision Body
+""",
+        )
+        game.refresh_from_db()
+        info = GameInfo.from_game(game)
+        self.assertEqual(info.name, "Revision Title")
+        self.assertEqual(info.description, "Revision Body\n")

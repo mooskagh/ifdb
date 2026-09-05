@@ -22,7 +22,7 @@ from moder.actions import GetModerActions
 from moder.userlog import LogAction
 
 from .game_details import GameDetailsBuilder, GetCommentVotes, StarsFromRating
-from .gameinfo import GameInfo
+from .gameinfo import parse
 from .importer import Importer
 from .importer.tools import CategorizeUrl
 from .models import (
@@ -391,7 +391,9 @@ def _resolve_public_game(game_id: int) -> tuple[Game, bool] | None:
             return None
         visited.add(game_id)
         try:
-            game = Game.objects.select_related("redirect_to").get(id=game_id)
+            game = Game.objects.select_related(
+                "redirect_to", "published_revision"
+            ).get(id=game_id)
         except Game.DoesNotExist:
             return None
         if game.state == Game.State.REDIRECT:
@@ -416,7 +418,14 @@ def show_game(request, game_id):
         if query_string := request.META.get("QUERY_STRING"):
             location = f"{location}?{query_string}"
         return redirect(location, permanent=True)
-    info = GameInfo.from_game(game)
+    if not game.published_revision:
+        return render(
+            request,
+            "games/error.html",
+            {"message": "У игры нет опубликованной версии."},
+            status=500,
+        )
+    info = parse(game.published_revision.canonical_text)
     LogAction(request, "gam-view", is_mutation=False, obj=game)
     page = GameDetailsBuilder(info).GetGameDict(game, request)
     return render(request, "games/game.html", vars(page))

@@ -38,6 +38,7 @@ from play.blueprint import BlueprintModule, discover_blueprints
 
 from . import openrouter
 from .diff import build_diff
+from .manual import _latest_applied_edit
 from .manual_reconcile import (
     column_for_game,
     initial_payload,
@@ -1444,9 +1445,11 @@ def _settled_edit_action(edit, history):
 
 def _propose_from_settled_edit(edit, user, post):
     history = getattr(edit.game, "gamehistory", None)
-    base = (
-        _served_gameinfo(history) if history else GameInfo.from_game(edit.game)
-    )
+    if history:
+        base = _served_gameinfo(history)
+    else:
+        latest = _latest_applied_edit(edit.game)
+        base = parse(latest.canonical_text) if latest else GameInfo()
     if edit.status == GameRevision.Status.ACCEPTED:
         if post.get("action") != "rollback":
             raise ValueError("Applied edits can only be rolled back.")
@@ -1504,7 +1507,8 @@ def _propose_from_settled_edit(edit, user, post):
 
 
 def _served_gameinfo(history):
-    return GameInfo.from_game(history.game)
+    edit = _latest_applied_edit(history)
+    return parse(edit.canonical_text) if edit else GameInfo()
 
 
 def _mix_gameinfo(base, target, fields):
@@ -1569,7 +1573,8 @@ def _redirect_after_edit(next_page, edit, history):
 
 
 def _served_canonical(history):
-    return GameInfo.from_game(history.game).to_canonical()
+    edit = _latest_applied_edit(history)
+    return edit.canonical_text if edit else ""
 
 
 def _update_auto_accept(history, request):

@@ -98,6 +98,7 @@ class GameEditState:
     # passes may also mutate these:
     notes: list[str] = field(default_factory=list)
     needs_attention: bool = False
+    last_applied_canonical: str = ""
 
     def add_note(self, note: str | None) -> None:
         if note and note not in self.notes:
@@ -275,13 +276,9 @@ def _build_sources(
 def _build_state(
     history: GameHistory,
 ) -> GameEditState:
-    served = (
-        GameInfo.from_game(history.game)
-        if history.game.state == Game.State.PUBLISHED
-        else GameInfo()
-    )
     last_edit = _last_applied_edit(history)
     last_applied = parse(last_edit.canonical_text) if last_edit else GameInfo()
+    served = copy.deepcopy(last_applied)
     notes = history.note.splitlines() if history.note else []
     if history.auto_updates is GameHistory.AutoUpdate.PROPOSE:
         note = "Автообновление отключено"
@@ -296,6 +293,7 @@ def _build_state(
         last_applied=last_applied,
         sources=_build_sources(history, last_edit),
         notes=notes,
+        last_applied_canonical=last_edit.canonical_text if last_edit else "",
     )
     return state
 
@@ -339,7 +337,7 @@ def _process_history(history: GameHistory, pipeline: EditPipeline) -> str:
         state.current.canonicalize()
 
     final = state.current.to_canonical()
-    base = state.served.to_canonical()
+    base = state.last_applied_canonical
     done_state = (
         GameHistory.State.NEEDS_ATTENTION
         if state.needs_attention

@@ -27,6 +27,7 @@ from games.models import (
     GameAuthor,
     GameAuthorRole,
     GameDescriptionAttribution,
+    GameRevision,
     GameTag,
     GameTagCategory,
     GameURL,
@@ -182,41 +183,21 @@ class GameInfo:
         return info
 
     @classmethod
+    def from_revision(cls, revision: GameRevision) -> "GameInfo":
+        """Build from a GameRevision canonical document."""
+        return parse(revision.canonical_text)
+
+    @classmethod
     def from_game(cls, game: Game) -> "GameInfo":
-        """Build from a DB row, mirroring the game-details prefetch pattern."""
-        game = Game.objects.prefetch_related(
-            "gameauthor_set__role",
-            "gameauthor_set__author",
-            "gameurl_set__category",
-            "gameurl_set__url",
-            "description_attributions",
-            "tags__category",
-        ).get(id=game.id)
-        info = cls(
-            name=game.title,
-            date=game.release_date.isoformat() if game.release_date else None,
-            description=game.description or None,
+        """Build from published revision."""
+        if not game.published_revision_id:
+            raise ValueError(f"Game {game.id} has no published revision")
+        revision = (
+            game.published_revision
+            if "published_revision" in game._state.fields_cache
+            else GameRevision.objects.get(id=game.published_revision_id)
         )
-        for ga in game.gameauthor_set.all():
-            info.personalities.setdefault(ga.role.symbolic_id, []).append(
-                Person(alias_id=ga.author_id, name="")
-            )
-        for t in game.tags.all():
-            info.tags.append(
-                Tag(t.category.symbolic_id, t.symbolic_id, t.id, None)
-            )
-        for gu in game.gameurl_set.all():
-            info.urls.append(
-                GameUrl(
-                    gu.category.symbolic_id,
-                    gu.url_id,
-                    gu.description,
-                    gu.url.original_url,
-                )
-            )
-        for a in game.description_attributions.all():
-            info.attributions.append(Attribution(a.id, a.name))
-        return info
+        return cls.from_revision(revision)
 
     # -- Persistence ------------------------------------------------------
 

@@ -14,15 +14,12 @@ from curation.models import (
     GameSource,
     GameSourceFetch,
 )
+from games.gameinfo import GameInfo, GameUrl, Person
 from games.models import (
     URL,
     Game,
-    GameAuthor,
-    GameAuthorRole,
     GameDescriptionAttribution,
     GameRevision,
-    GameURL,
-    GameURLCategory,
     PersonalityAlias,
 )
 
@@ -57,6 +54,26 @@ class GameEditCurationViewTests(TestCase):
         )
         del data["game_id"]
         return data
+
+    def _published_game(self, title="Old Title", description="", **kwargs):
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title=title,
+            description=description,
+            creation_time=now(),
+            **kwargs,
+        )
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text=f'---\n- name: "{title}"\n---\n{description}',
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
+        return game
 
     def test_edit_page_button_says_propose_without_edit_perm(self):
         game = Game.objects.create(
@@ -325,11 +342,9 @@ class GameEditCurationViewTests(TestCase):
     def test_rejected_edit_can_be_cloned_to_selected_fields(self):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
-        game = Game.objects.create(
-            state=Game.State.PUBLISHED,
+        game = self._published_game(
             title="Current Title",
             description="Current description",
-            creation_time=now(),
         )
         history = GameHistory.objects.create(
             game=game,
@@ -431,12 +446,22 @@ class GameEditCurationViewTests(TestCase):
         )
 
     def test_game_page_renders_unlinked_author_alias(self):
-        game = Game.objects.create(
-            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
-        )
-        role = GameAuthorRole.objects.get(symbolic_id="author")
         alias = PersonalityAlias.objects.create(name="Unlinked Author")
-        GameAuthor.objects.create(game=game, role=role, author=alias)
+        info = GameInfo(
+            name="Old Title",
+            personalities={"author": [Person(alias.id, "")]},
+        )
+        game, canonical = info.save()
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text=canonical,
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
@@ -444,9 +469,7 @@ class GameEditCurationViewTests(TestCase):
 
     def test_game_page_moder_panel_links_to_curation_history(self):
         self.user.groups.add(Group.objects.create(name="gardener"))
-        game = Game.objects.create(
-            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
-        )
+        game = self._published_game("Old Title")
         history = GameHistory.objects.create(game=game, creation_time=now())
 
         response = self.client.get(reverse("show_game", args=[game.id]))
@@ -459,9 +482,7 @@ class GameEditCurationViewTests(TestCase):
 
     def test_game_page_moder_panel_omits_curation_without_history(self):
         self.user.groups.add(Group.objects.create(name="gardener"))
-        game = Game.objects.create(
-            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
-        )
+        game = self._published_game("Old Title")
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 
@@ -526,15 +547,25 @@ class GameEditCurationViewTests(TestCase):
         self.assertNotContains(response, "top-nav-attention")
 
     def test_game_page_renders_media_without_description(self):
-        game = Game.objects.create(
-            state=Game.State.PUBLISHED, title="Old Title", creation_time=now()
-        )
-        category = GameURLCategory.objects.get(symbolic_id="poster")
         url = URL.objects.create(
             original_url="https://example.com/poster.png",
             creation_date=now(),
         )
-        GameURL.objects.create(game=game, category=category, url=url)
+        info = GameInfo(
+            name="Old Title",
+            urls=[GameUrl("poster", url.id, "", url.original_url)],
+        )
+        game, canonical = info.save()
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text=canonical,
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
 
         response = self.client.get(reverse("show_game", args=[game.id]))
 

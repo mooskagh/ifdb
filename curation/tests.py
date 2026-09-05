@@ -1464,6 +1464,16 @@ class EditDiffViewTest(TestCase):
             creation_time=self.now,
             added_by=self.user,
         )
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=self.now,
+            published_at=self.now,
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text=GameInfo(name="Old Title").to_canonical(),
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
         history = GameHistory.objects.create(
             game=game,
             creation_time=self.now,
@@ -3640,6 +3650,29 @@ class EditRunnerTest(TestCase):
         old_attr = GameDescriptionAttribution.objects.create(name="old source")
         source_attr = GameDescriptionAttribution.objects.create(name="wiki")
         game.description_attributions.add(old_attr)
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=self.now,
+            published_at=self.now,
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.BACKFILL,
+            canonical_text=f"""---
+- name: Old Title
+- release_date: "2001-02-03"
+- personalities:
+    author:
+      - {old_author.id}
+- tags:
+  - ["tag", {old_tag.id}]
+- urls:
+  - ["game", "old file", "{old_url.original_url}"]
+- attributions:
+  - {old_attr.id}
+---
+Old desc""",
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
         canonical = f"""---
 - name: Source Title
 - personalities:
@@ -3739,6 +3772,21 @@ Source desc"""
             url=url,
             description="Текущее описание",
         )
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=self.now,
+            published_at=self.now,
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.BACKFILL,
+            canonical_text=f"""---
+- name: Old Title
+- urls:
+  - ["download_landing", "Текущее описание", {url.id}]
+---
+""",
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
         canonical = f"""---
 - name: Old Title
 - urls:
@@ -3750,7 +3798,9 @@ Source desc"""
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.proposed, 1)
-        edit = GameRevision.objects.get(game=history.game)
+        edit = GameRevision.objects.get(
+            game=history.game, status=GameRevision.Status.PROPOSED
+        )
         self.assertIn(
             f'["download_landing", "Текущее описание", {url.id}]'
             f'  # "Скачать игру" "{url.original_url}"',
@@ -3764,6 +3814,19 @@ Source desc"""
             description="Old desc",
             creation_time=self.now,
         )
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=self.now,
+            published_at=self.now,
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.BACKFILL,
+            canonical_text="""---
+- name: Old Title
+---
+Old desc""",
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
         history = self._history(game=game)
         cat = GameTagCategory.objects.create(symbolic_id="tag", name="Tag")
         source_tag = GameTag.objects.create(category=cat, name="source")
@@ -3896,6 +3959,21 @@ Text
             creation_date=self.now,
         )
         GameURL.objects.create(game=game, category=play_online, url=url)
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=self.now,
+            published_at=self.now,
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.BACKFILL,
+            canonical_text=f"""---
+- name: Tell
+- urls:
+  - ["play_online", {url.id}]
+---
+""",
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
         canonical = """---
 - name: Tell
 - urls:
@@ -3927,6 +4005,21 @@ Text
             creation_date=self.now,
         )
         GameURL.objects.create(game=game, category=game_page, url=url)
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=self.now,
+            published_at=self.now,
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.BACKFILL,
+            canonical_text=f"""---
+- name: Tell
+- urls:
+  - ["game_page", {url.id}]
+---
+""",
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
         canonical = f"""---
 - name: Tell
 - urls:
@@ -3938,8 +4031,8 @@ Text
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
         self.assertEqual(stats.unchanged, 1)
-        self.assertFalse(
-            GameRevision.objects.filter(game=history.game).exists()
+        self.assertEqual(
+            GameRevision.objects.filter(game=history.game).count(), 1
         )
 
     def test_merge_can_drop_existing_data(self):
