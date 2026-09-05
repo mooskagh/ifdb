@@ -2,7 +2,7 @@
 
 The IFDB REST API allows clients to programmatically create, retrieve, update, and publish games using the canonical text format, as well as upload game files and attach download links.
 
-Interactive documentation (Redoc) is available at `/api/docs/` and the machine-readable OpenAPI 3.0 specification is served at `/api/openapi.json`.
+The machine-readable OpenAPI 3.0 specification is served at `/api/openapi.json`.
 
 ---
 
@@ -80,7 +80,7 @@ Markdown description body...
 
 ## Authentication & Authorization
 
-All mutating endpoints require an API token. API tokens can be created in the Django Admin (`/adminz/api/apitoken/`).
+All mutating endpoints require an API token.
 
 ### Headers
 
@@ -105,11 +105,7 @@ Each token is linked to a user account and has a `permissions` list. If the list
 
 ### Attribution
 
-Actions performed via the API record:
-- `Game.added_by` is set to the token owner.
-- `GameRevision.created_by` and `GameRevision.published_by` are set to the token owner.
-- `GameRevision.origin` is set to `API`.
-- `URL.creator` is set to the token owner.
+All actions and edits performed via the API appear as the user associated with the token.
 
 ---
 
@@ -298,7 +294,6 @@ Upload a file directly connected to an existing game.
 
 ---
 
-### 3. Documentation
+### 3. OpenAPI Specification
 
-- **Interactive UI**: `GET /api/docs/`
 - **OpenAPI Schema**: `GET /api/openapi.json`
