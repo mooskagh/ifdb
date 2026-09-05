@@ -249,6 +249,15 @@ class QspSuProviderTest(ProviderTestBase):
         self.assertEqual([a.name for a in info.attributions], ["qsp.org"])
         self.assert_round_trips(info)
 
+    def test_qsp_language_untranslated_for_unknown(self):
+        json_en = QSP_JSON.replace('"lang": "ru"', '"lang": "en"')
+        info_en = QspSuProvider().canonicalize(json_en, self.url)
+        self.assertIn("английский", self._tag_texts(info_en))
+
+        json_fr = QSP_JSON.replace('"lang": "ru"', '"lang": "fr"')
+        info_fr = QspSuProvider().canonicalize(json_fr, self.url)
+        self.assertIn("fr", self._tag_texts(info_fr))
+
     def test_discover_reads_api_pages(self):
         pages = {
             1: '{"data":[{"slug":"1-one"}],"meta":{"last_page":2}}',

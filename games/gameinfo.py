@@ -104,6 +104,16 @@ class GameInfo:
         for people in self.personalities.values():
             for person in people:
                 self._resolve_existing_alias_id(person)
+        new_tags: list[Tag] = []
+        for tag in self.tags:
+            if tag.text:
+                for norm in normalize_tag_text(tag.category, tag.text):
+                    new_tags.append(
+                        Tag(tag.category, tag.slug, tag.tag_id, norm)
+                    )
+            else:
+                new_tags.append(tag)
+        self.tags = new_tags
         for tag in self.tags:
             self._resolve_existing_tag_id(tag)
         for url in self.urls:
@@ -162,14 +172,18 @@ class GameInfo:
                 info.tags.append(Tag("", t["tag_slug"], None, None))
             else:
                 category = t["cat_slug"]
-                info.tags.append(
-                    Tag(
-                        category,
-                        None,
-                        None,
-                        _normalize_tag_text(category, t["tag"]),
+                for norm_text in normalize_tag_text(
+                    category, t.get("tag") or ""
+                ):
+                    info.tags.append(
+                        Tag(
+                            category,
+                            None,
+                            None,
+                            norm_text,
+                        )
                     )
-                )
+        info.tags = _dedup(info.tags, _tag_key)
         for u in d.get("urls", []):
             if not u.get("urlcat_slug"):  # mirrors MergeImport's url filter
                 continue
@@ -416,7 +430,10 @@ def parse(text: str) -> GameInfo:
     )
     for role, people in _as_mapping(sections.get("personalities")).items():
         info.personalities[role] = [_parse_person(p) for p in people or []]
-    info.tags = [_parse_tag(t) for t in sections.get("tags") or []]
+    info.tags = []
+    for t in sections.get("tags") or []:
+        info.tags.extend(_parse_tag(t))
+    info.tags = _dedup(info.tags, _tag_key)
     info.urls = [_parse_url(u) for u in sections.get("urls") or []]
     info.attributions = [
         _parse_attribution(a) for a in sections.get("attributions") or []
@@ -433,7 +450,7 @@ def _parse_person(value: Any) -> Person:
     return Person(None, value)
 
 
-def _parse_tag(value: Any) -> Tag:
+def _parse_tag(value: Any) -> list[Tag]:
     if isinstance(value, str):  # slug form
         tag = (
             GameTag.objects
@@ -442,23 +459,55 @@ def _parse_tag(value: Any) -> Tag:
             .first()
         )
         if tag:
-            return Tag(tag.category.symbolic_id, value, tag.id, None)
-        return Tag("", value, None, None)
+            return [Tag(tag.category.symbolic_id, value, tag.id, None)]
+        return [Tag("", value, None, None)]
     cat, ref = value
     if isinstance(ref, int):  # DB tag, possibly with a slug
         tag = GameTag.objects.filter(id=ref).first()
-        return Tag(cat, tag.symbolic_id if tag else None, ref, None)
-    ref = _normalize_tag_text(cat, ref)
-    tag = GameTag.objects.filter(category__symbolic_id=cat, name=ref).first()
-    if tag:
-        return Tag(cat, tag.symbolic_id, tag.id, None)
-    return Tag(cat, None, None, ref)
+        return [Tag(cat, tag.symbolic_id if tag else None, ref, None)]
+    tags = []
+    for norm in normalize_tag_text(cat, ref):
+        tag = GameTag.objects.filter(
+            category__symbolic_id=cat, name=norm
+        ).first()
+        if tag:
+            tags.append(Tag(cat, tag.symbolic_id, tag.id, None))
+        else:
+            tags.append(Tag(cat, None, None, norm))
+    return tags
+
+
+LANGUAGE_NORMALIZATION: dict[str, str] = {
+    "ru": "русский",
+    "en": "английский",
+    "english": "английский",
+    "белорусский": "беларусский",
+}
+
+
+def normalize_tag_text(category: str, text: str) -> list[str]:
+    """Normalize raw tag text for a category into tag strings."""
+    if not text:
+        return []
+    if category == "language":
+        results = []
+        for part in text.split(","):
+            part = part.strip().lower()
+            if not part:
+                continue
+            part = LANGUAGE_NORMALIZATION.get(part, part)
+            results.append(part)
+        return results
+    if category == "tag":
+        cleaned = text.strip().lower()
+        return [cleaned] if cleaned else []
+    cleaned = text.strip()
+    return [cleaned] if cleaned else []
 
 
 def _normalize_tag_text(category: str, text: str) -> str:
-    if category in {"tag", "language"}:
-        return text.lower()
-    return text
+    norm = normalize_tag_text(category, text)
+    return norm[0] if norm else text
 
 
 def _parse_url(value: Any) -> GameUrl:

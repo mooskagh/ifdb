@@ -19,7 +19,13 @@ from urllib.parse import urlsplit
 
 from curation.edit import GameEditPass, GameEditState, register_pass
 from curation.models import EnrichmentRule, GenreMapping
-from games.gameinfo import GameInfo, Tag
+from games.gameinfo import (
+    GameInfo,
+    Tag,
+    _dedup,
+    _tag_key,
+    normalize_tag_text,
+)
 from games.importer.tools import CategorizeUrl
 from games.models import URL, GameTag
 
@@ -116,9 +122,14 @@ def _tag_identifiers(tag: Tag) -> list[str]:
 
 
 def _lowercase_tags(info: GameInfo) -> None:
+    new_tags: list[Tag] = []
     for tag in info.tags:
-        if tag.category in {"tag", "language"} and tag.text:
-            tag.text = tag.text.lower()
+        if tag.text and tag.category in {"tag", "language"}:
+            for norm in normalize_tag_text(tag.category, tag.text):
+                new_tags.append(Tag(tag.category, tag.slug, tag.tag_id, norm))
+        else:
+            new_tags.append(tag)
+    info.tags = _dedup(new_tags, _tag_key)
 
 
 def _tags_to_genre(info: GameInfo) -> None:
