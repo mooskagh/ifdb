@@ -9,7 +9,6 @@ EVERYONE_GROUP = "@all"
 UNAUTH_GROUP = "@guest"
 AUTH_GROUP = "@auth"
 SUPERUSER_GROUP = "@admin"
-CRAWLER_GROUP = "@crawler"
 
 # Add groups to the right if it's to the left.
 EXPAND_GROUPS = [
@@ -26,33 +25,6 @@ GROUP_ALIAS = {
     "personality_edit": "@moder",
     "curation_admin": "@moder",
 }
-
-CRAWLER_STRS = [
-    "YandexBot",
-    "Googlebot",
-    "YandexMobileBot",
-    "MegaIndex.ru",
-    "Barkrowler",
-    "DotBot",
-    "BLEXBot",
-    "MauiBot",
-    "AhrefsBot",
-    "Mail.RU_Bot",
-    "SemrushBot",
-    "bingbot",
-    "Twitterbot",
-    "Discordbot",
-    "MJ12bot",
-    "CCBot",
-]
-
-
-def IsCrawler(request):
-    useragent = request.META.get("HTTP_USER_AGENT", "")
-    for x in CRAWLER_STRS:
-        if x in useragent:
-            return True
-    return False
 
 
 def parse_sexp(s):
@@ -87,8 +59,6 @@ class Permissioner:
         user = request.user
         self.tokens = set()
         self.tokens.add(EVERYONE_GROUP)
-        if IsCrawler(request):
-            self.tokens.add(CRAWLER_GROUP)
 
         if not user.is_authenticated:
             self.tokens.add(UNAUTH_GROUP)

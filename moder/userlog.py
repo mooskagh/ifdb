@@ -19,8 +19,6 @@ def LogAction(
     before=None,
     after=None,
 ):
-    if request.perm("(o @crawler @nolog)"):
-        return
     x = UserLog()
     if request.user.is_authenticated:
         x.user = request.user
