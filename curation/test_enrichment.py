@@ -76,6 +76,21 @@ class DefaultRuleTests(TestCase):
         languages = [t.text for t in info.tags if t.category == "language"]
         self.assertEqual(languages, ["английский", "беларусский", "эсперанто"])
 
+    def test_language_with_db_tag_id_is_lowercased_and_deduplicated(self):
+        cat = GameTagCategory.objects.create(
+            symbolic_id="language", name="Language"
+        )
+        tag = GameTag.objects.create(category=cat, name="Английский")
+        info = GameInfo(
+            tags=[
+                Tag("language", None, tag.id, None),
+                Tag("language", None, None, "english"),
+            ]
+        )
+        _enrich(info)
+        languages = [t.text for t in info.tags if t.category == "language"]
+        self.assertEqual(languages, ["английский"])
+
     def test_rerun_is_idempotent(self):
         info = GameInfo(
             tags=[Tag("platform", None, None, "qsp")],

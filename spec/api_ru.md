@@ -1,6 +1,6 @@
-# Документация IFDB REST API
+# Документация REST API db.crem.xyz
 
-REST API базы данных IFDB позволяет программно создавать, запрашивать, обновлять и публиковать игры, используя **канонический текстовый формат**, а также загружать файлы игр и прикреплять ссылки на скачивание.
+REST API базы данных db.crem.xyz позволяет программно создавать, запрашивать, обновлять и публиковать игры, используя **канонический текстовый формат**, а также загружать файлы игр и прикреплять ссылки на скачивание.
 
 Машиночитаемая спецификация OpenAPI 3.0 доступна по адресу `/api/openapi.json`.
 
@@ -31,7 +31,7 @@ REST API базы данных IFDB позволяет программно со
   - ["control", "Парсерная"]
   - ["state", "Готовая"]
 - urls:
-  - ["download_direct", "Версия для Windows", "https://ifdb.example.com/f/uploads/games/42/game.zip"]
+  - ["download_direct", "Версия для Windows", "https://db.crem.xyz/f/uploads/games/42/game.zip"]
   - ["play_online", "Играть в браузере", "https://example.com/play/"]
   - ["game_page", "Страница на itch.io", "https://example.itch.io/game"]
 - attributions:
@@ -114,7 +114,7 @@ REST API базы данных IFDB позволяет программно со
 При сохранении игры система автоматически привязывает строковые имена и URL к записям в базе данных. В возвращаемом каноническом документе ссылки и теги могут содержать числовые ID с комментариями для читаемости:
 ```yaml
 - urls:
-  - ["download_direct", "Архив 1.0", 351]  # "https://ifdb.example.com/f/uploads/games/42/game.zip"
+  - ["download_direct", "Архив 1.0", 351]  # "https://db.crem.xyz/f/uploads/games/42/game.zip"
 ```
 При отправке новых правок через API можно передавать как строки с URL/именами, так и ранее разрешённые числовые ID.
 
@@ -302,7 +302,7 @@ Authorization: Token <ключ_токена>
 ```json
 {
   "url_id": 102,
-  "url": "https://ifdb.example.com/f/uploads/castle.zip",
+  "url": "https://db.crem.xyz/f/uploads/castle.zip",
   "filename": "castle.zip",
   "canonical_snippet": ["download_direct", "", 102]
 }
@@ -332,7 +332,7 @@ Authorization: Token <ключ_токена>
 {
   "game_id": 15,
   "url_id": 103,
-  "url": "https://ifdb.example.com/f/uploads/games/15/castle_v1.zip",
+  "url": "https://db.crem.xyz/f/uploads/games/15/castle_v1.zip",
   "filename": "castle_v1.zip",
   "category": "download_direct",
   "description": "Релиз для Windows",

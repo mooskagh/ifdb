@@ -104,16 +104,7 @@ class GameInfo:
         for people in self.personalities.values():
             for person in people:
                 self._resolve_existing_alias_id(person)
-        new_tags: list[Tag] = []
-        for tag in self.tags:
-            if tag.text:
-                for norm in normalize_tag_text(tag.category, tag.text):
-                    new_tags.append(
-                        Tag(tag.category, tag.slug, tag.tag_id, norm)
-                    )
-            else:
-                new_tags.append(tag)
-        self.tags = new_tags
+        self.tags = normalize_tags(self.tags)
         for tag in self.tags:
             self._resolve_existing_tag_id(tag)
         for url in self.urls:
@@ -450,33 +441,6 @@ def _parse_person(value: Any) -> Person:
     return Person(None, value)
 
 
-def _parse_tag(value: Any) -> list[Tag]:
-    if isinstance(value, str):  # slug form
-        tag = (
-            GameTag.objects
-            .filter(symbolic_id=value)
-            .select_related("category")
-            .first()
-        )
-        if tag:
-            return [Tag(tag.category.symbolic_id, value, tag.id, None)]
-        return [Tag("", value, None, None)]
-    cat, ref = value
-    if isinstance(ref, int):  # DB tag, possibly with a slug
-        tag = GameTag.objects.filter(id=ref).first()
-        return [Tag(cat, tag.symbolic_id if tag else None, ref, None)]
-    tags = []
-    for norm in normalize_tag_text(cat, ref):
-        tag = GameTag.objects.filter(
-            category__symbolic_id=cat, name=norm
-        ).first()
-        if tag:
-            tags.append(Tag(cat, tag.symbolic_id, tag.id, None))
-        else:
-            tags.append(Tag(cat, None, None, norm))
-    return tags
-
-
 LANGUAGE_NORMALIZATION: dict[str, str] = {
     "ru": "русский",
     "en": "английский",
@@ -508,6 +472,67 @@ def normalize_tag_text(category: str, text: str) -> list[str]:
 def _normalize_tag_text(category: str, text: str) -> str:
     norm = normalize_tag_text(category, text)
     return norm[0] if norm else text
+
+
+def normalize_tags(tags: Iterable[Tag]) -> list[Tag]:
+    """Lowercase/normalize tags (free text or DB references)."""
+    tag_ids = {
+        t.tag_id
+        for t in tags
+        if t.tag_id is not None and t.category in {"language", "tag"}
+    }
+    db_names = (
+        dict(GameTag.objects.filter(id__in=tag_ids).values_list("id", "name"))
+        if tag_ids
+        else {}
+    )
+    result: list[Tag] = []
+    for t in tags:
+        if t.text:
+            result.extend(
+                Tag(t.category, t.slug, None, norm)
+                for norm in normalize_tag_text(t.category, t.text)
+            )
+        elif t.tag_id in db_names:
+            name = db_names[t.tag_id]
+            norms = normalize_tag_text(t.category, name)
+            if norms == [name]:
+                result.append(t)
+            else:
+                result.extend(
+                    Tag(t.category, None, None, norm) for norm in norms
+                )
+        else:
+            result.append(t)
+    return result
+
+
+def _parse_tag(value: Any) -> list[Tag]:
+    if isinstance(value, str):  # slug form
+        tag = (
+            GameTag.objects
+            .filter(symbolic_id=value)
+            .select_related("category")
+            .first()
+        )
+        if tag:
+            return [Tag(tag.category.symbolic_id, value, tag.id, None)]
+        return [Tag("", value, None, None)]
+    cat, ref = value
+    if isinstance(ref, int):  # DB tag, possibly with a slug
+        tag = GameTag.objects.filter(id=ref).first()
+        raw = Tag(cat, tag.symbolic_id if tag else None, ref, None)
+    else:
+        raw = Tag(cat, None, None, ref)
+    tags = normalize_tags([raw])
+    for t in tags:
+        if t.tag_id is None and t.text:
+            found = GameTag.objects.filter(
+                category__symbolic_id=cat, name=t.text
+            ).first()
+            if found:
+                t.slug, t.tag_id, t.text = found.symbolic_id, found.id, None
+    return tags
 
 
 def _parse_url(value: Any) -> GameUrl:
