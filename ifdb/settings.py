@@ -411,6 +411,9 @@ if "test" in sys.argv:
     CELERY_RESULT_BACKEND = "cache+memory://"
 
 AUTH_USER_MODEL = "core.User"
+AUTHENTICATION_BACKENDS = [
+    "core.backends.EmailOrUsernameModelBackend",
+]
 FILE_UPLOAD_PERMISSIONS = 0o644
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
 STATIC_URL = "/static/"

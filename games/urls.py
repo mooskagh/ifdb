@@ -1,9 +1,10 @@
 from django.conf import settings
+from django.contrib.auth import views as auth_views
 from django.http import HttpResponseRedirect
 from django.urls import include, path, re_path
 from django_registration.backends.activation.views import RegistrationView
 
-from core.forms import RegistrationForm
+from core.forms import LoginForm, RegistrationForm
 
 from . import views
 
@@ -55,6 +56,11 @@ urlpatterns = [
             if settings.REQUIRE_ACCOUNT_ACTIVATION
             else "django_registration.backends.one_step.urls"
         ),
+    ),
+    path(
+        "accounts/login/",
+        auth_views.LoginView.as_view(authentication_form=LoginForm),
+        name="login",
     ),
     re_path(r"^accounts/", include("django.contrib.auth.urls")),
 ]
