@@ -9,8 +9,7 @@
     <form method="post" action="{% url 'login' %}" class="password_form">
         {% if form.errors %}
             <p class="perror">
-                Пароль не подошёл.
-                Кстати, надо не имя пользователя вводить, а email.
+                Неверный логин или пароль.
             </p>
         {% endif %}
         {% csrf_token %}

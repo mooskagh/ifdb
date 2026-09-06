@@ -40,7 +40,7 @@
                     {% else %}
                         <form class="loginbox" method="post" action="{% url 'login' %}">
                             {% csrf_token %}
-                            <input placeholder="E-mail" type="text" name="username" id="id_username" required maxlength="254" />
+                            <input placeholder="Логин или email" type="text" name="username" id="id_username" required maxlength="254" />
                             <input placeholder="Пароль" type="password" name="password" id="id_password" required />
                             <input type="submit" value="Войти" />
                             <input type="hidden" name="next" value="{{ request.path }}" />
