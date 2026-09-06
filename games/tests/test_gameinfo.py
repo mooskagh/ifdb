@@ -334,6 +334,20 @@ class LooseParseTest(GameInfoTestBase):
             ],
         )
 
+    def test_frontmatter_db_language_tag_normalized_and_deduplicated(
+        self,
+    ) -> None:
+        cat = GameTagCategory.objects.get(symbolic_id="language")
+        upper = GameTag.objects.create(category=cat, name="Английский")
+        lower = GameTag.objects.create(category=cat, name="английский")
+
+        info = parse(
+            f"---\n- tags:\n  - ['language', {upper.id}]\n"
+            f"  - ['language', {lower.id}]\n---\n"
+        )
+
+        self.assertEqual(info.tags, [Tag("language", None, lower.id, None)])
+
 
 class CanonicalizeTest(GameInfoTestBase):
     def test_resolves_existing_references_without_creating_new_ones(
@@ -415,6 +429,34 @@ class CanonicalizeTest(GameInfoTestBase):
             [GameUrl("download_direct", url.id, "Скачать", None)],
         )
         self.assertEqual(info.attributions, [Attribution(attr.id, "")])
+
+    def test_canonicalize_lowercases_and_deduplicates_existing_language_tags(
+        self,
+    ) -> None:
+        cat = GameTagCategory.objects.get(symbolic_id="language")
+        upper_en = GameTag.objects.create(category=cat, name="Английский")
+        lower_en = GameTag.objects.create(category=cat, name="английский")
+        upper_ru = GameTag.objects.create(category=cat, name="Русский")
+        lower_ru = GameTag.objects.create(category=cat, name="русский")
+
+        info = GameInfo(
+            tags=[
+                Tag("language", None, upper_en.id, None),
+                Tag("language", None, upper_ru.id, None),
+                Tag("language", None, lower_en.id, None),
+                Tag("language", None, lower_ru.id, None),
+            ]
+        )
+
+        info.canonicalize()
+
+        self.assertEqual(
+            info.tags,
+            [
+                Tag("language", None, lower_en.id, None),
+                Tag("language", None, lower_ru.id, None),
+            ],
+        )
 
 
 class FromImporterDictTest(GameInfoTestBase):

@@ -24,7 +24,7 @@ from games.gameinfo import (
     Tag,
     _dedup,
     _tag_key,
-    normalize_tag_text,
+    normalize_tags,
 )
 from games.importer.tools import CategorizeUrl
 from games.models import URL, GameTag
@@ -42,9 +42,10 @@ class EnrichmentPass(GameEditPass):
                 _compile(rule.condition, "eval"), {"__builtins__": {}}, ns
             ):
                 exec(_compile(rule.action, "exec"), {"__builtins__": {}}, ns)
-        _lowercase_tags(info)
+        info.tags = normalize_tags(info.tags)
         _tags_to_genre(info)
         _fill_url_descriptions(info)
+        info.tags = _dedup(info.tags, _tag_key)
 
 
 @lru_cache(maxsize=None)
@@ -119,17 +120,6 @@ def _tag_identifiers(tag: Tag) -> list[str]:
 
 
 # -- Built-in transforms --------------------------------------------------
-
-
-def _lowercase_tags(info: GameInfo) -> None:
-    new_tags: list[Tag] = []
-    for tag in info.tags:
-        if tag.text and tag.category in {"tag", "language"}:
-            for norm in normalize_tag_text(tag.category, tag.text):
-                new_tags.append(Tag(tag.category, tag.slug, tag.tag_id, norm))
-        else:
-            new_tags.append(tag)
-    info.tags = _dedup(new_tags, _tag_key)
 
 
 def _tags_to_genre(info: GameInfo) -> None:
