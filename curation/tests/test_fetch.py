@@ -8,17 +8,16 @@ from django.core.management import call_command
 from django.test import TestCase, TransactionTestCase
 from django.utils.timezone import now
 
-from games.gameinfo import GameInfo
-from games.models import Game
-
-from .fetch import FetchStats, _RateLimiter, run_fetch
-from .models import (
+from curation.fetch import FetchStats, _RateLimiter, run_fetch
+from curation.models import (
     GameCuration,
     GameHistoryAuditLog,
     GameSource,
     GameSourceFetch,
 )
-from .providers import GameSourceProvider
+from curation.providers import GameSourceProvider
+from games.gameinfo import GameInfo
+from games.models import Game
 
 
 class FakeProvider(GameSourceProvider):

@@ -7,8 +7,7 @@ from zipfile import ZipFile
 from django.test import SimpleTestCase
 
 from play.blueprint import GenerateSpec
-
-from . import accepts, generate, get_spec
+from play.blueprints.instead_em import accepts, generate, get_spec
 
 _DEFAULT_HTML = (
     b'<!doctype html>\n<!--    <meta name="gamefile" content="game.zip"> -->\n'

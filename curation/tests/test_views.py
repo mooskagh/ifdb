@@ -26,6 +26,19 @@ from contest.models import (
     GameListEntry,
 )
 from core.models import BlogFeed, FeedCache
+from curation.edit import run_edit
+from curation.models import (
+    EditPipeline,
+    GameCuration,
+    GameHistoryAuditLog,
+    GameHistoryComment,
+    GameSource,
+    GameSourceFetch,
+    LLMModel,
+    LlmTrajectory,
+    LlmWorkflow,
+    SourceDiscoveryStatus,
+)
 from games.gameinfo import GameInfo, GameUrl
 from games.models import (
     URL,
@@ -47,20 +60,6 @@ from play.blueprint import (
     GenerateSpec,
 )
 from play.models import Playable
-
-from .edit import run_edit
-from .models import (
-    EditPipeline,
-    GameCuration,
-    GameHistoryAuditLog,
-    GameHistoryComment,
-    GameSource,
-    GameSourceFetch,
-    LLMModel,
-    LlmTrajectory,
-    LlmWorkflow,
-    SourceDiscoveryStatus,
-)
 
 
 class CurationSmokeTest(TestCase):

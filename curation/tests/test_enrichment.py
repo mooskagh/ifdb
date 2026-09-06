@@ -4,11 +4,10 @@ from types import SimpleNamespace
 from django.core.management import call_command
 from django.test import TestCase
 
+from curation.models import EnrichmentRule, GenreMapping
+from curation.passes import EnrichmentPass
 from games.gameinfo import GameInfo, GameUrl, Tag
 from games.models import GameTag, GameTagCategory
-
-from .models import EnrichmentRule, GenreMapping
-from .passes import EnrichmentPass
 
 
 def _enrich(info: GameInfo) -> GameInfo:

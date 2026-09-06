@@ -13,16 +13,15 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils.timezone import now
 
 from games.models import URL, Game, GameURL, GameURLCategory
-from play.tasks import generate_playable
-
-from .blueprint import (
+from play.blueprint import (
     BlueprintInfo,
     BlueprintModule,
     BlueprintSpec,
     GenerateSpec,
     discover_blueprints,
 )
-from .models import Playable
+from play.models import Playable
+from play.tasks import generate_playable
 
 
 class ModelTests(TestCase):

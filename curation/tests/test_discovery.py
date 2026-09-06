@@ -6,21 +6,20 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils.timezone import now
 
-from games.gameinfo import GameInfo
-from games.models import URL, Game, GameURL, GameURLCategory
-
-from .discovery import DiscoveryStats, run_discover
-from .edit import EditStats
-from .fetch import FetchStats
-from .models import GameCuration, GameSource, SourceDiscoveryStatus
-from .providers import (
+from curation.discovery import DiscoveryStats, run_discover
+from curation.edit import EditStats
+from curation.fetch import FetchStats
+from curation.models import GameCuration, GameSource, SourceDiscoveryStatus
+from curation.providers import (
     DiscoveredSource,
     GameSourceProvider,
     IfictionProvider,
     QspSuProvider,
 )
-from .reconcile import ReconcileStats
-from .tasks import discover_sources
+from curation.reconcile import ReconcileStats
+from curation.tasks import discover_sources
+from games.gameinfo import GameInfo
+from games.models import URL, Game, GameURL, GameURLCategory
 
 
 class FakeProvider(GameSourceProvider):

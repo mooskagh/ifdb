@@ -1,16 +1,15 @@
 from django.test import TestCase
 from django.utils.timezone import now
 
-from games.gameinfo import GameInfo, GameUrl
-from games.models import URL, Game, GameURL, GameURLCategory
-
-from .models import (
+from curation.models import (
     GameCuration,
     GameHistoryAuditLog,
     GameSource,
     GameSourceFetch,
 )
-from .reconcile import run_reconcile
+from curation.reconcile import run_reconcile
+from games.gameinfo import GameInfo, GameUrl
+from games.models import URL, Game, GameURL, GameURLCategory
 
 
 class ReconcileTest(TestCase):

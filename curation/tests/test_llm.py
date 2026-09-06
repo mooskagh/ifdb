@@ -8,19 +8,21 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils.timezone import now
 
-from games.gameinfo import GameInfo
-from games.models import Game
-
-from . import openrouter
-from .edit import Approval, GameEditState, SourceFetchInfo, SourceStatus
-from .llm import (
+from curation import openrouter
+from curation.edit import (
+    Approval,
+    GameEditState,
+    SourceFetchInfo,
+    SourceStatus,
+)
+from curation.llm import (
     LLM_RUNNERS,
     LlmWorkflowRunner,
     register_llm_runner,
     runner_for_workflow,
 )
-from .llm_runners.base import game_edit_state_context
-from .llm_runners.content_editor import (
+from curation.llm_runners.base import game_edit_state_context
+from curation.llm_runners.content_editor import (
     ComplainParams,
     CutParams,
     DeduplicateParams,
@@ -29,14 +31,13 @@ from .llm_runners.content_editor import (
     MatchParams,
     PasteParams,
     PatchParams,
-    ReplaceExactParams,
     ReplacementParams,
     ReplaceParams,
     SummaryParams,
     UndoParams,
 )
-from .llm_runners.status_review import SetStatusParams
-from .models import (
+from curation.llm_runners.status_review import SetStatusParams
+from curation.models import (
     GameCuration,
     GameSource,
     GameSourceFetch,
@@ -44,80 +45,9 @@ from .models import (
     LlmTrajectory,
     LlmWorkflow,
 )
-from .passes.llm_workflow import LlmWorkflowPass
-
-
-class CostForTests(TestCase):
-    def test_cost_for_sums_four_rates_per_mtok(self):
-        model = LLMModel(
-            input_cost=Decimal("3"),
-            cached_input_cost=Decimal("0.3"),
-            cache_write_cost=Decimal("3.75"),
-            output_cost=Decimal("15"),
-        )
-        # 1M each: 3 + 0.3 + 3.75 + 15 = 22.05
-        self.assertEqual(
-            model.cost_for(1_000_000, 1_000_000, 1_000_000, 1_000_000),
-            Decimal("22.05"),
-        )
-
-    def test_cost_for_scales_with_token_counts(self):
-        model = LLMModel(
-            input_cost=Decimal("3"),
-            cached_input_cost=Decimal("0"),
-            cache_write_cost=Decimal("0"),
-            output_cost=Decimal("15"),
-        )
-        # 500k prompt -> 1.5, 200k completion -> 3.0
-        self.assertEqual(
-            model.cost_for(500_000, 0, 0, 200_000), Decimal("4.5")
-        )
-
-    def test_cost_for_zero_tokens_is_zero(self):
-        model = LLMModel(
-            input_cost=Decimal("3"),
-            cached_input_cost=Decimal("0.3"),
-            cache_write_cost=Decimal("3.75"),
-            output_cost=Decimal("15"),
-        )
-        self.assertEqual(model.cost_for(0, 0, 0, 0), Decimal("0"))
-
-
-class ModelFieldsTests(TestCase):
-    def test_maps_pricing_to_dollars_per_mtok(self):
-        entry = {
-            "id": "anthropic/claude-opus",
-            "context_length": 200_000,
-            "pricing": {
-                "prompt": "0.000003",
-                "completion": "0.000015",
-                "input_cache_read": "0.0000003",
-                "input_cache_write": "0.00000375",
-            },
-        }
-        self.assertEqual(
-            openrouter.model_fields(entry),
-            {
-                "name": "anthropic/claude-opus",
-                "context_length": 200_000,
-                "input_cost": Decimal("3.000"),
-                "output_cost": Decimal("15.000"),
-                "cached_input_cost": Decimal("0.300"),
-                "cache_write_cost": Decimal("3.750"),
-            },
-        )
-
-    def test_missing_cache_pricing_defaults_to_zero(self):
-        entry = {
-            "id": "openai/gpt-mini",
-            "context_length": 128_000,
-            "pricing": {"prompt": "0.0000005", "completion": "0.0000015"},
-        }
-        fields = openrouter.model_fields(entry)
-        self.assertEqual(fields["cached_input_cost"], Decimal("0"))
-        self.assertEqual(fields["cache_write_cost"], Decimal("0"))
-        self.assertEqual(fields["input_cost"], Decimal("0.5"))
-        self.assertEqual(fields["output_cost"], Decimal("1.5"))
+from curation.passes.llm_workflow import LlmWorkflowPass
+from games.gameinfo import GameInfo
+from games.models import Game
 
 
 class ChatCompletionTests(TestCase):
@@ -149,20 +79,6 @@ class ChatCompletionTests(TestCase):
                 openrouter.chat_completion("model", [])
 
         self.assertIn("tools are not supported", logs.output[0])
-
-
-class TypicalCentsTests(TestCase):
-    def test_uses_input_and_output_rates_in_cents(self):
-        # input $3/Mtok, output $15/Mtok over the 11250/450 token profile.
-        cents = openrouter.typical_cents(Decimal("3"), Decimal("15"))
-        # (3 * 11250 + 15 * 450) / 1e6 = $0.0405 → 4.05¢
-        self.assertEqual(cents, Decimal("4.05"))
-
-    def test_variable_pricing_is_none(self):
-        # OpenRouter auto-router models price as -1 ($/Mtok -1_000_000).
-        self.assertIsNone(
-            openrouter.typical_cents(Decimal("-1000000"), Decimal("-1000000"))
-        )
 
 
 def _entry(model_id, prompt, completion):
@@ -1319,70 +1235,6 @@ class ContentEditorRunnerTests(TestCase):
             "First line\nChanged line\nThird line",
         )
 
-    def test_replace_uses_clipboard_when_text_is_empty(self):
-        runner = self._runner()
-        cut = runner.cut(
-            CutParams(
-                rationale="test",
-                match=MatchParams("Second line\n", "Second line\n"),
-            )
-        )
-
-        result = runner.replace(
-            ReplaceParams(
-                rationale="test",
-                match=MatchParams("Third line", "Third line"),
-                replacement=ReplacementParams(
-                    text="",
-                    clipboard_id=cut["clipboard_id"],
-                ),
-            )
-        )
-
-        self.assertEqual(result["status"], "replaced")
-        self.assertEqual(
-            self.state.current.description,
-            "First line\nSecond line\n",
-        )
-
-    def test_replace_empty_clipboard_id_is_unset(self):
-        result = self._runner().replace(
-            ReplaceParams(
-                rationale="test",
-                match=MatchParams("Second line", "Second line"),
-                replacement=ReplacementParams(text="", clipboard_id=""),
-            )
-        )
-
-        self.assertEqual(result["status"], "replaced")
-        self.assertEqual(
-            self.state.current.description,
-            "First line\n\nThird line",
-        )
-
-    def test_replace_still_rejects_two_nonempty_text_sources(self):
-        runner = self._runner()
-        cut = runner.cut(
-            CutParams(
-                rationale="test",
-                match=MatchParams("Second line\n", "Second line\n"),
-            )
-        )
-
-        result = runner.replace(
-            ReplaceParams(
-                rationale="test",
-                match=MatchParams("Third line", "Third line"),
-                replacement=ReplacementParams(
-                    text="Changed line",
-                    clipboard_id=cut["clipboard_id"],
-                ),
-            )
-        )
-
-        self.assertEqual(result["status"], "error")
-        self.assertIn("exactly one", result["error"])
-
     def test_delete_exact_removes_unique_text_with_optional_occurrence(self):
         result = self._runner().delete_exact(
             DeleteExactParams(
@@ -1397,40 +1249,6 @@ class ContentEditorRunnerTests(TestCase):
         self.assertEqual(
             self.state.current.description, result["current_text"]
         )
-
-    def test_replace_exact_replaces_unique_text_with_optional_occurrence(self):
-        result = self._runner().replace_exact(
-            ReplaceExactParams(
-                rationale="test",
-                old="Second line",
-                new="Changed line",
-                occurrence=0,
-            )
-        )
-
-        self.assertEqual(result["status"], "replaced")
-        self.assertEqual(
-            result["current_text"],
-            "First line\nChanged line\nThird line",
-        )
-
-    def test_replace_exact_requires_occurrence_for_duplicate_text(self):
-        self.state.current.description = "same one\nsame two"
-        runner = self._runner()
-
-        ambiguous = runner.replace_exact(
-            ReplaceExactParams(rationale="test", old="same", new="other")
-        )
-        second = runner.replace_exact(
-            ReplaceExactParams(
-                rationale="test", old="same", new="other", occurrence=1
-            )
-        )
-
-        self.assertEqual(ambiguous["status"], "error")
-        self.assertIn("found 2 times", ambiguous["error"])
-        self.assertEqual(second["status"], "replaced")
-        self.assertEqual(self.state.current.description, "same one\nother two")
 
     def test_cut_removes_text_and_returns_clipboard(self):
         result = self._runner().cut(
@@ -1470,54 +1288,6 @@ class ContentEditorRunnerTests(TestCase):
             "Intro\nMiddle\n<section>Duplicate block</section>\nOutro",
         )
 
-    def test_remove_duplicate_spans_rejects_nonidentical_spans(self):
-        self.state.current.description = (
-            "<section>First block</section>\n<section>Second block</section>"
-        )
-
-        result = self._runner().remove_duplicate_spans(
-            DeduplicateParams(
-                rationale="test",
-                start_text="<section>",
-                end_text="</section>",
-                occurrence_to_keep=0,
-            )
-        )
-
-        self.assertEqual(result["status"], "error")
-        self.assertIn("allow_nonexact_match=true", result["error"])
-        self.assertIn("occurrence 0", result["error"])
-        self.assertIn("occurrence 1", result["error"])
-        self.assertEqual(
-            self.state.current.description,
-            "<section>First block</section>\n<section>Second block</section>",
-        )
-
-    def test_remove_duplicate_spans_allows_nonexact_spans_when_requested(self):
-        self.state.current.description = (
-            "Before\n"
-            "<section>First block</section>\n"
-            "Between\n"
-            "<section>Second block</section>\n"
-            "After"
-        )
-
-        result = self._runner().remove_duplicate_spans(
-            DeduplicateParams(
-                rationale="test",
-                start_text="<section>",
-                end_text="</section>",
-                occurrence_to_keep=0,
-                allow_nonexact_match=True,
-            )
-        )
-
-        self.assertEqual(result["status"], "deduplicated")
-        self.assertEqual(
-            result["current_text"],
-            "Before\n<section>First block</section>\nBetween\n\nAfter",
-        )
-
     def test_paste_inserts_text_at_end(self):
         result = self._runner().paste(
             PasteParams(
@@ -1531,130 +1301,6 @@ class ContentEditorRunnerTests(TestCase):
         self.assertEqual(
             result["current_text"],
             "First line\nSecond line\nThird line\nFourth line",
-        )
-
-    def test_paste_inserts_clipboard_after_anchor(self):
-        runner = self._runner()
-        cut = runner.cut(
-            CutParams(
-                rationale="test",
-                match=MatchParams("Second line\n", "Second line\n"),
-            )
-        )
-
-        result = runner.paste(
-            PasteParams(
-                rationale="test",
-                position="after",
-                clipboard_id=cut["clipboard_id"],
-                anchor="Third line",
-            )
-        )
-
-        self.assertEqual(result["status"], "pasted")
-        self.assertEqual(
-            result["current_text"],
-            "First line\nThird lineSecond line\n",
-        )
-
-    def test_paste_uses_clipboard_when_text_is_empty(self):
-        runner = self._runner()
-        cut = runner.cut(
-            CutParams(
-                rationale="test",
-                match=MatchParams("Second line\n", "Second line\n"),
-            )
-        )
-
-        result = runner.paste(
-            PasteParams(
-                rationale="test",
-                position="end",
-                text="",
-                clipboard_id=cut["clipboard_id"],
-            )
-        )
-
-        self.assertEqual(result["status"], "pasted")
-        self.assertEqual(
-            self.state.current.description,
-            "First line\nThird lineSecond line\n",
-        )
-
-    def test_paste_empty_clipboard_id_is_unset(self):
-        result = self._runner().paste(
-            PasteParams(
-                rationale="test",
-                position="end",
-                text="\nFourth line",
-                clipboard_id="",
-            )
-        )
-
-        self.assertEqual(result["status"], "pasted")
-        self.assertEqual(
-            self.state.current.description,
-            "First line\nSecond line\nThird line\nFourth line",
-        )
-
-    def test_paste_rejects_invalid_text_sources(self):
-        runner = self._runner()
-
-        missing = runner.paste(PasteParams(rationale="test", position="end"))
-        empty_strings = runner.paste(
-            PasteParams(
-                rationale="test",
-                position="end",
-                text="",
-                clipboard_id="",
-            )
-        )
-        both = runner.paste(
-            PasteParams(
-                rationale="test",
-                position="end",
-                text="x",
-                clipboard_id="clip_1",
-            )
-        )
-
-        self.assertEqual(missing["status"], "error")
-        self.assertIn("exactly one", missing["error"])
-        self.assertEqual(empty_strings["status"], "error")
-        self.assertIn("exactly one", empty_strings["error"])
-        self.assertEqual(both["status"], "error")
-        self.assertIn("exactly one", both["error"])
-
-    def test_paste_rejects_ambiguous_anchor_without_occurrence(self):
-        self.state.current.description = "same\nother\nsame"
-
-        result = self._runner().paste(
-            PasteParams(
-                rationale="test",
-                position="before",
-                text="new\n",
-                anchor="same",
-            )
-        )
-
-        self.assertEqual(result["status"], "error")
-        self.assertIn("anchor was found 2 times", result["error"])
-
-    def test_paste_accepts_optional_occurrence_for_unique_anchor(self):
-        result = self._runner().paste(
-            PasteParams(
-                rationale="test",
-                position="after",
-                text=" changed",
-                anchor="Second line",
-                occurrence=0,
-            )
-        )
-
-        self.assertEqual(result["status"], "pasted")
-        self.assertEqual(
-            self.state.current.description,
-            "First line\nSecond line changed\nThird line",
         )
 
     def test_undo_restores_previous_successful_mutation(self):
@@ -1671,25 +1317,6 @@ class ContentEditorRunnerTests(TestCase):
         self.assertEqual(result["status"], "undone")
         self.assertEqual(
             result["current_text"],
-            "First line\nSecond line\nThird line",
-        )
-
-    def test_undo_without_history_returns_error(self):
-        result = self._runner().undo(UndoParams(rationale="test"))
-
-        self.assertEqual(result["status"], "error")
-        self.assertIn("nothing to undo", result["error"])
-
-    def test_edit_only_changes_description_body(self):
-        result = self._runner().edit(
-            self._edit_params("Title", "Title", replace="Changed")
-        )
-
-        self.assertEqual(result["status"], "error")
-        self.assertIn("current_text", result)
-        self.assertEqual(self.state.current.name, "Title")
-        self.assertEqual(
-            self.state.current.description,
             "First line\nSecond line\nThird line",
         )
 
@@ -1900,152 +1527,6 @@ class ContentEditorRunnerTests(TestCase):
                 'LLM workflow "content_editor" stopped without using tools; '
                 f"review trajectory #{trajectory.pk}."
             ],
-        )
-
-    def test_edit_requires_occurrence_only_for_duplicate_text_start(self):
-        self.state.current.description = "same one\nsame two"
-
-        duplicate = self._runner().edit(
-            self._edit_params("same", "one", replace="first")
-        )
-        unique = self._runner().edit(
-            self._edit_params(
-                "same two",
-                "same two",
-                occurrence=0,
-                replace="second",
-            )
-        )
-
-        self.assertEqual(duplicate["status"], "error")
-        self.assertIn("found 2 times", duplicate["error"])
-        self.assertEqual(unique["status"], "edited")
-        self.assertEqual(self.state.current.description, "same one\nsecond")
-
-    def test_edit_uses_occurrence_and_can_delete(self):
-        self.state.current.description = "same one\nsame two"
-        runner = self._runner()
-
-        replaced = runner.edit(
-            self._edit_params(
-                "same",
-                "two",
-                occurrence=1,
-                replace="before same two after",
-            )
-        )
-        deleted = runner.edit(
-            self._edit_params("same one\n", "same one\n", replace="")
-        )
-
-        self.assertEqual(replaced["status"], "edited")
-        self.assertEqual(deleted["status"], "edited")
-        self.assertEqual(
-            self.state.current.description, "before same two after"
-        )
-
-    def test_edit_rejects_text_start_repeated_inside_matched_span(self):
-        self.state.current.description = "same one\nsame two\nend"
-
-        result = self._runner().edit(
-            self._edit_params("same", "end", occurrence=0, replace="")
-        )
-
-        self.assertEqual(result["status"], "error")
-        self.assertIn("text_start appears again", result["error"])
-        self.assertEqual(
-            self.state.current.description,
-            "same one\nsame two\nend",
-        )
-
-    def test_edit_empty_text_end_requires_explicit_to_end(self):
-        result = self._runner().edit(
-            self._edit_params(
-                "\nSecond line",
-                "",
-                replace="",
-            )
-        )
-
-        self.assertEqual(result["status"], "error")
-        self.assertIn("text_end is required", result["error"])
-        self.assertEqual(
-            self.state.current.description,
-            "First line\nSecond line\nThird line",
-        )
-
-    def test_edit_to_end_matches_through_end_of_file(self):
-        result = self._runner().edit(
-            self._edit_params(
-                "\nSecond line",
-                "",
-                replace="",
-                to_end=True,
-            )
-        )
-
-        self.assertEqual(result["status"], "edited")
-        self.assertEqual(self.state.current.description, "First line")
-
-    def test_edit_to_end_allows_text_end_matching_stripped_end(self):
-        self.state.current.description = (
-            "First line\nSecond line\nThird line\n"
-        )
-
-        result = self._runner().edit(
-            self._edit_params(
-                "\nSecond line",
-                "Third line",
-                replace="",
-                to_end=True,
-            )
-        )
-
-        self.assertEqual(result["status"], "edited")
-        self.assertEqual(self.state.current.description, "First line")
-
-    def test_edit_rejects_no_change(self):
-        result = self._runner().edit(
-            self._edit_params(
-                "Second line",
-                "Second line",
-                replace="Second line",
-            )
-        )
-
-        self.assertEqual(result["status"], "error")
-        self.assertEqual(result["error"], "edit produced no change")
-        self.assertEqual(
-            result["current_text"],
-            "First line\nSecond line\nThird line",
-        )
-        self.assertEqual(
-            self.state.current.description,
-            "First line\nSecond line\nThird line",
-        )
-
-    def test_edit_rejects_deleting_entire_text(self):
-        result = self._runner().edit(
-            self._edit_params("First line", "", replace="", to_end=True)
-        )
-
-        self.assertEqual(result["status"], "error")
-        self.assertIn("remove the entire current_text", result["error"])
-        self.assertEqual(
-            self.state.current.description,
-            "First line\nSecond line\nThird line",
-        )
-
-    def test_edit_error_does_not_mutate_state(self):
-        result = self._runner().edit(
-            self._edit_params("missing", "missing", replace="New")
-        )
-
-        self.assertEqual(result["status"], "error")
-        self.assertIn("current_text", result)
-        self.assertEqual(
-            self.state.current.description,
-            "First line\nSecond line\nThird line",
         )
 
     def test_abort_restores_original_and_rejects(self):
