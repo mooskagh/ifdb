@@ -1,6 +1,6 @@
-# IFDB REST API Documentation
+# db.crem.xyz REST API Documentation
 
-The IFDB REST API allows clients to programmatically create, retrieve, update, and publish games using the canonical text format, as well as upload game files and attach download links.
+The db.crem.xyz REST API allows clients to programmatically create, retrieve, update, and publish games using the canonical text format, as well as upload game files and attach download links.
 
 The machine-readable OpenAPI 3.0 specification is served at `/api/openapi.json`.
 
@@ -26,7 +26,7 @@ The **canonical format** is the YAML front matter + Markdown representation of a
   - ["control", "Парсерная"]
   - ["state", "Готовая"]
 - urls:
-  - ["download_direct", "Windows archive", "https://ifdb.example.com/f/uploads/games/42/game.zip"]
+  - ["download_direct", "Windows archive", "https://db.crem.xyz/f/uploads/games/42/game.zip"]
   - ["play_online", "Play in browser", "https://example.com/play/"]
 - attributions:
   - "ifwiki.ru"
@@ -253,7 +253,7 @@ Upload a standalone game file to obtain a download link.
 ```json
 {
   "url_id": 350,
-  "url": "https://ifdb.example.com/f/uploads/cavern.zip",
+  "url": "https://db.crem.xyz/f/uploads/cavern.zip",
   "filename": "cavern.zip",
   "canonical_snippet": ["download_direct", "", 350]
 }
@@ -283,7 +283,7 @@ Upload a file directly connected to an existing game.
 {
   "game_id": 42,
   "url_id": 351,
-  "url": "https://ifdb.example.com/f/uploads/games/42/cavern_v1.zip",
+  "url": "https://db.crem.xyz/f/uploads/games/42/cavern_v1.zip",
   "filename": "cavern_v1.zip",
   "category": "download_direct",
   "description": "Release 1.2 zip",
