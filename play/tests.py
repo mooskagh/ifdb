@@ -1,14 +1,19 @@
 from importlib.machinery import FileFinder
+from pathlib import Path
 from pkgutil import ModuleInfo
+from tempfile import TemporaryDirectory
 from types import ModuleType
 from typing import cast
 from unittest.mock import MagicMock, patch
+from zipfile import ZipFile
 
+from django.core.files.storage import FileSystemStorage
 from django.db import models
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils.timezone import now
 
-from games.models import Game
+from games.models import URL, Game, GameURL, GameURLCategory
+from play.tasks import generate_playable
 
 from .blueprint import (
     BlueprintInfo,
@@ -77,6 +82,22 @@ class ModelTests(TestCase):
         self.assertEqual(second.config, {})
         self.assertEqual(second.template_config, {})
 
+    def test_playable_nullable_slug_and_state(self) -> None:
+        p1 = Playable.objects.create(
+            game=self.game,
+            template="instead_em",
+            template_version="3.5.2",
+        )
+        p2 = Playable.objects.create(
+            game=self.game,
+            template="instead_em",
+            template_version="3.5.2",
+        )
+        self.assertIsNone(p1.slug)
+        self.assertIsNone(p2.slug)
+        self.assertEqual(str(p1), f"playable-{p1.pk}")
+        self.assertEqual(p1.state, Playable.State.PENDING)
+
 
 class BlueprintTests(SimpleTestCase):
     @staticmethod
@@ -114,3 +135,72 @@ class BlueprintTests(SimpleTestCase):
             discover_blueprints(),
             [BlueprintInfo("example", cast(BlueprintModule, module))],
         )
+
+
+class TaskTests(TestCase):
+    game: Game
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Task test game",
+            creation_time=now(),
+        )
+
+    def test_generate_playable_success(self) -> None:
+        with (
+            TemporaryDirectory() as media_root,
+            TemporaryDirectory() as playables_dir,
+        ):
+            fs = FileSystemStorage(media_root)
+            game_file_path = Path(media_root) / "game.zip"
+            with ZipFile(game_file_path, "w") as z:
+                z.writestr("main.lua", b"return true")
+
+            url = URL.objects.create(
+                original_url="https://example.com/game.zip",
+                local_filename="game.zip",
+                creation_date=now(),
+            )
+            cat, _ = GameURLCategory.objects.get_or_create(
+                symbolic_id="download_direct",
+                defaults={"title": "Direct download"},
+            )
+            game_url = GameURL.objects.create(
+                game=self.game,
+                url=url,
+                category=cat,
+            )
+            playable = Playable.objects.create(
+                game=self.game,
+                game_url=game_url,
+                template="instead_em",
+                template_version="3.5.2",
+                config={},
+            )
+
+            with override_settings(
+                PLAYABLE_DIR=playables_dir,
+                UPLOADS_FS=fs,
+            ):
+                with patch("games.models.URL.GetFs", return_value=fs):
+                    generate_playable(playable.pk)
+
+            playable.refresh_from_db()
+            self.assertEqual(playable.state, Playable.State.READY)
+            dest = Path(playables_dir) / str(playable.pk)
+            self.assertTrue((dest / "index.html").exists())
+            self.assertTrue((dest / "game.zip").exists())
+
+    def test_generate_playable_failure(self) -> None:
+        playable = Playable.objects.create(
+            game=self.game,
+            template="nonexistent_blueprint",
+            template_version="1.0",
+        )
+        with self.assertRaises(ValueError):
+            generate_playable(playable.pk)
+
+        playable.refresh_from_db()
+        self.assertEqual(playable.state, Playable.State.ERROR)

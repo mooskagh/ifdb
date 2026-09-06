@@ -72,6 +72,7 @@
                     <th class="curation-playable-table-file">Файл</th>
                     <th class="curation-playable-table-local">Локальная копия</th>
                     <th>Совместимость</th>
+                    <th>Сайт</th>
                 </tr>
             </thead>
             <tbody>
@@ -102,6 +103,40 @@
                                 {% endfor %}
                             </div>
                             {% endif %}
+                        {% else %}
+                        <span class="curation-meta">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if playable_file.playable %}
+                            {% if playable_file.playable.state == "READY" %}
+                            <span>Сайт создан</span>
+                            {% elif playable_file.playable.state == "BUILDING" or playable_file.playable.state == "PENDING" %}
+                            <span class="curation-meta">Создаётся...</span>
+                            {% elif playable_file.playable.state == "ERROR" %}
+                            <span class="curation-meta">Ошибка генерации</span>
+                            {% if check_compatibility and playable_file.is_compatible %}
+                            <form method="post" action="{% url 'curation_history_playable_create' game.pk %}" style="display: inline-block; margin-top: 4px;">
+                                {% csrf_token %}
+                                <input type="hidden" name="game_url_id" value="{{ playable_file.game_url.pk }}">
+                                {% if playable_file.compatible_blueprint %}
+                                <input type="hidden" name="blueprint_slug" value="{{ playable_file.compatible_blueprint.slug }}">
+                                {% endif %}
+                                <button type="submit">создать сайт</button>
+                            </form>
+                            {% endif %}
+                            {% else %}
+                            <span>{{ playable_file.playable.get_state_display }}</span>
+                            {% endif %}
+                        {% elif check_compatibility and playable_file.is_compatible %}
+                        <form method="post" action="{% url 'curation_history_playable_create' game.pk %}" style="display: inline-block;">
+                            {% csrf_token %}
+                            <input type="hidden" name="game_url_id" value="{{ playable_file.game_url.pk }}">
+                            {% if playable_file.compatible_blueprint %}
+                            <input type="hidden" name="blueprint_slug" value="{{ playable_file.compatible_blueprint.slug }}">
+                            {% endif %}
+                            <button type="submit">создать сайт</button>
+                        </form>
                         {% else %}
                         <span class="curation-meta">—</span>
                         {% endif %}

@@ -241,6 +241,9 @@ logging.config.dictConfig({
 ADMINS = [("Alexander Lyashuk", "crem@crem.xyz")]
 CURATION_NOTIFICATION_EMAIL = env("CURATION_NOTIFICATION_EMAIL", default=None)
 CURATION_NOTIFICATION_BASE_URL = "https://db.crem.xyz"
+PLAYABLE_DIR = env(
+    "PLAYABLE_DIR", default=os.path.join(BASE_DIR, "tmp", "playables")
+)
 
 
 class PrefixList(list):
@@ -404,7 +407,12 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
-CELERY_IMPORTS = ["core.tasks", "curation.tasks", "games.tasks"]
+CELERY_IMPORTS = [
+    "core.tasks",
+    "curation.tasks",
+    "games.tasks",
+    "play.tasks",
+]
 
 if "test" in sys.argv:
     CELERY_BROKER_URL = "memory://"
