@@ -2810,6 +2810,178 @@ class SourceViewsTest(TestCase):
         self.assertEqual(playable.state, Playable.State.PENDING)
         delay_mock.assert_called_once_with(playable.pk)
 
+    @patch("curation.views.generate_playable.delay")
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_create_post_with_custom_slug(
+        self, discover_mock, delay_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Create playable custom slug",
+            creation_time=ts,
+        )
+        game_url = self._download_link(
+            game,
+            "https://example.com/game.zip",
+            local_filename="game.zip",
+        )
+        spec = BlueprintSpec(name="INSTEAD Emscripten", versions=["3.5.2"])
+        blueprint = MagicMock()
+        blueprint.get_spec.return_value = spec
+        discover_mock.return_value = [BlueprintInfo("instead_em", blueprint)]
+
+        response = self.client.post(
+            f"/curation/{game.pk}/playables/create/",
+            {
+                "game_url_id": str(game_url.pk),
+                "blueprint_slug": "instead_em",
+                "domain_name": "my-quest",
+            },
+        )
+        self.assertRedirects(
+            response,
+            f"/curation/{game.pk}/?check_compatibility=1",
+        )
+        playable = Playable.objects.get(game=game, game_url=game_url)
+        self.assertEqual(playable.slug, "my-quest")
+        delay_mock.assert_called_once_with(playable.pk)
+
+    @patch("curation.views.generate_playable.delay")
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_create_post_with_invalid_slug(
+        self, discover_mock, delay_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Create playable invalid slug",
+            creation_time=ts,
+        )
+        game_url = self._download_link(
+            game,
+            "https://example.com/game.zip",
+            local_filename="game.zip",
+        )
+        spec = BlueprintSpec(name="INSTEAD Emscripten", versions=["3.5.2"])
+        blueprint = MagicMock()
+        blueprint.get_spec.return_value = spec
+        discover_mock.return_value = [BlueprintInfo("instead_em", blueprint)]
+
+        response = self.client.post(
+            f"/curation/{game.pk}/playables/create/",
+            {
+                "game_url_id": str(game_url.pk),
+                "blueprint_slug": "instead_em",
+                "domain_name": "-bad--slug-",
+            },
+        )
+        self.assertRedirects(
+            response,
+            f"/curation/{game.pk}/?check_compatibility=1",
+        )
+        self.assertFalse(Playable.objects.filter(game=game).exists())
+        delay_mock.assert_not_called()
+
+    @patch("curation.views.generate_playable.delay")
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_create_post_with_duplicate_slug(
+        self, discover_mock, delay_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Create playable duplicate slug",
+            creation_time=ts,
+        )
+        other_game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Other Game",
+            creation_time=ts,
+        )
+        Playable.objects.create(
+            game=other_game,
+            template="instead_em",
+            template_version="1.0",
+            slug="busy-slug",
+        )
+        game_url = self._download_link(
+            game,
+            "https://example.com/game.zip",
+            local_filename="game.zip",
+        )
+        spec = BlueprintSpec(name="INSTEAD Emscripten", versions=["3.5.2"])
+        blueprint = MagicMock()
+        blueprint.get_spec.return_value = spec
+        discover_mock.return_value = [BlueprintInfo("instead_em", blueprint)]
+
+        response = self.client.post(
+            f"/curation/{game.pk}/playables/create/",
+            {
+                "game_url_id": str(game_url.pk),
+                "blueprint_slug": "instead_em",
+                "domain_name": "busy-slug",
+            },
+        )
+        self.assertRedirects(
+            response,
+            f"/curation/{game.pk}/?check_compatibility=1",
+        )
+        self.assertFalse(Playable.objects.filter(game=game).exists())
+        delay_mock.assert_not_called()
+
+    def test_history_playable_renders_domain_input_and_ready_link(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Playable UI test",
+            creation_time=ts,
+        )
+        history = GameCuration.objects.create(game=game)
+        game_url = self._download_link(
+            game,
+            "https://example.com/game.zip",
+            local_filename="game.zip",
+        )
+        spec = BlueprintSpec(name="INSTEAD Emscripten", versions=["3.5.2"])
+        blueprint = MagicMock()
+        blueprint.get_spec.return_value = spec
+        blueprint.accepts.return_value = True
+
+        with patch("curation.views.discover_blueprints") as discover_mock:
+            discover_mock.return_value = [
+                BlueprintInfo("instead_em", blueprint)
+            ]
+            with patch("games.models.URL.GetFs") as fs_mock:
+                fs = MagicMock()
+                fs.exists.return_value = True
+                fs.path.return_value = "/tmp/game.zip"
+                fs_mock.return_value = fs
+
+                response = self.client.get(
+                    f"/curation/{history.pk}/?check_compatibility=1"
+                )
+                self.assertContains(response, 'placeholder="✨"')
+                self.assertContains(
+                    response, f".{settings.PLAYABLE_BASE_DOMAIN}"
+                )
+
+        # Test link rendering when READY with slug
+        Playable.objects.create(
+            game=game,
+            game_url=game_url,
+            template="instead_em",
+            template_version="3.5.2",
+            slug="my-cool-game",
+            state=Playable.State.READY,
+        )
+        response = self.client.get(f"/curation/{history.pk}/")
+        self.assertContains(response, "Сайт создан")
+        self.assertContains(
+            response,
+            f"http://my-cool-game.{settings.PLAYABLE_BASE_DOMAIN}",
+        )
+
     def test_source_list_detail_and_fetch_content(self):
         ts = timezone.now()
         game = Game.objects.create(

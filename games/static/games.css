@@ -3311,6 +3311,28 @@ h6 {
 .curation-playable-result--rejected .curation-playable-result-mark {
     background-color: #c5221f;
 }
+.curation-playable-form {
+    display: inline-block;
+}
+.curation-playable-form-group {
+    align-items: center;
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.curation-playable-domain-input {
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    box-sizing: border-box;
+    font-size: 13px;
+    padding: 2px 6px;
+    width: 100px;
+}
+.curation-playable-domain-label {
+    color: #666;
+    font-size: 12px;
+    margin-right: 2px;
+}
 
 .curation-source:last-child {
     border-bottom: none;

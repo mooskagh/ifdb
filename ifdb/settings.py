@@ -244,6 +244,12 @@ CURATION_NOTIFICATION_BASE_URL = "https://db.crem.xyz"
 PLAYABLE_DIR = env(
     "PLAYABLE_DIR", default=os.path.join(BASE_DIR, "tmp", "playables")
 )
+PLAYABLE_BASE_DOMAIN = env(
+    "PLAYABLE_BASE_DOMAIN", default="play.crem.xyz"
+).lstrip(".")
+CADDY_PORT = env("CADDY_PORT", default=None) or None
+CADDY_ADMIN_URL = env("CADDY_ADMIN_URL", default=None) or None
+CADDY_SERVER_NAME = env("CADDY_SERVER_NAME", default="srv0")
 
 
 class PrefixList(list):

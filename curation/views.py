@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 
+from django.conf import settings
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -35,6 +36,7 @@ from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
 from games.models import Game, GameRevision, GameURL
 from play.blueprint import BlueprintModule, discover_blueprints
+from play.domain import is_domain_busy, is_valid_domain_slug
 from play.models import Playable
 from play.tasks import generate_playable
 
@@ -1296,6 +1298,8 @@ def history_detail(request, game_id):
             "source_type_choices": GameSource.SourceType.choices,
             "proposed_edit_status": GameRevision.Status.PROPOSED,
             "edit_pipelines": EditPipeline.objects.order_by("id"),
+            "playable_base_domain": settings.PLAYABLE_BASE_DOMAIN,
+            "caddy_port": settings.CADDY_PORT,
         },
     )
 
@@ -1382,6 +1386,24 @@ def history_playable_create(request, game_id: int):
     spec = blueprint.get_spec()
     version = spec.versions[-1]
 
+    domain_name = request.POST.get("domain_name", "").strip().lower()
+    slug: str | None = None
+    if domain_name:
+        if not is_valid_domain_slug(domain_name):
+            messages.error(
+                request,
+                "Некорректное доменное имя. Используйте только строчные "
+                "латинские буквы, цифры и дефис.",
+            )
+            return redirect(redirect_url)
+        busy, reason = is_domain_busy(domain_name)
+        if busy:
+            messages.error(
+                request, f"Доменное имя '{domain_name}' уже занято: {reason}"
+            )
+            return redirect(redirect_url)
+        slug = domain_name
+
     new_playable = Playable.objects.create(
         game=game,
         game_url=game_url,
@@ -1389,7 +1411,7 @@ def history_playable_create(request, game_id: int):
         template_version=version,
         template_config={},
         config={},
-        slug=None,
+        slug=slug,
         state=Playable.State.PENDING,
     )
 

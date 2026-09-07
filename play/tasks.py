@@ -5,6 +5,8 @@ from celery import shared_task
 from django.conf import settings
 
 from play.blueprint import GenerateSpec, discover_blueprints
+from play.caddy import configure_caddy_playable
+from play.domain import generate_playable_domain
 from play.models import Playable
 
 
@@ -39,6 +41,12 @@ def generate_playable(playable_id: int) -> None:
         if destination.exists():
             shutil.rmtree(destination)
 
+        if not playable.slug:
+            playable.slug = generate_playable_domain(
+                playable.game, current_playable_pk=playable.pk
+            )
+            playable.save(update_fields=["slug", "updated"])
+
         spec = GenerateSpec(
             version=playable.template_version,
             config=playable.config,
@@ -46,6 +54,8 @@ def generate_playable(playable_id: int) -> None:
             game_file=game_file,
         )
         blueprint.generate(spec)
+
+        configure_caddy_playable(playable)
 
         playable.state = Playable.State.READY
         playable.save(update_fields=["state", "updated"])

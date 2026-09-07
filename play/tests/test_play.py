@@ -183,14 +183,82 @@ class TaskTests(TestCase):
                 PLAYABLE_DIR=playables_dir,
                 UPLOADS_FS=fs,
             ):
-                with patch("games.models.URL.GetFs", return_value=fs):
+                with (
+                    patch("games.models.URL.GetFs", return_value=fs),
+                    patch("play.tasks.configure_caddy_playable") as mock_caddy,
+                    patch(
+                        "play.tasks.generate_playable_domain",
+                        return_value="auto-slug",
+                    ) as mock_gen_domain,
+                ):
                     generate_playable(playable.pk)
 
             playable.refresh_from_db()
             self.assertEqual(playable.state, Playable.State.READY)
+            self.assertEqual(playable.slug, "auto-slug")
+            mock_gen_domain.assert_called_once_with(
+                playable.game, current_playable_pk=playable.pk
+            )
+            mock_caddy.assert_called_once_with(playable)
             dest = Path(playables_dir) / str(playable.pk)
             self.assertTrue((dest / "index.html").exists())
             self.assertTrue((dest / "game.zip").exists())
+
+    def test_generate_playable_with_preset_slug(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            uploads_dir = Path(temp_dir) / "uploads"
+            uploads_dir.mkdir()
+            playables_dir = Path(temp_dir) / "playables"
+            playables_dir.mkdir()
+
+            fs = FileSystemStorage(location=str(uploads_dir))
+            game_file_path = uploads_dir / "game.zip"
+            with ZipFile(game_file_path, "w") as zf:
+                zf.writestr("main3.lua", "-- instead game")
+
+            url = URL.objects.create(
+                original_url="https://example.com/game.zip",
+                local_filename="game.zip",
+                creation_date=now(),
+            )
+            cat, _ = GameURLCategory.objects.get_or_create(
+                symbolic_id="download_direct",
+                defaults={"title": "Direct download"},
+            )
+            game_url = GameURL.objects.create(
+                game=self.game,
+                url=url,
+                category=cat,
+            )
+            playable = Playable.objects.create(
+                game=self.game,
+                game_url=game_url,
+                template="instead_em",
+                template_version="3.5.2",
+                slug="preset-slug",
+                config={},
+            )
+
+            with override_settings(
+                PLAYABLE_DIR=playables_dir,
+                UPLOADS_FS=fs,
+            ):
+                with (
+                    patch("games.models.URL.GetFs", return_value=fs),
+                    patch("play.tasks.configure_caddy_playable") as mock_caddy,
+                    patch(
+                        "play.tasks.generate_playable_domain"
+                    ) as mock_gen_domain,
+                ):
+                    generate_playable(playable.pk)
+
+            playable.refresh_from_db()
+            self.assertEqual(playable.state, Playable.State.READY)
+            self.assertEqual(playable.slug, "preset-slug")
+            mock_gen_domain.assert_not_called()
+            mock_caddy.assert_called_once_with(playable)
+            dest = Path(playables_dir) / str(playable.pk)
+            self.assertTrue((dest / "index.html").exists())
 
     def test_generate_playable_failure(self) -> None:
         playable = Playable.objects.create(
