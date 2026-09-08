@@ -4,8 +4,8 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.utils import timezone
 
-from .feedfetcher import run_fetch_feeds
-from .models import BlogFeed
+from core.feedfetcher import run_fetch_feeds
+from core.models import BlogFeed
 
 
 class FeedFetcherTest(TestCase):

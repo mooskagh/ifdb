@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 
+from django.conf import settings
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -35,6 +36,9 @@ from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
 from games.models import Game, GameRevision, GameURL
 from play.blueprint import BlueprintModule, discover_blueprints
+from play.domain import is_domain_busy, is_valid_domain_slug
+from play.models import Playable
+from play.tasks import generate_playable
 
 from . import openrouter
 from .diff import build_diff
@@ -83,6 +87,21 @@ class PlayableFile:
     has_local_copy: bool
     compatibility: tuple[BlueprintResult, ...] | None
     file_missing: bool = False
+    playable: Playable | None = None
+
+    @property
+    def is_compatible(self) -> bool:
+        if not self.compatibility:
+            return False
+        return any(result.accepted for result in self.compatibility)
+
+    @property
+    def compatible_blueprint(self) -> BlueprintResult | None:
+        if not self.compatibility:
+            return None
+        return next(
+            (result for result in self.compatibility if result.accepted), None
+        )
 
 
 def _build_playable_files(
@@ -97,11 +116,19 @@ def _build_playable_files(
         .select_related("url", "category")
         .order_by("pk")
     )
+    playables_by_url: dict[int, Playable] = {
+        p.game_url_id: p
+        for p in Playable.objects.filter(
+            game_id=game_id, game_url__isnull=False
+        ).order_by("pk")
+        if p.game_url_id is not None
+    }
     playable_files = [
         PlayableFile(
             game_url=game_url,
             has_local_copy=bool(game_url.url.local_filename),
             compatibility=None,
+            playable=playables_by_url.get(game_url.pk),
         )
         for game_url in direct_downloads
     ]
@@ -132,6 +159,7 @@ def _build_playable_files(
                     has_local_copy=playable_file.has_local_copy,
                     compatibility=None,
                     file_missing=True,
+                    playable=playable_file.playable,
                 )
             )
             continue
@@ -152,6 +180,7 @@ def _build_playable_files(
                     has_local_copy=playable_file.has_local_copy,
                     compatibility=None,
                     file_missing=True,
+                    playable=playable_file.playable,
                 )
             )
         else:
@@ -160,6 +189,7 @@ def _build_playable_files(
                     game_url=playable_file.game_url,
                     has_local_copy=playable_file.has_local_copy,
                     compatibility=compatibility,
+                    playable=playable_file.playable,
                 )
             )
     return checked_files
@@ -1268,6 +1298,8 @@ def history_detail(request, game_id):
             "source_type_choices": GameSource.SourceType.choices,
             "proposed_edit_status": GameRevision.Status.PROPOSED,
             "edit_pipelines": EditPipeline.objects.order_by("id"),
+            "playable_base_domain": settings.PLAYABLE_BASE_DOMAIN,
+            "caddy_port": settings.CADDY_PORT,
         },
     )
 
@@ -1305,6 +1337,87 @@ def history_run_edit(request, game_id):
     )
     messages.success(request, "Задание на обработку админки запущено.")
     return redirect("curation_history_detail", game_id=curation.pk)
+
+
+def history_playable_create(request, game_id: int):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required.")
+
+    game = get_object_or_404(Game, pk=game_id)
+    game_url_id = request.POST.get("game_url_id")
+    game_url = get_object_or_404(GameURL, pk=game_url_id, game=game)
+
+    playable = (
+        Playable.objects.filter(game_url=game_url).order_by("-pk").first()
+    )
+    redirect_url = (
+        f"{reverse('curation_history_detail', args=[game.pk])}"
+        "?check_compatibility=1"
+    )
+
+    if playable and playable.state in (
+        Playable.State.PENDING,
+        Playable.State.BUILDING,
+    ):
+        messages.info(request, "Сайт для этого файла уже создаётся.")
+        return redirect(redirect_url)
+
+    blueprints = {b.name: b.blueprint for b in discover_blueprints()}
+    blueprint_slug = request.POST.get("blueprint_slug")
+
+    if not blueprint_slug or blueprint_slug not in blueprints:
+        local_filename = game_url.url.local_filename
+        if not local_filename:
+            messages.error(request, "Локальная копия файла отсутствует.")
+            return redirect(redirect_url)
+        storage = game_url.url.GetFs()
+        path = Path(storage.path(local_filename))
+        for slug, bp in blueprints.items():
+            if bp.accepts(path):
+                blueprint_slug = slug
+                break
+        else:
+            messages.error(
+                request, "Не найден совместимый проигрыватель для этого файла."
+            )
+            return redirect(redirect_url)
+
+    blueprint = blueprints[blueprint_slug]
+    spec = blueprint.get_spec()
+    version = spec.versions[-1]
+
+    domain_name = request.POST.get("domain_name", "").strip().lower()
+    slug: str | None = None
+    if domain_name:
+        if not is_valid_domain_slug(domain_name):
+            messages.error(
+                request,
+                "Некорректное доменное имя. Используйте только строчные "
+                "латинские буквы, цифры и дефис.",
+            )
+            return redirect(redirect_url)
+        busy, reason = is_domain_busy(domain_name)
+        if busy:
+            messages.error(
+                request, f"Доменное имя '{domain_name}' уже занято: {reason}"
+            )
+            return redirect(redirect_url)
+        slug = domain_name
+
+    new_playable = Playable.objects.create(
+        game=game,
+        game_url=game_url,
+        template=blueprint_slug,
+        template_version=version,
+        template_config={},
+        config={},
+        slug=slug,
+        state=Playable.State.PENDING,
+    )
+
+    generate_playable.delay(new_playable.pk)
+    messages.success(request, "Задание на создание сайта запущено.")
+    return redirect(redirect_url)
 
 
 def edit_diff(request, edit_id):

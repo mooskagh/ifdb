@@ -6,6 +6,19 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils.timezone import now
 
+from curation import edit
+from curation.edit import Approval, GameEditPass, run_edit
+from curation.manual import store_manual_edit
+from curation.models import (
+    EditPipeline,
+    GameCuration,
+    GameHistoryAuditLog,
+    GameSource,
+    GameSourceFetch,
+    LLMModel,
+    LlmTrajectory,
+    LlmWorkflow,
+)
 from games.gameinfo import Person, Tag
 from games.models import (
     Game,
@@ -16,20 +29,6 @@ from games.models import (
     GameTagCategory,
     GameURLCategory,
     PersonalityAlias,
-)
-
-from . import edit
-from .edit import Approval, GameEditPass, run_edit
-from .manual import store_manual_edit
-from .models import (
-    EditPipeline,
-    GameCuration,
-    GameHistoryAuditLog,
-    GameSource,
-    GameSourceFetch,
-    LLMModel,
-    LlmTrajectory,
-    LlmWorkflow,
 )
 
 

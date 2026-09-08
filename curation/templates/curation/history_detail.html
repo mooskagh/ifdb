@@ -72,6 +72,7 @@
                     <th class="curation-playable-table-file">Файл</th>
                     <th class="curation-playable-table-local">Локальная копия</th>
                     <th>Совместимость</th>
+                    <th>Сайт</th>
                 </tr>
             </thead>
             <tbody>
@@ -102,6 +103,53 @@
                                 {% endfor %}
                             </div>
                             {% endif %}
+                        {% else %}
+                        <span class="curation-meta">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if playable_file.playable %}
+                            {% if playable_file.playable.state == "READY" %}
+                            <span>Сайт создан</span>
+                            {% if playable_file.playable.slug %}
+                            <div>
+                                <a href="http{% if request.is_secure %}s{% endif %}://{{ playable_file.playable.slug }}.{{ playable_base_domain }}{% if caddy_port and caddy_port != '80' and caddy_port != '443' %}:{{ caddy_port }}{% endif %}" target="_blank">{{ playable_file.playable.slug }}.{{ playable_base_domain }}</a>
+                            </div>
+                            {% endif %}
+                            {% elif playable_file.playable.state == "BUILDING" or playable_file.playable.state == "PENDING" %}
+                            <span class="curation-meta">Создаётся...</span>
+                            {% elif playable_file.playable.state == "ERROR" %}
+                            <span class="curation-meta">Ошибка генерации</span>
+                            {% if check_compatibility and playable_file.is_compatible %}
+                            <form method="post" action="{% url 'curation_history_playable_create' game.pk %}" class="curation-playable-form" style="margin-top: 4px;">
+                                {% csrf_token %}
+                                <input type="hidden" name="game_url_id" value="{{ playable_file.game_url.pk }}">
+                                {% if playable_file.compatible_blueprint %}
+                                <input type="hidden" name="blueprint_slug" value="{{ playable_file.compatible_blueprint.slug }}">
+                                {% endif %}
+                                <div class="curation-playable-form-group">
+                                    <input type="text" name="domain_name" placeholder="✨" class="curation-playable-domain-input" autocomplete="off" spellcheck="false">
+                                    <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
+                                    <button type="submit">создать сайт</button>
+                                </div>
+                            </form>
+                            {% endif %}
+                            {% else %}
+                            <span>{{ playable_file.playable.get_state_display }}</span>
+                            {% endif %}
+                        {% elif check_compatibility and playable_file.is_compatible %}
+                        <form method="post" action="{% url 'curation_history_playable_create' game.pk %}" class="curation-playable-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="game_url_id" value="{{ playable_file.game_url.pk }}">
+                            {% if playable_file.compatible_blueprint %}
+                            <input type="hidden" name="blueprint_slug" value="{{ playable_file.compatible_blueprint.slug }}">
+                            {% endif %}
+                            <div class="curation-playable-form-group">
+                                <input type="text" name="domain_name" placeholder="✨" class="curation-playable-domain-input" autocomplete="off" spellcheck="false">
+                                <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
+                                <button type="submit">создать сайт</button>
+                            </div>
+                        </form>
                         {% else %}
                         <span class="curation-meta">—</span>
                         {% endif %}

@@ -2,14 +2,13 @@ from django.contrib.auth.models import AnonymousUser
 from django.test import Client, TestCase
 from django.utils import timezone
 
+from contest.models import Competition, CompetitionDocument
 from contest.permissions import (
     can_admin_competition,
     can_view_competition,
     can_view_competition_document,
 )
 from core.models import User
-
-from .models import Competition, CompetitionDocument
 
 
 class ShowCompetitionViewTest(TestCase):

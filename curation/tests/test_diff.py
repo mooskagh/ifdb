@@ -1,6 +1,6 @@
 from django.test import SimpleTestCase
 
-from .diff import build_diff
+from curation.diff import build_diff
 
 
 class BuildDiffTest(SimpleTestCase):

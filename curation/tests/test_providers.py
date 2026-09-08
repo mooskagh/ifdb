@@ -5,9 +5,7 @@ from urllib.parse import quote
 from django.core.management import call_command
 from django.test import TestCase
 
-from games.gameinfo import parse
-
-from .providers import (
+from curation.providers import (
     AperoProvider,
     CanonicalAuthor,
     IfictionProvider,
@@ -18,6 +16,7 @@ from .providers import (
     QuestBookProvider,
     RilarhivProvider,
 )
+from games.gameinfo import parse
 
 
 class ProviderTestBase(TestCase):
