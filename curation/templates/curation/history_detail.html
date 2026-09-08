@@ -113,7 +113,7 @@
                             <span>Сайт создан</span>
                             {% if playable_file.playable.slug %}
                             <div>
-                                <a href="http{% if request.is_secure %}s{% endif %}://{{ playable_file.playable.slug }}.{{ playable_base_domain }}{% if caddy_port and caddy_port != '80' and caddy_port != '443' %}:{{ caddy_port }}{% endif %}" target="_blank">{{ playable_file.playable.slug }}.{{ playable_base_domain }}</a>
+                                <a href="http{% if request.is_secure %}s{% endif %}://{{ playable_file.playable.slug }}.{{ playable_base_domain }}" target="_blank">{{ playable_file.playable.slug }}.{{ playable_base_domain }}</a>
                             </div>
                             {% endif %}
                             {% elif playable_file.playable.state == "BUILDING" or playable_file.playable.state == "PENDING" %}

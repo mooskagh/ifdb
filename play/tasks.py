@@ -1,4 +1,6 @@
+import os
 import shutil
+import stat
 from pathlib import Path
 
 from celery import shared_task
@@ -8,6 +10,30 @@ from play.blueprint import GenerateSpec, discover_blueprints
 from play.caddy import configure_caddy_playable
 from play.domain import generate_playable_domain
 from play.models import Playable
+
+
+def ensure_group_readable(destination: Path) -> None:
+    if not destination.exists():
+        return
+    for root, dirs, files in os.walk(destination):
+        root_path = Path(root)
+        if not root_path.is_symlink():
+            mode = root_path.stat().st_mode & 0o777
+            target = mode | stat.S_IRGRP | stat.S_IXGRP
+            if mode != target:
+                root_path.chmod(target)
+        for f in files:
+            file_path = root_path / f
+            if not file_path.is_symlink():
+                mode = file_path.stat().st_mode & 0o777
+                target = mode | stat.S_IRGRP
+                if mode != target:
+                    file_path.chmod(target)
+    if destination.is_file() and not destination.is_symlink():
+        mode = destination.stat().st_mode & 0o777
+        target = mode | stat.S_IRGRP
+        if mode != target:
+            destination.chmod(target)
 
 
 @shared_task  # type: ignore[untyped-decorator]
@@ -55,7 +81,13 @@ def generate_playable(playable_id: int) -> None:
         )
         blueprint.generate(spec)
 
-        configure_caddy_playable(playable)
+        ensure_group_readable(destination)
+
+        if getattr(settings, "CADDY_ADMIN_URL", None):
+            if not configure_caddy_playable(playable):
+                raise RuntimeError(
+                    f"Failed to configure Caddy for playable {playable.pk}"
+                )
 
         playable.state = Playable.State.READY
         playable.save(update_fields=["state", "updated"])

@@ -1299,7 +1299,6 @@ def history_detail(request, game_id):
             "proposed_edit_status": GameRevision.Status.PROPOSED,
             "edit_pipelines": EditPipeline.objects.order_by("id"),
             "playable_base_domain": settings.PLAYABLE_BASE_DOMAIN,
-            "caddy_port": settings.CADDY_PORT,
         },
     )
 

@@ -2975,12 +2975,17 @@ class SourceViewsTest(TestCase):
             slug="my-cool-game",
             state=Playable.State.READY,
         )
-        response = self.client.get(f"/curation/{history.pk}/")
-        self.assertContains(response, "Сайт создан")
-        self.assertContains(
-            response,
-            f"http://my-cool-game.{settings.PLAYABLE_BASE_DOMAIN}",
-        )
+        with override_settings(CADDY_PORT="8034"):
+            response = self.client.get(f"/curation/{history.pk}/")
+            self.assertContains(response, "Сайт создан")
+            self.assertContains(
+                response,
+                f"http://my-cool-game.{settings.PLAYABLE_BASE_DOMAIN}",
+            )
+            self.assertNotContains(
+                response,
+                f"http://my-cool-game.{settings.PLAYABLE_BASE_DOMAIN}:8034",
+            )
 
     def test_source_list_detail_and_fetch_content(self):
         ts = timezone.now()
