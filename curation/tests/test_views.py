@@ -3029,6 +3029,271 @@ class SourceViewsTest(TestCase):
             self.assertContains(
                 response, playable.created.strftime("%d.%m.%Y")
             )
+            self.assertContains(response, "curation-blueprint-playables-table")
+            self.assertContains(response, "curation-blueprint-table-id")
+
+    def test_blueprint_list_candidate_section_unscanned_by_default(self):
+        with patch("curation.views.discover_blueprints") as discover_mock:
+            discover_mock.return_value = []
+            response = self.client.get("/curation/blueprints/")
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(response.context["scan"])
+            self.assertContains(response, "Кандидаты для проигрывателей")
+            self.assertContains(response, "Выберите фильтры и нажмите")
+            self.assertNotContains(response, "Создать выбранные")
+
+    @patch.object(FileSystemStorage, "exists", return_value=True)
+    @patch("curation.views.discover_blueprints")
+    def test_blueprint_list_candidate_scanning_and_filtering(
+        self, discover_mock, exists_mock
+    ):
+        ts = timezone.now()
+        platform_cat, _ = GameTagCategory.objects.get_or_create(
+            symbolic_id="platform", defaults={"name": "Платформа"}
+        )
+        tag_instead, _ = GameTag.objects.get_or_create(
+            category=platform_cat, name="INSTEAD"
+        )
+        tag_qsp, _ = GameTag.objects.get_or_create(
+            category=platform_cat, name="QSP"
+        )
+
+        game1 = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Instead Candidate",
+            creation_time=ts,
+        )
+        game1.tags.add(tag_instead)
+        self._download_link(
+            game1,
+            "https://example.com/game1.zip",
+            local_filename="game1.zip",
+        )
+
+        game2 = Game.objects.create(
+            state=Game.State.PUBLISHED, title="QSP Candidate", creation_time=ts
+        )
+        game2.tags.add(tag_qsp)
+        self._download_link(
+            game2,
+            "https://example.com/game2.zip",
+            local_filename="game2.zip",
+        )
+
+        # Game with existing playable - should be excluded
+        game3 = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Already Has Playable",
+            creation_time=ts,
+        )
+        game3.tags.add(tag_instead)
+        gu3 = self._download_link(
+            game3,
+            "https://example.com/game3.zip",
+            local_filename="game3.zip",
+        )
+        Playable.objects.create(
+            game=game3,
+            game_url=gu3,
+            template="instead_em",
+            template_version="3.5.2",
+            state=Playable.State.READY,
+        )
+
+        # Fake blueprint accepts game1.zip, rejects game2.zip
+        blueprint = ModuleType("play.blueprints.instead_em")
+
+        def get_spec() -> BlueprintSpec:
+            return BlueprintSpec(name="INSTEAD Emscripten", versions=["3.5.2"])
+
+        def accepts(filename: Path) -> bool:
+            return "game1.zip" in str(filename)
+
+        setattr(blueprint, "get_spec", get_spec)
+        setattr(blueprint, "accepts", accepts)
+        setattr(blueprint, "generate", lambda s: None)
+        discover_mock.return_value = [
+            BlueprintInfo("instead_em", cast(BlueprintModule, blueprint))
+        ]
+
+        # Default scan: game1 included; game2 (unaccepted) and game3
+        # (has playable) excluded from candidates
+        response = self.client.get("/curation/blueprints/?scan=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["scan"])
+        matches = response.context["candidate_matches"]
+        candidate_games = [m["game"] for m in matches]
+        self.assertEqual(candidate_games, [game1])
+        self.assertNotIn(game2, candidate_games)
+        self.assertNotIn(game3, candidate_games)
+        self.assertContains(response, "Instead Candidate")
+        self.assertNotContains(response, "QSP Candidate")
+        self.assertContains(response, "Создать выбранные")
+
+        # Filter by platform=QSP -> game1 filtered out, game2 not accepted
+        response_qsp = self.client.get(
+            "/curation/blueprints/?scan=1&platform=QSP"
+        )
+        self.assertEqual(len(response_qsp.context["candidate_matches"]), 0)
+        self.assertContains(response_qsp, "Совместимых файлов не найдено")
+
+        # Filter by q=Nonexistent -> 0 matches
+        response_q = self.client.get(
+            "/curation/blueprints/?scan=1&q=Nonexistent"
+        )
+        self.assertEqual(len(response_q.context["candidate_matches"]), 0)
+
+        # per_page=all
+        response_all = self.client.get(
+            "/curation/blueprints/?scan=1&per_page=all"
+        )
+        self.assertEqual(response_all.context["per_page"], "all")
+        self.assertEqual(len(response_all.context["candidate_matches"]), 1)
+
+    @patch("curation.views.generate_playable.delay")
+    @patch.object(FileSystemStorage, "exists", return_value=True)
+    @patch("curation.views.discover_blueprints")
+    def test_blueprint_list_bulk_create_playables(
+        self, discover_mock, exists_mock, delay_mock
+    ):
+        ts = timezone.now()
+        game1 = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Bulk Game 1", creation_time=ts
+        )
+        gu1 = self._download_link(
+            game1,
+            "https://example.com/bulk1.zip",
+            local_filename="bulk1.zip",
+        )
+        game2 = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Bulk Game 2", creation_time=ts
+        )
+        gu2 = self._download_link(
+            game2,
+            "https://example.com/bulk2.zip",
+            local_filename="bulk2.zip",
+        )
+
+        blueprint = ModuleType("play.blueprints.instead_em")
+        setattr(
+            blueprint,
+            "get_spec",
+            lambda: BlueprintSpec(
+                name="INSTEAD Emscripten", versions=["3.5.2"]
+            ),
+        )
+        setattr(blueprint, "accepts", lambda p: True)
+        setattr(blueprint, "generate", lambda s: None)
+        discover_mock.return_value = [
+            BlueprintInfo("instead_em", cast(BlueprintModule, blueprint))
+        ]
+
+        post_data = {
+            "action": "bulk_create",
+            "selected_urls": [str(gu1.pk), str(gu2.pk)],
+            f"domain_{gu1.pk}": "my-game-one",
+            f"domain_{gu2.pk}": "",
+            f"blueprint_{gu1.pk}": "instead_em",
+            f"blueprint_{gu2.pk}": "instead_em",
+        }
+        response = self.client.post("/curation/blueprints/?scan=1", post_data)
+        self.assertRedirects(response, "/curation/blueprints/?scan=1")
+
+        p1 = Playable.objects.get(game=game1, game_url=gu1)
+        self.assertEqual(p1.slug, "my-game-one")
+        self.assertEqual(p1.template, "instead_em")
+        self.assertEqual(p1.template_version, "3.5.2")
+
+        p2 = Playable.objects.get(game=game2, game_url=gu2)
+        self.assertIsNone(p2.slug)
+        self.assertEqual(p2.template, "instead_em")
+
+        self.assertEqual(delay_mock.call_count, 2)
+
+    @patch("curation.views.generate_playable.delay")
+    @patch.object(FileSystemStorage, "exists", return_value=True)
+    @patch("curation.views.discover_blueprints")
+    def test_blueprint_list_single_create_playable(
+        self, discover_mock, exists_mock, delay_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Single Game", creation_time=ts
+        )
+        gu = self._download_link(
+            game,
+            "https://example.com/single.zip",
+            local_filename="single.zip",
+        )
+
+        blueprint = ModuleType("play.blueprints.instead_em")
+        setattr(
+            blueprint,
+            "get_spec",
+            lambda: BlueprintSpec(
+                name="INSTEAD Emscripten", versions=["3.5.2"]
+            ),
+        )
+        setattr(blueprint, "accepts", lambda p: True)
+        setattr(blueprint, "generate", lambda s: None)
+        discover_mock.return_value = [
+            BlueprintInfo("instead_em", cast(BlueprintModule, blueprint))
+        ]
+
+        post_data = {
+            "single_create": str(gu.pk),
+            f"domain_{gu.pk}": "single-slug",
+            f"blueprint_{gu.pk}": "instead_em",
+        }
+        response = self.client.post("/curation/blueprints/?scan=1", post_data)
+        self.assertRedirects(response, "/curation/blueprints/?scan=1")
+
+        p = Playable.objects.get(game=game, game_url=gu)
+        self.assertEqual(p.slug, "single-slug")
+        delay_mock.assert_called_once_with(p.pk)
+
+    @patch("curation.views.generate_playable.delay")
+    @patch.object(FileSystemStorage, "exists", return_value=True)
+    @patch("curation.views.discover_blueprints")
+    def test_blueprint_list_bulk_create_invalid_domain(
+        self, discover_mock, exists_mock, delay_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Invalid Domain Game",
+            creation_time=ts,
+        )
+        gu = self._download_link(
+            game,
+            "https://example.com/inv.zip",
+            local_filename="inv.zip",
+        )
+
+        blueprint = ModuleType("play.blueprints.instead_em")
+        setattr(
+            blueprint,
+            "get_spec",
+            lambda: BlueprintSpec(
+                name="INSTEAD Emscripten", versions=["3.5.2"]
+            ),
+        )
+        setattr(blueprint, "accepts", lambda p: True)
+        setattr(blueprint, "generate", lambda s: None)
+        discover_mock.return_value = [
+            BlueprintInfo("instead_em", cast(BlueprintModule, blueprint))
+        ]
+
+        post_data = {
+            "action": "bulk_create",
+            "selected_urls": [str(gu.pk)],
+            f"domain_{gu.pk}": "BAD_DOMAIN!",
+            f"blueprint_{gu.pk}": "instead_em",
+        }
+        response = self.client.post("/curation/blueprints/?scan=1", post_data)
+        self.assertRedirects(response, "/curation/blueprints/?scan=1")
+        self.assertFalse(Playable.objects.filter(game=game).exists())
+        delay_mock.assert_not_called()
 
     def test_history_playable_delete(self):
         ts = timezone.now()

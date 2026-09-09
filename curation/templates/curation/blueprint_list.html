@@ -27,17 +27,17 @@
 
 <div class="card card--green" style="margin-top: 16px;">
     <div class="card--header">Сайты игр</div>
-    <table class="curation-table curation-table--compact">
+    <table class="curation-table curation-table--compact curation-blueprint-playables-table">
         <thead>
             <tr>
-                <th>ID</th>
-                <th>Игра</th>
-                <th>Сайт</th>
-                <th>Шаблон</th>
-                <th>Статус</th>
-                <th>Создан</th>
-                <th>Обновлён</th>
-                <th>Действия</th>
+                <th class="curation-blueprint-table-id">ID</th>
+                <th class="curation-blueprint-table-game">Игра</th>
+                <th class="curation-blueprint-table-site">Сайт</th>
+                <th class="curation-blueprint-table-template">Шаблон</th>
+                <th class="curation-blueprint-table-state">Статус</th>
+                <th class="curation-blueprint-table-date">Создан</th>
+                <th class="curation-blueprint-table-date">Обновлён</th>
+                <th class="curation-blueprint-table-actions">Действия</th>
             </tr>
         </thead>
         <tbody>
@@ -48,7 +48,7 @@
                     <a href="{% url 'show_game' playable.game.pk %}">{{ playable.game.title }}</a>
                     (<a href="{% url 'curation_history_detail' playable.game.pk %}">модерация</a>)
                 </td>
-                <td>
+                <td class="curation-blueprint-table-site">
                     {% if playable.slug %}
                     <a href="http{% if request.is_secure %}s{% endif %}://{{ playable.slug }}.{{ playable_base_domain }}" target="_blank">{{ playable.slug }}.{{ playable_base_domain }}</a>
                     {% else %}
@@ -69,8 +69,8 @@
                 </td>
                 <td class="curation-nowrap">{{ playable.created|date:"d.m.Y H:i" }}</td>
                 <td class="curation-nowrap">{{ playable.updated|date:"d.m.Y H:i" }}</td>
-                <td class="curation-nowrap">
-                    <div style="display: inline-flex; gap: 4px; align-items: center;">
+                <td class="curation-blueprint-table-actions">
+                    <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
                         {% if playable.state != "BUILDING" and playable.state != "PENDING" %}
                         <form method="post" action="{% url 'curation_history_playable_regenerate' playable.game.pk playable.pk %}" style="display: inline;">
                             {% csrf_token %}
@@ -92,4 +92,163 @@
         </tbody>
     </table>
 </div>
+
+<div class="card card--green" style="margin-top: 16px;" id="candidates-section">
+    <div class="card--header">Кандидаты для проигрывателей</div>
+
+    <form method="get" action="#candidates-section" class="curation-blueprint-filter-form">
+        <input type="hidden" name="scan" value="1">
+        <div class="curation-blueprint-filter-item">
+            <label for="filter-platform">Платформа:</label>
+            <select name="platform" id="filter-platform">
+                <option value="">Все платформы</option>
+                {% for p in available_platforms %}
+                <option value="{{ p }}"{% if platform == p %} selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="curation-blueprint-filter-item">
+            <label for="filter-blueprint">Проигрыватель:</label>
+            <select name="blueprint" id="filter-blueprint">
+                <option value="">Все проигрыватели</option>
+                {% for bp in blueprints %}
+                <option value="{{ bp.slug }}"{% if blueprint_filter == bp.slug %} selected{% endif %}>{{ bp.display_name }} ({{ bp.slug }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="curation-blueprint-filter-item">
+            <label for="filter-q">Поиск:</label>
+            <input type="text" name="q" id="filter-q" value="{{ q }}" placeholder="Название игры...">
+        </div>
+        <div class="curation-blueprint-filter-item">
+            <label for="filter-per-page">На странице:</label>
+            <select name="per_page" id="filter-per-page">
+                <option value="50"{% if per_page == 50 %} selected{% endif %}>50</option>
+                <option value="100"{% if per_page == 100 %} selected{% endif %}>100</option>
+                <option value="250"{% if per_page == 250 %} selected{% endif %}>250</option>
+                <option value="500"{% if per_page == 500 %} selected{% endif %}>500</option>
+                <option value="all"{% if per_page == "all" %} selected{% endif %}>Все</option>
+            </select>
+        </div>
+        <button type="submit" id="btn-scan">Проверить совместимость</button>
+    </form>
+
+    {% if not scan %}
+    <div class="curation-blueprint-placeholder">
+        Выберите фильтры и нажмите <strong>«Проверить совместимость»</strong>, чтобы найти игры, для которых можно создать веб-проигрыватель.
+    </div>
+    {% else %}
+        {% if candidate_matches %}
+        <form method="post" action="{{ request.get_full_path }}">
+            {% csrf_token %}
+            <div class="curation-blueprint-toolbar">
+                <div>
+                    <strong>Найдено совместимых игр: {{ candidate_matches|length }}</strong>
+                </div>
+                <div>
+                    <button type="submit" name="action" value="bulk_create">Создать выбранные</button>
+                </div>
+            </div>
+
+            <div class="curation-playable-table-wrap">
+                <table class="curation-table curation-table--compact curation-blueprint-candidates-table">
+                    <thead>
+                        <tr>
+                            <th class="curation-blueprint-candidates-table-select">
+                                <input type="checkbox" id="select-all-candidates" title="Выбрать все">
+                            </th>
+                            <th class="curation-blueprint-candidates-table-game">Игра</th>
+                            <th class="curation-blueprint-candidates-table-file">Файл</th>
+                            <th class="curation-blueprint-candidates-table-blueprint">Совместимые проигрыватели</th>
+                            <th class="curation-blueprint-candidates-table-domain">Доменное имя</th>
+                            <th class="curation-blueprint-candidates-table-actions">Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in candidate_matches %}
+                            {% for file in item.compatible_files %}
+                            <tr>
+                                <td class="curation-blueprint-candidates-table-select">
+                                    <input type="checkbox" name="selected_urls" value="{{ file.game_url.pk }}" class="candidate-checkbox">
+                                </td>
+                                <td>
+                                    <a href="{% url 'show_game' item.game.pk %}"><strong>{{ item.game.title }}</strong></a>
+                                    (<a href="{% url 'curation_history_detail' item.game.pk %}">модерация</a>)
+                                    {% if item.platforms %}
+                                    <div class="curation-meta">{{ item.platforms|join:", " }}</div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ file.game_url.url.original_url }}" target="_blank" title="{{ file.game_url.url.original_url }}">
+                                        {{ file.game_url.url.original_filename|default:file.game_url.url.original_url }}
+                                    </a>
+                                    {% if file.game_url.url.file_size %}
+                                    <span class="curation-meta">({{ file.game_url.url.file_size|filesizeformat }})</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if file.compatible_blueprints|length == 1 %}
+                                    <span class="curation-badge curation-badge--ready">{{ file.compatible_blueprints.0.display_name }}</span>
+                                    <input type="hidden" name="blueprint_{{ file.game_url.pk }}" value="{{ file.compatible_blueprints.0.slug }}">
+                                    {% else %}
+                                    <select name="blueprint_{{ file.game_url.pk }}">
+                                        {% for bp in file.compatible_blueprints %}
+                                        <option value="{{ bp.slug }}">{{ bp.display_name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% endif %}
+                                </td>
+                                <td class="curation-blueprint-candidates-table-domain">
+                                    <input type="text" name="domain_{{ file.game_url.pk }}" placeholder="✨" class="curation-playable-domain-input" autocomplete="off" spellcheck="false">
+                                    <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
+                                </td>
+                                <td class="curation-blueprint-candidates-table-actions">
+                                    <button type="submit" name="single_create" value="{{ file.game_url.pk }}">создать</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="curation-blueprint-toolbar" style="margin-top: 8px;">
+                <div>
+                    <button type="submit" name="action" value="bulk_create">Создать выбранные</button>
+                </div>
+            </div>
+        </form>
+        {% else %}
+        <div class="curation-blueprint-placeholder">
+            Совместимых файлов не найдено.
+        </div>
+        {% endif %}
+
+        {% if candidate_page.has_other_pages %}
+        <div class="curation-pagination">
+            {% if candidate_page.has_previous %}
+            <a href="?scan=1&platform={{ platform|urlencode }}&blueprint={{ blueprint_filter|urlencode }}&q={{ q|urlencode }}&per_page={{ per_page }}&page={{ candidate_page.previous_page_number }}#candidates-section">← Назад</a>
+            {% endif %}
+            <span>Страница {{ candidate_page.number }} из {{ candidate_page.paginator.num_pages }}</span>
+            {% if candidate_page.has_next %}
+            <a href="?scan=1&platform={{ platform|urlencode }}&blueprint={{ blueprint_filter|urlencode }}&q={{ q|urlencode }}&per_page={{ per_page }}&page={{ candidate_page.next_page_number }}#candidates-section">Вперёд →</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var selectAll = document.getElementById('select-all-candidates');
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            var checkboxes = document.querySelectorAll('.candidate-checkbox');
+            for (var i = 0; i < checkboxes.length; i++) {
+                checkboxes[i].checked = selectAll.checked;
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

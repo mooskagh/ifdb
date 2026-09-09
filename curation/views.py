@@ -41,7 +41,7 @@ from core.models import BlogFeed, FeedCache
 from core.tasks import fetch_feeds
 from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
-from games.models import Game, GameRevision, GameURL
+from games.models import Game, GameRevision, GameTag, GameURL
 from play.blueprint import BlueprintModule, discover_blueprints
 from play.caddy import configure_caddy_playable
 from play.domain import is_domain_busy, is_valid_domain_slug
@@ -352,16 +352,271 @@ def history_list(request):
 
 
 def blueprint_list(request):
+    discovered = discover_blueprints()
+    blueprint_map = {info.name: info.blueprint for info in discovered}
     blueprints = [
         {
             "display_name": info.blueprint.get_spec().name,
             "slug": info.name,
         }
-        for info in discover_blueprints()
+        for info in discovered
     ]
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        single_create = request.POST.get("single_create")
+        if single_create and single_create.isdigit():
+            selected_ids = [int(single_create)]
+        elif action == "bulk_create":
+            selected_ids = [
+                int(pk)
+                for pk in request.POST.getlist("selected_urls")
+                if pk.isdigit()
+            ]
+        else:
+            selected_ids = []
+
+        if not selected_ids:
+            messages.warning(
+                request,
+                "Не выбрано ни одного файла для создания проигрывателя.",
+            )
+            return redirect(request.get_full_path())
+
+        success_count = 0
+        for game_url_id in selected_ids:
+            game_url = (
+                GameURL.objects
+                .filter(pk=game_url_id)
+                .select_related("game", "url")
+                .first()
+            )
+            if not game_url:
+                continue
+
+            game = game_url.game
+            if Playable.objects.filter(
+                game=game,
+                state__in=(
+                    Playable.State.PENDING,
+                    Playable.State.BUILDING,
+                    Playable.State.READY,
+                ),
+            ).exists():
+                messages.info(
+                    request,
+                    f"Для игры «{game.title}» сайт уже создан или создаётся.",
+                )
+                continue
+
+            blueprint_slug = request.POST.get(
+                f"blueprint_{game_url_id}", ""
+            ).strip()
+            if not blueprint_slug or blueprint_slug not in blueprint_map:
+                local_filename = game_url.url.local_filename
+                if not local_filename:
+                    continue
+                storage = game_url.url.GetFs()
+                if not storage.exists(local_filename):
+                    continue
+                path = Path(storage.path(local_filename))
+                for slug, bp in blueprint_map.items():
+                    try:
+                        if bp.accepts(path):
+                            blueprint_slug = slug
+                            break
+                    except (OSError, Exception):
+                        continue
+                else:
+                    messages.error(
+                        request,
+                        "Не найден совместимый проигрыватель для игры "
+                        f"«{game.title}».",
+                    )
+                    continue
+
+            bp = blueprint_map[blueprint_slug]
+            spec = bp.get_spec()
+            version = spec.versions[-1] if spec.versions else ""
+
+            domain_name = (
+                request.POST.get(f"domain_{game_url_id}", "").strip().lower()
+            )
+            slug: str | None = None
+            if domain_name:
+                if not is_valid_domain_slug(domain_name):
+                    messages.error(
+                        request,
+                        f"Игра «{game.title}»: некорректное доменное имя "
+                        f"'{domain_name}'. Используйте только строчные "
+                        "латинские буквы, цифры и дефис.",
+                    )
+                    continue
+                busy, reason = is_domain_busy(domain_name)
+                if busy:
+                    messages.error(
+                        request,
+                        f"Игра «{game.title}»: домен '{domain_name}' уже "
+                        f"занят: {reason}.",
+                    )
+                    continue
+                slug = domain_name
+
+            new_playable = Playable.objects.create(
+                game=game,
+                game_url=game_url,
+                template=blueprint_slug,
+                template_version=version,
+                template_config={},
+                config={},
+                slug=slug,
+                state=Playable.State.PENDING,
+            )
+            generate_playable.delay(new_playable.pk)
+            success_count += 1
+
+        if success_count > 0:
+            messages.success(
+                request, f"Запущено создание проигрывателей: {success_count}."
+            )
+        return redirect(request.get_full_path())
+
     playables = Playable.objects.select_related(
         "game", "game_url__url"
     ).order_by("-updated", "-created")
+
+    available_platforms = list(
+        GameTag.objects
+        .filter(
+            category__symbolic_id="platform",
+            game__playable__isnull=True,
+            game__gameurl__category__symbolic_id="download_direct",
+            game__gameurl__url__local_filename__isnull=False,
+        )
+        .values_list("name", flat=True)
+        .distinct()
+        .order_by("name")
+    )
+
+    scan = request.GET.get("scan") == "1"
+    platform = request.GET.get("platform", "").strip()
+    blueprint_filter = request.GET.get("blueprint", "").strip()
+    q = request.GET.get("q", "").strip()
+    per_page_str = request.GET.get("per_page", "500").strip().lower()
+    per_page: int | str
+    if per_page_str == "all":
+        per_page = "all"
+        effective_page_size = 100000
+    elif per_page_str.isdigit() and int(per_page_str) in (50, 100, 250, 500):
+        per_page = int(per_page_str)
+        effective_page_size = per_page
+    else:
+        per_page = 500
+        effective_page_size = 500
+
+    candidate_page = None
+    candidate_matches: list[dict[str, object]] = []
+
+    if scan:
+        candidate_qs = (
+            Game.objects
+            .filter(playable__isnull=True)
+            .filter(
+                gameurl__category__symbolic_id="download_direct",
+                gameurl__url__local_filename__isnull=False,
+            )
+            .exclude(state=Game.State.REDIRECT)
+            .distinct()
+            .order_by("title", "pk")
+        )
+        if platform:
+            candidate_qs = candidate_qs.filter(
+                tags__category__symbolic_id="platform",
+                tags__name__iexact=platform,
+            )
+        if q:
+            candidate_qs = candidate_qs.filter(title__icontains=q)
+
+        paginator = Paginator(candidate_qs, effective_page_size)
+        page_num = request.GET.get("page", "1")
+        candidate_page = paginator.get_page(page_num)
+
+        if blueprint_filter and blueprint_filter in blueprint_map:
+            active_blueprints = [
+                (
+                    blueprint_filter,
+                    blueprint_map[blueprint_filter],
+                    blueprint_map[blueprint_filter].get_spec().name,
+                )
+            ]
+        else:
+            active_blueprints = [
+                (info.name, info.blueprint, info.blueprint.get_spec().name)
+                for info in discovered
+            ]
+
+        page_games = list(
+            Game.objects
+            .filter(pk__in=[g.pk for g in candidate_page])
+            .prefetch_related(
+                Prefetch(
+                    "tags",
+                    queryset=GameTag.objects.select_related("category").filter(
+                        category__symbolic_id="platform"
+                    ),
+                    to_attr="platform_tags",
+                ),
+                Prefetch(
+                    "gameurl_set",
+                    queryset=GameURL.objects
+                    .filter(
+                        category__symbolic_id="download_direct",
+                        url__local_filename__isnull=False,
+                    )
+                    .select_related("url", "category")
+                    .order_by("pk"),
+                ),
+            )
+            .order_by("title", "pk")
+        )
+
+        for game in page_games:
+            compatible_files = []
+            for gu in game.gameurl_set.all():
+                url = gu.url
+                local_filename = url.local_filename
+                if not local_filename:
+                    continue
+                storage = url.GetFs()
+                if not storage.exists(local_filename):
+                    continue
+                path = Path(storage.path(local_filename))
+                file_compatible_bps = []
+                for b_slug, bp, b_name in active_blueprints:
+                    try:
+                        if bp.accepts(path):
+                            file_compatible_bps.append({
+                                "slug": b_slug,
+                                "display_name": b_name,
+                            })
+                    except (OSError, Exception):
+                        continue
+
+                if file_compatible_bps:
+                    compatible_files.append({
+                        "game_url": gu,
+                        "compatible_blueprints": file_compatible_bps,
+                    })
+
+            if compatible_files:
+                candidate_matches.append({
+                    "game": game,
+                    "platforms": [
+                        t.name for t in getattr(game, "platform_tags", [])
+                    ],
+                    "compatible_files": compatible_files,
+                })
+
     return render(
         request,
         "curation/blueprint_list.html",
@@ -369,6 +624,14 @@ def blueprint_list(request):
             "blueprints": blueprints,
             "playables": playables,
             "playable_base_domain": settings.PLAYABLE_BASE_DOMAIN,
+            "available_platforms": available_platforms,
+            "scan": scan,
+            "platform": platform,
+            "blueprint_filter": blueprint_filter,
+            "q": q,
+            "per_page": per_page,
+            "candidate_page": candidate_page,
+            "candidate_matches": candidate_matches,
         },
     )
 
