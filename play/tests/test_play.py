@@ -423,3 +423,23 @@ class TaskTests(TestCase):
 
         playable.refresh_from_db()
         self.assertEqual(playable.state, Playable.State.ERROR)
+
+    def test_playable_pre_delete_cleans_up_caddy_and_files(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            with override_settings(PLAYABLE_DIR=temp_dir):
+                playable = Playable.objects.create(
+                    game=self.game,
+                    template="instead_em",
+                    template_version="3.5.2",
+                    slug="to-delete",
+                )
+                destination = Path(temp_dir) / str(playable.pk)
+                destination.mkdir()
+                (destination / "index.html").write_text("hello")
+                playable_pk = playable.pk
+
+                with patch("play.caddy.delete_caddy_playable") as mock_delete:
+                    mock_delete.return_value = True
+                    playable.delete()
+                    mock_delete.assert_called_once_with(playable_pk)
+                    self.assertFalse(destination.exists())

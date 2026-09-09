@@ -2,8 +2,9 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
-from zipfile import BadZipFile, ZipFile
+from zipfile import ZipFile
 
+from core.archives import ArchiveError, open_archive, repack_to_zip
 from play.blueprint import BlueprintSpec, GenerateSpec
 
 ASSETS_DIR = Path(__file__).parent / "assets"
@@ -47,11 +48,11 @@ def _is_gamefile_member(member: str) -> bool:
 
 def accepts(filename: Path) -> bool:
     try:
-        with ZipFile(filename) as archive:
+        with open_archive(filename) as archive:
             return any(
                 _is_gamefile_member(member) for member in archive.namelist()
             )
-    except BadZipFile:
+    except (ArchiveError, OSError):
         return False
 
 
@@ -127,7 +128,7 @@ def generate(spec: GenerateSpec) -> None:
     try:
         with ZipFile(runtime_path) as runtime:
             _write_runtime(runtime, stage)
-        shutil.copyfile(spec.game_file, stage / "game.zip")
+        repack_to_zip(spec.game_file, stage / "game.zip")
         _publish(stage, spec.destination)
     finally:
         if stage.exists():

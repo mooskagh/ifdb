@@ -117,26 +117,36 @@
                             </div>
                             {% endif %}
                             {% elif playable_file.playable.state == "BUILDING" or playable_file.playable.state == "PENDING" %}
-                            <span class="curation-meta">Создаётся...</span>
+                            <span class="curation-meta">Создаётся... ({{ playable_file.playable.get_state_display }})</span>
                             {% elif playable_file.playable.state == "ERROR" %}
-                            <span class="curation-meta">Ошибка генерации</span>
-                            {% if check_compatibility and playable_file.is_compatible %}
-                            <form method="post" action="{% url 'curation_history_playable_create' game.pk %}" class="curation-playable-form" style="margin-top: 4px;">
-                                {% csrf_token %}
-                                <input type="hidden" name="game_url_id" value="{{ playable_file.game_url.pk }}">
-                                {% if playable_file.compatible_blueprint %}
-                                <input type="hidden" name="blueprint_slug" value="{{ playable_file.compatible_blueprint.slug }}">
-                                {% endif %}
-                                <div class="curation-playable-form-group">
-                                    <input type="text" name="domain_name" placeholder="✨" class="curation-playable-domain-input" autocomplete="off" spellcheck="false">
-                                    <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
-                                    <button type="submit">создать сайт</button>
-                                </div>
-                            </form>
-                            {% endif %}
+                            <span class="curation-meta" style="color: #c5221f; font-weight: bold;">Ошибка генерации</span>
                             {% else %}
                             <span>{{ playable_file.playable.get_state_display }}</span>
                             {% endif %}
+                            <div class="curation-meta" style="margin-top: 4px;">
+                                Шаблон: {{ playable_file.playable.template }}{% if playable_file.playable.template_version %} (v{{ playable_file.playable.template_version }}){% endif %}<br>
+                                Создан: {{ playable_file.playable.created|date:"d.m.Y H:i" }} | Обновлён: {{ playable_file.playable.updated|date:"d.m.Y H:i" }}
+                            </div>
+                            <form method="post" action="{% url 'curation_history_playable_rename' game.pk playable_file.playable.pk %}" class="curation-playable-form" style="margin-top: 6px;">
+                                {% csrf_token %}
+                                <div class="curation-playable-form-group">
+                                    <input type="text" name="domain_name" value="{{ playable_file.playable.slug|default:'' }}" placeholder="✨" class="curation-playable-domain-input" autocomplete="off" spellcheck="false">
+                                    <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
+                                    <button type="submit">переименовать</button>
+                                </div>
+                            </form>
+                            <div style="margin-top: 4px; display: flex; gap: 6px; align-items: center;">
+                                {% if playable_file.playable.state != "BUILDING" and playable_file.playable.state != "PENDING" %}
+                                <form method="post" action="{% url 'curation_history_playable_regenerate' game.pk playable_file.playable.pk %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit">пересоздать</button>
+                                </form>
+                                {% endif %}
+                                <form method="post" action="{% url 'curation_history_playable_delete' game.pk playable_file.playable.pk %}" style="display: inline;" onsubmit="return confirm('Удалить проигрыватель?');">
+                                    {% csrf_token %}
+                                    <button type="submit" style="color: #c5221f;">удалить</button>
+                                </form>
+                            </div>
                         {% elif check_compatibility and playable_file.is_compatible %}
                         <form method="post" action="{% url 'curation_history_playable_create' game.pk %}" class="curation-playable-form">
                             {% csrf_token %}
