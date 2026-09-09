@@ -1,6 +1,7 @@
 import copy
 import json
 import shutil
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -32,6 +33,7 @@ from django.http import (
     JsonResponse,
 )
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import now
@@ -80,6 +82,16 @@ from .tasks import (
 )
 
 GROUP_WINDOW = timedelta(minutes=1)
+
+
+def _version_sort_key(v: str) -> tuple[tuple[int, int | str], ...]:
+    parts: list[tuple[int, int | str]] = []
+    for piece in v.split("."):
+        if piece.isdigit():
+            parts.append((0, int(piece)))
+        else:
+            parts.append((1, piece))
+    return tuple(parts)
 
 
 @dataclass(frozen=True, slots=True)
@@ -354,13 +366,53 @@ def history_list(request):
 def blueprint_list(request):
     discovered = discover_blueprints()
     blueprint_map = {info.name: info.blueprint for info in discovered}
-    blueprints = [
-        {
-            "display_name": info.blueprint.get_spec().name,
+    in_use_counts = (
+        Playable.objects
+        .values("template", "template_version")
+        .annotate(game_count=Count("game", distinct=True))
+        .order_by("template", "template_version")
+    )
+    in_use_by_template: dict[str, list[dict[str, object]]] = defaultdict(list)
+    for row in in_use_counts:
+        in_use_by_template[str(row["template"])].append({
+            "version": str(row["template_version"]),
+            "count": int(row["game_count"]),
+        })
+
+    blueprints: list[dict[str, object]] = []
+    seen_slugs: set[str] = set()
+    for info in discovered:
+        spec = info.blueprint.get_spec()
+        versions = list(spec.versions)
+        latest_version = versions[-1] if versions else None
+        available_versions = [
+            {"version": v, "is_latest": (v == latest_version)}
+            for v in versions
+        ]
+        versions_in_use = in_use_by_template.get(info.name, [])
+        versions_in_use.sort(
+            key=lambda item: _version_sort_key(str(item["version"]))
+        )
+        blueprints.append({
+            "display_name": spec.name,
             "slug": info.name,
-        }
-        for info in discovered
-    ]
+            "available_versions": available_versions,
+            "versions_in_use": versions_in_use,
+        })
+        seen_slugs.add(info.name)
+
+    for tmpl, in_use_list in in_use_by_template.items():
+        if tmpl not in seen_slugs:
+            in_use_list.sort(
+                key=lambda item: _version_sort_key(str(item["version"]))
+            )
+            blueprints.append({
+                "display_name": tmpl,
+                "slug": tmpl,
+                "available_versions": [],
+                "versions_in_use": in_use_list,
+            })
+            seen_slugs.add(tmpl)
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -387,26 +439,49 @@ def blueprint_list(request):
             )
             return redirect(request.get_full_path())
 
+        is_ajax = request.headers.get(
+            "x-requested-with"
+        ) == "XMLHttpRequest" or "application/json" in request.headers.get(
+            "accept", ""
+        )
+
         single_create = request.POST.get("single_create")
-        if single_create and single_create.isdigit():
-            selected_ids = [int(single_create)]
+        is_single = bool(single_create and single_create.isdigit())
+        if is_single and single_create:
+            selected_keys = [int(single_create)]
         elif action == "bulk_create":
-            selected_ids = [
+            selected_keys = [
                 int(pk)
-                for pk in request.POST.getlist("selected_urls")
+                for pk in request.POST.getlist("selected_games")
                 if pk.isdigit()
             ]
+            if not selected_keys:
+                selected_keys = [
+                    int(pk)
+                    for pk in request.POST.getlist("selected_urls")
+                    if pk.isdigit()
+                ]
         else:
-            selected_ids = []
+            selected_keys = []
 
-        if not selected_ids:
+        if not selected_keys:
+            if is_ajax:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Не выбрано ни одного элемента для создания.",
+                    },
+                    status=400,
+                )
             messages.warning(
                 request,
-                "Не выбрано ни одного файла для создания проигрывателя.",
+                "Не выбрано ни одной игры для создания проигрывателя.",
             )
             return redirect(request.get_full_path())
 
         success_count = 0
+        created_game_ids: list[int] = []
+        errors: list[str] = []
         visible = (
             "visible" in request.POST
             if (
@@ -415,14 +490,65 @@ def blueprint_list(request):
             )
             else True
         )
-        for game_url_id in selected_ids:
-            game_url = (
-                GameURL.objects
-                .filter(pk=game_url_id)
-                .select_related("game", "url")
-                .first()
-            )
+        for key in selected_keys:
+            pair_val = request.POST.get(f"pair_{key}", "").strip()
+            game_url: GameURL | None = None
+            blueprint_slug = ""
+            if ":" in pair_val:
+                gu_id_str, bp_slug = pair_val.split(":", 1)
+                if gu_id_str.isdigit():
+                    game_url = (
+                        GameURL.objects
+                        .filter(pk=int(gu_id_str))
+                        .select_related("game", "url")
+                        .first()
+                    )
+                    blueprint_slug = bp_slug.strip()
+
             if not game_url:
+                candidate_game = Game.objects.filter(pk=key).first()
+                if candidate_game:
+                    for gu in GameURL.objects.filter(
+                        game=candidate_game,
+                        category__symbolic_id="download_direct",
+                        url__local_filename__isnull=False,
+                    ).select_related("url"):
+                        local_filename = gu.url.local_filename
+                        if not local_filename:
+                            continue
+                        storage = gu.url.GetFs()
+                        if not storage.exists(local_filename):
+                            continue
+                        try:
+                            path = Path(storage.path(local_filename))
+                        except Exception:
+                            continue
+                        for slug, bp in blueprint_map.items():
+                            try:
+                                if bp.accepts(path):
+                                    game_url = gu
+                                    blueprint_slug = slug
+                                    break
+                            except Exception:
+                                continue
+                        if game_url:
+                            break
+                else:
+                    game_url = (
+                        GameURL.objects
+                        .filter(pk=key)
+                        .select_related("game", "url")
+                        .first()
+                    )
+                    blueprint_slug = request.POST.get(
+                        f"blueprint_{key}", ""
+                    ).strip()
+
+            if not game_url:
+                msg = f"Не найден файл для элемента #{key}."
+                errors.append(msg)
+                if not is_ajax:
+                    messages.error(request, msg)
                 continue
 
             game = game_url.game
@@ -434,36 +560,36 @@ def blueprint_list(request):
                     Playable.State.READY,
                 ),
             ).exists():
-                messages.info(
-                    request,
-                    f"Для игры «{game.title}» сайт уже создан или создаётся.",
-                )
+                msg = f"Для игры «{game.title}» сайт уже создан или создаётся."
+                errors.append(msg)
+                if not is_ajax:
+                    messages.info(request, msg)
                 continue
 
-            blueprint_slug = request.POST.get(
-                f"blueprint_{game_url_id}", ""
-            ).strip()
             if not blueprint_slug or blueprint_slug not in blueprint_map:
                 local_filename = game_url.url.local_filename
-                if not local_filename:
-                    continue
-                storage = game_url.url.GetFs()
-                if not storage.exists(local_filename):
-                    continue
-                path = Path(storage.path(local_filename))
-                for slug, bp in blueprint_map.items():
-                    try:
-                        if bp.accepts(path):
-                            blueprint_slug = slug
-                            break
-                    except (OSError, Exception):
-                        continue
-                else:
-                    messages.error(
-                        request,
+                if local_filename:
+                    storage = game_url.url.GetFs()
+                    if storage.exists(local_filename):
+                        try:
+                            path = Path(storage.path(local_filename))
+                            for slug, bp in blueprint_map.items():
+                                try:
+                                    if bp.accepts(path):
+                                        blueprint_slug = slug
+                                        break
+                                except (OSError, Exception):
+                                    continue
+                        except Exception:
+                            pass
+                if not blueprint_slug or blueprint_slug not in blueprint_map:
+                    msg = (
                         "Не найден совместимый проигрыватель для игры "
-                        f"«{game.title}».",
+                        f"«{game.title}»."
                     )
+                    errors.append(msg)
+                    if not is_ajax:
+                        messages.error(request, msg)
                     continue
 
             bp = blueprint_map[blueprint_slug]
@@ -471,25 +597,34 @@ def blueprint_list(request):
             version = spec.versions[-1] if spec.versions else ""
 
             domain_name = (
-                request.POST.get(f"domain_{game_url_id}", "").strip().lower()
+                (
+                    request.POST.get(f"domain_{key}", "")
+                    or request.POST.get(f"domain_{game_url.pk}", "")
+                )
+                .strip()
+                .lower()
             )
             slug: str | None = None
             if domain_name:
                 if not is_valid_domain_slug(domain_name):
-                    messages.error(
-                        request,
+                    msg = (
                         f"Игра «{game.title}»: некорректное доменное имя "
                         f"'{domain_name}'. Используйте только строчные "
-                        "латинские буквы, цифры и дефис.",
+                        "латинские буквы, цифры и дефис."
                     )
+                    errors.append(msg)
+                    if not is_ajax:
+                        messages.error(request, msg)
                     continue
                 busy, reason = is_domain_busy(domain_name)
                 if busy:
-                    messages.error(
-                        request,
+                    msg = (
                         f"Игра «{game.title}»: домен '{domain_name}' уже "
-                        f"занят: {reason}.",
+                        f"занят: {reason}."
                     )
+                    errors.append(msg)
+                    if not is_ajax:
+                        messages.error(request, msg)
                     continue
                 slug = domain_name
 
@@ -506,6 +641,24 @@ def blueprint_list(request):
             )
             generate_playable.delay(new_playable.pk)
             success_count += 1
+            created_game_ids.append(game.pk)
+
+        if is_ajax:
+            if is_single and not created_game_ids:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": errors[0]
+                        if errors
+                        else "Не удалось создать сайт.",
+                    },
+                    status=400,
+                )
+            return JsonResponse({
+                "success": True,
+                "created_ids": created_game_ids,
+                "errors": errors,
+            })
 
         if success_count > 0:
             messages.success(
@@ -513,9 +666,115 @@ def blueprint_list(request):
             )
         return redirect(request.get_full_path())
 
-    playables = Playable.objects.select_related(
-        "game", "game_url__url"
-    ).order_by("-updated", "-created")
+    selected_template = request.GET.get("template", "").strip()
+    selected_version = request.GET.get("version", "").strip()
+    sort = request.GET.get("sort", "-updated").strip()
+
+    sort_mapping: dict[str, list[str]] = {
+        "-updated": ["-updated", "-created", "-pk"],
+        "updated": ["updated", "created", "pk"],
+        "-created": ["-created", "-updated", "-pk"],
+        "created": ["created", "updated", "pk"],
+        "game": ["game__title", "-updated", "-pk"],
+        "-game": ["-game__title", "-updated", "-pk"],
+        "site": ["slug", "-updated", "-pk"],
+        "-site": ["-slug", "-updated", "-pk"],
+        "template": ["template", "template_version", "-updated", "-pk"],
+        "-template": ["-template", "-template_version", "-updated", "-pk"],
+        "state": ["state", "-updated", "-pk"],
+        "-state": ["-state", "-updated", "-pk"],
+        "visible": ["-visible", "-updated", "-pk"],
+        "-visible": ["visible", "-updated", "-pk"],
+        "-id": ["-pk"],
+        "id": ["pk"],
+    }
+    if sort not in sort_mapping:
+        sort = "-updated"
+    order_fields = sort_mapping[sort]
+
+    playables_qs = Playable.objects.select_related("game", "game_url__url")
+    if selected_template:
+        playables_qs = playables_qs.filter(template=selected_template)
+    if selected_version:
+        playables_qs = playables_qs.filter(template_version=selected_version)
+    playables = playables_qs.order_by(*order_fields)
+
+    filter_templates: list[dict[str, str]] = []
+    seen_template_slugs: set[str] = set()
+    for bp in blueprints:
+        slug_str = str(bp["slug"])
+        filter_templates.append({
+            "slug": slug_str,
+            "display_name": f"{bp['display_name']} ({slug_str})",
+        })
+        seen_template_slugs.add(slug_str)
+
+    for tmpl in (
+        Playable.objects
+        .order_by("template")
+        .values_list("template", flat=True)
+        .distinct()
+    ):
+        if tmpl and tmpl not in seen_template_slugs:
+            filter_templates.append({
+                "slug": tmpl,
+                "display_name": tmpl,
+            })
+            seen_template_slugs.add(tmpl)
+
+    playable_versions = (
+        Playable.objects
+        .exclude(template_version="")
+        .values_list("template_version", flat=True)
+        .distinct()
+    )
+    blueprint_versions: set[str] = set()
+    for info in discovered:
+        for v in info.blueprint.get_spec().versions:
+            blueprint_versions.add(v)
+
+    filter_versions = sorted(
+        set(playable_versions) | blueprint_versions,
+        key=_version_sort_key,
+    )
+
+    template_versions_map: dict[str, list[str]] = defaultdict(list)
+    for row in (
+        Playable.objects
+        .exclude(template_version="")
+        .values("template", "template_version")
+        .distinct()
+    ):
+        template_versions_map[row["template"]].append(row["template_version"])
+    for info in discovered:
+        for v in info.blueprint.get_spec().versions:
+            if v not in template_versions_map[info.name]:
+                template_versions_map[info.name].append(v)
+    for tmpl in template_versions_map:
+        template_versions_map[tmpl].sort(key=_version_sort_key)
+
+    def _make_col_sort(col: str, default_desc: bool) -> dict[str, str]:
+        asc = col
+        desc = f"-{col}"
+        if sort == asc:
+            return {"next_sort": desc, "indicator": "▲"}
+        if sort == desc:
+            return {"next_sort": asc, "indicator": "▼"}
+        return {
+            "next_sort": desc if default_desc else asc,
+            "indicator": "",
+        }
+
+    columns_sort = {
+        "id": _make_col_sort("id", default_desc=True),
+        "game": _make_col_sort("game", default_desc=False),
+        "site": _make_col_sort("site", default_desc=False),
+        "template": _make_col_sort("template", default_desc=False),
+        "state": _make_col_sort("state", default_desc=False),
+        "visible": _make_col_sort("visible", default_desc=True),
+        "created": _make_col_sort("created", default_desc=True),
+        "updated": _make_col_sort("updated", default_desc=True),
+    }
 
     available_platforms = list(
         GameTag.objects
@@ -534,7 +793,7 @@ def blueprint_list(request):
     platform = request.GET.get("platform", "").strip()
     blueprint_filter = request.GET.get("blueprint", "").strip()
     q = request.GET.get("q", "").strip()
-    per_page_str = request.GET.get("per_page", "500").strip().lower()
+    per_page_str = request.GET.get("per_page", "100").strip().lower()
     per_page: int | str
     if per_page_str == "all":
         per_page = "all"
@@ -543,8 +802,8 @@ def blueprint_list(request):
         per_page = int(per_page_str)
         effective_page_size = per_page
     else:
-        per_page = 500
-        effective_page_size = 500
+        per_page = 100
+        effective_page_size = 100
 
     candidate_page = None
     candidate_matches: list[dict[str, object]] = []
@@ -613,7 +872,7 @@ def blueprint_list(request):
         )
 
         for game in page_games:
-            compatible_files = []
+            pairs = []
             for gu in game.gameurl_set.all():
                 url = gu.url
                 local_filename = url.local_filename
@@ -622,31 +881,28 @@ def blueprint_list(request):
                 storage = url.GetFs()
                 if not storage.exists(local_filename):
                     continue
-                path = Path(storage.path(local_filename))
-                file_compatible_bps = []
+                try:
+                    path = Path(storage.path(local_filename))
+                except (OSError, Exception):
+                    continue
                 for b_slug, bp, b_name in active_blueprints:
                     try:
                         if bp.accepts(path):
-                            file_compatible_bps.append({
-                                "slug": b_slug,
-                                "display_name": b_name,
+                            pairs.append({
+                                "game_url": gu,
+                                "blueprint_slug": b_slug,
+                                "blueprint_name": b_name,
                             })
                     except (OSError, Exception):
                         continue
 
-                if file_compatible_bps:
-                    compatible_files.append({
-                        "game_url": gu,
-                        "compatible_blueprints": file_compatible_bps,
-                    })
-
-            if compatible_files:
+            if pairs:
                 candidate_matches.append({
                     "game": game,
                     "platforms": [
                         t.name for t in getattr(game, "platform_tags", [])
                     ],
-                    "compatible_files": compatible_files,
+                    "pairs": pairs,
                 })
 
     return render(
@@ -655,6 +911,13 @@ def blueprint_list(request):
         {
             "blueprints": blueprints,
             "playables": playables,
+            "selected_template": selected_template,
+            "selected_version": selected_version,
+            "filter_templates": filter_templates,
+            "filter_versions": filter_versions,
+            "template_versions_dict": dict(template_versions_map),
+            "sort": sort,
+            "columns_sort": columns_sort,
             "playable_base_domain": settings.PLAYABLE_BASE_DOMAIN,
             "available_platforms": available_platforms,
             "scan": scan,
@@ -666,6 +929,137 @@ def blueprint_list(request):
             "candidate_matches": candidate_matches,
         },
     )
+
+
+def blueprint_candidate_ids(request):
+    platform = request.GET.get("platform", "").strip()
+    q = request.GET.get("q", "").strip()
+
+    candidate_qs = (
+        Game.objects
+        .filter(playable__isnull=True)
+        .filter(
+            gameurl__category__symbolic_id="download_direct",
+            gameurl__url__local_filename__isnull=False,
+        )
+        .exclude(state=Game.State.REDIRECT)
+        .distinct()
+        .order_by("title", "pk")
+    )
+    if platform:
+        candidate_qs = candidate_qs.filter(
+            tags__category__symbolic_id="platform",
+            tags__name__iexact=platform,
+        )
+    if q:
+        candidate_qs = candidate_qs.filter(title__icontains=q)
+
+    game_ids = list(candidate_qs.values_list("pk", flat=True))
+    return JsonResponse({"game_ids": game_ids, "total": len(game_ids)})
+
+
+def blueprint_candidate_check(request, game_pk: int):
+    game = (
+        Game.objects
+        .filter(pk=game_pk)
+        .exclude(state=Game.State.REDIRECT)
+        .prefetch_related(
+            Prefetch(
+                "tags",
+                queryset=GameTag.objects.select_related("category").filter(
+                    category__symbolic_id="platform"
+                ),
+                to_attr="platform_tags",
+            ),
+            Prefetch(
+                "gameurl_set",
+                queryset=GameURL.objects
+                .filter(
+                    category__symbolic_id="download_direct",
+                    url__local_filename__isnull=False,
+                )
+                .select_related("url", "category")
+                .order_by("pk"),
+            ),
+        )
+        .first()
+    )
+    if not game:
+        return JsonResponse({"compatible": False})
+
+    if Playable.objects.filter(
+        game=game,
+        state__in=(
+            Playable.State.PENDING,
+            Playable.State.BUILDING,
+            Playable.State.READY,
+        ),
+    ).exists():
+        return JsonResponse({"compatible": False})
+
+    blueprint_filter = request.GET.get("blueprint", "").strip()
+    discovered = discover_blueprints()
+    blueprint_map = {info.name: info.blueprint for info in discovered}
+    if blueprint_filter and blueprint_filter in blueprint_map:
+        active_blueprints = [
+            (
+                blueprint_filter,
+                blueprint_map[blueprint_filter],
+                blueprint_map[blueprint_filter].get_spec().name,
+            )
+        ]
+    else:
+        active_blueprints = [
+            (info.name, info.blueprint, info.blueprint.get_spec().name)
+            for info in discovered
+        ]
+
+    pairs: list[dict[str, object]] = []
+    for gu in game.gameurl_set.all():
+        url = gu.url
+        local_filename = url.local_filename
+        if not local_filename:
+            continue
+        storage = url.GetFs()
+        if not storage.exists(local_filename):
+            continue
+        try:
+            path = Path(storage.path(local_filename))
+        except (OSError, Exception):
+            continue
+        for b_slug, bp, b_name in active_blueprints:
+            try:
+                if bp.accepts(path):
+                    pairs.append({
+                        "game_url": gu,
+                        "blueprint_slug": b_slug,
+                        "blueprint_name": b_name,
+                    })
+            except (OSError, Exception):
+                continue
+
+    if not pairs:
+        return JsonResponse({"compatible": False})
+
+    item = {
+        "game": game,
+        "platforms": [t.name for t in getattr(game, "platform_tags", [])],
+        "pairs": pairs,
+    }
+    row_html = render_to_string(
+        "curation/_blueprint_candidate_row.html",
+        {
+            "item": item,
+            "playable_base_domain": settings.PLAYABLE_BASE_DOMAIN,
+        },
+        request=request,
+    )
+    return JsonResponse({
+        "compatible": True,
+        "game_id": game.pk,
+        "title": game.title,
+        "html": row_html,
+    })
 
 
 def discovery_status(request):
