@@ -16,6 +16,7 @@ from contest.models import GameListEntry
 from contest.views import CompetitionHead, FormatHead
 from core.views import BuildPackageUserFingerprint
 from moder.actions import GetModerActions
+from play.models import Playable
 
 from .gameinfo import GameInfo, Person
 from .models import (
@@ -186,6 +187,8 @@ class GameContent:
     download: list[GameUrlValue]
     links: list[GameUrlGroup]
     description_attributions: list[str]
+    playables: list[Playable]
+    playable_base_domain: str
 
 
 @dataclass
@@ -327,10 +330,23 @@ class GameDetailsBuilder:
             download=urls.download,
             links=urls.links,
             description_attributions=self.GetAttributions(),
+            playables=[],
+            playable_base_domain=settings.PLAYABLE_BASE_DOMAIN,
         )
 
     def GetGameDict(self, game: Game, request: HttpRequest) -> GamePage:
         content = self.GetContentDict(request)
+        content.playables = list(
+            Playable.objects
+            .filter(
+                game=game,
+                visible=True,
+                state=Playable.State.READY,
+            )
+            .exclude(slug__isnull=True)
+            .exclude(slug="")
+            .order_by("pk")
+        )
         return GamePage(
             **vars(content),
             comment_perm=can_comment_game(request.user, game),

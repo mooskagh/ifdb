@@ -51,6 +51,9 @@ class Playable(models.Model):
         choices=State.choices,
         default=State.PENDING,
     )
+    visible: models.BooleanField[bool, bool] = models.BooleanField(
+        default=True,
+    )
     created: models.DateTimeField[datetime, datetime] = models.DateTimeField(
         auto_now_add=True
     )

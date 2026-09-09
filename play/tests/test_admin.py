@@ -14,6 +14,8 @@ class PlayableAdminTests(TestCase):
         self.assertIsInstance(admin_instance, PlayableAdmin)
         self.assertIn("slug", admin_instance.list_display)
         self.assertIn("state", admin_instance.list_display)
+        self.assertIn("visible", admin_instance.list_display)
+        self.assertIn("visible", admin_instance.list_filter)
         self.assertIn("created", admin_instance.readonly_fields)
         self.assertIn("updated", admin_instance.readonly_fields)
 

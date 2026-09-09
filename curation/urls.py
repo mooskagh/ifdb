@@ -153,6 +153,11 @@ urlpatterns = [
         name="curation_history_playable_regenerate",
     ),
     path(
+        "<int:game_id>/playables/<int:playable_id>/visibility/",
+        superuser_required(views.history_playable_visibility),
+        name="curation_history_playable_visibility",
+    ),
+    path(
         "reconcile/game/<int:game_id>/json/",
         superuser_required(views.reconcile_game_json),
         name="curation_reconcile_game_json",

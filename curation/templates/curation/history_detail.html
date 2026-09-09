@@ -64,15 +64,15 @@
 
 {% if playable_files %}
 <div class="card card--green">
-    <div class="card--header">Проигрыватель</div>
+    <div class="card--header">Проигрыватели</div>
     <div class="curation-playable-table-wrap">
         <table class="curation-table curation-table--compact curation-playable-table">
             <thead>
                 <tr>
                     <th class="curation-playable-table-file">Файл</th>
                     <th class="curation-playable-table-local">Локальная копия</th>
-                    <th>Совместимость</th>
-                    <th>Сайт</th>
+                    <th class="curation-playable-table-compatibility">Совместимость</th>
+                    <th class="curation-playable-table-site">Сайт</th>
                 </tr>
             </thead>
             <tbody>
@@ -127,6 +127,15 @@
                                 Шаблон: {{ playable_file.playable.template }}{% if playable_file.playable.template_version %} (v{{ playable_file.playable.template_version }}){% endif %}<br>
                                 Создан: {{ playable_file.playable.created|date:"d.m.Y H:i" }} | Обновлён: {{ playable_file.playable.updated|date:"d.m.Y H:i" }}
                             </div>
+                            <form method="post" action="{% url 'curation_history_playable_visibility' game.pk playable_file.playable.pk %}" style="margin-top: 6px; display: flex; align-items: center; gap: 6px;">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <label style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
+                                    <input type="checkbox" name="visible" value="1" {% if playable_file.playable.visible %}checked{% endif %}>
+                                    виден
+                                </label>
+                                <button type="submit">сохранить</button>
+                            </form>
                             <form method="post" action="{% url 'curation_history_playable_rename' game.pk playable_file.playable.pk %}" class="curation-playable-form" style="margin-top: 6px;">
                                 {% csrf_token %}
                                 <div class="curation-playable-form-group">
@@ -154,9 +163,13 @@
                             {% if playable_file.compatible_blueprint %}
                             <input type="hidden" name="blueprint_slug" value="{{ playable_file.compatible_blueprint.slug }}">
                             {% endif %}
+                            <input type="hidden" name="has_visible_field" value="1">
                             <div class="curation-playable-form-group">
                                 <input type="text" name="domain_name" placeholder="✨" class="curation-playable-domain-input" autocomplete="off" spellcheck="false">
                                 <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
+                                <label style="display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; cursor: pointer;">
+                                    <input type="checkbox" name="visible" value="1" checked> виден
+                                </label>
                                 <button type="submit">создать сайт</button>
                             </div>
                         </form>

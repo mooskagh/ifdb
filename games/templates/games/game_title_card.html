@@ -55,6 +55,14 @@
                     {% endfor %}
                 </div>
                 <div class="game--buttons-panel">
+                    {% for p in playables %}
+                        <a class="button button-salad"
+                            href="http{% if request.is_secure %}s{% endif %}://{{ p.slug }}.{{ playable_base_domain }}"
+                            target="_blank">
+                                <svg><use href="{% static 'iconset.svg' %}#play"></use></svg>
+                                Играть на {{ playable_base_domain }}
+                        </a>
+                    {% endfor %}
                     {% for x in online %}
                         {% if x.remote_url %}
                             <a class="button button-salad"

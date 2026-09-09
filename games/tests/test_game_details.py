@@ -2,6 +2,7 @@ from copy import deepcopy
 from io import StringIO
 from typing import Any
 
+from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core.management import call_command
 from django.db import connection
@@ -21,9 +22,11 @@ from games.models import (
     GameRevision,
     GameTag,
     GameURL,
+    GameURLCategory,
     Personality,
     PersonalityAlias,
 )
+from play.models import Playable
 
 
 class GameDetailsContentTests(TestCase):
@@ -280,3 +283,73 @@ Revision Body
         info = GameInfo.from_game(game)
         self.assertEqual(info.name, "Revision Title")
         self.assertEqual(info.description, "Revision Body\n")
+
+    def test_playable_button_on_game_page(self) -> None:
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Playable Game Title",
+            creation_time=now(),
+        )
+        cat_online = GameURLCategory.objects.get(symbolic_id="play_online")
+        url_obj = URL.objects.create(
+            original_url="https://example.com/play-other",
+            creation_date=now(),
+        )
+        GameURL.objects.create(
+            game=game,
+            url=url_obj,
+            category=cat_online,
+            description="Другой онлайн",
+        )
+        GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text="""---
+- name: "Playable Game Title"
+- urls:
+  - ["play_online", "Другой онлайн", "https://example.com/play-other"]
+---
+Game Description
+""",
+        )
+
+        playable = Playable.objects.create(
+            game=game,
+            template="instead_em",
+            template_version="1.0",
+            slug="quest-test",
+            state=Playable.State.READY,
+            visible=True,
+        )
+
+        response = self.client.get(reverse("show_game", args=[game.id]))
+        self.assertEqual(response.status_code, 200)
+        expected_btn = f"Играть на {settings.PLAYABLE_BASE_DOMAIN}"
+        expected_href = f"http://quest-test.{settings.PLAYABLE_BASE_DOMAIN}"
+        self.assertContains(response, expected_btn)
+        self.assertContains(response, expected_href)
+        self.assertContains(response, "Другой онлайн")
+
+        # Verify the playable button appears BEFORE other "Играть" buttons
+        pos_playable = response.content.find(expected_btn.encode("utf-8"))
+        pos_other = response.content.find("Другой онлайн".encode("utf-8"))
+        self.assertNotEqual(pos_playable, -1)
+        self.assertNotEqual(pos_other, -1)
+        self.assertLess(pos_playable, pos_other)
+
+        # When visible is False, button should not be rendered
+        playable.visible = False
+        playable.save(update_fields=["visible"])
+        response = self.client.get(reverse("show_game", args=[game.id]))
+        self.assertNotContains(response, expected_btn)
+        self.assertContains(response, "Другой онлайн")
+
+        # When visible is True but state is not READY, no button
+        playable.visible = True
+        playable.state = Playable.State.BUILDING
+        playable.save(update_fields=["visible", "state"])
+        response = self.client.get(reverse("show_game", args=[game.id]))
+        self.assertNotContains(response, expected_btn)

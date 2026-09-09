@@ -3271,10 +3271,18 @@ h6 {
     vertical-align: top;
 }
 .curation-playable-table-file {
-    width: 38%;
+    width: 28%;
+    min-width: 160px;
 }
 .curation-playable-table-local {
-    width: 180px;
+    width: 100px;
+    white-space: nowrap;
+}
+.curation-playable-table-compatibility {
+    width: 200px;
+}
+.curation-playable-table-site {
+    min-width: 260px;
 }
 .curation-playable-file,
 .curation-playable-file a {
@@ -3332,6 +3340,101 @@ h6 {
     color: #666;
     font-size: 12px;
     margin-right: 2px;
+}
+
+/* Blueprint playables table layout */
+.curation-blueprint-playables-table {
+    table-layout: fixed;
+    width: 100%;
+}
+.curation-blueprint-table-id {
+    width: 50px;
+}
+.curation-blueprint-table-game {
+    width: auto;
+}
+.curation-blueprint-table-site {
+    width: 175px;
+    word-break: break-all;
+}
+.curation-blueprint-table-template {
+    width: 130px;
+}
+.curation-blueprint-table-state {
+    width: 80px;
+}
+.curation-blueprint-table-visible {
+    width: 65px;
+    text-align: center;
+}
+.curation-blueprint-table-date {
+    width: 110px;
+}
+.curation-blueprint-table-actions {
+    width: 160px;
+    white-space: normal;
+}
+
+/* Blueprint candidates section */
+.curation-blueprint-candidates-table {
+    table-layout: auto;
+    width: 100%;
+}
+.curation-blueprint-candidates-table th,
+.curation-blueprint-candidates-table td {
+    vertical-align: middle;
+}
+.curation-blueprint-candidates-table-select {
+    width: 35px;
+    text-align: center;
+}
+.curation-blueprint-candidates-table-game {
+    min-width: 180px;
+}
+.curation-blueprint-candidates-table-file {
+    min-width: 180px;
+    word-break: break-all;
+}
+.curation-blueprint-candidates-table-blueprint {
+    min-width: 140px;
+}
+.curation-blueprint-candidates-table-domain {
+    min-width: 170px;
+    white-space: nowrap;
+}
+.curation-blueprint-candidates-table-actions {
+    width: 75px;
+    text-align: center;
+    white-space: nowrap;
+}
+.curation-blueprint-filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    align-items: center;
+    padding: 10px 14px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+}
+.curation-blueprint-filter-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+.curation-blueprint-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px 6px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.curation-blueprint-placeholder {
+    padding: 24px 16px;
+    text-align: center;
+    color: #666;
+    font-size: 14px;
 }
 
 .curation-source:last-child {
