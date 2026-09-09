@@ -28,6 +28,13 @@ def _is_file_member(member: str) -> bool:
     return not member.endswith("/")
 
 
+def _is_html_file(name: str) -> bool:
+    lower = name.lower()
+    return (
+        lower.endswith(".html") or lower.endswith(".htm")
+    ) and not name.startswith(".")
+
+
 def find_unpack_target(archive: Archive) -> str | None:
     valid_members: list[tuple[str, list[str]]] = []
     for member in archive.namelist():
@@ -44,6 +51,22 @@ def find_unpack_target(archive: Archive) -> str | None:
         ):
             return ""
 
+    all_html_files = [
+        member
+        for member, parts in valid_members
+        if _is_file_member(member) and _is_html_file(parts[-1])
+    ]
+
+    root_html_files = [
+        parts[0]
+        for member, parts in valid_members
+        if len(parts) == 1
+        and _is_file_member(member)
+        and _is_html_file(parts[0])
+    ]
+    if len(root_html_files) == 1 and len(all_html_files) == 1:
+        return ""
+
     top_levels: set[str] = {parts[0] for _, parts in valid_members}
     if len(top_levels) != 1:
         return None
@@ -57,6 +80,17 @@ def find_unpack_target(archive: Archive) -> str | None:
             and _is_file_member(member)
         ):
             return root_dir
+
+    subdir_html_files = [
+        parts[1]
+        for member, parts in valid_members
+        if len(parts) == 2
+        and parts[0] == root_dir
+        and _is_file_member(member)
+        and _is_html_file(parts[1])
+    ]
+    if len(subdir_html_files) == 1 and len(all_html_files) == 1:
+        return root_dir
 
     return None
 
@@ -115,6 +149,18 @@ def generate(spec: GenerateSpec) -> None:
                 if item.name in _IGNORED_ROOTS or item.name in _IGNORED_NAMES:
                     continue
                 shutil.move(str(item), str(stage / item.name))
+
+            if (
+                not (stage / "index.html").exists()
+                and not (stage / "index.htm").exists()
+            ):
+                html_files = [
+                    item
+                    for item in stage.iterdir()
+                    if item.is_file() and _is_html_file(item.name)
+                ]
+                if len(html_files) == 1:
+                    html_files[0].rename(stage / "index.html")
 
         _publish(stage, spec.destination)
     finally:
