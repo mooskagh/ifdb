@@ -1,0 +1,48 @@
+<tr id="candidate-game-{{ item.game.pk }}">
+    <td class="curation-blueprint-candidates-table-select">
+        <input type="checkbox" name="selected_games" value="{{ item.game.pk }}" class="candidate-checkbox">
+    </td>
+    <td class="curation-blueprint-candidates-table-game">
+        <a href="{% url 'show_game' item.game.pk %}"><strong>{{ item.game.title }}</strong></a>
+        (<a href="{% url 'curation_history_detail' item.game.pk %}">модерация</a>)
+        {% if item.platforms %}
+        <div class="curation-meta">{{ item.platforms|join:", " }}</div>
+        {% endif %}
+    </td>
+    <td class="curation-blueprint-candidates-table-target">
+        {% if item.pairs|length == 1 %}
+        <div class="curation-blueprint-pair-single">
+            <input type="hidden" name="pair_{{ item.game.pk }}" value="{{ item.pairs.0.game_url.pk }}:{{ item.pairs.0.blueprint_slug }}">
+            <a href="{{ item.pairs.0.game_url.url.original_url }}" target="_blank" class="curation-blueprint-pair-file" title="{{ item.pairs.0.game_url.url.original_url }}">
+                {{ item.pairs.0.game_url.url.original_filename|default:item.pairs.0.game_url.url.original_url }}
+            </a>
+            {% if item.pairs.0.game_url.url.file_size %}
+            <span class="curation-meta">({{ item.pairs.0.game_url.url.file_size|filesizeformat }})</span>
+            {% endif %}
+            <span class="curation-badge curation-badge--ready">{{ item.pairs.0.blueprint_name }}</span>
+        </div>
+        {% else %}
+        <div class="curation-blueprint-pairs-list" style="display: flex; flex-direction: column; gap: 6px;">
+            {% for pair in item.pairs %}
+            <label class="curation-blueprint-pair-option" style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 0;">
+                <input type="radio" name="pair_{{ item.game.pk }}" value="{{ pair.game_url.pk }}:{{ pair.blueprint_slug }}"{% if forloop.first %} checked{% endif %} style="margin: 0; cursor: pointer;">
+                <a href="{{ pair.game_url.url.original_url }}" target="_blank" class="curation-blueprint-pair-file" title="{{ pair.game_url.url.original_url }}" onclick="event.stopPropagation();">
+                    {{ pair.game_url.url.original_filename|default:pair.game_url.url.original_url }}
+                </a>
+                {% if pair.game_url.url.file_size %}
+                <span class="curation-meta">({{ pair.game_url.url.file_size|filesizeformat }})</span>
+                {% endif %}
+                <span class="curation-badge curation-badge--ready">{{ pair.blueprint_name }}</span>
+            </label>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </td>
+    <td class="curation-blueprint-candidates-table-domain">
+        <input type="text" name="domain_{{ item.game.pk }}" placeholder="✨" class="curation-playable-domain-input" autocomplete="off" spellcheck="false">
+        <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
+    </td>
+    <td class="curation-blueprint-candidates-table-actions">
+        <button type="submit" name="single_create" value="{{ item.game.pk }}" class="candidate-create-btn" data-game-id="{{ item.game.pk }}">создать</button>
+    </td>
+</tr>

@@ -2905,6 +2905,13 @@ h6 {
     color: #555;
     border-bottom: 2px solid #ddd;
 }
+.curation-table th a {
+    color: inherit;
+    text-decoration: none;
+}
+.curation-table th a:hover {
+    text-decoration: underline;
+}
 .curation-table tbody tr:nth-child(even) {
     background: #fafafa;
 }
@@ -3429,6 +3436,55 @@ h6 {
     padding: 10px 14px 6px;
     flex-wrap: wrap;
     gap: 8px;
+}
+.curation-blueprint-filter-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex-basis: 100%;
+    margin-top: 4px;
+}
+.curation-scan-progress-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+progress.curation-scan-progress-bar {
+    width: 180px;
+    height: 18px;
+    vertical-align: middle;
+    accent-color: #2563eb;
+}
+.curation-blueprint-candidates-table-target {
+    min-width: 250px;
+}
+.curation-blueprint-pairs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.curation-blueprint-pair-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    margin: 0;
+}
+.curation-blueprint-pair-option input[type="radio"] {
+    margin: 0;
+    cursor: pointer;
+}
+.curation-blueprint-pair-single {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+.curation-blueprint-pair-file {
+    word-break: break-all;
 }
 .curation-blueprint-placeholder {
     padding: 24px 16px;
