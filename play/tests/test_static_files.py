@@ -96,13 +96,91 @@ class StaticFilesTests(SimpleTestCase):
                 with self.subTest(idx=idx, members=list(members.keys())):
                     self.assertTrue(accepts(archive_path))
 
+    def test_accepts_root_single_html(self) -> None:
+        cases = (
+            {"game.html": b"<h1>Game</h1>"},
+            {"story.htm": b"<h1>Story</h1>"},
+            {
+                "game.html": b"<h1>Game</h1>",
+                "style.css": b"body {}",
+                "assets/img.png": b"fake_png",
+            },
+            {
+                "story.htm": b"<h1>Story</h1>",
+                "assets/img.png": b"fake_png",
+            },
+            {
+                "game.html": b"<h1>Game</h1>",
+                "__MACOSX/._game.html": b"apple_double",
+                ".DS_Store": b"ds_store",
+            },
+        )
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for idx, members in enumerate(cases):
+                archive_path = root / f"single_html_{idx}.zip"
+                _write_zip(archive_path, members)
+                with self.subTest(idx=idx, members=list(members.keys())):
+                    self.assertTrue(accepts(archive_path))
+
+    def test_accepts_single_root_directory_with_single_html(self) -> None:
+        cases = (
+            {"my_game/play.html": b"<h1>Play</h1>"},
+            {"my_game/story.htm": b"<h1>Story</h1>"},
+            {
+                "my_game/": b"",
+                "my_game/play.html": b"<h1>Play</h1>",
+                "my_game/style.css": b"body {}",
+            },
+            {
+                "my_game/play.html": b"<h1>Play</h1>",
+                "my_game/sub/script.js": b"console.log('hi');",
+            },
+            {
+                "__MACOSX/._my_game": b"apple_double",
+                ".DS_Store": b"ds_store",
+                "my_game/": b"",
+                "my_game/play.html": b"<h1>Play</h1>",
+                "my_game/.DS_Store": b"ds_store",
+            },
+        )
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for idx, members in enumerate(cases):
+                archive_path = root / f"single_html_dir_{idx}.zip"
+                _write_zip(archive_path, members)
+                with self.subTest(idx=idx, members=list(members.keys())):
+                    self.assertTrue(accepts(archive_path))
+
     def test_rejects_unsupported_archives(self) -> None:
         cases: tuple[dict[str, bytes], ...] = (
-            # Missing index.html / index.htm
+            # Missing index.html / index.htm and no html files
             {"main.lua": b"return true"},
             {"readme.txt": b"info"},
             # Nested index inside subdirectory of single directory
             {"my_game/nested/index.html": b"<h1>Nested</h1>"},
+            # Nested single html inside subdirectory of single directory
+            {"my_game/nested/game.html": b"<h1>Nested</h1>"},
+            # Multiple non-index html files at root
+            {
+                "game1.html": b"<h1>1</h1>",
+                "game2.html": b"<h1>2</h1>",
+            },
+            # Multiple non-index html files in single directory
+            {
+                "my_game/game1.html": b"<h1>1</h1>",
+                "my_game/game2.html": b"<h1>2</h1>",
+            },
+            # Non-index html at root with another html in subdirectory
+            {
+                "game.html": b"<h1>Root</h1>",
+                "sub/other.html": b"<h1>Other</h1>",
+            },
+            # Non-index html in single dir with another html in subfolder
+            {
+                "my_game/game.html": b"<h1>Root</h1>",
+                "my_game/sub/other.html": b"<h1>Other</h1>",
+            },
             # Multiple directories at root
             {
                 "dir1/index.html": b"<h1>Hello</h1>",
@@ -198,6 +276,56 @@ class StaticFilesTests(SimpleTestCase):
             self.assertTrue((destination / "data" / "level.json").exists())
             self.assertFalse((destination / "__MACOSX").exists())
             self.assertFalse((destination / ".DS_Store").exists())
+
+    def test_generates_from_root_archive_renames_single_html(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path = root / "game.zip"
+            _write_zip(
+                archive_path,
+                {
+                    "my_game.html": b"<h1>Renamed Root Game</h1>",
+                    "style.css": b"body { color: blue; }",
+                    "assets/logo.png": b"png_data",
+                },
+            )
+            destination = root / "playable"
+            generate(GenerateSpec("1", {}, destination, archive_path))
+
+            self.assertTrue((destination / "index.html").exists())
+            self.assertFalse((destination / "my_game.html").exists())
+            self.assertEqual(
+                (destination / "index.html").read_text(),
+                "<h1>Renamed Root Game</h1>",
+            )
+            self.assertTrue((destination / "style.css").exists())
+            self.assertTrue((destination / "assets" / "logo.png").exists())
+
+    def test_generates_from_single_subdirectory_archive_renames_single_html(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path = root / "game.zip"
+            _write_zip(
+                archive_path,
+                {
+                    "my_package/": b"",
+                    "my_package/story.htm": b"<h1>Renamed Subdir Game</h1>",
+                    "my_package/game.js": b"console.log('play');",
+                },
+            )
+            destination = root / "playable"
+            generate(GenerateSpec("1", {}, destination, archive_path))
+
+            self.assertFalse((destination / "my_package").exists())
+            self.assertTrue((destination / "index.html").exists())
+            self.assertFalse((destination / "story.htm").exists())
+            self.assertEqual(
+                (destination / "index.html").read_text(),
+                "<h1>Renamed Subdir Game</h1>",
+            )
+            self.assertTrue((destination / "game.js").exists())
 
     def test_generates_into_existing_directory(self) -> None:
         with TemporaryDirectory() as directory:
