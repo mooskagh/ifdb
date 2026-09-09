@@ -2986,6 +2986,227 @@ class SourceViewsTest(TestCase):
                 response,
                 f"http://my-cool-game.{settings.PLAYABLE_BASE_DOMAIN}:8034",
             )
+            self.assertContains(response, "Шаблон: instead_em (v3.5.2)")
+            self.assertContains(
+                response, 'action="/curation/' + str(game.pk) + "/playables/"
+            )
+
+    def test_blueprint_list_shows_playables_table(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Blueprint Playable Game",
+            creation_time=ts,
+        )
+        GameCuration.objects.create(game=game)
+        game_url = self._download_link(
+            game,
+            "https://example.com/bp_game.zip",
+            local_filename="bp_game.zip",
+        )
+        playable = Playable.objects.create(
+            game=game,
+            game_url=game_url,
+            template="instead_em",
+            template_version="3.5.2",
+            slug="bp-game",
+            state=Playable.State.READY,
+        )
+
+        with patch("curation.views.discover_blueprints") as discover_mock:
+            discover_mock.return_value = []
+            response = self.client.get("/curation/blueprints/")
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Сайты игр")
+            self.assertContains(response, f"#{playable.pk}")
+            self.assertContains(response, f'href="/game/{game.pk}/"')
+            self.assertContains(response, f'href="/curation/{game.pk}/"')
+            self.assertContains(
+                response, f"bp-game.{settings.PLAYABLE_BASE_DOMAIN}"
+            )
+            self.assertContains(response, "instead_em (v3.5.2)")
+            self.assertContains(response, "Готов")
+            self.assertContains(
+                response, playable.created.strftime("%d.%m.%Y")
+            )
+
+    def test_history_playable_delete(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Delete Playable Game",
+            creation_time=ts,
+        )
+        GameCuration.objects.create(game=game)
+        game_url = self._download_link(
+            game,
+            "https://example.com/del.zip",
+            local_filename="del.zip",
+        )
+        playable = Playable.objects.create(
+            game=game,
+            game_url=game_url,
+            template="instead_em",
+            template_version="3.5.2",
+            slug="to-delete-slug",
+            state=Playable.State.READY,
+        )
+        playable_pk = playable.pk
+
+        with patch("play.caddy.delete_caddy_playable") as mock_caddy_del:
+            with patch("curation.views.Path.exists", return_value=False):
+                response = self.client.post(
+                    f"/curation/{game.pk}/playables/{playable_pk}/delete/"
+                )
+                self.assertRedirects(
+                    response,
+                    f"/curation/{game.pk}/?check_compatibility=1",
+                )
+                self.assertFalse(
+                    Playable.objects.filter(pk=playable_pk).exists()
+                )
+                mock_caddy_del.assert_called_once_with(playable_pk)
+
+    def test_history_playable_rename(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Rename Playable Game",
+            creation_time=ts,
+        )
+        GameCuration.objects.create(game=game)
+        game_url = self._download_link(
+            game,
+            "https://example.com/ren.zip",
+            local_filename="ren.zip",
+        )
+        playable = Playable.objects.create(
+            game=game,
+            game_url=game_url,
+            template="instead_em",
+            template_version="3.5.2",
+            slug="old-name",
+            state=Playable.State.READY,
+        )
+
+        # 1. Invalid domain
+        resp = self.client.post(
+            f"/curation/{game.pk}/playables/{playable.pk}/rename/",
+            {"domain_name": "INVALID--NAME"},
+        )
+        self.assertRedirects(
+            resp, f"/curation/{game.pk}/?check_compatibility=1"
+        )
+        playable.refresh_from_db()
+        self.assertEqual(playable.slug, "old-name")
+
+        # 2. Valid domain with Caddy update
+        with patch("curation.views.configure_caddy_playable") as mock_caddy:
+            mock_caddy.return_value = True
+            with override_settings(CADDY_ADMIN_URL="http://localhost:2019"):
+                resp = self.client.post(
+                    f"/curation/{game.pk}/playables/{playable.pk}/rename/",
+                    {"domain_name": "new-name"},
+                )
+                self.assertRedirects(
+                    resp, f"/curation/{game.pk}/?check_compatibility=1"
+                )
+                playable.refresh_from_db()
+                self.assertEqual(playable.slug, "new-name")
+                mock_caddy.assert_called_once_with(playable)
+
+    def test_history_playable_regenerate_and_retry_failed(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Regen Playable Game",
+            creation_time=ts,
+        )
+        GameCuration.objects.create(game=game)
+        game_url = self._download_link(
+            game,
+            "https://example.com/regen.zip",
+            local_filename="regen.zip",
+        )
+        playable = Playable.objects.create(
+            game=game,
+            game_url=game_url,
+            template="instead_em",
+            template_version="3.5.2",
+            slug="retry-slug",
+            state=Playable.State.ERROR,
+        )
+
+        with patch("curation.views.generate_playable.delay") as mock_delay:
+            resp = self.client.post(
+                f"/curation/{game.pk}/playables/{playable.pk}/regenerate/"
+            )
+            self.assertRedirects(
+                resp, f"/curation/{game.pk}/?check_compatibility=1"
+            )
+            playable.refresh_from_db()
+            self.assertEqual(playable.state, Playable.State.PENDING)
+            mock_delay.assert_called_once_with(playable.pk)
+
+        # If BUILDING, regenerate is rejected
+        playable.state = Playable.State.BUILDING
+        playable.save()
+        with patch("curation.views.generate_playable.delay") as mock_delay:
+            resp = self.client.post(
+                f"/curation/{game.pk}/playables/{playable.pk}/regenerate/"
+            )
+            self.assertRedirects(
+                resp, f"/curation/{game.pk}/?check_compatibility=1"
+            )
+            mock_delay.assert_not_called()
+
+    def test_history_playable_delete_and_regen_with_next_redirect(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Redirect Test Game",
+            creation_time=ts,
+        )
+        GameCuration.objects.create(game=game)
+        game_url = self._download_link(
+            game,
+            "https://example.com/redir.zip",
+            local_filename="redir.zip",
+        )
+        playable = Playable.objects.create(
+            game=game,
+            game_url=game_url,
+            template="instead_em",
+            template_version="3.5.2",
+            slug="redir-slug",
+            state=Playable.State.ERROR,
+        )
+
+        # Regenerate with new domain and next redirect
+        with patch("curation.views.generate_playable.delay") as mock_delay:
+            resp = self.client.post(
+                f"/curation/{game.pk}/playables/{playable.pk}/regenerate/",
+                {
+                    "next": "/curation/blueprints/",
+                    "domain_name": "new-redir-slug",
+                },
+            )
+            self.assertRedirects(resp, "/curation/blueprints/")
+            playable.refresh_from_db()
+            self.assertEqual(playable.slug, "new-redir-slug")
+            self.assertEqual(playable.state, Playable.State.PENDING)
+            mock_delay.assert_called_once_with(playable.pk)
+
+        # Delete failed playable with next redirect
+        playable_pk = playable.pk
+        with patch("play.caddy.delete_caddy_playable") as mock_caddy_del:
+            resp = self.client.post(
+                f"/curation/{game.pk}/playables/{playable_pk}/delete/",
+                {"next": "/curation/blueprints/"},
+            )
+            self.assertRedirects(resp, "/curation/blueprints/")
+            self.assertFalse(Playable.objects.filter(pk=playable_pk).exists())
+            mock_caddy_del.assert_called_once_with(playable_pk)
 
     def test_source_list_detail_and_fetch_content(self):
         ts = timezone.now()

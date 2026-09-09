@@ -1,5 +1,6 @@
 import copy
 import json
+import shutil
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -24,9 +25,15 @@ from django.db.models import (
     When,
 )
 from django.db.models.functions import Coalesce, TruncMonth
-from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.http import (
+    HttpResponse,
+    HttpResponseBadRequest,
+    HttpResponseNotAllowed,
+    JsonResponse,
+)
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import now
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
@@ -36,6 +43,7 @@ from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
 from games.models import Game, GameRevision, GameURL
 from play.blueprint import BlueprintModule, discover_blueprints
+from play.caddy import configure_caddy_playable
 from play.domain import is_domain_busy, is_valid_domain_slug
 from play.models import Playable
 from play.tasks import generate_playable
@@ -351,10 +359,17 @@ def blueprint_list(request):
         }
         for info in discover_blueprints()
     ]
+    playables = Playable.objects.select_related(
+        "game", "game_url__url"
+    ).order_by("-updated", "-created")
     return render(
         request,
         "curation/blueprint_list.html",
-        {"blueprints": blueprints},
+        {
+            "blueprints": blueprints,
+            "playables": playables,
+            "playable_base_domain": settings.PLAYABLE_BASE_DOMAIN,
+        },
     )
 
 
@@ -1416,6 +1431,150 @@ def history_playable_create(request, game_id: int):
 
     generate_playable.delay(new_playable.pk)
     messages.success(request, "Задание на создание сайта запущено.")
+    return redirect(redirect_url)
+
+
+def history_playable_delete(request, game_id, playable_id):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    game = get_object_or_404(Game, pk=game_id)
+    playable = get_object_or_404(Playable, pk=playable_id, game=game)
+
+    playable.delete()
+    messages.success(request, f"Проигрыватель #{playable_id} удалён.")
+
+    next_url = request.POST.get("next")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}
+    ):
+        return redirect(next_url)
+    return redirect(
+        f"{reverse('curation_history_detail', args=[game.pk])}"
+        "?check_compatibility=1"
+    )
+
+
+def history_playable_rename(request, game_id, playable_id):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    game = get_object_or_404(Game, pk=game_id)
+    playable = get_object_or_404(Playable, pk=playable_id, game=game)
+
+    redirect_url = request.POST.get("next")
+    if not (
+        redirect_url
+        and url_has_allowed_host_and_scheme(
+            redirect_url, allowed_hosts={request.get_host()}
+        )
+    ):
+        redirect_url = (
+            f"{reverse('curation_history_detail', args=[game.pk])}"
+            "?check_compatibility=1"
+        )
+
+    domain_name = request.POST.get("domain_name", "").strip().lower()
+    if not domain_name:
+        messages.error(request, "Укажите доменное имя.")
+        return redirect(redirect_url)
+
+    if not is_valid_domain_slug(domain_name):
+        messages.error(
+            request,
+            "Некорректное доменное имя. Используйте только строчные "
+            "латинские буквы, цифры и дефис.",
+        )
+        return redirect(redirect_url)
+
+    busy, reason = is_domain_busy(domain_name, current_playable_pk=playable.pk)
+    if busy:
+        messages.error(
+            request, f"Доменное имя '{domain_name}' уже занято: {reason}"
+        )
+        return redirect(redirect_url)
+
+    if playable.slug == domain_name:
+        messages.info(request, "Доменное имя не изменилось.")
+        return redirect(redirect_url)
+
+    playable.slug = domain_name
+    playable.save(update_fields=["slug", "updated"])
+
+    if (
+        getattr(settings, "CADDY_ADMIN_URL", None)
+        and playable.state == Playable.State.READY
+    ):
+        if not configure_caddy_playable(playable):
+            messages.warning(
+                request,
+                f"Доменное имя изменено на '{domain_name}', но не удалось "
+                "обновить маршрут в Caddy.",
+            )
+            return redirect(redirect_url)
+
+    messages.success(
+        request, f"Доменное имя успешно изменено на '{domain_name}'."
+    )
+    return redirect(redirect_url)
+
+
+def history_playable_regenerate(request, game_id, playable_id):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    game = get_object_or_404(Game, pk=game_id)
+    playable = get_object_or_404(Playable, pk=playable_id, game=game)
+
+    redirect_url = request.POST.get("next")
+    if not (
+        redirect_url
+        and url_has_allowed_host_and_scheme(
+            redirect_url, allowed_hosts={request.get_host()}
+        )
+    ):
+        redirect_url = (
+            f"{reverse('curation_history_detail', args=[game.pk])}"
+            "?check_compatibility=1"
+        )
+
+    if playable.state in (Playable.State.PENDING, Playable.State.BUILDING):
+        messages.info(request, "Сайт для этого файла уже создаётся.")
+        return redirect(redirect_url)
+
+    domain_name = request.POST.get("domain_name", "").strip().lower()
+    if domain_name:
+        if not is_valid_domain_slug(domain_name):
+            messages.error(
+                request,
+                "Некорректное доменное имя. Используйте только строчные "
+                "латинские буквы, цифры и дефис.",
+            )
+            return redirect(redirect_url)
+        busy, reason = is_domain_busy(
+            domain_name, current_playable_pk=playable.pk
+        )
+        if busy:
+            messages.error(
+                request, f"Доменное имя '{domain_name}' уже занято: {reason}"
+            )
+            return redirect(redirect_url)
+        playable.slug = domain_name
+
+    blueprints = {b.name: b.blueprint for b in discover_blueprints()}
+    if playable.template in blueprints:
+        spec = blueprints[playable.template].get_spec()
+        if spec.versions:
+            playable.template_version = spec.versions[-1]
+
+    destination = Path(settings.PLAYABLE_DIR) / str(playable.pk)
+    if destination.exists():
+        shutil.rmtree(destination, ignore_errors=True)
+
+    playable.state = Playable.State.PENDING
+    playable.save(
+        update_fields=["slug", "template_version", "state", "updated"]
+    )
+
+    generate_playable.delay(playable.pk)
+    messages.success(request, "Задание на пересоздание сайта запущено.")
     return redirect(redirect_url)
 
 

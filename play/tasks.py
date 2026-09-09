@@ -92,6 +92,9 @@ def generate_playable(playable_id: int) -> None:
         playable.state = Playable.State.READY
         playable.save(update_fields=["state", "updated"])
     except Exception:
+        destination = Path(settings.PLAYABLE_DIR) / str(playable.pk)
+        if destination.exists():
+            shutil.rmtree(destination, ignore_errors=True)
         playable.state = Playable.State.ERROR
         playable.save(update_fields=["state", "updated"])
         raise

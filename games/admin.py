@@ -1,5 +1,7 @@
 from django.contrib import admin
 
+from play.models import Playable
+
 from .models import (
     URL,
     Game,
@@ -42,6 +44,23 @@ class InlineGameURLAdmin(admin.TabularInline):
     extra = 1
 
 
+class InlinePlayableAdmin(admin.TabularInline):
+    model = Playable
+    fields = [
+        "slug",
+        "game_url",
+        "template",
+        "template_version",
+        "state",
+        "created",
+        "updated",
+    ]
+    readonly_fields = ("created", "updated")
+    raw_id_fields = ["game_url"]
+    extra = 0
+    show_change_link = True
+
+
 @admin.register(PersonalityUrl)
 class PersonalityUrlAdmin(admin.ModelAdmin):
     list_display = ["personality", "description", "category", "url"]
@@ -56,7 +75,7 @@ class GameAdmin(admin.ModelAdmin):
     search_fields = ["pk", "title"]
     filter_horizontal = ["description_attributions"]
 
-    inlines = [GameAuthorAdmin, InlineGameURLAdmin]
+    inlines = [GameAuthorAdmin, InlineGameURLAdmin, InlinePlayableAdmin]
 
 
 @admin.register(GameRevision)

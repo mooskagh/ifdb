@@ -24,4 +24,72 @@
         </tbody>
     </table>
 </div>
+
+<div class="card card--green" style="margin-top: 16px;">
+    <div class="card--header">Сайты игр</div>
+    <table class="curation-table curation-table--compact">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Игра</th>
+                <th>Сайт</th>
+                <th>Шаблон</th>
+                <th>Статус</th>
+                <th>Создан</th>
+                <th>Обновлён</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for playable in playables %}
+            <tr>
+                <td>#{{ playable.pk }}</td>
+                <td>
+                    <a href="{% url 'show_game' playable.game.pk %}">{{ playable.game.title }}</a>
+                    (<a href="{% url 'curation_history_detail' playable.game.pk %}">модерация</a>)
+                </td>
+                <td>
+                    {% if playable.slug %}
+                    <a href="http{% if request.is_secure %}s{% endif %}://{{ playable.slug }}.{{ playable_base_domain }}" target="_blank">{{ playable.slug }}.{{ playable_base_domain }}</a>
+                    {% else %}
+                    <span class="curation-meta">—</span>
+                    {% endif %}
+                </td>
+                <td>{{ playable.template }}{% if playable.template_version %} (v{{ playable.template_version }}){% endif %}</td>
+                <td>
+                    {% if playable.state == "READY" %}
+                    <span class="curation-badge curation-badge--ready">Готов</span>
+                    {% elif playable.state == "BUILDING" or playable.state == "PENDING" %}
+                    <span class="curation-meta">{{ playable.get_state_display }}</span>
+                    {% elif playable.state == "ERROR" %}
+                    <span class="curation-meta" style="color: #c5221f; font-weight: bold;">Ошибка</span>
+                    {% else %}
+                    <span>{{ playable.get_state_display }}</span>
+                    {% endif %}
+                </td>
+                <td class="curation-nowrap">{{ playable.created|date:"d.m.Y H:i" }}</td>
+                <td class="curation-nowrap">{{ playable.updated|date:"d.m.Y H:i" }}</td>
+                <td class="curation-nowrap">
+                    <div style="display: inline-flex; gap: 4px; align-items: center;">
+                        {% if playable.state != "BUILDING" and playable.state != "PENDING" %}
+                        <form method="post" action="{% url 'curation_history_playable_regenerate' playable.game.pk playable.pk %}" style="display: inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <button type="submit" title="Пересоздать сайт">пересоздать</button>
+                        </form>
+                        {% endif %}
+                        <form method="post" action="{% url 'curation_history_playable_delete' playable.game.pk playable.pk %}" style="display: inline;" onsubmit="return confirm('Удалить проигрыватель #{{ playable.pk }}?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <button type="submit" style="color: #c5221f;" title="Удалить проигрыватель">удалить</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8">Созданных сайтов нет.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% endblock %}

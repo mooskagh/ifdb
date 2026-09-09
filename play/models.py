@@ -1,6 +1,11 @@
+import shutil
 from datetime import datetime
+from pathlib import Path
 
+from django.conf import settings
 from django.db import models
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 
 from games.models import Game, GameURL
@@ -55,3 +60,15 @@ class Playable(models.Model):
 
     def __str__(self) -> str:
         return self.slug or f"playable-{self.pk}"
+
+
+@receiver(pre_delete, sender=Playable)
+def on_playable_pre_delete(
+    sender: type[Playable], instance: Playable, **kwargs: object
+) -> None:
+    from play.caddy import delete_caddy_playable
+
+    delete_caddy_playable(instance.pk)
+    destination = Path(settings.PLAYABLE_DIR) / str(instance.pk)
+    if destination.exists():
+        shutil.rmtree(destination, ignore_errors=True)
