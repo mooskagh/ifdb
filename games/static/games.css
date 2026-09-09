@@ -3363,6 +3363,10 @@ h6 {
 .curation-blueprint-table-state {
     width: 80px;
 }
+.curation-blueprint-table-visible {
+    width: 65px;
+    text-align: center;
+}
 .curation-blueprint-table-date {
     width: 110px;
 }

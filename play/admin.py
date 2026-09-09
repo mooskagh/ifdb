@@ -20,10 +20,11 @@ class PlayableAdmin(_ModelAdminBase):
         "template",
         "template_version",
         "state",
+        "visible",
         "created",
         "updated",
     ]
-    list_filter = ["state", "template"]
+    list_filter = ["state", "visible", "template"]
     search_fields = ["pk", "slug", "game__title", "template"]
     raw_id_fields = ["game", "game_url"]
     readonly_fields = ["created", "updated"]

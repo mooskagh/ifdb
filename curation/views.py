@@ -364,6 +364,29 @@ def blueprint_list(request):
 
     if request.method == "POST":
         action = request.POST.get("action")
+        if action == "bulk_visibility":
+            playable_ids = [
+                int(pk)
+                for pk in request.POST.getlist("playable_ids")
+                if pk.isdigit()
+            ]
+            if not playable_ids:
+                messages.warning(request, "Список проигрывателей пуст.")
+                return redirect(request.get_full_path())
+            updated_count = 0
+            for playable in Playable.objects.filter(pk__in=playable_ids):
+                new_visible = f"visible_{playable.pk}" in request.POST
+                if playable.visible != new_visible:
+                    playable.visible = new_visible
+                    playable.save(update_fields=["visible", "updated"])
+                    updated_count += 1
+            messages.success(
+                request,
+                "Видимость проигрывателей обновлена "
+                f"(изменено: {updated_count}).",
+            )
+            return redirect(request.get_full_path())
+
         single_create = request.POST.get("single_create")
         if single_create and single_create.isdigit():
             selected_ids = [int(single_create)]
@@ -384,6 +407,14 @@ def blueprint_list(request):
             return redirect(request.get_full_path())
 
         success_count = 0
+        visible = (
+            "visible" in request.POST
+            if (
+                "has_visible_field" in request.POST
+                or "visible" in request.POST
+            )
+            else True
+        )
         for game_url_id in selected_ids:
             game_url = (
                 GameURL.objects
@@ -471,6 +502,7 @@ def blueprint_list(request):
                 config={},
                 slug=slug,
                 state=Playable.State.PENDING,
+                visible=visible,
             )
             generate_playable.delay(new_playable.pk)
             success_count += 1
@@ -1681,6 +1713,12 @@ def history_playable_create(request, game_id: int):
             return redirect(redirect_url)
         slug = domain_name
 
+    visible = (
+        "visible" in request.POST
+        if ("has_visible_field" in request.POST or "visible" in request.POST)
+        else True
+    )
+
     new_playable = Playable.objects.create(
         game=game,
         game_url=game_url,
@@ -1690,6 +1728,7 @@ def history_playable_create(request, game_id: int):
         config={},
         slug=slug,
         state=Playable.State.PENDING,
+        visible=visible,
     )
 
     generate_playable.delay(new_playable.pk)
@@ -1838,6 +1877,38 @@ def history_playable_regenerate(request, game_id, playable_id):
 
     generate_playable.delay(playable.pk)
     messages.success(request, "Задание на пересоздание сайта запущено.")
+    return redirect(redirect_url)
+
+
+def history_playable_visibility(request, game_id, playable_id):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    game = get_object_or_404(Game, pk=game_id)
+    playable = get_object_or_404(Playable, pk=playable_id, game=game)
+
+    redirect_url = request.POST.get("next")
+    if not (
+        redirect_url
+        and url_has_allowed_host_and_scheme(
+            redirect_url, allowed_hosts={request.get_host()}
+        )
+    ):
+        redirect_url = (
+            f"{reverse('curation_history_detail', args=[game.pk])}"
+            "?check_compatibility=1"
+        )
+
+    new_visible = "visible" in request.POST
+    if playable.visible != new_visible:
+        playable.visible = new_visible
+        playable.save(update_fields=["visible", "updated"])
+        if new_visible:
+            messages.success(request, "Проигрыватель теперь виден.")
+        else:
+            messages.success(request, "Проигрыватель скрыт.")
+    else:
+        messages.info(request, "Видимость проигрывателя не изменилась.")
+
     return redirect(redirect_url)
 
 

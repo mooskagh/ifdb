@@ -26,7 +26,16 @@
 </div>
 
 <div class="card card--green" style="margin-top: 16px;">
-    <div class="card--header">Сайты игр</div>
+    <div class="card--header" style="display: flex; justify-content: space-between; align-items: center;">
+        <span>Сайты игр</span>
+        {% if playables %}
+        <button type="submit" form="bulk-visibility-form">Сохранить видимость</button>
+        {% endif %}
+    </div>
+    <form id="bulk-visibility-form" method="post" action="{% url 'curation_blueprint_list' %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="bulk_visibility">
+    </form>
     <table class="curation-table curation-table--compact curation-blueprint-playables-table">
         <thead>
             <tr>
@@ -35,6 +44,9 @@
                 <th class="curation-blueprint-table-site">Сайт</th>
                 <th class="curation-blueprint-table-template">Шаблон</th>
                 <th class="curation-blueprint-table-state">Статус</th>
+                <th class="curation-blueprint-table-visible">
+                    <input type="checkbox" id="select-all-playables-visible" title="Выбрать все"> Виден
+                </th>
                 <th class="curation-blueprint-table-date">Создан</th>
                 <th class="curation-blueprint-table-date">Обновлён</th>
                 <th class="curation-blueprint-table-actions">Действия</th>
@@ -67,6 +79,10 @@
                     <span>{{ playable.get_state_display }}</span>
                     {% endif %}
                 </td>
+                <td style="text-align: center;">
+                    <input type="hidden" form="bulk-visibility-form" name="playable_ids" value="{{ playable.pk }}">
+                    <input type="checkbox" form="bulk-visibility-form" name="visible_{{ playable.pk }}" value="1" class="playable-visible-checkbox"{% if playable.visible %} checked{% endif %}>
+                </td>
                 <td class="curation-nowrap">{{ playable.created|date:"d.m.Y H:i" }}</td>
                 <td class="curation-nowrap">{{ playable.updated|date:"d.m.Y H:i" }}</td>
                 <td class="curation-blueprint-table-actions">
@@ -87,10 +103,15 @@
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="8">Созданных сайтов нет.</td></tr>
+            <tr><td colspan="9">Созданных сайтов нет.</td></tr>
             {% endfor %}
         </tbody>
     </table>
+    {% if playables %}
+    <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
+        <button type="submit" form="bulk-visibility-form">Сохранить видимость</button>
+    </div>
+    {% endif %}
 </div>
 
 <div class="card card--green" style="margin-top: 16px;" id="candidates-section">
@@ -145,7 +166,11 @@
                 <div>
                     <strong>Найдено совместимых игр: {{ candidate_matches|length }}</strong>
                 </div>
-                <div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="hidden" name="has_visible_field" value="1">
+                    <label style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
+                        <input type="checkbox" name="visible" id="bulk-create-visible-top" value="1" checked> Видимый
+                    </label>
                     <button type="submit" name="action" value="bulk_create">Создать выбранные</button>
                 </div>
             </div>
@@ -213,7 +238,10 @@
             </div>
 
             <div class="curation-blueprint-toolbar" style="margin-top: 8px;">
-                <div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+                    <label style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
+                        <input type="checkbox" id="bulk-create-visible-bottom" value="1" checked> Видимый
+                    </label>
                     <button type="submit" name="action" value="bulk_create">Создать выбранные</button>
                 </div>
             </div>
@@ -247,6 +275,27 @@ document.addEventListener('DOMContentLoaded', function() {
             for (var i = 0; i < checkboxes.length; i++) {
                 checkboxes[i].checked = selectAll.checked;
             }
+        });
+    }
+
+    var selectAllVisible = document.getElementById('select-all-playables-visible');
+    if (selectAllVisible) {
+        selectAllVisible.addEventListener('change', function() {
+            var checkboxes = document.querySelectorAll('.playable-visible-checkbox');
+            for (var i = 0; i < checkboxes.length; i++) {
+                checkboxes[i].checked = selectAllVisible.checked;
+            }
+        });
+    }
+
+    var visibleTop = document.getElementById('bulk-create-visible-top');
+    var visibleBottom = document.getElementById('bulk-create-visible-bottom');
+    if (visibleTop && visibleBottom) {
+        visibleTop.addEventListener('change', function() {
+            visibleBottom.checked = visibleTop.checked;
+        });
+        visibleBottom.addEventListener('change', function() {
+            visibleTop.checked = visibleBottom.checked;
         });
     }
 });
