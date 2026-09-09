@@ -1,3 +1,5 @@
+import shutil
+import unittest
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -156,3 +158,34 @@ class InsteadEmTests(SimpleTestCase):
                 generate(GenerateSpec("1.0", {}, destination, game_file))
 
             self.assertTrue((destination / "index.html").exists())
+
+    @unittest.skipUnless(
+        bool(shutil.which("unar") and shutil.which("lsar"))
+        and Path("files/backups/0.3.rar").is_file(),
+        "unar/lsar or sample RAR not available",
+    )
+    def test_accepts_supported_rar_archive(self) -> None:
+        self.assertTrue(accepts(Path("files/backups/0.3.rar")))
+
+    @unittest.skipUnless(
+        bool(shutil.which("unar") and shutil.which("lsar"))
+        and Path("files/backups/0.3.rar").is_file(),
+        "unar/lsar or sample RAR not available",
+    )
+    def test_generates_launchable_game_from_rar(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            assets, _ = _create_fixture(root)
+            rar_file = Path("files/backups/0.3.rar")
+            destination = root / "generated"
+
+            with patch("play.blueprints.instead_em.ASSETS_DIR", assets):
+                generate(GenerateSpec("1.0", {}, destination, rar_file))
+
+            game_zip = destination / "game.zip"
+            self.assertTrue(game_zip.exists())
+            with ZipFile(game_zip) as archive:
+                self.assertIn("bunker-0.3/main.lua", archive.namelist())
+
+            index = (destination / "index.html").read_bytes()
+            self.assertIn(b'<meta name="gamefile" content="game.zip">', index)
