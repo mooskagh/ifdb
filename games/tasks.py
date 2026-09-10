@@ -26,6 +26,8 @@ def come_up_with_filename(metadata):
 @shared_task(bind=True, max_retries=3, retry_backoff=True)
 def clone_file(self, url_id):
     url = URL.objects.get(id=url_id)
+    if url.is_uploaded or url.local_filename:
+        return
     try:
         logger.info("Url is id %d, URL %s", url.id, url.original_url)
         f = FetchUrlToFileLike(url.original_url)
