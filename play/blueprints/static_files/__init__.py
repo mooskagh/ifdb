@@ -1,6 +1,10 @@
+import codecs
+import re
 import shutil
 import tempfile
 from pathlib import Path
+
+import charset_normalizer
 
 from core.archives import Archive, ArchiveError, extract_archive, open_archive
 from play.blueprint import BlueprintSpec, GenerateSpec
@@ -113,6 +117,104 @@ def _publish(stage: Path, destination: Path) -> None:
     stage.rename(destination)
 
 
+_TEXT_EXTENSIONS = frozenset((
+    ".html",
+    ".htm",
+    ".js",
+    ".css",
+    ".json",
+    ".txt",
+    ".csv",
+    ".tsv",
+    ".md",
+))
+
+_META_CHARSET_RE = re.compile(
+    r'(<meta\s+[^>]*charset=[\'"]?)[^\'"\s>]+([\'"\s>])',
+    re.IGNORECASE,
+)
+_RAW_META_CHARSET_RE = re.compile(
+    rb'(?:<meta\s+[^>]*charset=[\'"]?)([\w\-]+)',
+    re.IGNORECASE,
+)
+_HEAD_RE = re.compile(r"<head\b[^>]*>", re.IGNORECASE)
+
+
+def _detect_encoding(raw: bytes, is_html: bool) -> str | None:
+    if is_html:
+        meta_match = _RAW_META_CHARSET_RE.search(raw[:2048])
+        if meta_match:
+            declared = meta_match.group(1).decode("ascii", errors="ignore")
+            try:
+                codecs.lookup(declared)
+                return declared
+            except LookupError:
+                pass
+
+    match = charset_normalizer.from_bytes(raw).best()
+    if match is not None and match.encoding:
+        return str(match.encoding)
+    return None
+
+
+def _normalize_html_content(text: str, was_transcoded: bool) -> str:
+    if _META_CHARSET_RE.search(text):
+        return _META_CHARSET_RE.sub(r"\g<1>utf-8\g<2>", text)
+    if was_transcoded:
+        head_match = _HEAD_RE.search(text)
+        if head_match:
+            pos = head_match.end()
+            return text[:pos] + '\n<meta charset="utf-8">' + text[pos:]
+    return text
+
+
+def _normalize_file_encoding(path: Path) -> None:
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return
+
+    is_html = _is_html_file(path.name)
+    was_transcoded = False
+
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        encoding = _detect_encoding(raw, is_html=is_html)
+        if not encoding:
+            return
+        try:
+            text = raw.decode(encoding)
+            was_transcoded = True
+        except (UnicodeDecodeError, LookupError):
+            return
+
+    if is_html:
+        new_text = _normalize_html_content(text, was_transcoded=was_transcoded)
+        if new_text != text:
+            text = new_text
+            was_transcoded = True
+
+    if was_transcoded:
+        try:
+            path.write_bytes(text.encode("utf-8"))
+        except OSError:
+            return
+
+
+def _normalize_tree_encoding(stage: Path) -> None:
+    for path in stage.rglob("*"):
+        if (
+            path.is_file()
+            and not path.is_symlink()
+            and (
+                _is_html_file(path.name)
+                or path.suffix.lower() in _TEXT_EXTENSIONS
+            )
+        ):
+            _normalize_file_encoding(path)
+
+
 def generate(spec: GenerateSpec) -> None:
     if spec.config:
         raise ValueError("Static files generation does not support config")
@@ -161,6 +263,8 @@ def generate(spec: GenerateSpec) -> None:
                 ]
                 if len(html_files) == 1:
                     html_files[0].rename(stage / "index.html")
+
+            _normalize_tree_encoding(stage)
 
         _publish(stage, spec.destination)
     finally:
