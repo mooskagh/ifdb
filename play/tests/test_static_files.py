@@ -362,6 +362,111 @@ class StaticFilesTests(SimpleTestCase):
             with self.assertRaises(ValueError):
                 generate(GenerateSpec("1", {}, destination, archive_path))
 
+    def test_generate_transcodes_cp1251_html_without_meta(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path = root / "cp1251.zip"
+            html_content = (
+                "<!DOCTYPE html><html><head><title>Тест</title></head>"
+                "<body>Привет, мир!</body></html>"
+            ).encode("cp1251")
+            _write_zip(archive_path, {"index.html": html_content})
+            destination = root / "playable"
+
+            generate(GenerateSpec("1", {}, destination, archive_path))
+            index_path = destination / "index.html"
+            self.assertTrue(index_path.exists())
+            text = index_path.read_text(encoding="utf-8")
+            self.assertIn("Привет, мир!", text)
+            self.assertIn('<meta charset="utf-8">', text)
+
+    def test_generate_transcodes_cp1251_html_updating_existing_meta(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path = root / "cp1251_meta.zip"
+            html_content = (
+                '<!DOCTYPE html><html><head><meta http-equiv="Content-Type" '
+                'content="text/html; charset=windows-1251"><title>Тест</title>'
+                "</head><body>Добро пожаловать</body></html>"
+            ).encode("cp1251")
+            _write_zip(archive_path, {"index.html": html_content})
+            destination = root / "playable"
+
+            generate(GenerateSpec("1", {}, destination, archive_path))
+            index_path = destination / "index.html"
+            text = index_path.read_text(encoding="utf-8")
+            self.assertIn("Добро пожаловать", text)
+            self.assertIn("charset=utf-8", text)
+            self.assertNotIn("windows-1251", text)
+
+    def test_generate_transcodes_multiple_html_and_script_files(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path = root / "multi.zip"
+            page1 = (
+                "<html><head></head><body>Это первая страница с "
+                "русским текстом.</body></html>"
+            ).encode("cp1251")
+            page2 = (
+                "<html><head></head><body>Это вторая страница с "
+                "русским текстом.</body></html>"
+            ).encode("cp1251")
+            script = (
+                'var msg = "Это сообщение из скрипта с русским текстом";'
+            ).encode("cp1251")
+            binary_data = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\xff\xfe"
+            _write_zip(
+                archive_path,
+                {
+                    "index.html": page1,
+                    "sub/page2.html": page2,
+                    "sub/game.js": script,
+                    "img/test.png": binary_data,
+                },
+            )
+            destination = root / "playable"
+
+            generate(GenerateSpec("1", {}, destination, archive_path))
+            text1 = (destination / "index.html").read_text(encoding="utf-8")
+            text2 = (destination / "sub" / "page2.html").read_text(
+                encoding="utf-8"
+            )
+            js = (destination / "sub" / "game.js").read_text(encoding="utf-8")
+            png = (destination / "img" / "test.png").read_bytes()
+
+            self.assertIn("Это первая страница", text1)
+            self.assertIn('<meta charset="utf-8">', text1)
+            self.assertIn("Это вторая страница", text2)
+            self.assertIn('<meta charset="utf-8">', text2)
+            self.assertIn("Это сообщение из скрипта", js)
+            self.assertEqual(png, binary_data)
+
+    def test_generate_twine_cp1251_collision_regression(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path = root / "twine.zip"
+            # Two passages with 5-byte Cyrillic titles that collide under
+            # UTF-8 byte replacement
+            html = (
+                "<html><head><title>Twine Game</title></head><body>"
+                '<div id="storeArea">'
+                '<div tiddler="абзац">Параграф текста</div>'
+                '<div tiddler="ручка">&lt;&lt;display "абзац"&gt;&gt;</div>'
+                "</div></body></html>"
+            ).encode("cp1251")
+            _write_zip(archive_path, {"index.html": html})
+            destination = root / "playable"
+
+            generate(GenerateSpec("1", {}, destination, archive_path))
+            index_text = (destination / "index.html").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn('tiddler="абзац"', index_text)
+            self.assertIn('tiddler="ручка"', index_text)
+            self.assertNotIn("\ufffd", index_text)
+
 
 class StaticFilesTaskTests(TestCase):
     game: Game
