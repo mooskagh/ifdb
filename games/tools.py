@@ -329,8 +329,19 @@ def CreateUrl(url, *, ok_to_clone, creator=None):
         u = URL()
         u.original_url = url
         u.creation_date = timezone.now()
+        u.creator = creator
+        u.resolve_local_file(save=False)
         u.save()
-    if ok_to_clone and not u.ok_to_clone:
+    else:
+        if not u.local_filename:
+            u.resolve_local_file(save=True)
+
+    if (
+        ok_to_clone
+        and not u.ok_to_clone
+        and not u.is_uploaded
+        and not u.local_filename
+    ):
         u.ok_to_clone = ok_to_clone
         u.save()
         clone_file.delay(u.id)

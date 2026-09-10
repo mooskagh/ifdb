@@ -1,4 +1,7 @@
+import mimetypes
+from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from django.conf import settings
 from django.db import models, transaction
@@ -319,6 +322,55 @@ class URL(models.Model):
 
     def GetFs(self):
         return settings.UPLOADS_FS if self.is_uploaded else settings.BACKUPS_FS
+
+    def resolve_local_file(self, save: bool = True) -> bool:
+        if self.local_filename:
+            return True
+        if not self.original_url:
+            return False
+
+        parsed = urlparse(self.original_url)
+        path = parsed.path
+        if "/f/uploads/" in path:
+            rel = unquote(path.split("/f/uploads/", 1)[1]).lstrip("/")
+            fs = settings.UPLOADS_FS
+            is_uploaded = True
+        elif "/f/backups/" in path:
+            rel = unquote(path.split("/f/backups/", 1)[1]).lstrip("/")
+            fs = settings.BACKUPS_FS
+            is_uploaded = False
+        else:
+            return False
+
+        if not rel or not fs.exists(rel):
+            return False
+
+        self.local_filename = rel
+        self.local_url = fs.url(rel)
+        self.is_uploaded = is_uploaded
+        self.file_size = fs.size(rel)
+        if is_uploaded:
+            self.ok_to_clone = False
+        if not self.original_filename:
+            self.original_filename = Path(rel).name
+        if not self.content_type:
+            content_type, _ = mimetypes.guess_type(rel)
+            if content_type:
+                self.content_type = content_type
+
+        if save and self.pk:
+            fields = [
+                "local_filename",
+                "local_url",
+                "is_uploaded",
+                "file_size",
+                "original_filename",
+                "content_type",
+            ]
+            if is_uploaded:
+                fields.append("ok_to_clone")
+            self.save(update_fields=fields)
+        return True
 
     local_url = models.CharField(null=True, blank=True, max_length=255)
     local_filename = models.CharField(null=True, blank=True, max_length=255)

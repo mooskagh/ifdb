@@ -56,6 +56,8 @@ def generate_playable(playable_id: int) -> None:
             raise ValueError("Playable has no associated game_url")
 
         url = playable.game_url.url
+        if not url.local_filename:
+            url.resolve_local_file(save=True)
         storage = url.GetFs()
         local_filename = url.local_filename
         if not local_filename or not storage.exists(local_filename):

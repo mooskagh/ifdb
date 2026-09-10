@@ -2529,6 +2529,34 @@ class SourceViewsTest(TestCase):
         discover_mock.assert_not_called()
         exists_mock.assert_not_called()
 
+    def test_history_playable_resolves_local_upload_if_filename_missing(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Upload Resolution",
+            creation_time=ts,
+        )
+        history = GameCuration.objects.create(game=game)
+        with TemporaryDirectory() as upload_root:
+            (Path(upload_root) / "game.zip").write_bytes(b"ZIP")
+            with override_settings(
+                UPLOADS_FS=FileSystemStorage(
+                    upload_root, base_url="/f/uploads/"
+                )
+            ):
+                link = self._download_link(
+                    game,
+                    "https://db.crem.xyz/f/uploads/game.zip",
+                    local_filename=None,
+                )
+                response = self.client.get(f"/curation/{history.pk}/")
+                rows = response.context["playable_files"]
+                self.assertEqual(len(rows), 1)
+                self.assertTrue(rows[0].has_local_copy)
+                link.url.refresh_from_db()
+                self.assertEqual(link.url.local_filename, "game.zip")
+                self.assertTrue(link.url.is_uploaded)
+
     @patch("curation.views.discover_blueprints")
     def test_history_playable_compatibility_checks_all_local_files(
         self, discover_mock
