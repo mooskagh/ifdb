@@ -101,6 +101,10 @@ def get_spec() -> BlueprintSpec:
     return BlueprintSpec(name="Parchment", versions=versions)
 
 
+_TITLE_REGEX = b"/([/=])([^/=]+)$/"
+_TITLE_REPLACEMENT = b"/([/=]|^)([^/=]+)$/"
+
+
 def _patch_parchment_options(html: bytes, game_filename: str) -> bytes:
     match = _PARCHMENT_OPTIONS.search(html)
     if not match:
@@ -108,10 +112,11 @@ def _patch_parchment_options(html: bytes, game_filename: str) -> bytes:
     replacement = (
         f"<script>parchment_options = {{\n"
         f'  "single_file": 1,\n'
-        f'  "story": "{game_filename}"\n'
+        f'  "story": "./{game_filename}"\n'
         f"}}</script>"
     ).encode()
-    return html[: match.start()] + replacement + html[match.end() :]
+    patched = html[: match.start()] + replacement + html[match.end() :]
+    return patched.replace(_TITLE_REGEX, _TITLE_REPLACEMENT, 1)
 
 
 def _write_runtime(

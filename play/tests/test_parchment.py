@@ -157,7 +157,7 @@ class ParchmentTests(SimpleTestCase):
             index_path = destination / "index.html"
             self.assertTrue(index_path.exists())
             index_content = index_path.read_text()
-            self.assertIn('"story": "game.z5"', index_content)
+            self.assertIn('"story": "./game.z5"', index_content)
             self.assertIn('"single_file": 1', index_content)
 
             installed_game = destination / "game.z5"
@@ -184,7 +184,7 @@ class ParchmentTests(SimpleTestCase):
             installed_game = destination / "game.zblorb"
             self.assertTrue(installed_game.exists())
             index_content = (destination / "index.html").read_text()
-            self.assertIn('"story": "game.zblorb"', index_content)
+            self.assertIn('"story": "./game.zblorb"', index_content)
 
     def test_generates_from_archive(self) -> None:
         with TemporaryDirectory() as directory:
@@ -211,7 +211,7 @@ class ParchmentTests(SimpleTestCase):
             self.assertEqual(installed_game.read_bytes(), game_content)
 
             index_content = (destination / "index.html").read_text()
-            self.assertIn('"story": "game.ulx"', index_content)
+            self.assertIn('"story": "./game.ulx"', index_content)
 
     def test_generates_into_existing_directory(self) -> None:
         with TemporaryDirectory() as directory:
@@ -299,6 +299,20 @@ class ParchmentTests(SimpleTestCase):
             index_path = destination / "index.html"
             self.assertTrue(index_path.exists())
             html = index_path.read_text()
-            self.assertIn('"story": "game.z5"', html)
+            self.assertIn('"story": "./game.z5"', html)
             self.assertIn('"single_file": 1', html)
             self.assertTrue((destination / "game.z5").exists())
+            self.assertIn(b"/([/=]|^)([^/=]+)$/", index_path.read_bytes())
+
+    def test_krn_backup_generation(self) -> None:
+        krn_path = Path("files/backups/KRN.zip")
+        if not krn_path.is_file():
+            self.skipTest("files/backups/KRN.zip not found")
+
+        self.assertTrue(accepts(krn_path))
+        with TemporaryDirectory() as directory:
+            destination = Path(directory) / "krn"
+            generate(GenerateSpec("2026-08-23", {}, destination, krn_path))
+            self.assertTrue((destination / "game.z5").exists())
+            index_html = (destination / "index.html").read_text()
+            self.assertIn('"story": "./game.z5"', index_html)
