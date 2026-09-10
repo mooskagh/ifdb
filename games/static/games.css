@@ -3277,24 +3277,86 @@ h6 {
 .curation-playable-table td {
     vertical-align: top;
 }
-.curation-playable-table-file {
+.curation-playable-col-template {
+    width: 20%;
+    min-width: 150px;
+}
+.curation-playable-col-compatibility {
+    width: 16%;
+    min-width: 130px;
+}
+.curation-playable-col-site {
     width: 28%;
-    min-width: 160px;
+    min-width: 200px;
 }
-.curation-playable-table-local {
-    width: 100px;
-    white-space: nowrap;
+.curation-playable-col-actions {
+    width: 36%;
+    min-width: 280px;
 }
-.curation-playable-table-compatibility {
-    width: 200px;
+.curation-playable-file-header-row td {
+    background-color: #f1f3f4;
+    border-top: 2px solid #dadce0;
+    border-bottom: 1px solid #dadce0;
+    padding: 8px 12px;
 }
-.curation-playable-table-site {
-    min-width: 260px;
+.curation-playable-table tbody:first-of-type .curation-playable-file-header-row td {
+    border-top: none;
 }
-.curation-playable-file,
-.curation-playable-file a {
+.curation-playable-file-header-content {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    justify-content: space-between;
+}
+.curation-playable-file-info {
+    align-items: center;
+    display: inline-flex;
+    gap: 6px;
     overflow-wrap: anywhere;
     word-break: break-word;
+}
+.curation-playable-file-local {
+    align-items: center;
+    color: #444;
+    display: inline-flex;
+    font-size: 13px;
+    gap: 6px;
+    white-space: nowrap;
+}
+.curation-playable-local-badge {
+    border-radius: 3px;
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 1px 6px;
+}
+.curation-playable-local-badge--yes {
+    background-color: #e6f4ea;
+    color: #137333;
+}
+.curation-playable-local-badge--no {
+    background-color: #fce8e6;
+    color: #c5221f;
+}
+.curation-playable-file-missing {
+    color: #c5221f;
+    font-weight: 600;
+}
+.curation-playable-template {
+    font-weight: 500;
+    padding-left: 18px;
+}
+.curation-playable-site-status {
+    font-weight: 500;
+}
+.curation-playable-actions-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.curation-playable-empty-cell {
+    padding-left: 18px;
 }
 .curation-playable-compatibility {
     display: flex;
