@@ -159,6 +159,9 @@ def _build_playable_files(
 
     playable_files: list[PlayableFile] = []
     for game_url in direct_downloads:
+        url = game_url.url
+        if not url.local_filename:
+            url.resolve_local_file(save=True)
         file_playables = tuple(playables_by_url.get(game_url.pk, []))
         items = tuple(
             PlayableItem(
@@ -172,7 +175,7 @@ def _build_playable_files(
         playable_files.append(
             PlayableFile(
                 game_url=game_url,
-                has_local_copy=bool(game_url.url.local_filename),
+                has_local_copy=bool(url.local_filename),
                 compatibility=None,
                 playables=file_playables,
                 items=items,
@@ -642,6 +645,8 @@ def blueprint_list(request):
                 continue
 
             if not blueprint_slug or blueprint_slug not in blueprint_map:
+                if not game_url.url.local_filename:
+                    game_url.url.resolve_local_file(save=True)
                 local_filename = game_url.url.local_filename
                 if local_filename:
                     storage = game_url.url.GetFs()
@@ -2147,6 +2152,8 @@ def history_playable_create(request, game_id: int):
     blueprints = {b.name: b.blueprint for b in discover_blueprints()}
 
     if not blueprint_slug or blueprint_slug not in blueprints:
+        if not game_url.url.local_filename:
+            game_url.url.resolve_local_file(save=True)
         local_filename = game_url.url.local_filename
         if not local_filename:
             messages.error(request, "Локальная копия файла отсутствует.")
