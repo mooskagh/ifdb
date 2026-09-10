@@ -2464,9 +2464,12 @@ class SourceViewsTest(TestCase):
             '<table class="curation-table curation-table--compact '
             'curation-playable-table">',
         )
-        self.assertContains(response, ">Файл</th>")
-        self.assertContains(response, ">Локальная копия</th>")
+        self.assertContains(response, ">Шаблон</th>")
         self.assertContains(response, ">Совместимость</th>")
+        self.assertContains(response, ">Сайт</th>")
+        self.assertContains(response, ">Действия</th>")
+        self.assertContains(response, "Файл:")
+        self.assertContains(response, "Локальная копия:")
         self.assertContains(response, "first.zip")
         self.assertContains(response, "https://example.com/second.zip")
         self.assertContains(response, "Проверить совместимость")
@@ -2781,6 +2784,57 @@ class SourceViewsTest(TestCase):
         playable.save(update_fields=["state"])
         response = self.client.get(f"/curation/{history.pk}/")
         self.assertContains(response, "Создаётся...")
+
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_multiple_players_per_file(self, discover_mock):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Multi player test",
+            creation_time=ts,
+        )
+        history = GameCuration.objects.create(game=game)
+        game_url = self._download_link(
+            game,
+            "https://example.com/game.zip",
+            local_filename="game.zip",
+        )
+        Playable.objects.create(
+            game=game,
+            game_url=game_url,
+            template="instead_em",
+            template_version="3.5.2",
+            slug="cool-instead",
+            state=Playable.State.READY,
+        )
+        paths = []
+        spec_calls = []
+        discover_mock.return_value = [
+            self._fake_blueprint(
+                "instead_em", "INSTEAD Emscripten", True, paths, spec_calls
+            ),
+            self._fake_blueprint(
+                "quixe", "Quixe Web", True, paths, spec_calls
+            ),
+        ]
+
+        with TemporaryDirectory() as media_root:
+            fs = FileSystemStorage(media_root)
+            (Path(media_root) / "game.zip").touch()
+            with override_settings(UPLOADS_FS=fs, BACKUPS_FS=fs):
+                with patch.object(game_url.url, "GetFs", return_value=fs):
+                    response = self.client.get(
+                        f"/curation/{history.pk}/",
+                        {"check_compatibility": "1"},
+                    )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "INSTEAD Emscripten")
+        self.assertContains(response, "Quixe Web")
+        self.assertContains(response, "Сайт создан")
+        self.assertContains(response, "cool-instead")
+        self.assertContains(response, 'value="quixe"')
+        self.assertContains(response, "создать сайт")
 
     @patch("curation.views.generate_playable.delay")
     @patch("curation.views.discover_blueprints")

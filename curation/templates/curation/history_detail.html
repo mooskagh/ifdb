@@ -69,105 +69,123 @@
         <table class="curation-table curation-table--compact curation-playable-table">
             <thead>
                 <tr>
-                    <th class="curation-playable-table-file">Файл</th>
-                    <th class="curation-playable-table-local">Локальная копия</th>
-                    <th class="curation-playable-table-compatibility">Совместимость</th>
-                    <th class="curation-playable-table-site">Сайт</th>
+                    <th class="curation-playable-col-template">Шаблон</th>
+                    <th class="curation-playable-col-compatibility">Совместимость</th>
+                    <th class="curation-playable-col-site">Сайт</th>
+                    <th class="curation-playable-col-actions">Действия</th>
                 </tr>
             </thead>
-            <tbody>
-                {% for playable_file in playable_files %}
-                <tr>
-                    <td class="curation-playable-file">
-                        <a href="{{ playable_file.game_url.url.original_url }}" title="{{ playable_file.game_url.url.original_url }}">{{ playable_file.game_url.url.original_filename|default:playable_file.game_url.url.original_url }}</a>
+            {% for playable_file in playable_files %}
+            <tbody class="curation-playable-file-group">
+                <tr class="curation-playable-file-header-row">
+                    <td colspan="4" class="curation-playable-file-header-cell">
+                        <div class="curation-playable-file-header-content">
+                            <div class="curation-playable-file-info">
+                                <strong>Файл:</strong>
+                                <a href="{{ playable_file.game_url.url.original_url }}" title="{{ playable_file.game_url.url.original_url }}">{{ playable_file.game_url.url.original_filename|default:playable_file.game_url.url.original_url }}</a>
+                            </div>
+                            <div class="curation-playable-file-local">
+                                <span>Локальная копия:</span>
+                                {% if playable_file.has_local_copy %}
+                                    <span class="curation-playable-local-badge curation-playable-local-badge--yes">Есть</span>
+                                {% else %}
+                                    <span class="curation-playable-local-badge curation-playable-local-badge--no">Нет</span>
+                                {% endif %}
+                                {% if check_compatibility and playable_file.has_local_copy and playable_file.file_missing %}
+                                    <span class="curation-meta curation-playable-file-missing">(Файл не найден.)</span>
+                                {% endif %}
+                            </div>
+                        </div>
                     </td>
-                    <td class="curation-playable-local">
-                        <div>{% if playable_file.has_local_copy %}Есть{% else %}Нет{% endif %}</div>
-                        {% if check_compatibility and playable_file.has_local_copy and playable_file.file_missing %}
-                        <div class="curation-meta">Файл не найден.</div>
+                </tr>
+                {% for item in playable_file.items %}
+                <tr class="curation-playable-item-row">
+                    <td class="curation-playable-template">
+                        <span class="curation-playable-template-name">{{ item.display_name }}</span>
+                        {% if item.playable.template_version %}
+                        <div class="curation-meta">Шаблон: {{ item.slug }} (v{{ item.playable.template_version }})</div>
+                        {% elif item.slug != item.display_name %}
+                        <div class="curation-meta">Шаблон: {{ item.slug }}</div>
                         {% endif %}
                     </td>
-                    <td>
-                        {% if check_compatibility and playable_file.has_local_copy %}
-                            {% if playable_file.file_missing %}
-                            <span class="curation-meta">—</span>
-                            {% else %}
-                            <div class="curation-playable-compatibility">
-                                {% for result in playable_file.compatibility %}
-                                <span class="curation-playable-result{% if result.accepted %} curation-playable-result--accepted{% else %} curation-playable-result--rejected{% endif %}" data-blueprint-slug="{{ result.slug }}" title="{% if result.accepted %}Совместим{% else %}Несовместим{% endif %}: {{ result.display_name }}">
-                                    <span class="curation-playable-result-mark" aria-hidden="true">{% if result.accepted %}✓{% else %}✕{% endif %}</span>
-                                    <span>{{ result.display_name }}</span>
-                                </span>
-                                {% empty %}
-                                <span class="curation-meta">Проигрывателей нет.</span>
-                                {% endfor %}
-                            </div>
-                            {% endif %}
+                    <td class="curation-playable-compatibility">
+                        {% if item.has_compatibility %}
+                        <span class="curation-playable-result{% if item.compatibility %} curation-playable-result--accepted{% else %} curation-playable-result--rejected{% endif %}" data-blueprint-slug="{{ item.slug }}" title="{% if item.compatibility %}Совместим{% else %}Несовместим{% endif %}: {{ item.display_name }}">
+                            <span class="curation-playable-result-mark" aria-hidden="true">{% if item.compatibility %}✓{% else %}✕{% endif %}</span>
+                            <span>{% if item.compatibility %}Совместим{% else %}Несовместим{% endif %}</span>
+                        </span>
                         {% else %}
                         <span class="curation-meta">—</span>
                         {% endif %}
                     </td>
-                    <td>
-                        {% if playable_file.playable %}
-                            {% if playable_file.playable.state == "READY" %}
-                            <span>Сайт создан</span>
-                            {% if playable_file.playable.slug %}
-                            <div>
-                                <a href="http{% if request.is_secure %}s{% endif %}://{{ playable_file.playable.slug }}.{{ playable_base_domain }}" target="_blank">{{ playable_file.playable.slug }}.{{ playable_base_domain }}</a>
+                    <td class="curation-playable-site">
+                        {% if item.playable %}
+                            {% if item.playable.state == "READY" %}
+                            <div class="curation-playable-site-status">
+                                <span>Сайт создан</span>
+                                {% if item.playable.slug %}
+                                <div>
+                                    <a href="http{% if request.is_secure %}s{% endif %}://{{ item.playable.slug }}.{{ playable_base_domain }}" target="_blank">http{% if request.is_secure %}s{% endif %}://{{ item.playable.slug }}.{{ playable_base_domain }}</a>
+                                </div>
+                                {% endif %}
                             </div>
-                            {% endif %}
-                            {% elif playable_file.playable.state == "BUILDING" or playable_file.playable.state == "PENDING" %}
-                            <span class="curation-meta">Создаётся... ({{ playable_file.playable.get_state_display }})</span>
-                            {% elif playable_file.playable.state == "ERROR" %}
+                            {% elif item.playable.state == "BUILDING" or item.playable.state == "PENDING" %}
+                            <span class="curation-meta">Создаётся... ({{ item.playable.get_state_display }})</span>
+                            {% elif item.playable.state == "ERROR" %}
                             <span class="curation-meta" style="color: #c5221f; font-weight: bold;">Ошибка генерации</span>
                             {% else %}
-                            <span>{{ playable_file.playable.get_state_display }}</span>
+                            <span>{{ item.playable.get_state_display }}</span>
                             {% endif %}
                             <div class="curation-meta" style="margin-top: 4px;">
-                                Шаблон: {{ playable_file.playable.template }}{% if playable_file.playable.template_version %} (v{{ playable_file.playable.template_version }}){% endif %}<br>
-                                Создан: {{ playable_file.playable.created|date:"d.m.Y H:i" }} | Обновлён: {{ playable_file.playable.updated|date:"d.m.Y H:i" }}
+                                Создан: {{ item.playable.created|date:"d.m.Y H:i" }} | Обновлён: {{ item.playable.updated|date:"d.m.Y H:i" }}
                             </div>
-                            <form method="post" action="{% url 'curation_history_playable_visibility' game.pk playable_file.playable.pk %}" style="margin-top: 6px; display: flex; align-items: center; gap: 6px;">
-                                {% csrf_token %}
-                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                                <label style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
-                                    <input type="checkbox" name="visible" value="1" {% if playable_file.playable.visible %}checked{% endif %}>
-                                    виден
-                                </label>
-                                <button type="submit">сохранить</button>
-                            </form>
-                            <form method="post" action="{% url 'curation_history_playable_rename' game.pk playable_file.playable.pk %}" class="curation-playable-form" style="margin-top: 6px;">
-                                {% csrf_token %}
-                                <div class="curation-playable-form-group">
-                                    <input type="text" name="domain_name" value="{{ playable_file.playable.slug|default:'' }}" placeholder="✨" class="curation-playable-domain-input" autocomplete="off" spellcheck="false">
-                                    <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
-                                    <button type="submit">переименовать</button>
+                        {% else %}
+                        <span class="curation-meta">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="curation-playable-actions">
+                        {% if item.playable %}
+                            <div class="curation-playable-actions-group">
+                                <form method="post" action="{% url 'curation_history_playable_rename' game.pk item.playable.pk %}" class="curation-playable-form">
+                                    {% csrf_token %}
+                                    <div class="curation-playable-form-group">
+                                        <input type="text" name="domain_name" value="{{ item.playable.slug|default:'' }}" placeholder="✨" class="curation-playable-domain-input" autocomplete="off" spellcheck="false">
+                                        <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
+                                        <button type="submit">переименовать</button>
+                                    </div>
+                                </form>
+                                <form method="post" action="{% url 'curation_history_playable_visibility' game.pk item.playable.pk %}" class="curation-playable-form" style="display: flex; align-items: center; gap: 6px;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <label style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
+                                        <input type="checkbox" name="visible" value="1" {% if item.playable.visible %}checked{% endif %}>
+                                        виден
+                                    </label>
+                                    <button type="submit">сохранить</button>
+                                </form>
+                                <div style="display: flex; gap: 6px; align-items: center;">
+                                    {% if item.playable.state != "BUILDING" and item.playable.state != "PENDING" %}
+                                    <form method="post" action="{% url 'curation_history_playable_regenerate' game.pk item.playable.pk %}" style="display: inline;">
+                                        {% csrf_token %}
+                                        <button type="submit">пересоздать</button>
+                                    </form>
+                                    {% endif %}
+                                    <form method="post" action="{% url 'curation_history_playable_delete' game.pk item.playable.pk %}" style="display: inline;" onsubmit="return confirm('Удалить проигрыватель?');">
+                                        {% csrf_token %}
+                                        <button type="submit" style="color: #c5221f;">удалить</button>
+                                    </form>
                                 </div>
-                            </form>
-                            <div style="margin-top: 4px; display: flex; gap: 6px; align-items: center;">
-                                {% if playable_file.playable.state != "BUILDING" and playable_file.playable.state != "PENDING" %}
-                                <form method="post" action="{% url 'curation_history_playable_regenerate' game.pk playable_file.playable.pk %}" style="display: inline;">
-                                    {% csrf_token %}
-                                    <button type="submit">пересоздать</button>
-                                </form>
-                                {% endif %}
-                                <form method="post" action="{% url 'curation_history_playable_delete' game.pk playable_file.playable.pk %}" style="display: inline;" onsubmit="return confirm('Удалить проигрыватель?');">
-                                    {% csrf_token %}
-                                    <button type="submit" style="color: #c5221f;">удалить</button>
-                                </form>
                             </div>
-                        {% elif check_compatibility and playable_file.is_compatible %}
+                        {% elif check_compatibility and item.compatibility %}
                         <form method="post" action="{% url 'curation_history_playable_create' game.pk %}" class="curation-playable-form">
                             {% csrf_token %}
                             <input type="hidden" name="game_url_id" value="{{ playable_file.game_url.pk }}">
-                            {% if playable_file.compatible_blueprint %}
-                            <input type="hidden" name="blueprint_slug" value="{{ playable_file.compatible_blueprint.slug }}">
-                            {% endif %}
+                            <input type="hidden" name="blueprint_slug" value="{{ item.slug }}">
                             <input type="hidden" name="has_visible_field" value="1">
                             <div class="curation-playable-form-group">
                                 <input type="text" name="domain_name" placeholder="✨" class="curation-playable-domain-input" autocomplete="off" spellcheck="false">
                                 <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
-                                <label style="display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; cursor: pointer;">
+                                <label style="display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; cursor: pointer;">
                                     <input type="checkbox" name="visible" value="1" checked> виден
                                 </label>
                                 <button type="submit">создать сайт</button>
@@ -178,8 +196,23 @@
                         {% endif %}
                     </td>
                 </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="curation-meta curation-playable-empty-cell">
+                        {% if check_compatibility and playable_file.has_local_copy and not playable_file.file_missing %}
+                            Проигрывателей нет.
+                        {% elif check_compatibility and playable_file.has_local_copy and playable_file.file_missing %}
+                            Файл не найден.
+                        {% elif not playable_file.has_local_copy %}
+                            Локальная копия отсутствует.
+                        {% else %}
+                            Совместимость не проверена.
+                        {% endif %}
+                    </td>
+                </tr>
                 {% endfor %}
             </tbody>
+            {% endfor %}
         </table>
     </div>
     <div class="card--body">

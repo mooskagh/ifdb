@@ -102,11 +102,25 @@ class BlueprintResult:
 
 
 @dataclass(frozen=True, slots=True)
+class PlayableItem:
+    slug: str
+    display_name: str
+    compatibility: bool | None
+    playable: Playable | None = None
+
+    @property
+    def has_compatibility(self) -> bool:
+        return self.compatibility is not None
+
+
+@dataclass(frozen=True, slots=True)
 class PlayableFile:
     game_url: GameURL
     has_local_copy: bool
     compatibility: tuple[BlueprintResult, ...] | None
     file_missing: bool = False
+    playables: tuple[Playable, ...] = ()
+    items: tuple[PlayableItem, ...] = ()
     playable: Playable | None = None
 
     @property
@@ -136,22 +150,35 @@ def _build_playable_files(
         .select_related("url", "category")
         .order_by("pk")
     )
-    playables_by_url: dict[int, Playable] = {
-        p.game_url_id: p
-        for p in Playable.objects.filter(
-            game_id=game_id, game_url__isnull=False
-        ).order_by("pk")
-        if p.game_url_id is not None
-    }
-    playable_files = [
-        PlayableFile(
-            game_url=game_url,
-            has_local_copy=bool(game_url.url.local_filename),
-            compatibility=None,
-            playable=playables_by_url.get(game_url.pk),
+    playables_by_url: dict[int, list[Playable]] = defaultdict(list)
+    for p in Playable.objects.filter(
+        game_id=game_id, game_url__isnull=False
+    ).order_by("pk"):
+        if p.game_url_id is not None:
+            playables_by_url[p.game_url_id].append(p)
+
+    playable_files: list[PlayableFile] = []
+    for game_url in direct_downloads:
+        file_playables = tuple(playables_by_url.get(game_url.pk, []))
+        items = tuple(
+            PlayableItem(
+                slug=p.template,
+                display_name=p.template,
+                compatibility=None,
+                playable=p,
+            )
+            for p in file_playables
         )
-        for game_url in direct_downloads
-    ]
+        playable_files.append(
+            PlayableFile(
+                game_url=game_url,
+                has_local_copy=bool(game_url.url.local_filename),
+                compatibility=None,
+                playables=file_playables,
+                items=items,
+                playable=file_playables[0] if file_playables else None,
+            )
+        )
 
     if not check_compatibility or not any(
         playable_file.has_local_copy for playable_file in playable_files
@@ -179,6 +206,8 @@ def _build_playable_files(
                     has_local_copy=playable_file.has_local_copy,
                     compatibility=None,
                     file_missing=True,
+                    playables=playable_file.playables,
+                    items=playable_file.items,
                     playable=playable_file.playable,
                 )
             )
@@ -200,15 +229,61 @@ def _build_playable_files(
                     has_local_copy=playable_file.has_local_copy,
                     compatibility=None,
                     file_missing=True,
+                    playables=playable_file.playables,
+                    items=playable_file.items,
                     playable=playable_file.playable,
                 )
             )
         else:
+            playables_by_template: dict[str, list[Playable]] = defaultdict(
+                list
+            )
+            for p in playable_file.playables:
+                playables_by_template[p.template].append(p)
+
+            items_list: list[PlayableItem] = []
+            used_playables: set[int] = set()
+            for res in compatibility:
+                matching = playables_by_template.get(res.slug, [])
+                if matching:
+                    for p in matching:
+                        items_list.append(
+                            PlayableItem(
+                                slug=res.slug,
+                                display_name=res.display_name,
+                                compatibility=res.accepted,
+                                playable=p,
+                            )
+                        )
+                        used_playables.add(p.pk)
+                else:
+                    items_list.append(
+                        PlayableItem(
+                            slug=res.slug,
+                            display_name=res.display_name,
+                            compatibility=res.accepted,
+                            playable=None,
+                        )
+                    )
+
+            for p in playable_file.playables:
+                if p.pk not in used_playables:
+                    items_list.append(
+                        PlayableItem(
+                            slug=p.template,
+                            display_name=p.template,
+                            compatibility=None,
+                            playable=p,
+                        )
+                    )
+
             checked_files.append(
                 PlayableFile(
                     game_url=playable_file.game_url,
                     has_local_copy=playable_file.has_local_copy,
                     compatibility=compatibility,
+                    playables=playable_file.playables,
+                    items=tuple(items_list),
                     playable=playable_file.playable,
                 )
             )
@@ -2050,8 +2125,12 @@ def history_playable_create(request, game_id: int):
     game_url_id = request.POST.get("game_url_id")
     game_url = get_object_or_404(GameURL, pk=game_url_id, game=game)
 
+    blueprint_slug = request.POST.get("blueprint_slug")
+    playable_filter = {"game_url": game_url}
+    if blueprint_slug:
+        playable_filter["template"] = blueprint_slug
     playable = (
-        Playable.objects.filter(game_url=game_url).order_by("-pk").first()
+        Playable.objects.filter(**playable_filter).order_by("-pk").first()
     )
     redirect_url = (
         f"{reverse('curation_history_detail', args=[game.pk])}"
@@ -2066,7 +2145,6 @@ def history_playable_create(request, game_id: int):
         return redirect(redirect_url)
 
     blueprints = {b.name: b.blueprint for b in discover_blueprints()}
-    blueprint_slug = request.POST.get("blueprint_slug")
 
     if not blueprint_slug or blueprint_slug not in blueprints:
         local_filename = game_url.url.local_filename
