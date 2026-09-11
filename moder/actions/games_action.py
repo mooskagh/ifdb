@@ -1,8 +1,12 @@
+import copy
 from html import escape
 
 from django.urls import reverse
 from django.utils.timezone import now
 
+from curation.models import GameCuration
+from curation.overrides import build_initial_overrides
+from games.gameinfo import parse
 from games.models import Game, GameAuthor, GameRevision, GameURL
 from games.permissions import can_delete_game, can_edit_game
 from moder.actions.tools import ModerAction, RegisterAction
@@ -66,6 +70,24 @@ class GameCloneAction(GameAction):
             canonical_text=canonical_text,
         )
         to.publish_revision(rev, actor=self.request.user)
+
+        fro_curation = getattr(fro, "curation", None)
+        to_exc = (
+            copy.deepcopy(fro_curation.exclude_overrides)
+            if fro_curation and fro_curation.exclude_overrides
+            else {}
+        )
+        info = parse(rev.canonical_text)
+        GameCuration.objects.update_or_create(
+            game=to,
+            defaults={
+                "state": GameCuration.State.SETTLED,
+                "include_overrides": build_initial_overrides(
+                    info, is_rich_source=False
+                ),
+                "exclude_overrides": to_exc,
+            },
+        )
 
         return GenLinkButton(
             "Ссылка на клон",

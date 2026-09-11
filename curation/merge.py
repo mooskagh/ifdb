@@ -17,6 +17,12 @@ from games.models import (
 )
 
 from .models import GameCuration, GameHistoryAuditLog, GameSource
+from .overrides import (
+    build_initial_overrides,
+    is_rich_source_game,
+    merge_overrides_dicts,
+    remove_from_overrides_dict,
+)
 
 CONTEST_RELATED_MODELS = [GameListEntry, CompetitionVote, CompetitionQuestion]
 CONTEST_RELATED_LABELS = {
@@ -131,6 +137,39 @@ def merge_game_into_game(
         canonical_text=merged_info.to_canonical(),
     )
     target_game.publish_revision(rev, actor=actor)
+
+    target_curation, _ = GameCuration.objects.get_or_create(game=target_game)
+    target_inc = target_curation.include_overrides or {}
+    target_exc = target_curation.exclude_overrides or {}
+    if not target_inc and not is_rich_source_game(target_game) and target_info:
+        target_inc = build_initial_overrides(target_info, is_rich_source=False)
+
+    if source_curation and (
+        source_curation.include_overrides or source_curation.exclude_overrides
+    ):
+        source_inc = source_curation.include_overrides or {}
+        source_exc = source_curation.exclude_overrides or {}
+    else:
+        is_rich = is_rich_source_game(source_game)
+        source_inc = (
+            build_initial_overrides(source_info, is_rich_source=is_rich)
+            if source_info
+            else {}
+        )
+        source_exc = {}
+
+    filtered_source_inc = remove_from_overrides_dict(source_inc, target_exc)
+    filtered_source_exc = remove_from_overrides_dict(source_exc, target_inc)
+
+    target_curation.include_overrides = merge_overrides_dicts(
+        target_inc, filtered_source_inc
+    )
+    target_curation.exclude_overrides = merge_overrides_dicts(
+        target_exc, filtered_source_exc
+    )
+    target_curation.save(
+        update_fields=["include_overrides", "exclude_overrides"]
+    )
 
     GameSource.objects.filter(game=source_game).update(game=target_game)
     GameHistoryAuditLog.record_game_merge(

@@ -2,6 +2,7 @@ from io import StringIO
 from unittest import mock
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase
 from django.utils.timezone import now
@@ -19,7 +20,7 @@ from curation.models import (
     LlmTrajectory,
     LlmWorkflow,
 )
-from games.gameinfo import Person, Tag
+from games.gameinfo import GameInfo, Person, Tag
 from games.models import (
     Game,
     GameAuthorRole,
@@ -75,6 +76,22 @@ class _AssertResolvedPerson(GameEditPass):
 
     def apply(self, state, params):
         self.seen = state.current.personalities["author"][-1]
+
+
+class _RemoveAuthors(GameEditPass):
+    name = "remove_authors"
+
+    def apply(self, state, params):
+        state.current.personalities = {}
+        state.approval = Approval.APPLIED
+
+
+class _RemoveTags(GameEditPass):
+    name = "remove_tags"
+
+    def apply(self, state, params):
+        state.current.tags = []
+        state.approval = Approval.APPLIED
 
 
 class _CreateTrajectory(GameEditPass):
@@ -257,6 +274,82 @@ class RunEditTests(TestCase):
         )
         self.assertIsNone(edit_row.published_by)
         self.assertFalse(self._has_os_win(history.game))
+
+    def test_author_removed_during_auto_import_makes_edit_need_review(self):
+        history = self._history()
+        info = GameInfo(
+            name="A Game",
+            personalities={
+                "author": [Person(alias_id=None, name="Old Author")]
+            },
+        )
+        _, canonical = info.save(history.game)
+        user = get_user_model().objects.create(username="author_tester")
+        rev = GameRevision.objects.create(
+            game=history.game,
+            created_at=now(),
+            created_by=user,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            status=GameRevision.Status.ACCEPTED,
+            published_at=now(),
+            canonical_text=canonical,
+        )
+        history.game.published_revision = rev
+        history.game.save(update_fields=["published_revision"])
+
+        # Run with _RemoveAuthors which attempts Approval.APPLIED
+        stats = self._run_with([_RemoveAuthors()], history)
+
+        self.assertEqual(stats.proposed, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameCuration.State.NEEDS_ATTENTION)
+        self.assertIn(
+            "Автообновление: удалён автор (Old Author)", history.note
+        )
+        edit_row = (
+            GameRevision.objects
+            .filter(game=history.game)
+            .order_by("-id")
+            .first()
+        )
+        assert edit_row is not None
+        self.assertEqual(edit_row.status, GameRevision.Status.PROPOSED)
+
+    def test_tag_removed_during_auto_import_makes_edit_need_review(self):
+        history = self._history()
+        info = GameInfo(
+            name="A Game",
+            tags=[Tag("os", "os_win", None, None)],
+        )
+        _, canonical = info.save(history.game)
+        user = get_user_model().objects.create(username="tag_tester")
+        rev = GameRevision.objects.create(
+            game=history.game,
+            created_at=now(),
+            created_by=user,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            status=GameRevision.Status.ACCEPTED,
+            published_at=now(),
+            canonical_text=canonical,
+        )
+        history.game.published_revision = rev
+        history.game.save(update_fields=["published_revision"])
+
+        # Run with _RemoveTags which attempts Approval.APPLIED
+        stats = self._run_with([_RemoveTags()], history)
+
+        self.assertEqual(stats.proposed, 1)
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameCuration.State.NEEDS_ATTENTION)
+        self.assertIn("Автообновление: удалён тег", history.note)
+        edit_row = (
+            GameRevision.objects
+            .filter(game=history.game)
+            .order_by("-id")
+            .first()
+        )
+        assert edit_row is not None
+        self.assertEqual(edit_row.status, GameRevision.Status.PROPOSED)
 
     def test_rejected_settles_with_edit_game_untouched(self):
         history = self._history()

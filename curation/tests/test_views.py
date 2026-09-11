@@ -39,6 +39,7 @@ from curation.models import (
     LlmWorkflow,
     SourceDiscoveryStatus,
 )
+from curation.views import _accept_edit
 from games.gameinfo import GameInfo, GameUrl
 from games.models import (
     URL,
@@ -5123,28 +5124,66 @@ Source desc"""
 
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
-        self.assertEqual(stats.applied, 1)
+        self.assertEqual(stats.proposed, 1)
+        edit = GameRevision.objects.get(
+            game=game, status=GameRevision.Status.PROPOSED
+        )
+        curator = get_user_model().objects.create(username="testcurator")
+        _accept_edit(
+            edit,
+            history,
+            before=game.published_revision.canonical_text,
+            user=curator,
+        )
         game.refresh_from_db()
         self.assertEqual(game.title, "Source Title")
         self.assertEqual(game.release_date.isoformat(), "2001-02-03")
         self.assertEqual(game.description, "Source desc")
         self.assertEqual(
             set(game.gameauthor_set.values_list("author__name", flat=True)),
-            {"Old Author", "Source Author"},
+            {"Source Author"},
         )
         self.assertEqual(
-            set(game.tags.values_list("name", flat=True)), {"old", "source"}
+            set(game.tags.values_list("name", flat=True)), {"source"}
         )
         self.assertEqual(
             set(game.gameurl_set.values_list("url__original_url", flat=True)),
-            {
-                "https://example.com/old.zip",
-                "https://example.com/source.zip",
-            },
+            {"https://example.com/source.zip"},
         )
         self.assertEqual(
             set(game.description_attributions.values_list("name", flat=True)),
             {"old source", "wiki"},
+        )
+
+    def test_merge_respects_include_and_exclude_overrides(self):
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Old Title",
+            creation_time=self.now,
+        )
+        history = self._history(game=game)
+        cat = GameTagCategory.objects.create(symbolic_id="tag", name="Tag")
+        old_tag = GameTag.objects.create(category=cat, name="old")
+        source_tag = GameTag.objects.create(category=cat, name="source")
+        history.include_overrides = {"tags": [["tag", old_tag.id]]}
+        history.exclude_overrides = {"tags": [["tag", source_tag.id]]}
+        history.save()
+
+        canonical = f"""---
+- name: Source Title
+- tags:
+  - ["tag", {source_tag.id}]
+---
+Source desc"""
+        self._canonical_source(history, canonical)
+
+        stats = run_edit(pipeline_id=self.pipeline.pk)
+
+        self.assertEqual(stats.applied, 1)
+        game.refresh_from_db()
+        # source_tag was excluded, old_tag was included via include_overrides
+        self.assertEqual(
+            set(game.tags.values_list("name", flat=True)), {"old"}
         )
 
     def test_merge_fills_empty_current_url_description_from_source(self):

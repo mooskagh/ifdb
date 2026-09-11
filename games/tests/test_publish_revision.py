@@ -148,7 +148,11 @@ class PublishRevisionTests(TestCase):
             created_at=now(),
             origin=GameRevision.Origin.MANUAL_EDIT,
             canonical_text=GameInfo(
-                name="Original Game", description="Original Desc"
+                name="Original Game",
+                description="Original Desc",
+                personalities={
+                    "author": [Person(alias_id=None, name="Test Author")]
+                },
             ).to_canonical(),
         )
         game.publish_revision(rev, actor=self.user)
@@ -168,6 +172,12 @@ class PublishRevisionTests(TestCase):
             cloned.published_revision.origin, GameRevision.Origin.CLONE
         )
         self.assertEqual(cloned.title, "Original Game")
+        self.assertTrue(hasattr(cloned, "curation"))
+        self.assertEqual(cloned.curation.state, GameCuration.State.SETTLED)
+        self.assertIn(
+            "author",
+            cloned.curation.include_overrides.get("personalities", {}),
+        )
 
         # Visiting show_game on the cloned game succeeds with HTTP 200
         response = self.client.get(reverse("show_game", args=[cloned.id]))

@@ -222,6 +222,23 @@
     </div>
 </div>
 {% endif %}
+<div class="card card--blue curation-overrides-card">
+    <div class="card--header">Переопределения</div>
+    <div class="curation-overrides-diff">
+        <div class="curation-overrides-diff-header">
+            <div class="curation-overrides-diff-header-col curation-overrides-diff-header-col--exclude">
+                Исключения (excludes)
+            </div>
+            <div class="curation-overrides-diff-header-col curation-overrides-diff-header-col--include">
+                Включения (includes)
+            </div>
+        </div>
+        <div class="curation-overrides-diff-body">
+            <div class="curation-overrides-diff-cell curation-overrides-diff-cell--exclude">{% if exclude_overrides_yaml %}<pre><code>{{ exclude_overrides_yaml }}</code></pre>{% else %}<span class="curation-meta"># нет исключений</span>{% endif %}</div>
+            <div class="curation-overrides-diff-cell curation-overrides-diff-cell--include">{% if include_overrides_yaml %}<pre><code>{{ include_overrides_yaml }}</code></pre>{% else %}<span class="curation-meta"># нет включений</span>{% endif %}</div>
+        </div>
+    </div>
+</div>
 
 {% for group in groups %}
 <div class="card card--{{ group.color }}">

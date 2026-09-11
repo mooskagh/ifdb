@@ -5,6 +5,7 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils.timezone import now
 
+from games.gameinfo import parse
 from games.models import (
     Game,
     GameAuthorRole,
@@ -21,6 +22,11 @@ from .models import (
     GameCuration,
     GameHistoryAuditLog,
     GameSource,
+)
+from .overrides import (
+    build_initial_overrides,
+    is_rich_source_game,
+    update_overrides_from_diff,
 )
 
 
@@ -516,6 +522,16 @@ def _apply_game_info(
             canonical_text=after,
         )
         game.publish_revision(rev, actor=actor)
+        if before:
+            before_info = parse(before)
+            update_overrides_from_diff(curation, before_info, info)
+        else:
+            is_rich = is_rich_source_game(game)
+            curation.include_overrides = build_initial_overrides(
+                info, is_rich_source=is_rich
+            )
+            curation.exclude_overrides = {}
+        curation.save(update_fields=["include_overrides", "exclude_overrides"])
     return game
 
 
