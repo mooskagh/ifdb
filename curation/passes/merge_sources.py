@@ -4,7 +4,6 @@ import copy
 
 from curation.edit import GameEditPass, GameEditState, register_pass
 from curation.models import GameSource
-from curation.overrides import apply_and_prune_overrides
 from games.gameinfo import (
     GameInfo,
     GameUrl,
@@ -115,12 +114,5 @@ class MergeSourcesPass(GameEditPass):
             merged.name = source_name or state.current.name
             merged.date = source_date or state.current.date
             merged.description = source_description or state.served.description
-
-        if state.curation:
-            merged, changed = apply_and_prune_overrides(state.curation, merged)
-            if changed:
-                state.curation.save(
-                    update_fields=["include_overrides", "exclude_overrides"]
-                )
 
         state.current = merged

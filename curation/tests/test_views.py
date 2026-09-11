@@ -5634,3 +5634,48 @@ Source desc"""
         self.assertEqual(stats.proposed, 1)
         edit = GameRevision.objects.get(game=history.game)
         self.assertEqual(edit.canonical_text.count('"g_fantasy"'), 1)
+
+    def test_reimport_prunes_enrichment_tags_from_include_overrides(
+        self,
+    ):
+        self._set_pipeline(["merge_sources", "enrich"])
+        call_command("initifdb", stdout=StringIO(), stderr=StringIO())
+        call_command("initenrichment", stdout=StringIO())
+
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Old Title",
+            creation_time=self.now,
+        )
+        history = self._history(
+            game=game, auto_updates=GameCuration.AutoUpdate.PROPOSE
+        )
+        horror = GameTag.objects.get(symbolic_id="g_horror")
+        history.include_overrides = {
+            "tags": [
+                "menu",
+                "g_adventure",
+                "g_fantasy",
+                "os_win",
+                ["genre", horror.id],
+            ]
+        }
+        history.save(update_fields=["include_overrides"])
+
+        tag_cat = GameTagCategory.objects.get(symbolic_id="tag")
+        GameTag.objects.create(category=tag_cat, name="приключения")
+        GameTag.objects.create(category=tag_cat, name="фэнтези")
+        canonical = """---
+- name: Source Title
+- tags:
+  - ["platform", "QSP"]
+  - ["tag", "приключения"]
+  - ["tag", "фэнтези"]
+---
+Source desc"""
+        self._canonical_source(history, canonical)
+
+        run_edit(pipeline_id=self.pipeline.pk)
+
+        history.refresh_from_db()
+        self.assertEqual(history.include_overrides.get("tags"), ["g_horror"])

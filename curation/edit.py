@@ -31,6 +31,7 @@ from django.db import transaction
 from django.db.models import Case, IntegerField, Q, Value, When
 from django.utils.timezone import now
 
+from curation.overrides import apply_and_prune_overrides
 from games.gameinfo import GameInfo, Person, parse
 from games.importer.discord import PostNewGameToDiscord
 from games.models import Game, GameRevision, PersonalityAlias
@@ -542,6 +543,16 @@ def _process_history(curation: GameCuration, pipeline: EditPipeline) -> str:
     pass_specs = normalize_pass_specs(pipeline.passes)
     for spec in pass_specs:
         PASS_REGISTRY[spec.name].apply(state, spec.params)
+        state.current.canonicalize()
+
+    if curation:
+        state.current, changed = apply_and_prune_overrides(
+            curation, state.current
+        )
+        if changed:
+            curation.save(
+                update_fields=["include_overrides", "exclude_overrides"]
+            )
         state.current.canonicalize()
 
     removed_elements = _find_removed_front_matter_elements(state)
