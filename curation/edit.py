@@ -31,9 +31,9 @@ from django.db import transaction
 from django.db.models import Case, IntegerField, Q, Value, When
 from django.utils.timezone import now
 
-from games.gameinfo import GameInfo, parse
+from games.gameinfo import GameInfo, Person, parse
 from games.importer.discord import PostNewGameToDiscord
-from games.models import Game, GameRevision
+from games.models import Game, GameRevision, PersonalityAlias
 
 from .models import (
     EditPipeline,
@@ -319,6 +319,206 @@ def _flush(curation: GameCuration, state: GameEditState, actor) -> None:
     curation.save()
 
 
+def _find_removed_authors(state: GameEditState) -> list[str]:
+    served_authors = state.served.personalities.get(
+        "author", []
+    ) + state.served.personalities.get("orig_author", [])
+    if not served_authors:
+        return []
+
+    from curation.overrides import parse_personalities
+
+    exclude_pers = (
+        parse_personalities(
+            state.curation.exclude_overrides.get("personalities", {})
+        )
+        if state.curation and state.curation.exclude_overrides
+        else {}
+    )
+    exclude_authors = exclude_pers.get("author", []) + exclude_pers.get(
+        "orig_author", []
+    )
+
+    current_authors = state.current.personalities.get(
+        "author", []
+    ) + state.current.personalities.get("orig_author", [])
+
+    all_people = served_authors + current_authors + exclude_authors
+    alias_ids = {p.alias_id for p in all_people if p.alias_id is not None}
+    names = {p.name.strip() for p in all_people if p.name and p.name.strip()}
+
+    aliases_by_id = {
+        a.id: a
+        for a in PersonalityAlias.objects.filter(
+            id__in=alias_ids
+        ).select_related("personality")
+    }
+    aliases_by_name = {
+        a.name.strip().lower(): a
+        for a in PersonalityAlias.objects.filter(
+            name__in=names
+        ).select_related("personality")
+    }
+
+    def person_keys(p: Person) -> set[tuple[str, Any]]:
+        keys: set[tuple[str, Any]] = set()
+        alias = None
+        if p.alias_id is not None:
+            keys.add(("alias", p.alias_id))
+            alias = aliases_by_id.get(p.alias_id)
+        elif p.name and p.name.strip():
+            name_clean = p.name.strip().lower()
+            keys.add(("name", name_clean))
+            alias = aliases_by_name.get(name_clean)
+
+        if alias is not None:
+            keys.add(("alias", alias.id))
+            if alias.name:
+                keys.add(("name", alias.name.strip().lower()))
+            if alias.personality_id is not None:
+                keys.add(("personality", alias.personality_id))
+        return keys
+
+    def get_person_display(p: Person) -> str:
+        if p.name and p.name.strip():
+            return p.name.strip()
+        if p.alias_id is not None:
+            alias = aliases_by_id.get(p.alias_id)
+            if alias and alias.name:
+                return alias.name
+            return f"#{p.alias_id}"
+        return "Неизвестный автор"
+
+    current_keys: set[tuple[str, Any]] = set()
+    for cp in current_authors:
+        current_keys.update(person_keys(cp))
+
+    exclude_keys: set[tuple[str, Any]] = set()
+    for ep in exclude_authors:
+        exclude_keys.update(person_keys(ep))
+
+    removed_names: list[str] = []
+    for sp in served_authors:
+        sp_keys = person_keys(sp)
+        if not sp_keys:
+            continue
+        if sp_keys & current_keys:
+            continue
+        if sp_keys & exclude_keys:
+            continue
+        display = get_person_display(sp)
+        if display not in removed_names:
+            removed_names.append(display)
+
+    return removed_names
+
+
+def _find_removed_front_matter_elements(state: GameEditState) -> list[str]:
+    removed: list[str] = []
+
+    # 1. Title / Name
+    if state.served.name and not state.current.name:
+        removed.append(f"название ({state.served.name})")
+
+    # 2. Release date
+    if state.served.date and not state.current.date:
+        removed.append(f"дата релиза ({state.served.date})")
+
+    # 3. Authors / Personalities
+    for name in _find_removed_authors(state):
+        removed.append(f"автор ({name})")
+
+    # 4. Tags
+    if state.served.tags:
+        from curation.overrides import parse_tags, tag_key
+        from games.models import GameTag
+
+        exclude_tags = (
+            parse_tags(state.curation.exclude_overrides.get("tags") or [])
+            if state.curation and state.curation.exclude_overrides
+            else []
+        )
+        current_tag_keys = {tag_key(t) for t in state.current.tags}
+        exclude_tag_keys = {tag_key(t) for t in exclude_tags}
+
+        for st in state.served.tags:
+            st_k = tag_key(st)
+            if st_k in current_tag_keys or st_k in exclude_tag_keys:
+                continue
+            tag_name = (
+                st.slug
+                or (
+                    GameTag.objects
+                    .filter(id=st.tag_id)
+                    .values_list("name", flat=True)
+                    .first()
+                    if st.tag_id
+                    else st.text
+                )
+                or st.category
+            )
+            removed.append(
+                f"тег ({st.category}: {tag_name})"
+                if st.category
+                else f"тег ({tag_name})"
+            )
+
+    # 5. URLs
+    if state.served.urls:
+        from curation.overrides import parse_urls
+        from games.gameinfo import _url_key
+        from games.models import URL
+
+        exclude_urls = (
+            parse_urls(state.curation.exclude_overrides.get("urls") or [])
+            if state.curation and state.curation.exclude_overrides
+            else []
+        )
+        all_url_ids = {
+            u.url_id
+            for u in (*state.served.urls, *state.current.urls, *exclude_urls)
+            if u.url_id is not None
+        }
+        url_by_id = (
+            dict(
+                URL.objects.filter(id__in=all_url_ids).values_list(
+                    "id", "original_url"
+                )
+            )
+            if all_url_ids
+            else {}
+        )
+        current_url_keys = {
+            _url_key(cu, url_by_id) for cu in state.current.urls
+        }
+        exclude_url_keys = {_url_key(eu, url_by_id) for eu in exclude_urls}
+
+        for su in state.served.urls:
+            su_k = _url_key(su, url_by_id)
+            if su_k in current_url_keys or su_k in exclude_url_keys:
+                continue
+            url_display = (
+                su.description
+                or url_by_id.get(su.url_id or -1)
+                or su.url
+                or "URL"
+            )
+            removed.append(f"ссылка ({url_display})")
+
+    # 6. Attributions
+    if state.served.attributions:
+        from games.gameinfo import _attribution_key
+
+        current_attr_keys = {
+            _attribution_key(a) for a in state.current.attributions
+        }
+        for sa in state.served.attributions:
+            if _attribution_key(sa) not in current_attr_keys:
+                removed.append("цитата/атрибуция")
+
+    return removed
+
+
 def is_noop_edit(current: GameInfo, served: GameInfo) -> bool:
     return current.to_canonical().rstrip("\n") == served.to_canonical().rstrip(
         "\n"
@@ -343,6 +543,22 @@ def _process_history(curation: GameCuration, pipeline: EditPipeline) -> str:
     for spec in pass_specs:
         PASS_REGISTRY[spec.name].apply(state, spec.params)
         state.current.canonicalize()
+
+    removed_elements = _find_removed_front_matter_elements(state)
+    if removed_elements:
+        state.approval = Approval.PROPOSED
+        state.needs_attention = True
+        for elem in removed_elements:
+            if (
+                elem.startswith("ссылка")
+                or elem.startswith("дата")
+                or elem.startswith("цитата")
+            ):
+                state.add_note(f"Автообновление: удалена {elem}")
+            elif elem.startswith("название"):
+                state.add_note(f"Автообновление: удалено {elem}")
+            else:
+                state.add_note(f"Автообновление: удалён {elem}")
 
     final = state.current.to_canonical()
     base = state.last_applied_canonical

@@ -39,6 +39,7 @@ from curation.models import (
     LlmWorkflow,
     SourceDiscoveryStatus,
 )
+from curation.views import _accept_edit
 from games.gameinfo import GameInfo, GameUrl
 from games.models import (
     URL,
@@ -5123,7 +5124,17 @@ Source desc"""
 
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
-        self.assertEqual(stats.applied, 1)
+        self.assertEqual(stats.proposed, 1)
+        edit = GameRevision.objects.get(
+            game=game, status=GameRevision.Status.PROPOSED
+        )
+        curator = get_user_model().objects.create(username="testcurator")
+        _accept_edit(
+            edit,
+            history,
+            before=game.published_revision.canonical_text,
+            user=curator,
+        )
         game.refresh_from_db()
         self.assertEqual(game.title, "Source Title")
         self.assertEqual(game.release_date.isoformat(), "2001-02-03")
