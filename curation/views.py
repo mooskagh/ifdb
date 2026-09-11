@@ -73,6 +73,11 @@ from .models import (
     LlmTrajectory,
     SourceDiscoveryStatus,
 )
+from .overrides import (
+    format_overrides_for_display,
+    format_overrides_yaml,
+    update_overrides_from_diff,
+)
 from .providers import REGISTERED_PROVIDERS
 from .tasks import (
     discover_sources,
@@ -2083,6 +2088,18 @@ def history_detail(request, game_id):
             "proposed_edit_status": GameRevision.Status.PROPOSED,
             "edit_pipelines": EditPipeline.objects.order_by("id"),
             "playable_base_domain": settings.PLAYABLE_BASE_DOMAIN,
+            "include_overrides_display": format_overrides_for_display(
+                curation.include_overrides
+            ),
+            "exclude_overrides_display": format_overrides_for_display(
+                curation.exclude_overrides
+            ),
+            "include_overrides_yaml": format_overrides_yaml(
+                curation.include_overrides
+            ),
+            "exclude_overrides_yaml": format_overrides_yaml(
+                curation.exclude_overrides
+            ),
         },
     )
 
@@ -2693,7 +2710,16 @@ def _accept_edit(edit, curation, before, user):
         GameHistoryAuditLog.record_note_change(
             game, user, old_note, curation.note
         )
-        fields = ["auto_updates", "state", "note"]
+        before_info = parse(before) if before else GameInfo()
+        after_info = parse(edit.canonical_text)
+        update_overrides_from_diff(curation, before_info, after_info)
+        fields = [
+            "auto_updates",
+            "state",
+            "note",
+            "include_overrides",
+            "exclude_overrides",
+        ]
         curation.save(update_fields=fields)
     if was_draft:
         PostNewGameToDiscord(game.id)

@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from api.models import APIToken
 from core.models import User
+from curation.models import GameCuration
 from games.models import URL, Game, GameRevision, GameURL
 
 
@@ -111,3 +112,34 @@ class APIUploadTests(TestCase):
             headers=self.headers,
         )
         self.assertEqual(response.status_code, 404)
+
+    def test_published_game_connected_file_upload_updates_curation_overrides(
+        self,
+    ) -> None:
+        game = Game.objects.create(
+            title="Published Upload Game",
+            state=Game.State.PUBLISHED,
+            added_by=self.user,
+            creation_time=timezone.now(),
+        )
+        curation = GameCuration.objects.create(game=game)
+        file = SimpleUploadedFile(
+            "patch.zip",
+            b"patchcontent",
+            content_type="application/zip",
+        )
+        response = self.client.post(
+            reverse("api_game_file_upload", kwargs={"game_id": game.id}),
+            data={
+                "file": file,
+                "description": "Patch 1",
+            },
+            headers=self.headers,
+        )
+        self.assertEqual(response.status_code, 201)
+        curation.refresh_from_db()
+        self.assertIn("urls", curation.include_overrides)
+        urls = curation.include_overrides["urls"]
+        self.assertEqual(len(urls), 1)
+        self.assertEqual(urls[0][0], "download_direct")
+        self.assertEqual(urls[0][1], "Patch 1")

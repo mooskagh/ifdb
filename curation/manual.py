@@ -1,7 +1,14 @@
 from django.db import transaction
 from django.utils.timezone import now
 
-from games.gameinfo import Attribution, GameInfo, GameUrl, Person, Tag
+from games.gameinfo import (
+    Attribution,
+    GameInfo,
+    GameUrl,
+    Person,
+    Tag,
+    parse,
+)
 from games.importer.discord import PostNewGameToDiscord
 from games.models import (
     Game,
@@ -14,6 +21,7 @@ from games.models import (
 )
 
 from .models import GameCuration, GameHistoryAuditLog
+from .overrides import build_initial_overrides, update_overrides_from_diff
 
 
 def editor_payload_to_gameinfo(data: dict) -> GameInfo:
@@ -70,11 +78,20 @@ def store_manual_edit(
         game.publish_revision(edit, actor=user)
         curation.state = GameCuration.State.SETTLED
         curation.note = None
+        before_info = parse(before) if before else GameInfo()
+        update_overrides_from_diff(curation, before_info, info)
+        curation_fields = [
+            "state",
+            "note",
+            "include_overrides",
+            "exclude_overrides",
+        ]
     else:
         curation.state = GameCuration.State.NEEDS_ATTENTION
         curation.note = "Пользователь предложил правку"
+        curation_fields = ["state", "note"]
     GameHistoryAuditLog.record_note_change(game, user, old_note, curation.note)
-    curation.save(update_fields=["state", "note"])
+    curation.save(update_fields=curation_fields)
     return edit
 
 
@@ -96,6 +113,8 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameRevision:
             else GameCuration.State.NEEDS_ATTENTION
         ),
         note=None if apply else "Пользователь предложил новую игру",
+        include_overrides=build_initial_overrides(info, is_rich_source=False),
+        exclude_overrides={},
     )
     edit = GameRevision.objects.create(
         game=game,

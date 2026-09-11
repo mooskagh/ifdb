@@ -11,6 +11,11 @@ from django.views.decorators.http import require_http_methods
 if TYPE_CHECKING:
     from django.core.files.uploadedfile import UploadedFile
 
+from curation.models import GameCuration
+from curation.overrides import (
+    build_initial_overrides,
+    update_overrides_from_diff,
+)
 from games import gameinfo
 from games.models import (
     URL,
@@ -162,6 +167,16 @@ def game_create(request: HttpRequest) -> HttpResponse:
             game.published_revision_id = revision.pk
             game.save(update_fields=["published_revision"])
 
+        GameCuration.objects.get_or_create(
+            game=game,
+            defaults={
+                "include_overrides": build_initial_overrides(
+                    info, is_rich_source=False
+                ),
+                "exclude_overrides": {},
+            },
+        )
+
     return JsonResponse(_game_response_data(game), status=201)
 
 
@@ -250,6 +265,16 @@ def _game_update(request: HttpRequest, game_id: int) -> HttpResponse:
             game.published_revision_id = revision.pk
             game.save(update_fields=["published_revision"])
 
+        curation, _ = GameCuration.objects.get_or_create(game=game)
+        if is_pub:
+            before_info = (
+                gameinfo.parse(prev_text) if prev_text else gameinfo.GameInfo()
+            )
+            update_overrides_from_diff(curation, before_info, info)
+            curation.save(
+                update_fields=["include_overrides", "exclude_overrides"]
+            )
+
     return JsonResponse(_game_response_data(game))
 
 
@@ -292,6 +317,15 @@ def game_publish(request: HttpRequest, game_id: int) -> HttpResponse:
                 canonical_text=info.to_canonical(),
             )
         game.publish_revision(latest_rev, actor=request.user)
+
+        curation, _ = GameCuration.objects.get_or_create(game=game)
+        before_text = latest_rev.previous_canonical_text or ""
+        before_info = (
+            gameinfo.parse(before_text) if before_text else gameinfo.GameInfo()
+        )
+        after_info = gameinfo.parse(latest_rev.canonical_text)
+        update_overrides_from_diff(curation, before_info, after_info)
+        curation.save(update_fields=["include_overrides", "exclude_overrides"])
 
     return JsonResponse({"id": game.id, "state": game.state.lower()})
 
@@ -439,6 +473,16 @@ def file_upload(
             game.published_revision = rev
             game.published_revision_id = rev.pk
             game.save(update_fields=["published_revision"])
+
+        curation, _ = GameCuration.objects.get_or_create(game=game)
+        if is_pub:
+            before_info = (
+                gameinfo.parse(prev_text) if prev_text else gameinfo.GameInfo()
+            )
+            update_overrides_from_diff(curation, before_info, current_info)
+            curation.save(
+                update_fields=["include_overrides", "exclude_overrides"]
+            )
 
     return JsonResponse(
         {

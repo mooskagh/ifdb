@@ -118,6 +118,12 @@ class GameCuration(models.Model):
     processing_task_id = models.CharField(
         _("Processing task id"), max_length=255, null=True, blank=True
     )
+    include_overrides = models.JSONField(
+        _("Include overrides"), default=dict, blank=True
+    )
+    exclude_overrides = models.JSONField(
+        _("Exclude overrides"), default=dict, blank=True
+    )
 
     @property
     def id(self) -> int:
