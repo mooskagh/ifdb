@@ -17,7 +17,7 @@ from curation.models import (
     GameHistoryAuditLog,
 )
 from curation.overrides import apply_and_prune_overrides
-from games.gameinfo import _split_front_matter
+from games.gameinfo import GameInfo, _split_front_matter
 from games.models import Game
 
 logger = logging.getLogger(__name__)
@@ -128,10 +128,8 @@ class Command(BaseCommand):
                 )
                 state.current.canonicalize()
 
-                fm_served, _ = _split_front_matter(state.served.to_canonical())
-                fm_current, _ = _split_front_matter(
-                    state.current.to_canonical()
-                )
+                fm_served = self._front_matter_canonical(state.served)
+                fm_current = self._front_matter_canonical(state.current)
 
                 if fm_served != fm_current:
                     if (
@@ -224,3 +222,11 @@ class Command(BaseCommand):
         if pipeline is None:
             raise ValueError(f"Pipeline '{pipeline_arg}' not found.")
         return pipeline
+
+    @staticmethod
+    def _front_matter_canonical(info: GameInfo) -> str:
+        c = copy.deepcopy(info)
+        c.description = None
+        for u in c.urls:
+            u.proposed_description = None
+        return _split_front_matter(c.to_canonical())[0]
