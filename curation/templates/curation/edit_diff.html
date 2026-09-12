@@ -82,8 +82,9 @@
         {% endif %}
     </div>
     {% if show_actions %}
-    <form class="curation-save" method="post">
+    <form class="curation-save" method="post" id="curation-save-form">
         {% csrf_token %}
+        <input type="hidden" name="has_diff_checkboxes" value="1">
         {% if show_auto_accept %}
         <label class="curation-save__checkbox">
             <input type="checkbox" name="auto_accept"{% if auto_accept_checked %} checked{% endif %}>

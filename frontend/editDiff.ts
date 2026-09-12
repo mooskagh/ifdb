@@ -11,4 +11,38 @@ function initEditActionDialogs(): void {
   });
 }
 
-document.addEventListener('DOMContentLoaded', initEditActionDialogs);
+function initDiffCheckboxes(): void {
+  const checkboxes = document.querySelectorAll<HTMLInputElement>('input[name="diff_row"]');
+  if (!checkboxes.length) return;
+
+  function updateRow(cb: HTMLInputElement): void {
+    const row = cb.closest('.diff-row');
+    if (!row) return;
+    if (cb.checked) {
+      row.classList.remove('diff-row--excluded');
+      row.classList.add('diff-row--included');
+    } else {
+      row.classList.remove('diff-row--included');
+      row.classList.add('diff-row--excluded');
+    }
+  }
+
+  checkboxes.forEach(cb => {
+    updateRow(cb);
+    cb.addEventListener('change', () => updateRow(cb));
+    const cell = cb.closest('.diff-cell--action');
+    if (cell) {
+      cell.addEventListener('click', (e) => {
+        if (e.target !== cb) {
+          cb.checked = !cb.checked;
+          updateRow(cb);
+        }
+      });
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initEditActionDialogs();
+  initDiffCheckboxes();
+});

@@ -233,6 +233,7 @@ class GameRevision(models.Model):
         CLONE = "CLONE", _("Clone")
         MERGE = "MERGE", _("Merge")
         API = "API", _("API")
+        CORRECTION = "CORRECTION", _("Correction")
 
     def __str__(self) -> str:
         return f"Revision #{self.pk} ({self.get_status_display()})"
