@@ -2460,16 +2460,91 @@ def edit_diff(request, edit_id):
                 )
             curation = getattr(edit.game, "curation", None)
             before = _served_canonical(curation or edit.game)
+            final_edit = edit
             if action == "accept":
                 if curation:
                     _update_auto_accept(curation, request)
+                diff_before = (
+                    edit.previous_canonical_text
+                    if edit.previous_canonical_text is not None
+                    else before
+                )
+                has_diff_checkboxes = "has_diff_checkboxes" in request.POST
                 _accept_edit(edit, curation, before, request.user)
+
+                if has_diff_checkboxes:
+                    rows = build_diff(
+                        diff_before, edit.canonical_text, pair_lines=False
+                    )
+                    checked_indices = {
+                        int(x)
+                        for x in request.POST.getlist("diff_row")
+                        if x.isdigit()
+                    }
+                    is_changed = any(
+                        (i in checked_indices) != row.default_checked
+                        for i, row in enumerate(rows)
+                    )
+                    if is_changed:
+                        chosen_lines = [
+                            rows[i].line_text
+                            for i in range(len(rows))
+                            if i in checked_indices
+                        ]
+                        new_canonical_text = "\n".join(chosen_lines)
+                        if edit.canonical_text.endswith(
+                            "\n"
+                        ) and not new_canonical_text.endswith("\n"):
+                            new_canonical_text += "\n"
+                        try:
+                            parse(new_canonical_text)
+                        except Exception as e:
+                            return HttpResponseBadRequest(
+                                f"Некорректная правка: {e}"
+                            )
+                        correction = GameRevision(
+                            game=edit.game,
+                            created_at=now(),
+                            created_by=request.user,
+                            origin=GameRevision.Origin.CORRECTION,
+                            previous_canonical_text=edit.canonical_text,
+                            canonical_text=new_canonical_text,
+                        )
+                        edit.game.publish_revision(
+                            correction,
+                            actor=request.user,
+                            previous_canonical_text=edit.canonical_text,
+                        )
+                        correction.used_sources.set(edit.used_sources.all())
+                        if curation:
+                            correction_before_info = parse(edit.canonical_text)
+                            correction_after_info = parse(
+                                correction.canonical_text
+                            )
+                            update_overrides_from_diff(
+                                curation,
+                                correction_before_info,
+                                correction_after_info,
+                            )
+                            curation.save(
+                                update_fields=[
+                                    "include_overrides",
+                                    "exclude_overrides",
+                                ]
+                            )
+                        final_edit = correction
             else:
                 _reject_edit(edit, curation, before, request.user)
         return _redirect_after_edit(
-            request.POST.get("next"), edit, curation or edit.game
+            request.POST.get("next"), final_edit, curation or edit.game
         )
 
+    is_proposed = edit.status == GameRevision.Status.PROPOSED
+    diff_before = (
+        edit.previous_canonical_text
+        if edit.previous_canonical_text is not None
+        else before
+    )
     return render(
         request,
         "curation/edit_diff.html",
@@ -2478,7 +2553,7 @@ def edit_diff(request, edit_id):
             "game": edit.game,
             "history": curation,
             "curation": curation,
-            "show_actions": edit.status == GameRevision.Status.PROPOSED,
+            "show_actions": is_proposed,
             "settled_action": _settled_edit_action(
                 edit, curation or edit.game
             ),
@@ -2491,10 +2566,9 @@ def edit_diff(request, edit_id):
                 and curation.auto_updates == GameCuration.AutoUpdate.ACCEPT
             ),
             "rows": build_diff(
-                edit.previous_canonical_text
-                if edit.previous_canonical_text is not None
-                else before,
+                diff_before,
                 edit.canonical_text,
+                pair_lines=not is_proposed,
             ),
         },
     )

@@ -15,6 +15,8 @@ class DiffRow:
     right_no: int | None
     left: list[Segment]
     right: list[Segment]
+    line_text: str = ""
+    default_checked: bool = True
 
 
 def _char_segments(
@@ -35,7 +37,9 @@ def _char_segments(
     return left, right
 
 
-def build_diff(before: str, after: str) -> list[DiffRow]:
+def build_diff(
+    before: str, after: str, *, pair_lines: bool = True
+) -> list[DiffRow]:
     before_lines = before.splitlines()
     after_lines = after.splitlines()
     rows = []
@@ -53,6 +57,8 @@ def build_diff(before: str, after: str) -> list[DiffRow]:
                         right_idx + 1,
                         [Segment(before_lines[left_idx], "equal")],
                         [Segment(after_lines[right_idx], "equal")],
+                        line_text=before_lines[left_idx],
+                        default_checked=True,
                     )
                 )
         elif tag == "delete":
@@ -63,6 +69,8 @@ def build_diff(before: str, after: str) -> list[DiffRow]:
                     None,
                     [Segment(before_lines[idx], "del")],
                     [],
+                    line_text=before_lines[idx],
+                    default_checked=False,
                 )
                 for idx in range(i1, i2)
             )
@@ -74,40 +82,78 @@ def build_diff(before: str, after: str) -> list[DiffRow]:
                     idx + 1,
                     [],
                     [Segment(after_lines[idx], "ins")],
+                    line_text=after_lines[idx],
+                    default_checked=True,
                 )
                 for idx in range(j1, j2)
             )
         else:
-            paired = min(i2 - i1, j2 - j1)
-            for offset in range(paired):
-                left_idx = i1 + offset
-                right_idx = j1 + offset
-                left, right = _char_segments(
-                    before_lines[left_idx], after_lines[right_idx]
-                )
-                rows.append(
-                    DiffRow(
-                        "replace", left_idx + 1, right_idx + 1, left, right
+            if pair_lines:
+                paired = min(i2 - i1, j2 - j1)
+                for offset in range(paired):
+                    left_idx = i1 + offset
+                    right_idx = j1 + offset
+                    left, right = _char_segments(
+                        before_lines[left_idx], after_lines[right_idx]
                     )
+                    rows.append(
+                        DiffRow(
+                            "replace",
+                            left_idx + 1,
+                            right_idx + 1,
+                            left,
+                            right,
+                            line_text=after_lines[right_idx],
+                            default_checked=True,
+                        )
+                    )
+                rows.extend(
+                    DiffRow(
+                        "delete",
+                        idx + 1,
+                        None,
+                        [Segment(before_lines[idx], "del")],
+                        [],
+                        line_text=before_lines[idx],
+                        default_checked=False,
+                    )
+                    for idx in range(i1 + paired, i2)
                 )
-            rows.extend(
-                DiffRow(
-                    "delete",
-                    idx + 1,
-                    None,
-                    [Segment(before_lines[idx], "del")],
-                    [],
+                rows.extend(
+                    DiffRow(
+                        "insert",
+                        None,
+                        idx + 1,
+                        [],
+                        [Segment(after_lines[idx], "ins")],
+                        line_text=after_lines[idx],
+                        default_checked=True,
+                    )
+                    for idx in range(j1 + paired, j2)
                 )
-                for idx in range(i1 + paired, i2)
-            )
-            rows.extend(
-                DiffRow(
-                    "insert",
-                    None,
-                    idx + 1,
-                    [],
-                    [Segment(after_lines[idx], "ins")],
+            else:
+                rows.extend(
+                    DiffRow(
+                        "delete",
+                        idx + 1,
+                        None,
+                        [Segment(before_lines[idx], "del")],
+                        [],
+                        line_text=before_lines[idx],
+                        default_checked=False,
+                    )
+                    for idx in range(i1, i2)
                 )
-                for idx in range(j1 + paired, j2)
-            )
+                rows.extend(
+                    DiffRow(
+                        "insert",
+                        None,
+                        idx + 1,
+                        [],
+                        [Segment(after_lines[idx], "ins")],
+                        line_text=after_lines[idx],
+                        default_checked=True,
+                    )
+                    for idx in range(j1, j2)
+                )
     return rows

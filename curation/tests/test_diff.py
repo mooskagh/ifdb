@@ -35,3 +35,45 @@ class BuildDiffTest(SimpleTestCase):
         self.assertEqual((rows[0].left_no, rows[0].right_no), (1, 1))
         self.assertTrue([seg for seg in rows[0].right if seg.kind == "ins"])
         self.assertTrue([seg for seg in rows[0].left if seg.kind == "del"])
+        self.assertEqual(rows[0].line_text, "hello crisp world")
+        self.assertTrue(rows[0].default_checked)
+
+    def test_pair_lines_false_splits_replace(self):
+        rows = build_diff(
+            "hello plain world", "hello crisp world", pair_lines=False
+        )
+
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0].tag, "delete")
+        self.assertEqual(rows[0].left_no, 1)
+        self.assertIsNone(rows[0].right_no)
+        self.assertEqual(rows[0].line_text, "hello plain world")
+        self.assertFalse(rows[0].default_checked)
+
+        self.assertEqual(rows[1].tag, "insert")
+        self.assertIsNone(rows[1].left_no)
+        self.assertEqual(rows[1].right_no, 1)
+        self.assertEqual(rows[1].line_text, "hello crisp world")
+        self.assertTrue(rows[1].default_checked)
+
+    def test_default_checked_and_line_text_on_mixed_diff(self):
+        before = "line1\nline2\nline3"
+        after = "line1\nline2_modified\nline4"
+        rows = build_diff(before, after, pair_lines=False)
+
+        # line1: equal
+        self.assertEqual(rows[0].tag, "equal")
+        self.assertEqual(rows[0].line_text, "line1")
+        self.assertTrue(rows[0].default_checked)
+
+        # line2, line3 deleted; line2_modified, line4 inserted
+        delete_rows = [r for r in rows if r.tag == "delete"]
+        insert_rows = [r for r in rows if r.tag == "insert"]
+        self.assertTrue(all(not r.default_checked for r in delete_rows))
+        self.assertTrue(all(r.default_checked for r in insert_rows))
+        self.assertEqual(
+            [r.line_text for r in delete_rows], ["line2", "line3"]
+        )
+        self.assertEqual(
+            [r.line_text for r in insert_rows], ["line2_modified", "line4"]
+        )

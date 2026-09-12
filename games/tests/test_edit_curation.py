@@ -654,3 +654,325 @@ class GameEditCurationViewTests(TestCase):
         self.assertEqual(
             game.published_revision.status, GameRevision.Status.ACCEPTED
         )
+
+    def test_edit_diff_approval_mode_renders_checkboxes(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        game = self._published_game("Game Title", "Game description")
+        GameCuration.objects.create(
+            game=game, state=GameCuration.State.SETTLED
+        )
+
+        proposed_text = (
+            '---\n- name: "Game Title"\n- tags:\n  - "tag1"\n---\nGame desc'
+        )
+        edit = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
+            canonical_text=proposed_text,
+        )
+
+        resp = self.client.get(reverse("curation_edit_diff", args=[edit.pk]))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode("utf-8")
+        self.assertIn('name="has_diff_checkboxes"', content)
+        self.assertIn('name="diff_row"', content)
+        self.assertIn("diff--interactive", content)
+        self.assertIn("diff-cell--action", content)
+
+        # In settled mode, checkboxes are not rendered
+        edit.status = GameRevision.Status.ACCEPTED
+        edit.published_at = now()
+        edit.published_by = self.user
+        edit.save(update_fields=["status", "published_at", "published_by"])
+
+        resp_settled = self.client.get(
+            reverse("curation_edit_diff", args=[edit.pk])
+        )
+        self.assertEqual(resp_settled.status_code, 200)
+        content_settled = resp_settled.content.decode("utf-8")
+        self.assertNotIn('name="has_diff_checkboxes"', content_settled)
+        self.assertNotIn('name="diff_row"', content_settled)
+        self.assertNotIn("diff--interactive", content_settled)
+
+    def test_accept_proposed_edit_with_default_checkboxes(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        game = self._published_game("Original Title", "Original desc")
+        GameCuration.objects.create(
+            game=game, state=GameCuration.State.NEEDS_ATTENTION
+        )
+
+        proposed_text = '---\n- name: "New Title"\n---\nOriginal desc'
+        edit = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
+            canonical_text=proposed_text,
+        )
+
+        # Fetch page to get default checked rows
+        resp = self.client.get(reverse("curation_edit_diff", args=[edit.pk]))
+        rows = resp.context["rows"]
+        default_checked_indices = [
+            str(i) for i, r in enumerate(rows) if r.default_checked
+        ]
+
+        post_data = {
+            "action": "accept",
+            "has_diff_checkboxes": "1",
+            "diff_row": default_checked_indices,
+            "next": "stay",
+        }
+        resp = self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]), post_data
+        )
+        self.assertEqual(resp.status_code, 302)
+
+        edit.refresh_from_db()
+        self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
+        # No extra revision created
+        self.assertEqual(GameRevision.objects.filter(game=game).count(), 2)
+        game.refresh_from_db()
+        self.assertEqual(game.title, "New Title")
+        self.assertEqual(game.published_revision, edit)
+
+    def test_accept_proposed_edit_with_modified_checkboxes_creates_correction(
+        self,
+    ):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        game = self._published_game("Original Title", "Original desc")
+        curation = GameCuration.objects.create(
+            game=game,
+            state=GameCuration.State.NEEDS_ATTENTION,
+            include_overrides={},
+            exclude_overrides={},
+        )
+
+        # Proposed edit adds tag1
+        proposed_text = (
+            '---\n- name: "Original Title"\n- tags:\n  - "tag1"\n---\n'
+            "Original desc"
+        )
+        edit = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
+            canonical_text=proposed_text,
+        )
+
+        resp = self.client.get(reverse("curation_edit_diff", args=[edit.pk]))
+        rows = resp.context["rows"]
+        # Uncheck the added tag1 lines so it reverts back to without tag1
+        checked_indices = [
+            str(i)
+            for i, r in enumerate(rows)
+            if r.default_checked
+            and "tag1" not in r.line_text
+            and "- tags:" not in r.line_text
+        ]
+
+        post_data = {
+            "action": "accept",
+            "has_diff_checkboxes": "1",
+            "diff_row": checked_indices,
+            "next": "stay",
+        }
+        resp = self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]), post_data
+        )
+        self.assertEqual(resp.status_code, 302)
+
+        edit.refresh_from_db()
+        self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
+
+        # A correction revision must have been created and auto-approved
+        correction = GameRevision.objects.filter(
+            game=game, origin=GameRevision.Origin.CORRECTION
+        ).first()
+        self.assertIsNotNone(correction)
+        self.assertEqual(correction.status, GameRevision.Status.ACCEPTED)
+        self.assertEqual(correction.published_by, self.user)
+        self.assertEqual(
+            correction.previous_canonical_text, edit.canonical_text
+        )
+
+        game.refresh_from_db()
+        self.assertEqual(game.published_revision, correction)
+        self.assertFalse(game.tags.filter(name="tag1").exists())
+
+        # Overrides should treat the correction as user edit:
+        # tag1 was present in edit.canonical_text and removed in correction,
+        # so it must be in exclude_overrides
+        curation.refresh_from_db()
+        self.assertIn("tags", curation.exclude_overrides)
+        self.assertEqual(curation.state, GameCuration.State.SETTLED)
+
+        # Redirected to the correction edit when next=stay
+        self.assertRedirects(
+            resp, reverse("curation_edit_diff", args=[correction.pk])
+        )
+
+    def test_accept_proposed_edit_restore_deleted_tag_creates_correction(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        # Game already has tag1
+        from games.models import GameTag, GameTagCategory
+
+        tag_cat = GameTagCategory.objects.get(symbolic_id="tag")
+        t1 = GameTag.objects.create(name="tag1", category=tag_cat)
+
+        # Build canonical with tag1
+        tag_line = f'  - ["tag", {t1.id}]  # "tag1"\n'
+        before_text = (
+            f'---\n- name: "Game Title"\n- tags:\n{tag_line}---\nDesc'
+        )
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Game Title",
+            description="Desc",
+            creation_time=now(),
+        )
+        game.tags.add(t1)
+        base_rev = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text=before_text,
+        )
+        game.published_revision = base_rev
+        game.save(update_fields=["published_revision"])
+
+        curation = GameCuration.objects.create(
+            game=game,
+            state=GameCuration.State.NEEDS_ATTENTION,
+            include_overrides={},
+            exclude_overrides={},
+        )
+
+        # Proposed edit deletes tag1
+        proposed_text = '---\n- name: "Game Title"\n---\nDesc'
+        edit = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
+            canonical_text=proposed_text,
+        )
+
+        resp = self.client.get(reverse("curation_edit_diff", args=[edit.pk]))
+        rows = resp.context["rows"]
+        # In this diff, tag1 and - tags: are delete rows
+        # (default_checked=False). We check them to restore them!
+        checked_indices = [str(i) for i in range(len(rows))]
+
+        post_data = {
+            "action": "accept",
+            "has_diff_checkboxes": "1",
+            "diff_row": checked_indices,
+            "next": "stay",
+        }
+        resp = self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]), post_data
+        )
+        self.assertEqual(resp.status_code, 302)
+
+        edit.refresh_from_db()
+        self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
+
+        correction = GameRevision.objects.filter(
+            game=game, origin=GameRevision.Origin.CORRECTION
+        ).first()
+        self.assertIsNotNone(correction)
+        self.assertEqual(correction.status, GameRevision.Status.ACCEPTED)
+
+        game.refresh_from_db()
+        self.assertEqual(game.published_revision, correction)
+        self.assertTrue(game.tags.filter(name="tag1").exists())
+
+        # Restoring tag1 adds it to include_overrides
+        curation.refresh_from_db()
+        self.assertIn("tags", curation.include_overrides)
+
+    def test_reject_proposed_edit_with_checkboxes_does_not_create_correction(
+        self,
+    ):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        game = self._published_game("Original Title", "Original desc")
+        GameCuration.objects.create(
+            game=game, state=GameCuration.State.NEEDS_ATTENTION
+        )
+
+        proposed_text = '---\n- name: "New Title"\n---\nOriginal desc'
+        edit = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
+            canonical_text=proposed_text,
+        )
+
+        post_data = {
+            "action": "reject",
+            "has_diff_checkboxes": "1",
+            "diff_row": ["0"],
+            "next": "stay",
+        }
+        resp = self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]), post_data
+        )
+        self.assertEqual(resp.status_code, 302)
+
+        edit.refresh_from_db()
+        self.assertEqual(edit.status, GameRevision.Status.REJECTED)
+        self.assertEqual(GameRevision.objects.filter(game=game).count(), 2)
+        game.refresh_from_db()
+        self.assertEqual(game.title, "Original Title")
+
+    def test_accept_proposed_edit_invalid_checkboxes_returns_bad_request(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        game = self._published_game("Original Title", "Original desc")
+        GameCuration.objects.create(
+            game=game, state=GameCuration.State.NEEDS_ATTENTION
+        )
+
+        proposed_text = (
+            '---\n- name: "New Title"\n- tags:\n  - "tag1"\n---\nOriginal desc'
+        )
+        edit = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
+            canonical_text=proposed_text,
+        )
+
+        resp = self.client.get(reverse("curation_edit_diff", args=[edit.pk]))
+        rows = resp.context["rows"]
+        # Keep everything except '- tags:', leaving indented '  - "tag1"'
+        bad_idx = [
+            str(i)
+            for i, r in enumerate(rows)
+            if r.line_text != "- tags:" and r.default_checked
+        ]
+
+        post_data = {
+            "action": "accept",
+            "has_diff_checkboxes": "1",
+            "diff_row": bad_idx,
+            "next": "stay",
+        }
+        resp = self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]), post_data
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("Некорректная правка", resp.content.decode("utf-8"))

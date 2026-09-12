@@ -1,10 +1,15 @@
-<div class="diff">
+<div class="diff{% if show_actions %} diff--interactive{% endif %}">
     {% for row in rows %}
-    <div class="diff-row diff-row--{{ row.tag }}">
+    <div class="diff-row diff-row--{{ row.tag }}{% if show_actions %}{% if row.default_checked %} diff-row--included{% else %} diff-row--excluded{% endif %}{% endif %}">
         <div class="diff-cell diff-cell--left">
             <span class="diff-line-no">{{ row.left_no|default_if_none:"" }}</span>
             <span class="diff-line-text">{% for seg in row.left %}<span class="diff-seg diff-seg--{{ seg.kind }}">{{ seg.text }}</span>{% endfor %}</span>
         </div>
+        {% if show_actions %}
+        <div class="diff-cell diff-cell--action">
+            <input type="checkbox" name="diff_row" value="{{ forloop.counter0 }}" form="curation-save-form"{% if row.default_checked %} checked{% endif %} title="Включить строку в итоговый документ">
+        </div>
+        {% endif %}
         <div class="diff-cell diff-cell--right">
             <span class="diff-line-no">{{ row.right_no|default_if_none:"" }}</span>
             <span class="diff-line-text">{% for seg in row.right %}<span class="diff-seg diff-seg--{{ seg.kind }}">{{ seg.text }}</span>{% endfor %}</span>
