@@ -13,8 +13,8 @@ from curation.models import (
     GameSource,
     GameSourceFetch,
 )
-from games.gameinfo import GameInfo, Tag
-from games.models import Game, GameRevision, GameTag, GameTagCategory
+from games.gameinfo import GameInfo, GameUrl, Tag
+from games.models import URL, Game, GameRevision, GameTag, GameTagCategory
 
 
 class ReconcileOverridesTest(TestCase):
@@ -43,6 +43,7 @@ class ReconcileOverridesTest(TestCase):
         self,
         title: str,
         tags: list[GameTag] | None = None,
+        urls: list[GameUrl] | None = None,
         include_overrides: dict[str, Any] | None = None,
         state: str = GameCuration.State.SETTLED,
     ) -> tuple[Game, GameCuration]:
@@ -59,6 +60,8 @@ class ReconcileOverridesTest(TestCase):
         info = GameInfo(name=title)
         for t in tags or []:
             info.tags.append(Tag(t.category.symbolic_id, None, t.id, None))
+        for u in urls or []:
+            info.urls.append(u)
         _, canonical = info.save(game)
         rev = GameRevision.objects.create(
             game=game,
@@ -222,3 +225,38 @@ Description"""
         self.assertIn("Inspected:         1", out.getvalue())
         curation2.refresh_from_db()
         self.assertEqual(curation2.state, GameCuration.State.SETTLED)
+
+    def test_front_matter_unchanged_with_different_source_url_description(
+        self,
+    ) -> None:
+        url_obj = URL.objects.create(
+            original_url="https://www.youtube.com/watch?v=6EN50Fn1nWk",
+            creation_date=timezone.now(),
+        )
+        game, curation = self._create_game(
+            "Original Title",
+            urls=[
+                GameUrl(
+                    category="video",
+                    url_id=url_obj.id,
+                    description="Видео прохождения",
+                    url=None,
+                )
+            ],
+            include_overrides={},
+        )
+        source_canonical = f"""---
+- name: "Original Title"
+- urls:
+  - ["video", "Видео прохождения от Адженты", "{url_obj.original_url}"]
+---
+Description"""
+        self._add_source_fetch(game, source_canonical)
+
+        out = StringIO()
+        call_command("reconcile_overrides", stdout=out)
+
+        curation.refresh_from_db()
+        self.assertEqual(curation.state, GameCuration.State.SETTLED)
+        self.assertIn("Unchanged:         1", out.getvalue())
+        self.assertIn("Enqueued:          0", out.getvalue())
