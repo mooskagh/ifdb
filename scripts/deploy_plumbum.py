@@ -473,9 +473,19 @@ class DeployCommand(cli.Application):
     """Deploy application"""
 
     hot = cli.Flag("--hot", help="Hot deployment without downtime")
+    superhot = cli.Flag(
+        "--superhot",
+        help=(
+            "Hot deployment without downtime and without restarting celery"
+            " workers"
+        ),
+    )
     from_master = cli.Flag("--from-master", help="Deploy from master branch")
 
     def main(self):
+        if self.superhot:
+            self.hot = True
+
         p = Pipeline()
         p.start = self.parent.start
         p.list_only = self.parent.list_only
@@ -531,8 +541,9 @@ class DeployCommand(cli.Application):
             )
             p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-uwsgi-zok"))
 
-        p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-celery-beat"))
-        p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-celery"))
+        if not self.superhot:
+            p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-celery-beat"))
+            p.AddStep(RunCmdStep("sudo /bin/systemctl stop ifdb-celery"))
 
         if not self.hot:
             p.AddStep(
@@ -582,8 +593,9 @@ class DeployCommand(cli.Application):
                 RunCmdStep("sudo /bin/systemctl start ifdb-uwsgi-kontigr")
             )
             p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-uwsgi-zok"))
-        p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-celery"))
-        p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-celery-beat"))
+        if not self.superhot:
+            p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-celery"))
+            p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-celery-beat"))
 
         if not self.hot:
             p.AddStep(
@@ -647,8 +659,11 @@ class DeployCommand(cli.Application):
         p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-uwsgi"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-uwsgi-kontigr"))
         p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-uwsgi-zok"))
-        p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-celery"))
-        p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-celery-beat"))
+        if not self.superhot:
+            p.AddStep(RunCmdStep("sudo /bin/systemctl restart ifdb-celery"))
+            p.AddStep(
+                RunCmdStep("sudo /bin/systemctl restart ifdb-celery-beat")
+            )
 
         if self.from_master:
             p.AddStep(RunCmdStep("git fetch . release:master"))
