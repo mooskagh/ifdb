@@ -184,7 +184,15 @@ def FindRilarhivRow(raw, listing_url, target):
 
 def RilarhivRowToImporterDict(row, include_all_urls=True):
     platform = RILARHIV_LISTINGS[row.listing_link]
-    info = PARENTH_RE.sub(" ", row.info)
+    info = re.sub(r"/[^/]+/?", " ", row.info)
+    release_date = None
+    year_match = YEAR_RE.search(info)
+    if year_match:
+        release_date = year_match.group("year")
+        info = info[: year_match.start()] + info[year_match.end() :]
+
+    info = PARENTH_RE.sub(" ", info)
+    info = re.sub(r"\bскачать\b", "", info, flags=re.I)
     authors = AUTHOR_SEP.split(info)
     res = {
         "title": row.title,
@@ -192,10 +200,17 @@ def RilarhivRowToImporterDict(row, include_all_urls=True):
         "tags": [],
         "urls": row.urls if include_all_urls else row.urls[:1],
     }
+    if release_date:
+        res["release_date"] = release_date
 
     for a in authors:
-        name = unescape(a).strip()
+        name = unescape(a).strip().strip(",")
         if not name:
+            continue
+        ym = YEAR_RE.fullmatch(name)
+        if ym:
+            if not release_date:
+                res["release_date"] = ym.group("year")
             continue
         res["authors"].append({
             "role_slug": "author",
@@ -269,5 +284,8 @@ ROOT_RE = re.compile(
     r"</a></b>(?:[^<]*(?:<b>\[([^\]]+)]</b>))?"
 )
 BRACKET_PLATFORM_RE = re.compile(r"<b>\[([^\]]+)]</b>", re.I)
-PARENTH_RE = re.compile(r"\s*(?:\([^)]+\)|/\S+/)\s*")
+PARENTH_RE = re.compile(r"\s*(?:\([^)]+\)|/[^/]+/)\s*")
 AUTHOR_SEP = re.compile(r", | и ")
+YEAR_RE = re.compile(
+    r"(?<![-\w])\(?(?P<year>19\d\d|20\d\d)(?:\s*(?:г(?:\.|од[а-я]*)?))?\)?(?![-\w])"
+)

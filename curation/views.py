@@ -2997,7 +2997,19 @@ def _reject_edit(edit, curation, before, user):
             game.abandon(user)
             return
         curation.state = GameCuration.State.SETTLED
-        curation.save(update_fields=["state", "note"])
+        before_info = parse(before) if before else GameInfo()
+        after_info = (
+            parse(edit.canonical_text) if edit.canonical_text else GameInfo()
+        )
+        update_overrides_from_diff(curation, after_info, before_info)
+        curation.save(
+            update_fields=[
+                "state",
+                "note",
+                "include_overrides",
+                "exclude_overrides",
+            ]
+        )
     elif game.state == Game.State.DRAFT:
         game.abandon(user)
 
