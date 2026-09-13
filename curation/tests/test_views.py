@@ -504,6 +504,46 @@ class HistoryListViewTest(TestCase):
         )
         self.assertContains(response, '<option value="relevance" selected>')
 
+    def test_history_list_sorts_by_last_action(self):
+        ts = timezone.now()
+
+        g1 = self._create_history(
+            "Game 1", ts, state=GameCuration.State.SETTLED
+        )
+        edit1 = self._create_edit(g1, ts, status=GameRevision.Status.ACCEPTED)
+        edit1.published_at = ts + timezone.timedelta(days=1)
+        edit1.save(update_fields=["published_at"])
+
+        g2 = self._create_history(
+            "Game 2",
+            ts + timezone.timedelta(days=2),
+            state=GameCuration.State.SETTLED,
+        )
+
+        g3 = self._create_history(
+            "Game 3", ts, state=GameCuration.State.SETTLED
+        )
+        edit3 = self._create_edit(g3, ts, status=GameRevision.Status.REJECTED)
+        edit3.published_at = ts + timezone.timedelta(days=3)
+        edit3.save(update_fields=["published_at"])
+
+        g4 = self._create_history(
+            "Game 4", ts, state=GameCuration.State.NEEDS_ATTENTION
+        )
+        self._create_edit(
+            g4,
+            ts + timezone.timedelta(days=4),
+            status=GameRevision.Status.PROPOSED,
+        )
+
+        response = self.client.get("/curation/", {"sort": "action"})
+
+        self.assertEqual(
+            list(response.context["histories"]),
+            [g4, g3, g2, g1],
+        )
+        self.assertContains(response, '<option value="action" selected>')
+
     def test_history_list_filters_by_name(self):
         ts = timezone.now()
         self._create_history(
