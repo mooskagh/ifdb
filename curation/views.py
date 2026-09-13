@@ -2568,8 +2568,60 @@ def edit_diff(request, edit_id):
                 edit.canonical_text,
                 pair_lines=not is_proposed,
             ),
+            "edit_sources": _get_sources_for_edit(edit),
         },
     )
+
+
+def _get_sources_for_edit(
+    edit: GameRevision,
+) -> list[dict[str, GameSource | GameSourceFetch | None]]:
+    game_sources = list(
+        GameSource.objects.filter(game=edit.game).order_by("type", "pk")
+    )
+    used_fetches = list(edit.used_sources.select_related("source").all())
+    used_fetch_by_source = {f.source_id: f for f in used_fetches}
+
+    seen_source_ids = {s.pk for s in game_sources}
+    all_sources = list(game_sources)
+    for f in used_fetches:
+        if f.source_id not in seen_source_ids:
+            all_sources.append(f.source)
+            seen_source_ids.add(f.source_id)
+
+    sources_needing_fetch = [
+        s for s in all_sources if s.pk not in used_fetch_by_source
+    ]
+    fetch_by_source: dict[int, GameSourceFetch] = dict(used_fetch_by_source)
+    if sources_needing_fetch:
+        needed_ids = [s.pk for s in sources_needing_fetch]
+        all_fetches = list(
+            GameSourceFetch.objects.filter(source_id__in=needed_ids).order_by(
+                "source_id", "-first_fetch", "-pk"
+            )
+        )
+        fetches_by_source_id: dict[int, list[GameSourceFetch]] = defaultdict(
+            list
+        )
+        for f in all_fetches:
+            fetches_by_source_id[f.source_id].append(f)
+
+        for s in sources_needing_fetch:
+            s_fetches = fetches_by_source_id.get(s.pk, [])
+            chosen_fetch = None
+            if edit.created_at:
+                for f in s_fetches:
+                    if f.first_fetch <= edit.created_at:
+                        chosen_fetch = f
+                        break
+            if not chosen_fetch and s_fetches:
+                chosen_fetch = s_fetches[0]
+            if chosen_fetch:
+                fetch_by_source[s.pk] = chosen_fetch
+
+    return [
+        {"source": s, "fetch": fetch_by_source.get(s.pk)} for s in all_sources
+    ]
 
 
 def _edit_before_canonical(edit: GameRevision) -> str:

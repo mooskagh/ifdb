@@ -143,3 +143,34 @@
 
 {% include "curation/_diff.html" %}
 {% endblock %}
+
+{% block curation_sidebar %}
+<div class="card card--brown">
+    <div class="card--header">Источники</div>
+    <div class="card--listbody">
+        {% for item in edit_sources %}
+        <div class="curation-sidebar-source">
+            <div>
+                <a href="{% url 'curation_source_detail' item.source.pk %}"><strong>{{ item.source.get_type_display }} #{{ item.source.pk }}</strong></a>
+            </div>
+            {% if item.source.url %}
+            <div class="curation-meta">
+                <a href="{{ item.source.url }}" target="_blank" rel="noopener noreferrer">{{ item.source.url }}</a>
+            </div>
+            {% endif %}
+            {% if item.fetch %}
+            <div class="curation-meta">
+                {{ item.fetch.last_fetch|date:"d.m.Y H:i" }}:
+                <a href="{% url 'curation_source_fetch_content' item.fetch.pk 'canonical' %}">canonical</a> /
+                <a href="{% url 'curation_source_fetch_content' item.fetch.pk 'raw' %}">raw</a>
+            </div>
+            {% else %}
+            <div class="curation-meta">Загрузок нет</div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div class="curation-meta">Источников нет.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
