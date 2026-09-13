@@ -334,6 +334,11 @@ RILARHIV_EXTERNAL_HTML = """
 TARGET="_blank">"Драконий остров" (Шушкарт; UrqW)</a></b></P>
 """
 
+RILARHIV_SPECTRUM_HTML = """
+<P><b><a href="spectrum/APOLLO.rar">"APOLLO" Jokersoft, 1996</a></b>
+(63 Кбайт) </P>
+"""
+
 
 class RilarhivProviderTest(ProviderTestBase):
     qsp_url = "http://rilarhiv.ru/qsp.htm#qsp%2FBattle.rar"
@@ -350,6 +355,28 @@ class RilarhivProviderTest(ProviderTestBase):
             ["http://rilarhiv.ru/qsp/Battle.rar"],
         )
         self.assert_round_trips(info)
+
+    def test_canonicalize_row_with_release_date(self):
+        info = RilarhivProvider().canonicalize(
+            RILARHIV_SPECTRUM_HTML,
+            "http://rilarhiv.ru/spectrum.htm#spectrum%2FAPOLLO.rar",
+        )
+
+        self.assertEqual(info.name, "APOLLO")
+        self.assertEqual(info.date, "1996")
+        self.assertEqual(self._person_names(info, "author"), ["Jokersoft"])
+        self.assertIn("ZX Spectrum", self._tag_texts(info))
+        self.assertIn("download_direct", self._url_cats(info))
+        self.assertEqual(
+            [u.url for u in info.urls],
+            ["http://rilarhiv.ru/spectrum/APOLLO.rar"],
+        )
+        self.assert_round_trips(info)
+        canonical = info.to_canonical()
+        self.assertIn('- release_date: "1996"\n', canonical)
+        self.assertNotIn(
+            "1996", [p.name for p in info.personalities.get("author", [])]
+        )
 
     def test_canonicalize_includes_secondary_online_link(self):
         info = RilarhivProvider().canonicalize(
