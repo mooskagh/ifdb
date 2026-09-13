@@ -15,8 +15,16 @@ class DiffRow:
     right_no: int | None
     left: list[Segment]
     right: list[Segment]
-    line_text: str = ""
-    default_checked: bool = True
+    left_text: str = ""
+    right_text: str = ""
+
+    @property
+    def line_text(self) -> str:
+        return self.right_text or self.left_text
+
+    @property
+    def default_checked(self) -> bool:
+        return self.tag != "delete"
 
 
 def _char_segments(
@@ -57,8 +65,8 @@ def build_diff(
                         right_idx + 1,
                         [Segment(before_lines[left_idx], "equal")],
                         [Segment(after_lines[right_idx], "equal")],
-                        line_text=before_lines[left_idx],
-                        default_checked=True,
+                        left_text=before_lines[left_idx],
+                        right_text=after_lines[right_idx],
                     )
                 )
         elif tag == "delete":
@@ -69,8 +77,8 @@ def build_diff(
                     None,
                     [Segment(before_lines[idx], "del")],
                     [],
-                    line_text=before_lines[idx],
-                    default_checked=False,
+                    left_text=before_lines[idx],
+                    right_text="",
                 )
                 for idx in range(i1, i2)
             )
@@ -82,8 +90,8 @@ def build_diff(
                     idx + 1,
                     [],
                     [Segment(after_lines[idx], "ins")],
-                    line_text=after_lines[idx],
-                    default_checked=True,
+                    left_text="",
+                    right_text=after_lines[idx],
                 )
                 for idx in range(j1, j2)
             )
@@ -103,8 +111,8 @@ def build_diff(
                             right_idx + 1,
                             left,
                             right,
-                            line_text=after_lines[right_idx],
-                            default_checked=True,
+                            left_text=before_lines[left_idx],
+                            right_text=after_lines[right_idx],
                         )
                     )
                 rows.extend(
@@ -114,8 +122,8 @@ def build_diff(
                         None,
                         [Segment(before_lines[idx], "del")],
                         [],
-                        line_text=before_lines[idx],
-                        default_checked=False,
+                        left_text=before_lines[idx],
+                        right_text="",
                     )
                     for idx in range(i1 + paired, i2)
                 )
@@ -126,8 +134,8 @@ def build_diff(
                         idx + 1,
                         [],
                         [Segment(after_lines[idx], "ins")],
-                        line_text=after_lines[idx],
-                        default_checked=True,
+                        left_text="",
+                        right_text=after_lines[idx],
                     )
                     for idx in range(j1 + paired, j2)
                 )
@@ -139,8 +147,8 @@ def build_diff(
                         None,
                         [Segment(before_lines[idx], "del")],
                         [],
-                        line_text=before_lines[idx],
-                        default_checked=False,
+                        left_text=before_lines[idx],
+                        right_text="",
                     )
                     for idx in range(i1, i2)
                 )
@@ -151,8 +159,8 @@ def build_diff(
                         idx + 1,
                         [],
                         [Segment(after_lines[idx], "ins")],
-                        line_text=after_lines[idx],
-                        default_checked=True,
+                        left_text="",
+                        right_text=after_lines[idx],
                     )
                     for idx in range(j1, j2)
                 )

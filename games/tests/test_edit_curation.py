@@ -664,7 +664,7 @@ class GameEditCurationViewTests(TestCase):
         )
 
         proposed_text = (
-            '---\n- name: "Game Title"\n- tags:\n  - "tag1"\n---\nGame desc'
+            '---\n- name: "Updated Title"\n- tags:\n  - "tag1"\n---\nGame desc'
         )
         edit = GameRevision.objects.create(
             game=game,
@@ -678,9 +678,11 @@ class GameEditCurationViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         content = resp.content.decode("utf-8")
         self.assertIn('name="has_diff_checkboxes"', content)
-        self.assertIn('name="diff_row"', content)
+        self.assertIn("diff_row_", content)
         self.assertIn("diff--interactive", content)
         self.assertIn("diff-cell--action", content)
+        self.assertIn("diff-check--left", content)
+        self.assertIn("diff-check--right", content)
 
         # In settled mode, checkboxes are not rendered
         edit.status = GameRevision.Status.ACCEPTED
@@ -694,7 +696,7 @@ class GameEditCurationViewTests(TestCase):
         self.assertEqual(resp_settled.status_code, 200)
         content_settled = resp_settled.content.decode("utf-8")
         self.assertNotIn('name="has_diff_checkboxes"', content_settled)
-        self.assertNotIn('name="diff_row"', content_settled)
+        self.assertNotIn("diff_row_", content_settled)
         self.assertNotIn("diff--interactive", content_settled)
 
     def test_accept_proposed_edit_with_default_checkboxes(self):
@@ -976,3 +978,137 @@ class GameEditCurationViewTests(TestCase):
         )
         self.assertEqual(resp.status_code, 400)
         self.assertIn("Некорректная правка", resp.content.decode("utf-8"))
+
+    def test_accept_proposed_edit_replace_row_take_left(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        game = self._published_game("Original Title", "Original desc")
+        GameCuration.objects.create(
+            game=game, state=GameCuration.State.NEEDS_ATTENTION
+        )
+
+        proposed_text = '---\n- name: "Modified Title"\n---\nOriginal desc'
+        edit = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
+            canonical_text=proposed_text,
+        )
+
+        resp = self.client.get(reverse("curation_edit_diff", args=[edit.pk]))
+        rows = resp.context["rows"]
+        replace_idx = next(i for i, r in enumerate(rows) if r.tag == "replace")
+
+        post_data = {
+            "action": "accept",
+            "has_diff_checkboxes": "1",
+            "next": "stay",
+        }
+        for i, r in enumerate(rows):
+            if r.tag == "equal":
+                post_data[f"diff_row_{i}"] = "equal"
+            elif i == replace_idx:
+                post_data[f"diff_row_{i}"] = "left"
+            elif r.tag in ("insert", "replace"):
+                post_data[f"diff_row_{i}"] = "right"
+
+        resp = self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]), post_data
+        )
+        self.assertEqual(resp.status_code, 302)
+
+        edit.refresh_from_db()
+        self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
+
+        correction = GameRevision.objects.filter(
+            game=game, origin=GameRevision.Origin.CORRECTION
+        ).first()
+        self.assertIsNotNone(correction)
+        self.assertEqual(correction.status, GameRevision.Status.ACCEPTED)
+        self.assertIn('name: "Original Title"', correction.canonical_text)
+
+        game.refresh_from_db()
+        self.assertEqual(game.published_revision, correction)
+        self.assertEqual(game.title, "Original Title")
+
+    def test_accept_proposed_edit_replace_row_take_none(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        from games.models import GameTag, GameTagCategory
+
+        tag_cat = GameTagCategory.objects.get(symbolic_id="tag")
+        t1 = GameTag.objects.create(name="tag1", category=tag_cat)
+        t2 = GameTag.objects.create(name="tag2", category=tag_cat)
+
+        before_text = (
+            f'---\n- name: "Game Title"\n- tags:\n'
+            f'  - ["tag", {t1.id}]  # "tag1"\n'
+            f'  - ["tag", {t2.id}]  # "tag2"\n---\nDesc'
+        )
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Game Title",
+            description="Desc",
+            creation_time=now(),
+        )
+        game.tags.add(t1, t2)
+        base_rev = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text=before_text,
+        )
+        game.published_revision = base_rev
+        game.save(update_fields=["published_revision"])
+
+        GameCuration.objects.create(
+            game=game,
+            state=GameCuration.State.NEEDS_ATTENTION,
+            include_overrides={},
+            exclude_overrides={},
+        )
+
+        proposed_text = (
+            f'---\n- name: "Game Title"\n- tags:\n'
+            f'  - ["tag", {t1.id}]  # "tag1_modified"\n'
+            f'  - ["tag", {t2.id}]  # "tag2"\n---\nDesc'
+        )
+        edit = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
+            canonical_text=proposed_text,
+        )
+
+        resp = self.client.get(reverse("curation_edit_diff", args=[edit.pk]))
+        rows = resp.context["rows"]
+        replace_idx = next(i for i, r in enumerate(rows) if r.tag == "replace")
+
+        post_data = {
+            "action": "accept",
+            "has_diff_checkboxes": "1",
+            "next": "stay",
+        }
+        for i, r in enumerate(rows):
+            if r.tag == "equal":
+                post_data[f"diff_row_{i}"] = "equal"
+            elif i == replace_idx:
+                pass  # take none: neither left nor right
+            elif r.tag in ("insert", "replace"):
+                post_data[f"diff_row_{i}"] = "right"
+
+        resp = self.client.post(
+            reverse("curation_edit_diff", args=[edit.pk]), post_data
+        )
+        self.assertEqual(resp.status_code, 302)
+
+        correction = GameRevision.objects.filter(
+            game=game, origin=GameRevision.Origin.CORRECTION
+        ).first()
+        self.assertIsNotNone(correction)
+        self.assertNotIn("tag1", correction.canonical_text)
+        self.assertIn("tag2", correction.canonical_text)

@@ -3780,12 +3780,13 @@ progress.curation-scan-progress-bar {
 }
 
 .diff--interactive .diff-row {
-    grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 50px minmax(0, 1fr);
 }
 .diff-cell--action {
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 4px;
     background: var(--diff-gutter-bg);
     border-right: 1px solid var(--diff-border);
     user-select: none;
@@ -3796,6 +3797,7 @@ progress.curation-scan-progress-bar {
     width: 15px;
     height: 15px;
 }
+.diff-cell--excluded .diff-line-text,
 .diff-row--excluded .diff-line-text {
     opacity: 0.45;
     text-decoration: line-through;
@@ -3806,7 +3808,7 @@ progress.curation-scan-progress-bar {
         grid-template-columns: 1fr;
     }
     .diff--interactive .diff-row {
-        grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) 50px minmax(0, 1fr);
     }
     .diff-cell--left {
         border-right: none;
