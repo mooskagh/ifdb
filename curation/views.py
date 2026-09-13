@@ -2445,6 +2445,18 @@ def edit_diff(request, edit_id):
                     return HttpResponseBadRequest(str(e))
             return redirect("curation_edit_diff", edit_id=new_edit.pk)
 
+        if action == "skip":
+            if edit.status != GameRevision.Status.PROPOSED:
+                return HttpResponseBadRequest(
+                    "Only proposed edits can be skipped."
+                )
+            return _redirect_after_edit(
+                request.POST.get("next"),
+                edit,
+                curation or edit.game,
+                current_edit_id=edit.pk,
+            )
+
         if action not in {"accept", "reject"}:
             return HttpResponseBadRequest("Unknown edit action.")
         if edit.status != GameRevision.Status.PROPOSED:
@@ -2580,11 +2592,19 @@ def edit_diff(request, edit_id):
             else:
                 _reject_edit(edit, curation, before, request.user)
         return _redirect_after_edit(
-            request.POST.get("next"), final_edit, curation or edit.game
+            request.POST.get("next"),
+            final_edit,
+            curation or edit.game,
+            current_edit_id=edit.pk,
         )
 
     is_proposed = edit.status == GameRevision.Status.PROPOSED
     diff_before = _edit_before_canonical(edit)
+    has_next_edit = (
+        _get_next_unresolved_edit_id(edit.pk) is not None
+        if is_proposed
+        else False
+    )
     return render(
         request,
         "curation/edit_diff.html",
@@ -2594,6 +2614,7 @@ def edit_diff(request, edit_id):
             "history": curation,
             "curation": curation,
             "show_actions": is_proposed,
+            "has_next_edit": has_next_edit,
             "settled_action": _settled_edit_action(
                 edit, curation or edit.game
             ),
@@ -2856,8 +2877,35 @@ def _previous_applied_edit(edit):
     return previous
 
 
-def _redirect_after_edit(next_page, edit, target):
+def _get_next_unresolved_edit_id(current_edit_id: int) -> int | None:
+    unresolved = GameRevision.objects.filter(
+        status=GameRevision.Status.PROPOSED
+    ).exclude(pk=current_edit_id)
+    next_id = (
+        unresolved
+        .filter(pk__lt=current_edit_id)
+        .order_by("-pk")
+        .values_list("pk", flat=True)
+        .first()
+    )
+    if next_id is not None:
+        return next_id
+    return unresolved.order_by("-pk").values_list("pk", flat=True).first()
+
+
+def _redirect_after_edit(
+    next_page: str | None,
+    edit: GameRevision,
+    target: GameCuration | Game,
+    current_edit_id: int | None = None,
+) -> HttpResponse:
     game = getattr(target, "game", target)
+    if next_page == "next_edit":
+        ref_id = current_edit_id if current_edit_id is not None else edit.pk
+        next_id = _get_next_unresolved_edit_id(ref_id)
+        if next_id is not None:
+            return redirect("curation_edit_diff", edit_id=next_id)
+        return redirect("curation_history_list")
     if next_page == "edit_game" and game.state == Game.State.PUBLISHED:
         return redirect("edit_game", game_id=game.pk)
     if next_page == "game" and game.state == Game.State.PUBLISHED:
