@@ -35,6 +35,7 @@
                 <select id="curation-history-sort" name="sort">
                     <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>По актуальности</option>
                     <option value="updated" {% if sort == "updated" %}selected{% endif %}>По обновлению</option>
+                    <option value="action" {% if sort == "action" %}selected{% endif %}>По действиям модератора</option>
                 </select>
             </div>
             <button type="submit">Показать</button>

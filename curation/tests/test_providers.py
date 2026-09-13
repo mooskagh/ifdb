@@ -339,6 +339,12 @@ RILARHIV_SPECTRUM_HTML = """
 (63 Кбайт) </P>
 """
 
+RILARHIV_TRANSLATION_HTML = """
+<P><b><a href="rinform/TangleR.rar">"Spider And Web"
+Andrew Plotkin, 1998 год /перевод Всеволода Зубарева, 2009 г./</a></b>
+(151 Кбайт) </P>
+"""
+
 
 class RilarhivProviderTest(ProviderTestBase):
     qsp_url = "http://rilarhiv.ru/qsp.htm#qsp%2FBattle.rar"
@@ -377,6 +383,27 @@ class RilarhivProviderTest(ProviderTestBase):
         self.assertNotIn(
             "1996", [p.name for p in info.personalities.get("author", [])]
         )
+
+    def test_canonicalize_row_ignores_translation_date(self):
+        info = RilarhivProvider().canonicalize(
+            RILARHIV_TRANSLATION_HTML,
+            "http://rilarhiv.ru/rinform.htm#rinform%2FTangleR.rar",
+        )
+
+        self.assertEqual(info.name, "Spider And Web")
+        self.assertEqual(info.date, "1998")
+        self.assertEqual(
+            self._person_names(info, "author"), ["Andrew Plotkin"]
+        )
+        self.assertIn("Rinform", self._tag_texts(info))
+        self.assertEqual(
+            [u.url for u in info.urls],
+            ["http://rilarhiv.ru/rinform/TangleR.rar"],
+        )
+        self.assert_round_trips(info)
+        canonical = info.to_canonical()
+        self.assertIn('- release_date: "1998"\n', canonical)
+        self.assertNotIn("2009", canonical)
 
     def test_canonicalize_includes_secondary_online_link(self):
         info = RilarhivProvider().canonicalize(

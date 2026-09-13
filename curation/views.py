@@ -411,6 +411,19 @@ def history_list(request):
 
     if sort == "updated":
         histories = histories.order_by("-updated")
+    elif sort == "action":
+        latest_revision_action = (
+            GameRevision.objects
+            .filter(game=OuterRef("game_id"))
+            .annotate(action_at=Coalesce("published_at", "created_at"))
+            .order_by("-action_at", "-pk")
+        )
+        histories = histories.annotate(
+            last_action=Coalesce(
+                Subquery(latest_revision_action.values("action_at")[:1]),
+                "updated",
+            )
+        ).order_by("-last_action", "-pk")
     else:
         sort = "relevance"
         histories = histories.annotate(

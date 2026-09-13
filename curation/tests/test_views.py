@@ -504,6 +504,46 @@ class HistoryListViewTest(TestCase):
         )
         self.assertContains(response, '<option value="relevance" selected>')
 
+    def test_history_list_sorts_by_last_action(self):
+        ts = timezone.now()
+
+        g1 = self._create_history(
+            "Game 1", ts, state=GameCuration.State.SETTLED
+        )
+        edit1 = self._create_edit(g1, ts, status=GameRevision.Status.ACCEPTED)
+        edit1.published_at = ts + timezone.timedelta(days=1)
+        edit1.save(update_fields=["published_at"])
+
+        g2 = self._create_history(
+            "Game 2",
+            ts + timezone.timedelta(days=2),
+            state=GameCuration.State.SETTLED,
+        )
+
+        g3 = self._create_history(
+            "Game 3", ts, state=GameCuration.State.SETTLED
+        )
+        edit3 = self._create_edit(g3, ts, status=GameRevision.Status.REJECTED)
+        edit3.published_at = ts + timezone.timedelta(days=3)
+        edit3.save(update_fields=["published_at"])
+
+        g4 = self._create_history(
+            "Game 4", ts, state=GameCuration.State.NEEDS_ATTENTION
+        )
+        self._create_edit(
+            g4,
+            ts + timezone.timedelta(days=4),
+            status=GameRevision.Status.PROPOSED,
+        )
+
+        response = self.client.get("/curation/", {"sort": "action"})
+
+        self.assertEqual(
+            list(response.context["histories"]),
+            [g4, g3, g2, g1],
+        )
+        self.assertContains(response, '<option value="action" selected>')
+
     def test_history_list_filters_by_name(self):
         ts = timezone.now()
         self._create_history(
@@ -1040,6 +1080,7 @@ class HistoryReconcileViewTest(TestCase):
             ],
             "description": game.description if game else "",
             "delete": False,
+            "clear_overrides": False,
             "sources": [{"id": source.pk} for source in sources],
         }
 
@@ -1203,6 +1244,62 @@ class HistoryReconcileViewTest(TestCase):
                 new_id=moving.pk,
             ).exists()
         )
+
+    def test_reconcile_clears_overrides(self):
+        history = self._history()
+        game = history.game
+        rev = GameRevision.objects.create(
+            game=game,
+            status=GameRevision.Status.ACCEPTED,
+            created_at=self.now,
+            published_at=self.now,
+            canonical_text=GameInfo(
+                name=game.title, description=game.description
+            ).to_canonical(),
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
+        history.include_overrides = {"tags": [["cat", 1]]}
+        history.exclude_overrides = {"urls": [1]}
+        history.save(update_fields=["include_overrides", "exclude_overrides"])
+
+        col = self._column(history)
+        col["clear_overrides"] = True
+
+        response = self._post(history, [col])
+        self.assertEqual(response.status_code, 200)
+
+        history.refresh_from_db()
+        self.assertEqual(history.include_overrides, {})
+        self.assertEqual(history.exclude_overrides, {})
+
+    def test_reconcile_preserves_overrides_when_not_cleared(self):
+        history = self._history()
+        game = history.game
+        rev = GameRevision.objects.create(
+            game=game,
+            status=GameRevision.Status.ACCEPTED,
+            created_at=self.now,
+            published_at=self.now,
+            canonical_text=GameInfo(
+                name=game.title, description=game.description
+            ).to_canonical(),
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
+        history.include_overrides = {"tags": [["cat", 1]]}
+        history.exclude_overrides = {"urls": [1]}
+        history.save(update_fields=["include_overrides", "exclude_overrides"])
+
+        col = self._column(history)
+        col["clear_overrides"] = False
+
+        response = self._post(history, [col])
+        self.assertEqual(response.status_code, 200)
+
+        history.refresh_from_db()
+        self.assertEqual(history.include_overrides, {"tags": [["cat", 1]]})
+        self.assertEqual(history.exclude_overrides, {"urls": [1]})
 
     def test_reconcile_blocks_deleting_game_with_contest_references(self):
         history = self._history()

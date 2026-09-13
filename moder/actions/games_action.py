@@ -1,6 +1,8 @@
 import copy
 from html import escape
+from typing import Any
 
+from django import forms
 from django.urls import reverse
 from django.utils.timezone import now
 
@@ -120,16 +122,103 @@ class GameAdminzAction(GameAction):
 class GameDeleteAction(GameAction):
     TITLE = "Удалить"
 
+    class Form(forms.Form):
+        keep_orphans = forms.BooleanField(
+            required=False,
+            initial=True,
+            label="Оставить источники сиротами",
+        )
+        redirect_to = forms.IntegerField(
+            required=False,
+            min_value=1,
+            label="Перенаправить на игру (id)",
+            help_text="Опциональный ID игры для редиректа.",
+        )
+
+        def __init__(
+            self,
+            *args: Any,
+            current_game: Game | None = None,
+            **kwargs: Any,
+        ) -> None:
+            super().__init__(*args, **kwargs)
+            self.current_game = current_game
+
+        def clean_redirect_to(self) -> int | None:
+            target_id: int | None = self.cleaned_data.get("redirect_to")
+            if not target_id:
+                return None
+            if self.current_game and target_id == self.current_game.pk:
+                raise forms.ValidationError(
+                    "Нельзя перенаправить игру на саму себя."
+                )
+            try:
+                target_game = Game.objects.get(pk=target_id)
+            except Game.DoesNotExist:
+                raise forms.ValidationError(f"Игра #{target_id} не найдена.")
+            if target_game.state == Game.State.ABANDONED:
+                raise forms.ValidationError(
+                    f"Целевая игра #{target_id} удалена."
+                )
+
+            curr: Game | None = target_game
+            visited = {self.current_game.pk} if self.current_game else set()
+            while curr:
+                if curr.pk in visited:
+                    raise forms.ValidationError(
+                        "Обнаружен цикл перенаправлений."
+                    )
+                visited.add(curr.pk)
+                if curr.state == Game.State.REDIRECT and curr.redirect_to_id:
+                    curr = curr.redirect_to
+                else:
+                    break
+
+            return target_id
+
+    def GetForm(self, var: Any) -> Form:
+        return self.Form(var, current_game=self.obj)
+
     @classmethod
     def IsAllowed(cls, request, obj):
         return can_delete_game(request.user, obj)
 
     def DoAction(self, action, form, execute):
-        if execute:
-            self.obj.abandon(self.request.user)
-            return "Удалено!"
-        else:
-            return "Удалить эту игру?"
+        redirect_id = form.get("redirect_to")
+        keep_orphans = bool(form.get("keep_orphans", True))
+
+        target_game = None
+        if redirect_id:
+            try:
+                target_game = Game.objects.get(pk=redirect_id)
+            except Game.DoesNotExist:
+                pass
+
+        if not execute:
+            msg = "Удалить эту игру?"
+            details = []
+            if target_game:
+                details.append(
+                    f"Перенаправление на: #{target_game.id} "
+                    f"«{target_game.title}»"
+                )
+            if keep_orphans:
+                details.append("Оставить источники сиротами: да")
+            else:
+                details.append("Оставить источники сиротами: нет")
+            return msg + "\n" + "\n".join(details)
+
+        self.obj.abandon(
+            self.request.user,
+            keep_orphan=keep_orphans,
+            redirect_to=target_game,
+        )
+        if target_game:
+            return (
+                f"Удалено! Настроен редирект на #{target_game.id} "
+                f"«{target_game.title}»."
+            )
+        return "Удалено!"
 
 
 @RegisterAction

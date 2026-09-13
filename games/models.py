@@ -51,7 +51,13 @@ class Game(models.Model):
     objects = GameQuerySet.as_manager()
 
     @transaction.atomic
-    def abandon(self, actor: Any, *, keep_orphan: bool = False) -> None:
+    def abandon(
+        self,
+        actor: Any,
+        *,
+        keep_orphan: bool = False,
+        redirect_to: "Game | None" = None,
+    ) -> None:
         from curation.models import (
             GameCuration,
             GameHistoryAuditLog,
@@ -102,11 +108,22 @@ class Game(models.Model):
                     old_state,
                     curation.state,
                 )
+            if redirect_to is not None:
+                GameHistoryAuditLog.record_game_merge(
+                    game, actor, game, redirect_to
+                )
 
-        game.state = Game.State.ABANDONED
-        game.redirect_to = None
+        if redirect_to is not None:
+            game.state = Game.State.REDIRECT
+            game.redirect_to = redirect_to
+        else:
+            game.state = Game.State.ABANDONED
+            game.redirect_to = None
         game.edit_time = timestamp
         game.save(update_fields=["state", "redirect_to", "edit_time"])
+        self.state = game.state
+        self.redirect_to = game.redirect_to
+        self.edit_time = game.edit_time
 
     @transaction.atomic
     def publish_revision(

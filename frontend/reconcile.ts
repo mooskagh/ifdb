@@ -30,6 +30,7 @@ interface ColumnData {
   description_attributions: string[];
   description: string;
   delete: boolean;
+  clear_overrides: boolean;
   sources: SourceData[];
 }
 
@@ -93,6 +94,7 @@ function render(): void {
   addGridRow(grid, '', (col, i) => columnHeader(col, i), 'reconcile-cell--top');
   addGridRow(grid, 'Админка id', historyCell);
   addGridRow(grid, 'Game id', gameCell);
+  addGridRow(grid, 'clear overrides', clearOverridesCell);
   addGridRow(grid, 'and start pipeline', pipelineCell);
   addGridRow(grid, 'Удалить', deleteCell);
   addGridRow(grid, 'GameSources', sourceCell);
@@ -173,6 +175,23 @@ function gameCell(col: ColumnData): HTMLElement {
   if (col.state === 'PUBLISHED') return cell(link(`/game/${col.game_id}/`, `#${col.game_id}`));
   if (col.history_id) return cell(link(`/curation/${col.history_id}/`, `#${col.game_id}`));
   return cell(el('span', {text: `#${col.game_id}`}));
+}
+
+function clearOverridesCell(col: ColumnData): HTMLElement {
+  const input = el('input', {type: 'checkbox'}) as HTMLInputElement;
+  input.checked = col.clear_overrides;
+  input.disabled = col.delete;
+  input.addEventListener('change', () => {
+    col.clear_overrides = input.checked;
+  });
+  return cell(
+    el(
+      'label',
+      {class: 'reconcile-check-label'},
+      input,
+      el('span', {text: 'clear overrides'}),
+    ),
+  );
 }
 
 function pipelineCell(col: ColumnData): HTMLElement {
@@ -529,6 +548,7 @@ function blankColumn(): ColumnData {
     description_attributions: [],
     description: '',
     delete: false,
+    clear_overrides: false,
     sources: [],
   };
 }
