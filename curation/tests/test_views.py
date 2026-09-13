@@ -40,7 +40,7 @@ from curation.models import (
     SourceDiscoveryStatus,
 )
 from curation.views import _accept_edit
-from games.gameinfo import GameInfo, GameUrl
+from games.gameinfo import GameInfo, GameUrl, Person, Tag
 from games.models import (
     URL,
     Game,
@@ -1632,6 +1632,105 @@ class EditDiffViewTest(TestCase):
         self.assertIn("Old Title", edit.previous_canonical_text)
         self.assertEqual(history.state, GameCuration.State.SETTLED)
         self.assertEqual(edit.game.title, "Old Title")
+
+    def test_reject_updates_overrides_as_reverted_diff(self):
+        cat = GameTagCategory.objects.get(symbolic_id="tag")
+        old_tag = GameTag.objects.create(category=cat, name="keep_tag")
+        new_tag = GameTag.objects.create(category=cat, name="reject_tag")
+        alias1 = PersonalityAlias.objects.create(name="Author One")
+        alias2 = PersonalityAlias.objects.create(name="Author Two")
+        url1 = URL.objects.create(
+            original_url="http://example.com/play1",
+            creation_date=self.now,
+        )
+        url2 = URL.objects.create(
+            original_url="http://example.com/play2",
+            creation_date=self.now,
+        )
+
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Game",
+            creation_time=self.now,
+            added_by=self.user,
+        )
+        before_info = GameInfo(
+            name="Game",
+            tags=[Tag("tag", None, old_tag.id, None)],
+            personalities={"author": [Person(alias1.id, "")]},
+            urls=[GameUrl("play_online", url1.id, "Play 1", None)],
+        )
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=self.now,
+            published_at=self.now,
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text=before_info.to_canonical(),
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
+        curation = GameCuration.objects.create(
+            game=game,
+            state=GameCuration.State.NEEDS_ATTENTION,
+            auto_updates=GameCuration.AutoUpdate.PROPOSE,
+        )
+
+        after_info = GameInfo(
+            name="Game",
+            tags=[Tag("tag", None, new_tag.id, None)],
+            personalities={"author": [Person(alias2.id, "")]},
+            urls=[GameUrl("play_online", url2.id, "Play 2", None)],
+        )
+        edit = GameRevision.objects.create(
+            game=game,
+            created_at=self.now,
+            created_by=self.user,
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
+            canonical_text=after_info.to_canonical(),
+        )
+
+        response = self.client.post(
+            f"/curation/edits/{edit.pk}/", {"action": "reject"}
+        )
+        self.assertRedirects(response, "/curation/")
+
+        edit.refresh_from_db()
+        curation.refresh_from_db()
+        game.refresh_from_db()
+
+        self.assertEqual(edit.status, GameRevision.Status.REJECTED)
+        self.assertEqual(curation.state, GameCuration.State.SETTLED)
+        self.assertEqual(game.published_revision, rev)
+
+        # Proposed edit tried to remove (old_tag, alias1, url1) and
+        # add (new_tag, alias2, url2). Rejection should add (old_tag, alias1,
+        # url1) to include_overrides and (new_tag, alias2, url2) to
+        # exclude_overrides.
+        self.assertEqual(
+            curation.include_overrides.get("tags"), [["tag", old_tag.id]]
+        )
+        self.assertEqual(
+            curation.include_overrides.get("personalities"),
+            {"author": [alias1.id]},
+        )
+        self.assertEqual(
+            curation.include_overrides.get("urls"),
+            [["play_online", "Play 1", url1.id]],
+        )
+
+        self.assertEqual(
+            curation.exclude_overrides.get("tags"), [["tag", new_tag.id]]
+        )
+        self.assertEqual(
+            curation.exclude_overrides.get("personalities"),
+            {"author": [alias2.id]},
+        )
+        self.assertEqual(
+            curation.exclude_overrides.get("urls"),
+            [["play_online", "Play 2", url2.id]],
+        )
 
     def test_accept_applies_and_settles(self):
         edit = self._edit()
