@@ -19,7 +19,11 @@
             {% if item.pairs.0.game_url.url.file_size %}
             <span class="curation-meta">({{ item.pairs.0.game_url.url.file_size|filesizeformat }})</span>
             {% endif %}
+            {% if item.pairs.0.compatibility == "partial" %}
+            <span class="curation-badge curation-badge--partial" title="Возможна неполная совместимость">{{ item.pairs.0.blueprint_name }} (частично)</span>
+            {% else %}
             <span class="curation-badge curation-badge--ready">{{ item.pairs.0.blueprint_name }}</span>
+            {% endif %}
         </div>
         {% else %}
         <div class="curation-blueprint-pairs-list" style="display: flex; flex-direction: column; gap: 6px;">
@@ -32,7 +36,11 @@
                 {% if pair.game_url.url.file_size %}
                 <span class="curation-meta">({{ pair.game_url.url.file_size|filesizeformat }})</span>
                 {% endif %}
+                {% if pair.compatibility == "partial" %}
+                <span class="curation-badge curation-badge--partial" title="Возможна неполная совместимость">{{ pair.blueprint_name }} (частично)</span>
+                {% else %}
                 <span class="curation-badge curation-badge--ready">{{ pair.blueprint_name }}</span>
+                {% endif %}
             </label>
             {% endfor %}
         </div>

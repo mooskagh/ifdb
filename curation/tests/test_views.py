@@ -58,6 +58,7 @@ from play.blueprint import (
     BlueprintInfo,
     BlueprintModule,
     BlueprintSpec,
+    Compatibility,
     GenerateSpec,
 )
 from play.models import Playable
@@ -2841,7 +2842,7 @@ class SourceViewsTest(TestCase):
             spec_calls.append(slug)
             return BlueprintSpec(name=name, versions=[])
 
-        def accepts(filename: Path) -> bool:
+        def accepts(filename: Path, **_kwargs: object) -> bool | Compatibility:
             paths.append(filename)
             return accepted
 
@@ -3048,6 +3049,7 @@ class SourceViewsTest(TestCase):
             )
             accepting_paths = []
             rejecting_paths = []
+            partial_paths = []
             spec_calls = []
             discover_mock.return_value = [
                 self._fake_blueprint(
@@ -3062,6 +3064,13 @@ class SourceViewsTest(TestCase):
                     "Rejecting playable",
                     False,
                     rejecting_paths,
+                    spec_calls,
+                ),
+                self._fake_blueprint(
+                    "partial",
+                    "Partial playable",
+                    Compatibility.PARTIAL,
+                    partial_paths,
                     spec_calls,
                 ),
             ]
@@ -3088,7 +3097,8 @@ class SourceViewsTest(TestCase):
 
         self.assertEqual(accepting_paths, expected_paths)
         self.assertEqual(rejecting_paths, expected_paths)
-        self.assertEqual(spec_calls, ["accepting", "rejecting"])
+        self.assertEqual(partial_paths, expected_paths)
+        self.assertEqual(spec_calls, ["accepting", "rejecting", "partial"])
         discover_mock.assert_called_once_with()
         self.assertContains(
             response,
@@ -3112,11 +3122,24 @@ class SourceViewsTest(TestCase):
             count=2,
         )
         self.assertContains(response, "✕", count=2)
+        self.assertContains(
+            response,
+            'data-blueprint-slug="partial"',
+            count=2,
+        )
+        self.assertContains(
+            response,
+            "curation-playable-result--partial",
+            count=2,
+        )
+        self.assertContains(response, "~", count=2)
+        self.assertContains(response, "<span>Частично</span>", count=2)
         self.assertNotContains(
             response, '<input type="checkbox" data-blueprint-slug'
         )
         self.assertContains(response, ">Accepting playable</span>", count=2)
         self.assertContains(response, ">Rejecting playable</span>", count=2)
+        self.assertContains(response, ">Partial playable</span>", count=2)
         self.assertIsNone(response.context["playable_files"][1].compatibility)
         self.assertContains(response, "Нет")
 
@@ -3594,6 +3617,39 @@ class SourceViewsTest(TestCase):
         )
         self.assertEqual(resp_bad.status_code, 200)
         self.assertFalse(resp_bad.json()["compatible"])
+
+    @patch.object(FileSystemStorage, "exists", return_value=True)
+    @patch("curation.views.discover_blueprints")
+    def test_blueprint_candidate_check_partial_compatibility(
+        self, discover_mock, exists_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Partial Game", creation_time=ts
+        )
+        self._download_link(
+            game, "https://example.com/fire.zip", local_filename="fire.zip"
+        )
+
+        blueprint = ModuleType("play.blueprints.urqw")
+        setattr(
+            blueprint,
+            "get_spec",
+            lambda: BlueprintSpec(name="UrqW", versions=["2026-08-21"]),
+        )
+        setattr(blueprint, "accepts", lambda p, **kw: Compatibility.PARTIAL)
+        discover_mock.return_value = [
+            BlueprintInfo("urqw", cast(BlueprintModule, blueprint))
+        ]
+
+        response = self.client.get(
+            f"/curation/blueprints/candidates/check/{game.pk}/"
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["compatible"])
+        self.assertIn("curation-badge--partial", data["html"])
+        self.assertIn("UrqW (частично)", data["html"])
 
     @patch.object(FileSystemStorage, "exists", return_value=True)
     @patch("curation.views.discover_blueprints")

@@ -75,11 +75,14 @@ def generate_playable(playable_id: int) -> None:
             )
             playable.save(update_fields=["slug", "updated"])
 
+        tags = [t.name for t in playable.game.tags.all()]
         spec = GenerateSpec(
             version=playable.template_version,
             config=playable.config,
             destination=destination,
             game_file=game_file,
+            title=playable.game.title,
+            tags=tags,
         )
         blueprint.generate(spec)
 

@@ -3385,8 +3385,26 @@ h6 {
 .curation-playable-result--accepted .curation-playable-result-mark {
     background-color: #188038;
 }
+.curation-playable-result--partial .curation-playable-result-mark {
+    background-color: #f29900;
+}
 .curation-playable-result--rejected .curation-playable-result-mark {
     background-color: #c5221f;
+}
+.curation-badge {
+    border-radius: 3px;
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 1px 6px;
+}
+.curation-badge--ready {
+    background-color: #e6f4ea;
+    color: #137333;
+}
+.curation-badge--partial {
+    background-color: #fef7e0;
+    color: #b06000;
 }
 .curation-playable-form {
     display: inline-block;

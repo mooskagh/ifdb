@@ -46,7 +46,12 @@ from core.tasks import fetch_feeds
 from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
 from games.models import Game, GameRevision, GameTag, GameURL
-from play.blueprint import BlueprintModule, discover_blueprints
+from play.blueprint import (
+    BlueprintModule,
+    Compatibility,
+    check_compatibility,
+    discover_blueprints,
+)
 from play.caddy import configure_caddy_playable
 from play.domain import is_domain_busy, is_valid_domain_slug
 from play.models import Playable
@@ -105,14 +110,14 @@ def _version_sort_key(v: str) -> tuple[tuple[int, int | str], ...]:
 class BlueprintResult:
     slug: str
     display_name: str
-    accepted: bool
+    accepted: Compatibility | bool
 
 
 @dataclass(frozen=True, slots=True)
 class PlayableItem:
     slug: str
     display_name: str
-    compatibility: bool | None
+    compatibility: Compatibility | bool | None
     playable: Playable | None = None
 
     @property
@@ -146,7 +151,7 @@ class PlayableFile:
 
 
 def _build_playable_files(
-    game_id: int | None, check_compatibility: bool
+    game_id: int | None, should_check_compatibility: bool
 ) -> list[PlayableFile]:
     if game_id is None:
         return []
@@ -158,11 +163,11 @@ def _build_playable_files(
         .order_by("pk")
     )
     playables_by_url: dict[int, list[Playable]] = defaultdict(list)
-    for p in Playable.objects.filter(
+    for playable in Playable.objects.filter(
         game_id=game_id, game_url__isnull=False
-    ).order_by("pk"):
-        if p.game_url_id is not None:
-            playables_by_url[p.game_url_id].append(p)
+    ).select_related("game_url"):
+        if playable.game_url_id:
+            playables_by_url[playable.game_url_id].append(playable)
 
     playable_files: list[PlayableFile] = []
     for game_url in direct_downloads:
@@ -179,6 +184,7 @@ def _build_playable_files(
             )
             for p in file_playables
         )
+
         playable_files.append(
             PlayableFile(
                 game_url=game_url,
@@ -190,7 +196,7 @@ def _build_playable_files(
             )
         )
 
-    if not check_compatibility or not any(
+    if not should_check_compatibility or not any(
         playable_file.has_local_copy for playable_file in playable_files
     ):
         return playable_files
@@ -223,12 +229,19 @@ def _build_playable_files(
             )
             continue
 
+        game_platforms = list(
+            GameTag.objects.filter(
+                game__id=game_id, category__symbolic_id="platform"
+            ).values_list("name", flat=True)
+        )
         try:
             compatibility = tuple(
                 BlueprintResult(
                     slug=slug,
                     display_name=display_name,
-                    accepted=blueprint.accepts(path),
+                    accepted=check_compatibility(
+                        blueprint, path, tags=game_platforms
+                    ),
                 )
                 for slug, blueprint, display_name in blueprint_specs
             )
@@ -621,9 +634,22 @@ def blueprint_list(request):
                             path = Path(storage.path(local_filename))
                         except Exception:
                             continue
+                        candidate_platforms = [
+                            t.name
+                            for t in getattr(
+                                candidate_game, "platform_tags", []
+                            )
+                        ] or [
+                            t.name
+                            for t in candidate_game.tags.filter(
+                                category__symbolic_id="platform"
+                            )
+                        ]
                         for slug, bp in blueprint_map.items():
                             try:
-                                if bp.accepts(path):
+                                if check_compatibility(
+                                    bp, path, tags=candidate_platforms
+                                ):
                                     game_url = gu
                                     blueprint_slug = slug
                                     break
@@ -673,9 +699,17 @@ def blueprint_list(request):
                     if storage.exists(local_filename):
                         try:
                             path = Path(storage.path(local_filename))
+                            game_platforms = [
+                                t.name
+                                for t in game.tags.filter(
+                                    category__symbolic_id="platform"
+                                )
+                            ]
                             for slug, bp in blueprint_map.items():
                                 try:
-                                    if bp.accepts(path):
+                                    if check_compatibility(
+                                        bp, path, tags=game_platforms
+                                    ):
                                         blueprint_slug = slug
                                         break
                                 except (OSError, Exception):
@@ -985,13 +1019,20 @@ def blueprint_list(request):
                     path = Path(storage.path(local_filename))
                 except (OSError, Exception):
                     continue
+                game_platforms = [
+                    t.name for t in getattr(game, "platform_tags", [])
+                ]
                 for b_slug, bp, b_name in active_blueprints:
                     try:
-                        if bp.accepts(path):
+                        compat = check_compatibility(
+                            bp, path, tags=game_platforms
+                        )
+                        if compat:
                             pairs.append({
                                 "game_url": gu,
                                 "blueprint_slug": b_slug,
                                 "blueprint_name": b_name,
+                                "compatibility": compat,
                             })
                     except (OSError, Exception):
                         continue
@@ -1127,13 +1168,20 @@ def blueprint_candidate_check(request, game_pk: int):
             path = Path(storage.path(local_filename))
         except (OSError, Exception):
             continue
+        game_platforms = [
+            t.name for t in getattr(game, "platform_tags", [])
+        ] or [
+            t.name for t in game.tags.filter(category__symbolic_id="platform")
+        ]
         for b_slug, bp, b_name in active_blueprints:
             try:
-                if bp.accepts(path):
+                compat = check_compatibility(bp, path, tags=game_platforms)
+                if compat:
                     pairs.append({
                         "game_url": gu,
                         "blueprint_slug": b_slug,
                         "blueprint_name": b_name,
+                        "compatibility": compat,
                     })
             except (OSError, Exception):
                 continue
@@ -2192,8 +2240,14 @@ def history_playable_create(request, game_id: int):
             return redirect(redirect_url)
         storage = game_url.url.GetFs()
         path = Path(storage.path(local_filename))
+        game_platforms = [
+            t.name
+            for t in game_url.game.tags.filter(
+                category__symbolic_id="platform"
+            )
+        ]
         for slug, bp in blueprints.items():
-            if bp.accepts(path):
+            if check_compatibility(bp, path, tags=game_platforms):
                 blueprint_slug = slug
                 break
         else:

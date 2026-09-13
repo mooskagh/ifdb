@@ -110,10 +110,22 @@
                     </td>
                     <td class="curation-playable-compatibility">
                         {% if item.has_compatibility %}
-                        <span class="curation-playable-result{% if item.compatibility %} curation-playable-result--accepted{% else %} curation-playable-result--rejected{% endif %}" data-blueprint-slug="{{ item.slug }}" title="{% if item.compatibility %}Совместим{% else %}Несовместим{% endif %}: {{ item.display_name }}">
-                            <span class="curation-playable-result-mark" aria-hidden="true">{% if item.compatibility %}✓{% else %}✕{% endif %}</span>
-                            <span>{% if item.compatibility %}Совместим{% else %}Несовместим{% endif %}</span>
+                        {% if item.compatibility == "partial" %}
+                        <span class="curation-playable-result curation-playable-result--partial" data-blueprint-slug="{{ item.slug }}" title="Частичная совместимость: {{ item.display_name }}">
+                            <span class="curation-playable-result-mark" aria-hidden="true">~</span>
+                            <span>Частично</span>
                         </span>
+                        {% elif item.compatibility %}
+                        <span class="curation-playable-result curation-playable-result--accepted" data-blueprint-slug="{{ item.slug }}" title="Совместим: {{ item.display_name }}">
+                            <span class="curation-playable-result-mark" aria-hidden="true">✓</span>
+                            <span>Совместим</span>
+                        </span>
+                        {% else %}
+                        <span class="curation-playable-result curation-playable-result--rejected" data-blueprint-slug="{{ item.slug }}" title="Несовместим: {{ item.display_name }}">
+                            <span class="curation-playable-result-mark" aria-hidden="true">✕</span>
+                            <span>Несовместим</span>
+                        </span>
+                        {% endif %}
                         {% else %}
                         <span class="curation-meta">—</span>
                         {% endif %}
