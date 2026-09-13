@@ -1957,6 +1957,89 @@ class EditDiffViewTest(TestCase):
             response, f'href="/curation/trajectories/{trajectory.pk}/"'
         )
 
+    def test_edit_page_shows_raw_canonical_links(self):
+        edit = self._edit()
+
+        response = self.client.get(f"/curation/edits/{edit.pk}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, f'href="/curation/edits/{edit.pk}/raw/before/"'
+        )
+        self.assertContains(
+            response, f'href="/curation/edits/{edit.pk}/raw/after/"'
+        )
+
+    def test_timeline_page_shows_raw_canonical_links(self):
+        edit = self._edit()
+
+        response = self.client.get(f"/curation/{edit.game.pk}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, f'href="/curation/edits/{edit.pk}/raw/before/"'
+        )
+        self.assertContains(
+            response, f'href="/curation/edits/{edit.pk}/raw/after/"'
+        )
+
+    def test_edit_raw_canonical_view(self):
+        edit = self._edit()
+        published_text = edit.game.published_revision.canonical_text
+
+        # Test before / after endpoints for proposed edit (before falls back
+        # to published revision)
+        before_resp = self.client.get(f"/curation/edits/{edit.pk}/raw/before/")
+        self.assertEqual(before_resp.status_code, 200)
+        self.assertEqual(
+            before_resp["Content-Type"], "text/plain; charset=utf-8"
+        )
+        self.assertEqual(before_resp.content.decode(), published_text)
+
+        after_resp = self.client.get(f"/curation/edits/{edit.pk}/raw/after/")
+        self.assertEqual(after_resp.status_code, 200)
+        self.assertEqual(
+            after_resp["Content-Type"], "text/plain; charset=utf-8"
+        )
+        self.assertEqual(after_resp.content.decode(), edit.canonical_text)
+
+        # Test alias without /raw/
+        alias_before = self.client.get(f"/curation/edits/{edit.pk}/before/")
+        self.assertEqual(alias_before.status_code, 200)
+        self.assertEqual(alias_before.content.decode(), published_text)
+
+        alias_after = self.client.get(f"/curation/edits/{edit.pk}/after/")
+        self.assertEqual(alias_after.status_code, 200)
+        self.assertEqual(alias_after.content.decode(), edit.canonical_text)
+
+        # Test edit with previous_canonical_text explicitly set
+        edit.previous_canonical_text = "custom before text"
+        edit.save(update_fields=["previous_canonical_text"])
+        before_resp2 = self.client.get(
+            f"/curation/edits/{edit.pk}/raw/before/"
+        )
+        self.assertEqual(before_resp2.status_code, 200)
+        self.assertEqual(before_resp2.content.decode(), "custom before text")
+
+        # Invalid version returns 404
+        invalid_resp = self.client.get(
+            f"/curation/edits/{edit.pk}/raw/invalid/"
+        )
+        self.assertEqual(invalid_resp.status_code, 404)
+
+        # Non-existent edit returns 404
+        not_found_resp = self.client.get("/curation/edits/999999/raw/before/")
+        self.assertEqual(not_found_resp.status_code, 404)
+
+        # Anonymous access is redirected to login
+        self.client.logout()
+        anon_resp = self.client.get(f"/curation/edits/{edit.pk}/raw/after/")
+        self.assertRedirects(
+            anon_resp,
+            f"{settings.LOGIN_URL}?next=/curation/edits/{edit.pk}/raw/after/",
+            fetch_redirect_response=False,
+        )
+
 
 class DiscoveryViewsTest(TestCase):
     def setUp(self):

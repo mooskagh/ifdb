@@ -27,6 +27,8 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce, TruncMonth
 from django.http import (
+    Http404,
+    HttpRequest,
     HttpResponse,
     HttpResponseBadRequest,
     HttpResponseNotAllowed,
@@ -2540,11 +2542,7 @@ def edit_diff(request, edit_id):
         )
 
     is_proposed = edit.status == GameRevision.Status.PROPOSED
-    diff_before = (
-        edit.previous_canonical_text
-        if edit.previous_canonical_text is not None
-        else before
-    )
+    diff_before = _edit_before_canonical(edit)
     return render(
         request,
         "curation/edit_diff.html",
@@ -2572,6 +2570,40 @@ def edit_diff(request, edit_id):
             ),
         },
     )
+
+
+def _edit_before_canonical(edit: GameRevision) -> str:
+    if edit.previous_canonical_text is not None:
+        return edit.previous_canonical_text
+    if edit.status == GameRevision.Status.PROPOSED:
+        curation = getattr(edit.game, "curation", None)
+        return _served_canonical(curation or edit.game) or ""
+    prev = GameRevision.objects.filter(
+        game=edit.game,
+        status=GameRevision.Status.ACCEPTED,
+    ).exclude(pk=edit.pk)
+    if edit.published_at:
+        prev = prev.filter(
+            Q(published_at__lt=edit.published_at)
+            | Q(published_at=edit.published_at, pk__lt=edit.pk)
+        )
+    prev_rev = prev.order_by("-published_at", "-id").first()
+    return prev_rev.canonical_text if prev_rev else ""
+
+
+def edit_raw_canonical(
+    request: HttpRequest, edit_id: int, version: str
+) -> HttpResponse:
+    if version not in ("before", "after"):
+        raise Http404("Invalid version. Expected 'before' or 'after'.")
+    edit = get_object_or_404(
+        GameRevision.objects.select_related("game__curation"), pk=edit_id
+    )
+    if version == "before":
+        content = _edit_before_canonical(edit)
+    else:
+        content = edit.canonical_text
+    return HttpResponse(content, content_type="text/plain; charset=utf-8")
 
 
 EDIT_FIELD_LABELS = {

@@ -51,6 +51,13 @@
             <div class="curation-source-detail-value"><a href="{% url 'curation_history_detail' history.pk %}">вернуться к админке</a></div>
         </div>
         <div class="curation-source-detail-row">
+            <div class="curation-source-detail-label">Канонический текст (raw)</div>
+            <div class="curation-source-detail-value">
+                <a href="{% url 'curation_edit_raw' edit.pk 'before' %}">до</a> /
+                <a href="{% url 'curation_edit_raw' edit.pk 'after' %}">после</a>
+            </div>
+        </div>
+        <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Состояние</div>
             <div class="curation-source-detail-value">{{ history.get_state_display }}</div>
         </div>
