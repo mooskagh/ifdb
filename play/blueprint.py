@@ -1,10 +1,20 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import StrEnum
 from importlib import import_module
 from pathlib import Path
 from pkgutil import iter_modules
 from typing import Protocol, cast
 
 from . import blueprints
+
+
+class Compatibility(StrEnum):
+    FULL = "full"
+    PARTIAL = "partial"
+    NONE = "none"
+
+    def __bool__(self) -> bool:
+        return self != Compatibility.NONE
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,14 +29,34 @@ class GenerateSpec:
     config: dict[str, object]
     destination: Path
     game_file: Path
+    title: str | None = None
+    tags: list[str] = field(default_factory=list)
 
 
 class BlueprintModule(Protocol):
     def get_spec(self) -> BlueprintSpec: ...
 
-    def accepts(self, filename: Path) -> bool: ...
+    def accepts(
+        self, filename: Path, **kwargs: object
+    ) -> Compatibility | bool: ...
 
     def generate(self, spec: GenerateSpec) -> None: ...
+
+
+def check_compatibility(
+    blueprint: BlueprintModule,
+    filename: Path,
+    *,
+    tags: list[str] | None = None,
+) -> Compatibility:
+    try:
+        result = blueprint.accepts(filename, tags=tags)
+    except TypeError:
+        result = blueprint.accepts(filename)
+
+    if isinstance(result, Compatibility):
+        return result
+    return Compatibility.FULL if result else Compatibility.NONE
 
 
 @dataclass(frozen=True, slots=True)
