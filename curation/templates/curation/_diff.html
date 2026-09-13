@@ -1,16 +1,25 @@
 <div class="diff{% if show_actions %} diff--interactive{% endif %}">
     {% for row in rows %}
-    <div class="diff-row diff-row--{{ row.tag }}{% if show_actions %}{% if row.default_checked %} diff-row--included{% else %} diff-row--excluded{% endif %}{% endif %}">
-        <div class="diff-cell diff-cell--left">
+    <div class="diff-row diff-row--{{ row.tag }}{% if show_actions %}{% if row.tag == 'delete' %} diff-row--excluded{% else %} diff-row--included{% endif %}{% endif %}">
+        <div class="diff-cell diff-cell--left{% if show_actions and row.tag != 'equal' %} diff-cell--excluded{% endif %}">
             <span class="diff-line-no">{{ row.left_no|default_if_none:"" }}</span>
             <span class="diff-line-text">{% for seg in row.left %}<span class="diff-seg diff-seg--{{ seg.kind }}">{{ seg.text }}</span>{% endfor %}</span>
         </div>
         {% if show_actions %}
         <div class="diff-cell diff-cell--action">
-            <input type="checkbox" name="diff_row" value="{{ forloop.counter0 }}" form="curation-save-form"{% if row.default_checked %} checked{% endif %} title="Включить строку в итоговый документ">
+            {% if row.tag == "replace" %}
+            <input type="checkbox" class="diff-check diff-check--left" name="diff_row_{{ forloop.counter0 }}" value="left" form="curation-save-form" title="Оставить старую версию строки (слева)">
+            <input type="checkbox" class="diff-check diff-check--right" name="diff_row_{{ forloop.counter0 }}" value="right" form="curation-save-form" checked title="Принять новую версию строки (справа)">
+            {% elif row.tag == "delete" %}
+            <input type="checkbox" class="diff-check diff-check--left" name="diff_row_{{ forloop.counter0 }}" value="left" form="curation-save-form" title="Восстановить удалённую строку">
+            {% elif row.tag == "insert" %}
+            <input type="checkbox" class="diff-check diff-check--right" name="diff_row_{{ forloop.counter0 }}" value="right" form="curation-save-form" checked title="Включить добавленную строку">
+            {% elif row.tag == "equal" %}
+            <input type="checkbox" class="diff-check diff-check--equal" name="diff_row_{{ forloop.counter0 }}" value="equal" form="curation-save-form" checked title="Включить строку в итоговый документ">
+            {% endif %}
         </div>
         {% endif %}
-        <div class="diff-cell diff-cell--right">
+        <div class="diff-cell diff-cell--right{% if show_actions and row.tag == 'delete' %} diff-cell--excluded{% endif %}">
             <span class="diff-line-no">{{ row.right_no|default_if_none:"" }}</span>
             <span class="diff-line-text">{% for seg in row.right %}<span class="diff-seg diff-seg--{{ seg.kind }}">{{ seg.text }}</span>{% endfor %}</span>
         </div>

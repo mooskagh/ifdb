@@ -35,6 +35,8 @@ class BuildDiffTest(SimpleTestCase):
         self.assertEqual((rows[0].left_no, rows[0].right_no), (1, 1))
         self.assertTrue([seg for seg in rows[0].right if seg.kind == "ins"])
         self.assertTrue([seg for seg in rows[0].left if seg.kind == "del"])
+        self.assertEqual(rows[0].left_text, "hello plain world")
+        self.assertEqual(rows[0].right_text, "hello crisp world")
         self.assertEqual(rows[0].line_text, "hello crisp world")
         self.assertTrue(rows[0].default_checked)
 

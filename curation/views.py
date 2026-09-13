@@ -2475,24 +2475,66 @@ def edit_diff(request, edit_id):
                 _accept_edit(edit, curation, before, request.user)
 
                 if has_diff_checkboxes:
-                    rows = build_diff(
-                        diff_before, edit.canonical_text, pair_lines=False
+                    rows = build_diff(diff_before, edit.canonical_text)
+                    has_row_params = any(
+                        f"diff_row_{i}" in request.POST
+                        for i in range(len(rows))
                     )
-                    checked_indices = {
-                        int(x)
-                        for x in request.POST.getlist("diff_row")
-                        if x.isdigit()
-                    }
-                    is_changed = any(
-                        (i in checked_indices) != row.default_checked
-                        for i, row in enumerate(rows)
+                    legacy_indices = (
+                        {
+                            int(x)
+                            for x in request.POST.getlist("diff_row")
+                            if x.isdigit()
+                        }
+                        if not has_row_params and "diff_row" in request.POST
+                        else None
                     )
+
+                    is_changed = False
+                    chosen_lines: list[str] = []
+                    for i, row in enumerate(rows):
+                        default_val = (
+                            "equal"
+                            if row.tag == "equal"
+                            else (
+                                "right"
+                                if row.tag in ("insert", "replace")
+                                else None
+                            )
+                        )
+                        if has_row_params:
+                            val = request.POST.get(f"diff_row_{i}")
+                        elif legacy_indices is not None:
+                            if i in legacy_indices:
+                                val = (
+                                    "equal"
+                                    if row.tag == "equal"
+                                    else (
+                                        "left"
+                                        if row.tag == "delete"
+                                        else "right"
+                                    )
+                                )
+                            else:
+                                val = None
+                        else:
+                            val = default_val
+
+                        if val != default_val:
+                            is_changed = True
+
+                        if val in ("right", "equal"):
+                            chosen_lines.append(row.right_text)
+                        elif val == "left":
+                            chosen_lines.append(row.left_text)
+                        elif val is None or val == "":
+                            pass
+                        else:
+                            return HttpResponseBadRequest(
+                                f"Некорректное значение строки diff: {val}"
+                            )
+
                     if is_changed:
-                        chosen_lines = [
-                            rows[i].line_text
-                            for i in range(len(rows))
-                            if i in checked_indices
-                        ]
                         new_canonical_text = "\n".join(chosen_lines)
                         if edit.canonical_text.endswith(
                             "\n"
@@ -2566,7 +2608,6 @@ def edit_diff(request, edit_id):
             "rows": build_diff(
                 diff_before,
                 edit.canonical_text,
-                pair_lines=not is_proposed,
             ),
             "edit_sources": _get_sources_for_edit(edit),
         },
