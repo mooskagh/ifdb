@@ -1503,10 +1503,14 @@ class EditDiffViewTest(TestCase):
 
         self.assertContains(response, "Принять")
         self.assertContains(response, "Отклонить")
+        self.assertContains(response, "Пропустить")
+        self.assertNotContains(response, "к следующей правке на проверку")
         self.assertContains(response, "В дальнейшем автоматически принимать")
         self.assertContains(response, 'name="auto_accept" checked')
         self.assertContains(response, 'name="next"')
-        self.assertContains(response, "к списку игр")
+        self.assertContains(
+            response, '<option value="list" selected>к списку игр</option>'
+        )
         self.assertContains(response, "к редактированию игры")
         self.assertContains(response, "к игре")
         self.assertContains(response, "к админке игры")
@@ -1742,6 +1746,101 @@ class EditDiffViewTest(TestCase):
         )
 
         self.assertRedirects(response, f"/curation/edits/{edit.pk}/")
+
+    def test_proposed_edit_shows_next_edit_option_when_another_exists(
+        self,
+    ):
+        self._edit()
+        edit2 = self._edit()
+
+        response = self.client.get(f"/curation/edits/{edit2.pk}/")
+
+        self.assertContains(
+            response,
+            '<option value="next_edit" selected>к следующей правке на'
+            " проверку</option>",
+        )
+        self.assertContains(
+            response, '<option value="list">к списку игр</option>'
+        )
+
+    def test_skip_keeps_status_and_redirects(self):
+        edit = self._edit()
+
+        response = self.client.post(
+            f"/curation/edits/{edit.pk}/",
+            {"action": "skip", "next": "stay"},
+        )
+
+        self.assertRedirects(response, f"/curation/edits/{edit.pk}/")
+        edit.refresh_from_db()
+        self.assertEqual(edit.status, GameRevision.Status.PROPOSED)
+        history = edit.game.curation
+        history.refresh_from_db()
+        self.assertEqual(history.state, GameCuration.State.NEEDS_ATTENTION)
+
+    def test_skip_settled_edit_returns_bad_request(self):
+        edit = self._edit()
+        edit.status = GameRevision.Status.ACCEPTED
+        edit.save(update_fields=["status"])
+
+        response = self.client.post(
+            f"/curation/edits/{edit.pk}/",
+            {"action": "skip", "next": "stay"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_next_edit_redirects_to_next_older_unresolved_edit(self):
+        edit1 = self._edit()
+        edit2 = self._edit()
+        edit3 = self._edit()
+
+        # edit3 is highest pk, edit2 is middle, edit1 is lowest.
+        # From edit2, next older is edit1.
+        response = self.client.post(
+            f"/curation/edits/{edit2.pk}/",
+            {"action": "skip", "next": "next_edit"},
+        )
+        self.assertRedirects(response, f"/curation/edits/{edit1.pk}/")
+
+        # From edit3, next older is edit2.
+        response = self.client.post(
+            f"/curation/edits/{edit3.pk}/",
+            {"action": "accept", "next": "next_edit"},
+        )
+        self.assertRedirects(response, f"/curation/edits/{edit2.pk}/")
+
+    def test_next_edit_wraps_around_to_newest_when_no_older_exists(self):
+        edit1 = self._edit()
+        edit2 = self._edit()
+
+        # From edit1 (lowest pk), wrap around to newest (edit2).
+        response = self.client.post(
+            f"/curation/edits/{edit1.pk}/",
+            {"action": "reject", "next": "next_edit"},
+        )
+        self.assertRedirects(response, f"/curation/edits/{edit2.pk}/")
+
+    def test_next_edit_redirects_to_curation_list_when_none_remain(
+        self,
+    ):
+        edit = self._edit()
+
+        # Resolving only unresolved edit redirects to list.
+        response = self.client.post(
+            f"/curation/edits/{edit.pk}/",
+            {"action": "accept", "next": "next_edit"},
+        )
+        self.assertRedirects(response, "/curation/")
+
+        # Skipping when no other unresolved edit exists also redirects to list.
+        edit2 = self._edit()
+        response = self.client.post(
+            f"/curation/edits/{edit2.pk}/",
+            {"action": "skip", "next": "next_edit"},
+        )
+        self.assertRedirects(response, "/curation/")
 
     def test_game_redirect_falls_back_to_list_for_draft_game(self):
         edit = self._edit()

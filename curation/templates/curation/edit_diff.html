@@ -101,7 +101,10 @@
         <label>
             и перейти
             <select name="next">
-                <option value="list" selected>к списку игр</option>
+                {% if has_next_edit %}
+                <option value="next_edit" selected>к следующей правке на проверку</option>
+                {% endif %}
+                <option value="list"{% if not has_next_edit %} selected{% endif %}>к списку игр</option>
                 {% if game.state == "PUBLISHED" %}
                 <option value="edit_game">к редактированию игры</option>
                 <option value="game">к игре</option>
@@ -112,6 +115,7 @@
         </label>
         <button type="submit" name="action" value="accept">Принять</button>
         <button type="submit" name="action" value="reject">Отклонить</button>
+        <button type="submit" name="action" value="skip">Пропустить</button>
     </form>
     {% endif %}
     {% if settled_action %}
