@@ -113,6 +113,15 @@ urlpatterns = [
         name="curation_edit_diff",
     ),
     path(
+        "edits/<int:edit_id>/raw/<str:version>/",
+        superuser_required(views.edit_raw_canonical),
+        name="curation_edit_raw",
+    ),
+    path(
+        "edits/<int:edit_id>/<str:version>/",
+        superuser_required(views.edit_raw_canonical),
+    ),
+    path(
         "<int:game_id>/",
         superuser_required(views.history_detail),
         name="curation_history_detail",
