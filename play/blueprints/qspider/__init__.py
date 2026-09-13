@@ -1,4 +1,5 @@
 import html
+import os
 import re
 import shutil
 import tempfile
@@ -254,6 +255,111 @@ def _generate_game_cfg(
     return "\n".join(lines) + "\n"
 
 
+_ASSET_EXTENSIONS = (
+    r"\.(?:jpg|jpeg|png|gif|bmp|webp|ico|svg|"
+    r"mp3|ogg|wav|mid|midi|mod|s3m|xm|it|"
+    r"avi|mp4|webm|ogv|qsp|qsps)"
+)
+_ASSET_PATTERN = re.compile(
+    rf"[\w\d_\-\\/.]+{_ASSET_EXTENSIONS}", re.IGNORECASE
+)
+_ASSET_BYTES_PATTERN = re.compile(
+    rf"[\w\d_\-\\/.]+{_ASSET_EXTENSIONS}".encode("ascii"), re.IGNORECASE
+)
+
+
+def _extract_qsp_referenced_paths(data: bytes) -> list[str]:
+    paths: list[str] = []
+    if data.startswith(b"Q\x00S\x00P\x00G\x00A\x00M\x00E\x00"):
+        try:
+            raw_text = data.decode("utf-16le")
+            dec_text = "".join(chr((ord(c) + 5) % 65536) for c in raw_text)
+            paths.extend(_ASSET_PATTERN.findall(dec_text))
+        except Exception:
+            pass
+
+    for m in _ASSET_BYTES_PATTERN.findall(data):
+        try:
+            paths.append(m.decode("ascii", errors="ignore"))
+        except Exception:
+            pass
+
+    return paths
+
+
+def _create_case_insensitive_aliases(game_stage: Path) -> None:
+    # 1. Directory lowercase symlinks
+    for root, dirs, _ in os.walk(game_stage, followlinks=False):
+        for d in list(dirs):
+            if d.lower() != d:
+                lower_dir = Path(root) / d.lower()
+                if not lower_dir.exists() and not lower_dir.is_symlink():
+                    try:
+                        os.symlink(d, lower_dir)
+                    except OSError:
+                        pass
+
+    # 2. File lowercase and lower-extension symlinks
+    for root, _, files in os.walk(game_stage, followlinks=False):
+        for f in files:
+            file_path = Path(root) / f
+            if file_path.is_symlink():
+                continue
+            lower_name = f.lower()
+            if lower_name != f:
+                lower_file = Path(root) / lower_name
+                if not lower_file.exists() and not lower_file.is_symlink():
+                    try:
+                        os.symlink(f, lower_file)
+                    except OSError:
+                        pass
+            suffix = Path(f).suffix
+            if suffix and suffix.lower() != suffix:
+                ext_lower = f"{Path(f).stem}{suffix.lower()}"
+                if ext_lower != f and ext_lower != lower_name:
+                    ext_file = Path(root) / ext_lower
+                    if not ext_file.exists() and not ext_file.is_symlink():
+                        try:
+                            os.symlink(f, ext_file)
+                        except OSError:
+                            pass
+
+    # 3. Match any explicit referenced paths from .qsp files
+    actual_files: dict[str, Path] = {}
+    for p in game_stage.rglob("*"):
+        if p.is_file() and not p.is_symlink():
+            try:
+                rel = p.relative_to(game_stage).as_posix().lower()
+                actual_files[rel] = p
+            except ValueError:
+                pass
+
+    for qsp_file in game_stage.rglob("*"):
+        if not qsp_file.is_file() or qsp_file.is_symlink():
+            continue
+        if qsp_file.suffix.lower() != ".qsp":
+            continue
+        try:
+            content = qsp_file.read_bytes()
+        except OSError:
+            continue
+        for ref in _extract_qsp_referenced_paths(content):
+            norm_ref = ref.replace("\\", "/").lstrip("/")
+            ref_lower = norm_ref.lower()
+            if ref_lower in actual_files:
+                target_path = actual_files[ref_lower]
+                link_path = game_stage / norm_ref
+                if not link_path.exists() and not link_path.is_symlink():
+                    try:
+                        link_path.parent.mkdir(parents=True, exist_ok=True)
+                        rel_target = os.path.relpath(
+                            target_path, link_path.parent
+                        )
+                        os.symlink(rel_target, link_path)
+                    except OSError:
+                        pass
+
+
 def _prepare_game_dir(
     game_file: Path,
     game_stage: Path,
@@ -287,6 +393,7 @@ def _prepare_game_dir(
                     and "file" in first_game
                     and (game_stage / str(first_game["file"])).is_file()
                 ):
+                    _create_case_insensitive_aliases(game_stage)
                     return
         except Exception:
             pass
@@ -328,6 +435,7 @@ def _prepare_game_dir(
         save_slots=save_slots,
     )
     (game_stage / "game.cfg").write_text(cfg_text, encoding="utf-8")
+    _create_case_insensitive_aliases(game_stage)
 
 
 def _publish(stage: Path, destination: Path) -> None:

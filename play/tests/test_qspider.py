@@ -415,3 +415,104 @@ class QSpiderTests(SimpleTestCase):
                 encoding="utf-8"
             )
             self.assertIn("<title>Real Asset Test</title>", index_content)
+
+    def test_case_insensitive_aliases_created(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            assets = root / "assets"
+            _write_release(assets)
+
+            archive_path = root / "game_with_assets.zip"
+            # Encode a sample QSP file that references Content/Way01.jpg
+            # QSP encryption is (ord(c) - 5) % 65536
+            qsp_code = "'<img src=\"Content/Way01.jpg\" />'\r\n"
+            enc_code = "".join(chr((ord(c) - 5) % 65536) for c in qsp_code)
+            qsp_content = (
+                b"Q\x00S\x00P\x00G\x00A\x00M\x00E\x00\r\x00\n\x00"
+                + enc_code.encode("utf-16le")
+            )
+
+            with ZipFile(archive_path, "w") as zf:
+                zf.writestr("game.qsp", qsp_content)
+                zf.writestr("Content/way01.JPG", b"jpeg-data")
+                zf.writestr("Content/Bark.MP3", b"mp3-data")
+                zf.writestr("Sounds/intro.wav", b"wav-data")
+
+            destination = root / "output"
+            with patch("play.blueprints.qspider.ASSETS_DIR", assets):
+                generate(
+                    GenerateSpec(
+                        version="1.3.1",
+                        config={},
+                        destination=destination,
+                        game_file=archive_path,
+                        title="Case Test",
+                    )
+                )
+
+            game_dir = destination / "game"
+            # 1. Lowercase directory symlinks:
+            # sounds -> Sounds, content -> Content
+            self.assertTrue((game_dir / "sounds").is_dir())
+            self.assertTrue((game_dir / "content").is_dir())
+
+            # 2. Lowercase extension and full lowercase symlinks for files:
+            self.assertTrue((game_dir / "Content" / "way01.jpg").is_file())
+            self.assertTrue((game_dir / "Content" / "way01.jpg").is_symlink())
+            self.assertEqual(
+                (game_dir / "Content" / "way01.jpg").read_bytes(), b"jpeg-data"
+            )
+
+            # Bark.mp3 (lower extension) and bark.mp3 (full lowercase)
+            self.assertTrue((game_dir / "Content" / "Bark.mp3").is_file())
+            self.assertTrue((game_dir / "Content" / "Bark.mp3").is_symlink())
+            self.assertTrue((game_dir / "Content" / "bark.mp3").is_file())
+            self.assertTrue((game_dir / "Content" / "bark.mp3").is_symlink())
+
+            # 3. Referenced path Content/Way01.jpg created via QSP path scan
+            self.assertTrue((game_dir / "Content" / "Way01.jpg").is_file())
+            self.assertTrue((game_dir / "Content" / "Way01.jpg").is_symlink())
+
+            # 4. Access via lowercased directory symlink
+            self.assertTrue((game_dir / "content" / "way01.jpg").is_file())
+            self.assertEqual(
+                (game_dir / "content" / "way01.jpg").read_bytes(), b"jpeg-data"
+            )
+            self.assertTrue((game_dir / "sounds" / "intro.wav").is_file())
+            self.assertEqual(
+                (game_dir / "sounds" / "intro.wav").read_bytes(), b"wav-data"
+            )
+
+    def test_dich_zip_case_insensitivity(self) -> None:
+        dich_path = Path("files/uploads/Дичь.zip")
+        if not dich_path.is_file():
+            self.skipTest("Дичь.zip not available in files/uploads/")
+
+        with TemporaryDirectory() as directory:
+            destination = Path(directory) / "dich_playable"
+            generate(
+                GenerateSpec(
+                    version="1.3.1",
+                    config={},
+                    destination=destination,
+                    game_file=dich_path,
+                    title="Дичь",
+                )
+            )
+
+            content_dir = destination / "game" / "content"
+            self.assertTrue(content_dir.is_dir())
+
+            # Original file exists
+            self.assertTrue((content_dir / "way01.JPG").is_file())
+            # Lowercase symlink exists and points to way01.JPG
+            self.assertTrue((content_dir / "way01.jpg").is_file())
+            self.assertTrue((content_dir / "way01.jpg").is_symlink())
+            self.assertEqual(
+                (content_dir / "way01.jpg").resolve(),
+                (content_dir / "way01.JPG").resolve(),
+            )
+
+            # Bark.mp3 has bark.mp3 symlink
+            self.assertTrue((content_dir / "bark.mp3").is_file())
+            self.assertTrue((content_dir / "bark.mp3").is_symlink())
