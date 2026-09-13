@@ -142,6 +142,7 @@ def column_for_game(game: Game, *, history: Any = None) -> dict:
             for source in (game.gamesource_set.order_by("id") if game else [])
         ],
         "delete": False,
+        "clear_overrides": False,
     }
 
 
@@ -212,6 +213,7 @@ def _empty_column(*, client_id, history_id=None, sources=()):
         "description": "",
         "sources": [source_payload(source) for source in sources],
         "delete": False,
+        "clear_overrides": False,
     }
 
 
@@ -231,6 +233,7 @@ def _normalized_column(col: dict) -> dict:
         "description": str(col.get("description") or ""),
         "sources": _clean_sources(col.get("sources") or []),
         "delete": bool(col.get("delete")),
+        "clear_overrides": bool(col.get("clear_overrides")),
     }
 
 
@@ -470,6 +473,10 @@ def _save_column(
         curation, _ = GameCuration.objects.select_for_update().get_or_create(
             game=game
         )
+    if col["clear_overrides"] and curation is not None:
+        curation.include_overrides = {}
+        curation.exclude_overrides = {}
+        curation.save(update_fields=["include_overrides", "exclude_overrides"])
     return curation
 
 
