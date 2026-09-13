@@ -114,11 +114,16 @@ class ParchmentTests(SimpleTestCase):
             root = Path(directory)
 
             # Unsupported standalone files
-            for ext in (".txt", ".pdf", ".exe", ".t3", ".gam", ""):
+            for ext in (".txt", ".pdf", ".exe", ""):
                 file_path = root / f"file{ext}"
                 file_path.write_bytes(b"data")
                 with self.subTest(ext=ext):
                     self.assertFalse(accepts(file_path))
+
+            # Unsupported .gam file (lacks TADS2 header)
+            non_tads_gam = root / "file.gam"
+            non_tads_gam.write_bytes(b"QSPGAME\r\n0.0.6")
+            self.assertFalse(accepts(non_tads_gam))
 
             # Nonexistent file
             self.assertFalse(accepts(root / "nonexistent.z5"))
@@ -129,6 +134,12 @@ class ParchmentTests(SimpleTestCase):
                 zf.writestr("readme.txt", b"just text")
                 zf.writestr("walkthrough.pdf", b"pdf data")
             self.assertFalse(accepts(unsupported_zip))
+
+            # Archive with non-TADS .gam (e.g. QSP)
+            qsp_gam_zip = root / "qsp_game.zip"
+            with ZipFile(qsp_gam_zip, "w") as zf:
+                zf.writestr("story.gam", b"QSPGAME\r\n0.0.6")
+            self.assertFalse(accepts(qsp_gam_zip))
 
             # Archive with macOS metadata files only
             macos_zip = root / "macos.zip"
@@ -141,6 +152,46 @@ class ParchmentTests(SimpleTestCase):
             bad_zip = root / "bad.zip"
             bad_zip.write_bytes(b"not a valid zip content")
             self.assertFalse(accepts(bad_zip))
+
+    def test_accepts_tads_files_and_archives(self) -> None:
+        tads2_header = b"TADS2 bin\n\r\x1a\x00v2.2.0"
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            # Standalone .t3
+            t3_file = root / "story.t3"
+            t3_file.write_bytes(b"T3-image\x0d\x0a\x1a-data")
+            self.assertTrue(accepts(t3_file))
+
+            # Standalone .gam with TADS2 header
+            gam_file = root / "story.gam"
+            gam_file.write_bytes(tads2_header + b"-data")
+            self.assertTrue(accepts(gam_file))
+
+            # Standalone .gam with TADS tag
+            tagged_gam = root / "tagged.gam"
+            tagged_gam.write_bytes(b"some-data")
+            self.assertTrue(accepts(tagged_gam, tags=["TADS"]))
+            self.assertFalse(accepts(tagged_gam, tags=["QSP"]))
+
+            # Archive with .t3
+            t3_zip = root / "t3.zip"
+            with ZipFile(t3_zip, "w") as zf:
+                zf.writestr("story.t3", b"t3-data")
+            self.assertTrue(accepts(t3_zip))
+
+            # Archive with TADS2 .gam
+            tads2_zip = root / "tads2.zip"
+            with ZipFile(tads2_zip, "w") as zf:
+                zf.writestr("story.gam", tads2_header + b"-data")
+            self.assertTrue(accepts(tads2_zip))
+
+            # Archive with tagged .gam
+            tagged_zip = root / "tagged.zip"
+            with ZipFile(tagged_zip, "w") as zf:
+                zf.writestr("story.gam", b"some-data")
+            self.assertTrue(accepts(tagged_zip, tags=["RTADS"]))
+            self.assertFalse(accepts(tagged_zip, tags=["QSP"]))
 
     def test_generates_from_standalone_file(self) -> None:
         with TemporaryDirectory() as directory:
@@ -185,6 +236,28 @@ class ParchmentTests(SimpleTestCase):
             self.assertTrue(installed_game.exists())
             index_content = (destination / "index.html").read_text()
             self.assertIn('"story": "./game.zblorb"', index_content)
+
+    def test_generates_from_tads_file(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            assets = root / "assets"
+            assets.mkdir()
+            _write_release(assets)
+            game_file = root / "game.gam"
+            game_file.write_bytes(
+                b"TADS2 bin\n\r\x1a\x00v2.2.0-binary-content"
+            )
+            destination = root / "generated"
+
+            with patch("play.blueprints.parchment.ASSETS_DIR", assets):
+                generate(
+                    GenerateSpec("2026-08-23", {}, destination, game_file)
+                )
+
+            installed_game = destination / "game.gam"
+            self.assertTrue(installed_game.exists())
+            index_content = (destination / "index.html").read_text()
+            self.assertIn('"story": "./game.gam"', index_content)
 
     def test_generates_from_archive(self) -> None:
         with TemporaryDirectory() as directory:

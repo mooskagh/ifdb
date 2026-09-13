@@ -2,7 +2,7 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
-from zipfile import ZipFile
+from zipfile import ZipFile, is_zipfile
 
 from core.archives import Archive, ArchiveError, extract_archive, open_archive
 from play.blueprint import BlueprintSpec, GenerateSpec
@@ -19,7 +19,12 @@ SUPPORTED_EXTENSIONS = frozenset((
     ".ulx",
     ".gblorb",
     ".glb",
+    ".t3",
+    ".gam",
 ))
+
+_TADS2_HEADER = b"TADS2 bin\n\r\x1a\x00"
+_TADS3_HEADER = b"T3-image\x0d\x0a\x1a"
 
 _RELEASE_NAME = re.compile(
     r"^parchment-(?:single-file-)?(?P<version>\d+(?:[-.]\d+)*)\.zip$"
@@ -47,7 +52,53 @@ def _is_ignored(parts: list[str]) -> bool:
     return False
 
 
-def _find_game_file_in_archive(archive: Archive) -> str | None:
+def _is_tads2_file(path: Path, tags: list[str] | None = None) -> bool:
+    if tags:
+        lower_tags = [t.lower() for t in tags]
+        if any("qsp" in t for t in lower_tags):
+            return False
+        if any("tads" in t for t in lower_tags):
+            return True
+    try:
+        with path.open("rb") as f:
+            header = f.read(len(_TADS2_HEADER))
+        return header == _TADS2_HEADER
+    except OSError:
+        return False
+
+
+def _is_tads2_archive_member(
+    archive_path: Path, member: str, tags: list[str] | None = None
+) -> bool:
+    if tags:
+        lower_tags = [t.lower() for t in tags]
+        if any("qsp" in t for t in lower_tags):
+            return False
+        if any("tads" in t for t in lower_tags):
+            return True
+    if is_zipfile(archive_path):
+        try:
+            with ZipFile(archive_path) as zf:
+                actual_name = next(
+                    (
+                        n
+                        for n in zf.namelist()
+                        if n.replace("\\", "/") == member
+                    ),
+                    member,
+                )
+                header = zf.read(actual_name)[: len(_TADS2_HEADER)]
+                return header == _TADS2_HEADER
+        except Exception:
+            return False
+    return False
+
+
+def _find_game_file_in_archive(
+    archive: Archive,
+    archive_path: Path | None = None,
+    tags: list[str] | None = None,
+) -> str | None:
     candidates: list[tuple[int, str]] = []
     for member in archive.namelist():
         if member.endswith("/"):
@@ -56,6 +107,17 @@ def _find_game_file_in_archive(archive: Archive) -> str | None:
         if _is_ignored(parts):
             continue
         ext = Path(parts[-1]).suffix.lower()
+        if ext == ".gam":
+            if archive_path and not _is_tads2_archive_member(
+                archive_path, member, tags
+            ):
+                continue
+            if not archive_path and tags:
+                lower_tags = [t.lower() for t in tags]
+                if any("qsp" in t for t in lower_tags) or not any(
+                    "tads" in t for t in lower_tags
+                ):
+                    continue
         if ext in SUPPORTED_EXTENSIONS:
             candidates.append((len(parts), member))
 
@@ -65,16 +127,23 @@ def _find_game_file_in_archive(archive: Archive) -> str | None:
     return candidates[0][1]
 
 
-def accepts(filename: Path) -> bool:
+def accepts(
+    filename: Path, *, tags: list[str] | None = None, **kwargs: object
+) -> bool:
     if not filename.is_file():
         return False
 
-    if filename.suffix.lower() in SUPPORTED_EXTENSIONS:
+    ext = filename.suffix.lower()
+    if ext == ".gam":
+        return _is_tads2_file(filename, tags)
+    if ext in SUPPORTED_EXTENSIONS:
         return True
 
     try:
         with open_archive(filename) as archive:
-            return _find_game_file_in_archive(archive) is not None
+            return (
+                _find_game_file_in_archive(archive, filename, tags) is not None
+            )
     except (ArchiveError, OSError):
         return False
 
@@ -165,7 +234,9 @@ def generate(spec: GenerateSpec) -> None:
             shutil.copyfile(spec.game_file, stage / f"game{game_ext}")
         else:
             with open_archive(spec.game_file) as archive:
-                member_name = _find_game_file_in_archive(archive)
+                member_name = _find_game_file_in_archive(
+                    archive, spec.game_file, spec.tags
+                )
             if not member_name:
                 raise ValueError(
                     f"Archive {spec.game_file.name} does not contain "
