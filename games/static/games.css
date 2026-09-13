@@ -3569,9 +3569,16 @@ progress.curation-scan-progress-bar {
     word-break: break-word;
 }
 .curation-source-body a,
-.curation-event + a {
+.curation-event + a,
+.curation-sidebar-source a {
     overflow-wrap: anywhere;
     word-break: break-word;
+}
+.curation-sidebar-source {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
 }
 .curation-source-add-row {
     display: flex;

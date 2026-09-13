@@ -2040,6 +2040,87 @@ class EditDiffViewTest(TestCase):
             fetch_redirect_response=False,
         )
 
+    def test_edit_page_shows_sources_sidebar(self):
+        edit = self._edit()
+
+        # Without sources: shows empty message
+        resp = self.client.get(f"/curation/edits/{edit.pk}/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Источников нет.")
+
+        # Source 1: fetch before edit and fetch after edit -> chooses before
+        source1 = GameSource.objects.create(
+            game=edit.game,
+            type=GameSource.SourceType.IFWIKI,
+            url="https://ifwiki.ru/TestGame",
+        )
+        fetch_old = GameSourceFetch.objects.create(
+            source=source1,
+            raw_content="old raw",
+            canonical_text="old canonical",
+            canonical_text_hash="h_old",
+            first_fetch=self.now - timedelta(hours=2),
+            last_fetch=self.now - timedelta(hours=2),
+        )
+        fetch_new = GameSourceFetch.objects.create(
+            source=source1,
+            raw_content="new raw",
+            canonical_text="new canonical",
+            canonical_text_hash="h_new",
+            first_fetch=self.now + timedelta(hours=2),
+            last_fetch=self.now + timedelta(hours=2),
+        )
+
+        # Source 2: only has fetch after edit -> falls back to latest
+        source2 = GameSource.objects.create(
+            game=edit.game,
+            type=GameSource.SourceType.APERO,
+            url="https://apero.ru/Games/123",
+        )
+        fetch2 = GameSourceFetch.objects.create(
+            source=source2,
+            raw_content="apero raw",
+            canonical_text="apero canonical",
+            canonical_text_hash="h_apero",
+            first_fetch=self.now + timedelta(hours=1),
+            last_fetch=self.now + timedelta(hours=1),
+        )
+
+        resp = self.client.get(f"/curation/edits/{edit.pk}/")
+        self.assertEqual(resp.status_code, 200)
+
+        # Links to source details
+        self.assertContains(resp, f'href="/curation/sources/{source1.pk}/"')
+        self.assertContains(resp, f'href="/curation/sources/{source2.pk}/"')
+        self.assertContains(resp, "https://ifwiki.ru/TestGame")
+        self.assertContains(resp, "https://apero.ru/Games/123")
+
+        # For source 1: chosen fetch_old
+        self.assertContains(
+            resp, f'href="/curation/sources/fetches/{fetch_old.pk}/canonical/"'
+        )
+        self.assertContains(
+            resp, f'href="/curation/sources/fetches/{fetch_old.pk}/raw/"'
+        )
+        self.assertNotContains(
+            resp, f'href="/curation/sources/fetches/{fetch_new.pk}/canonical/"'
+        )
+
+        # For source 2: chosen fetch2
+        self.assertContains(
+            resp, f'href="/curation/sources/fetches/{fetch2.pk}/canonical/"'
+        )
+        self.assertContains(
+            resp, f'href="/curation/sources/fetches/{fetch2.pk}/raw/"'
+        )
+
+        # Test with used_sources: explicitly associates a fetch
+        edit.used_sources.add(fetch_new)
+        resp = self.client.get(f"/curation/edits/{edit.pk}/")
+        self.assertContains(
+            resp, f'href="/curation/sources/fetches/{fetch_new.pk}/canonical/"'
+        )
+
 
 class DiscoveryViewsTest(TestCase):
     def setUp(self):
