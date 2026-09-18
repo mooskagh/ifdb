@@ -33,7 +33,7 @@ check-mypy:
 # Run Django tests
 check-tests:
     @echo "Running Django tests..."
-    uv run python manage.py test
+    uv run python manage.py test --parallel 4
 
 # Run ruff code formatting and import sorting
 fix-ruff:

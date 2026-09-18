@@ -423,6 +423,9 @@ CELERY_IMPORTS = [
 if "test" in sys.argv:
     CELERY_BROKER_URL = "memory://"
     CELERY_RESULT_BACKEND = "cache+memory://"
+    PASSWORD_HASHERS = [
+        "django.contrib.auth.hashers.MD5PasswordHasher",
+    ]
 
 AUTH_USER_MODEL = "core.User"
 AUTHENTICATION_BACKENDS = [
