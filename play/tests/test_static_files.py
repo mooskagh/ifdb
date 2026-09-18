@@ -467,6 +467,83 @@ class StaticFilesTests(SimpleTestCase):
             self.assertIn('tiddler="ручка"', index_text)
             self.assertNotIn("\ufffd", index_text)
 
+    def test_accepts_raw_html_files(self) -> None:
+        cases = (
+            "index.html",
+            "index.htm",
+            "game.html",
+            "story.htm",
+            "GAME.HTML",
+            "STORY.HTM",
+        )
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in cases:
+                file_path = root / name
+                file_path.write_bytes(b"<h1>Hello</h1>")
+                with self.subTest(name=name):
+                    self.assertTrue(accepts(file_path))
+
+    def test_rejects_raw_non_html_files(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            txt_file = root / "game.txt"
+            txt_file.write_bytes(b"Hello")
+            self.assertFalse(accepts(txt_file))
+
+            hidden_html = root / ".hidden.html"
+            hidden_html.write_bytes(b"<h1>Hidden</h1>")
+            self.assertFalse(accepts(hidden_html))
+
+            dir_html = root / "directory.html"
+            dir_html.mkdir()
+            self.assertFalse(accepts(dir_html))
+
+            self.assertFalse(accepts(root / "nonexistent.html"))
+
+    def test_generates_from_raw_html_file(self) -> None:
+        cases = (
+            ("game.html", "<h1>Game</h1>"),
+            ("story.htm", "<h1>Story</h1>"),
+            ("index.html", "<h1>Index</h1>"),
+            ("index.htm", "<h1>IndexHtm</h1>"),
+            ("UPPER.HTML", "<h1>Upper</h1>"),
+        )
+        for filename, content in cases:
+            with self.subTest(filename=filename):
+                with TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    html_path = root / filename
+                    html_path.write_text(content)
+                    destination = root / "playable"
+
+                    generate(GenerateSpec("1", {}, destination, html_path))
+
+                    self.assertTrue((destination / "index.html").exists())
+                    self.assertEqual(
+                        (destination / "index.html").read_text(), content
+                    )
+                    if filename != "index.html":
+                        self.assertFalse((destination / filename).exists())
+
+    def test_generates_from_raw_html_file_transcodes_encoding(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            html_path = root / "story.html"
+            html_content = (
+                "<!DOCTYPE html><html><head><title>Тест</title></head>"
+                "<body>Привет, мир!</body></html>"
+            ).encode("cp1251")
+            html_path.write_bytes(html_content)
+            destination = root / "playable"
+
+            generate(GenerateSpec("1", {}, destination, html_path))
+            index_path = destination / "index.html"
+            self.assertTrue(index_path.exists())
+            text = index_path.read_text(encoding="utf-8")
+            self.assertIn("Привет, мир!", text)
+            self.assertIn('<meta charset="utf-8">', text)
+
 
 class StaticFilesTaskTests(TestCase):
     game: Game
@@ -606,3 +683,57 @@ class StaticFilesTaskTests(TestCase):
                 (dest / "index.html").read_text(), "<h1>Sub Game</h1>"
             )
             self.assertTrue((dest / "app.js").exists())
+
+    def test_generate_playable_static_files_raw_html(self) -> None:
+        with (
+            TemporaryDirectory() as media_root,
+            TemporaryDirectory() as playables_dir,
+        ):
+            fs = FileSystemStorage(media_root)
+            game_file_path = Path(media_root) / "my_game.html"
+            game_file_path.write_text("<h1>Standalone Game</h1>")
+
+            url = URL.objects.create(
+                original_url="https://example.com/my_game.html",
+                local_filename="my_game.html",
+                creation_date=now(),
+            )
+            cat, _ = GameURLCategory.objects.get_or_create(
+                symbolic_id="download_direct",
+                defaults={"title": "Direct download"},
+            )
+            game_url = GameURL.objects.create(
+                game=self.game,
+                url=url,
+                category=cat,
+            )
+            playable = Playable.objects.create(
+                game=self.game,
+                game_url=game_url,
+                template="static_files",
+                template_version="1",
+                config={},
+            )
+
+            with override_settings(
+                PLAYABLE_DIR=playables_dir,
+                UPLOADS_FS=fs,
+                CADDY_ADMIN_URL=None,
+            ):
+                with (
+                    patch("games.models.URL.GetFs", return_value=fs),
+                    patch(
+                        "play.tasks.generate_playable_domain",
+                        return_value="raw-html-game",
+                    ),
+                ):
+                    generate_playable(playable.pk)
+
+            playable.refresh_from_db()
+            self.assertEqual(playable.state, Playable.State.READY)
+            dest = Path(playables_dir) / str(playable.pk)
+            self.assertTrue((dest / "index.html").exists())
+            self.assertFalse((dest / "my_game.html").exists())
+            self.assertEqual(
+                (dest / "index.html").read_text(), "<h1>Standalone Game</h1>"
+            )

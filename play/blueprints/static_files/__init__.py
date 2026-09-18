@@ -103,7 +103,11 @@ def get_spec() -> BlueprintSpec:
     return BlueprintSpec(name="Static files", versions=["1"])
 
 
-def accepts(filename: Path) -> bool:
+def accepts(filename: Path, **kwargs: object) -> bool:
+    if not filename.is_file():
+        return False
+    if _is_html_file(filename.name):
+        return True
     try:
         with open_archive(filename) as archive:
             return find_unpack_target(archive) is not None
@@ -219,14 +223,8 @@ def generate(spec: GenerateSpec) -> None:
     if spec.config:
         raise ValueError("Static files generation does not support config")
 
-    with open_archive(spec.game_file) as archive:
-        target = find_unpack_target(archive)
-
-    if target is None:
-        raise ValueError(
-            f"Archive {spec.game_file.name} does not contain "
-            "index.html or index.htm at root or in a single root directory"
-        )
+    if not spec.game_file.is_file():
+        raise ValueError(f"Game file not found: {spec.game_file}")
 
     stage = Path(
         tempfile.mkdtemp(
@@ -234,38 +232,58 @@ def generate(spec: GenerateSpec) -> None:
         )
     )
     try:
-        with tempfile.TemporaryDirectory(
-            dir=spec.destination.parent
-        ) as temp_extract_str:
-            temp_extract = Path(temp_extract_str)
-            extract_archive(spec.game_file, temp_extract)
-
-            source_dir = temp_extract / target if target else temp_extract
-            if not source_dir.is_dir():
+        if _is_html_file(spec.game_file.name):
+            shutil.copy2(spec.game_file, stage / "index.html")
+        else:
+            try:
+                with open_archive(spec.game_file) as archive:
+                    target = find_unpack_target(archive)
+            except (ArchiveError, OSError) as exc:
                 raise ValueError(
-                    f"Target directory {source_dir.name} not found in "
-                    "extracted archive"
+                    f"Failed to open archive {spec.game_file.name}: {exc}"
+                ) from exc
+
+            if target is None:
+                raise ValueError(
+                    f"Archive {spec.game_file.name} does not contain "
+                    "index.html or index.htm at root or in a single root "
+                    "directory"
                 )
 
-            for item in source_dir.iterdir():
-                if item.name in _IGNORED_ROOTS or item.name in _IGNORED_NAMES:
-                    continue
-                shutil.move(str(item), str(stage / item.name))
+            with tempfile.TemporaryDirectory(
+                dir=spec.destination.parent
+            ) as temp_extract_str:
+                temp_extract = Path(temp_extract_str)
+                extract_archive(spec.game_file, temp_extract)
 
-            if (
-                not (stage / "index.html").exists()
-                and not (stage / "index.htm").exists()
-            ):
-                html_files = [
-                    item
-                    for item in stage.iterdir()
-                    if item.is_file() and _is_html_file(item.name)
-                ]
-                if len(html_files) == 1:
-                    html_files[0].rename(stage / "index.html")
+                source_dir = temp_extract / target if target else temp_extract
+                if not source_dir.is_dir():
+                    raise ValueError(
+                        f"Target directory {source_dir.name} not found in "
+                        "extracted archive"
+                    )
 
-            _normalize_tree_encoding(stage)
+                for item in source_dir.iterdir():
+                    if (
+                        item.name in _IGNORED_ROOTS
+                        or item.name in _IGNORED_NAMES
+                    ):
+                        continue
+                    shutil.move(str(item), str(stage / item.name))
 
+                if (
+                    not (stage / "index.html").exists()
+                    and not (stage / "index.htm").exists()
+                ):
+                    html_files = [
+                        item
+                        for item in stage.iterdir()
+                        if item.is_file() and _is_html_file(item.name)
+                    ]
+                    if len(html_files) == 1:
+                        html_files[0].rename(stage / "index.html")
+
+        _normalize_tree_encoding(stage)
         _publish(stage, spec.destination)
     finally:
         if stage.exists():
