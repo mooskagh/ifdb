@@ -1,43 +1,47 @@
 {% extends "games/base.html" %}
 {% load tags %}
 
-{% block content %}
-<main class="game">
-        <div class="game--content-grid">
-        <div class="game--content-main">
-            {% if messages %}
-            <div class="card card--green">
-                <div class="card--body">
-                    {% for message in messages %}<div>{{ message }}</div>{% endfor %}
+{% block content_wide %}
+<div class="content content--curation">
+    {% block content %}
+    <main class="game curation-page">
+        <div class="game--content-grid curation-grid">
+            <div class="game--content-main curation-main">
+                {% if messages %}
+                <div class="card card--green">
+                    <div class="card--body">
+                        {% for message in messages %}<div>{{ message }}</div>{% endfor %}
+                    </div>
                 </div>
+                {% endif %}
+                {% block curation_main %}{% endblock %}
             </div>
-            {% endif %}
-            {% block curation_main %}{% endblock %}
-        </div>
-        <div class="game--content-sidebar">
-            <div class="card card--purple">
-                <div class="card--header">Модерация</div>
-                <div class="card--listbody">
-                    <a class="curation-menu-item {% current 'curation_history_list' %}"
-                       href="{% url 'curation_history_list' %}">Список игр</a>
-                    <a class="curation-menu-item {% current 'curation_discovery_status' %}"
-                       href="{% url 'curation_discovery_status' %}">Обнаружение игр</a>
-                    <a class="curation-menu-item {% current 'curation_source_list' %}"
-                       href="{% url 'curation_source_list' %}">Источники</a>
-                    <a class="curation-menu-item {% current 'curation_feed_list' %}"
-                       href="{% url 'curation_feed_list' %}">Фиды</a>
-                    <a class="curation-menu-item {% current 'curation_tasks' %}"
-                       href="{% url 'curation_tasks' %}">Периодические задания</a>
-                    <a class="curation-menu-item {% current 'curation_llm_models' %}"
-                       href="{% url 'curation_llm_models' %}">Модели LLM</a>
-                    <a class="curation-menu-item {% current 'curation_llm_trajectories' %}"
-                       href="{% url 'curation_llm_trajectories' %}">Траектории LLM</a>
-                    <a class="curation-menu-item {% current 'curation_blueprint_list' %}"
-                       href="{% url 'curation_blueprint_list' %}">Проигрыватели</a>
+            <div class="game--content-sidebar curation-sidebar">
+                <div class="card card--purple curation-nav-card">
+                    <div class="card--header">Модерация</div>
+                    <div class="card--listbody curation-menu-list">
+                        <a class="curation-menu-item {% current 'curation_history_list' %}"
+                           href="{% url 'curation_history_list' %}">Список игр</a>
+                        <a class="curation-menu-item {% current 'curation_discovery_status' %}"
+                           href="{% url 'curation_discovery_status' %}">Обнаружение игр</a>
+                        <a class="curation-menu-item {% current 'curation_source_list' %}"
+                           href="{% url 'curation_source_list' %}">Источники</a>
+                        <a class="curation-menu-item {% current 'curation_feed_list' %}"
+                           href="{% url 'curation_feed_list' %}">Фиды</a>
+                        <a class="curation-menu-item {% current 'curation_tasks' %}"
+                           href="{% url 'curation_tasks' %}">Периодические задания</a>
+                        <a class="curation-menu-item {% current 'curation_llm_models' %}"
+                           href="{% url 'curation_llm_models' %}">Модели LLM</a>
+                        <a class="curation-menu-item {% current 'curation_llm_trajectories' %}"
+                           href="{% url 'curation_llm_trajectories' %}">Траектории LLM</a>
+                        <a class="curation-menu-item {% current 'curation_blueprint_list' %}"
+                           href="{% url 'curation_blueprint_list' %}">Проигрыватели</a>
+                    </div>
                 </div>
+                {% block curation_sidebar %}{% endblock %}
             </div>
-            {% block curation_sidebar %}{% endblock %}
         </div>
-    </div>
-</main>
+    </main>
+    {% endblock %}
+</div>
 {% endblock %}
