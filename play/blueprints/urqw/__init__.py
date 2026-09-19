@@ -11,7 +11,12 @@ from core.archives import (
     extract_archive,
     open_archive,
 )
-from play.blueprint import BlueprintSpec, Compatibility, GenerateSpec
+from play.blueprint import (
+    BlueprintSpec,
+    Compatibility,
+    GenerateResult,
+    GenerateSpec,
+)
 from play.blueprints.urqw.detection import (
     SUPPORTED_EXTENSIONS,
     detect_encoding,
@@ -29,6 +34,7 @@ _RUNTIME_FILES = (
     "dist/style.min.css",
     "logo.svg",
     "favicon.png",
+    "rss.svg",
 )
 
 VALID_CONFIG_KEYS = frozenset((
@@ -208,6 +214,20 @@ def _write_runtime(runtime_path: Path, stage: Path, title: str) -> None:
             with runtime.open(member) as src, target_path.open("wb") as dst:
                 shutil.copyfileobj(src, dst)
 
+        for member in runtime.namelist():
+            if member.startswith("fonts/") and not member.endswith("/"):
+                target_path = stage / member
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                with (
+                    runtime.open(member) as src,
+                    target_path.open("wb") as dst,
+                ):
+                    shutil.copyfileobj(src, dst)
+
+    fonts_dir = ASSETS_DIR / "fonts"
+    if fonts_dir.is_dir():
+        shutil.copytree(fonts_dir, stage / "fonts", dirs_exist_ok=True)
+
 
 def _flatten_single_dir(directory: Path) -> None:
     """If directory contains only one sub-directory, move its contents up."""
@@ -332,7 +352,7 @@ def _publish(stage: Path, destination: Path) -> None:
     stage.rename(destination)
 
 
-def generate(spec: GenerateSpec) -> None:
+def generate(spec: GenerateSpec) -> GenerateResult:
     for key in spec.config:
         if key not in VALID_CONFIG_KEYS:
             raise ValueError(
@@ -385,6 +405,10 @@ def generate(spec: GenerateSpec) -> None:
             tags=spec.tags,
         )
         _publish(stage, spec.destination)
+        return GenerateResult(
+            player_name="UrqW",
+            player_url="https://urqw.github.io/UrqW/",
+        )
     finally:
         if stage.exists():
             shutil.rmtree(stage)

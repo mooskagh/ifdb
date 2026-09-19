@@ -33,6 +33,12 @@ class GenerateSpec:
     tags: list[str] = field(default_factory=list)
 
 
+@dataclass(frozen=True, slots=True)
+class GenerateResult:
+    player_name: str | None = None
+    player_url: str | None = None
+
+
 class BlueprintModule(Protocol):
     def get_spec(self) -> BlueprintSpec: ...
 
@@ -40,7 +46,7 @@ class BlueprintModule(Protocol):
         self, filename: Path, **kwargs: object
     ) -> Compatibility | bool: ...
 
-    def generate(self, spec: GenerateSpec) -> None: ...
+    def generate(self, spec: GenerateSpec) -> GenerateResult | None: ...
 
 
 def check_compatibility(

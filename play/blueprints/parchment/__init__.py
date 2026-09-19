@@ -5,7 +5,7 @@ from pathlib import Path
 from zipfile import ZipFile, is_zipfile
 
 from core.archives import Archive, ArchiveError, extract_archive, open_archive
-from play.blueprint import BlueprintSpec, GenerateSpec
+from play.blueprint import BlueprintSpec, GenerateResult, GenerateSpec
 
 ASSETS_DIR = Path(__file__).parent / "assets"
 
@@ -214,7 +214,7 @@ def _publish(stage: Path, destination: Path) -> None:
     stage.rename(destination)
 
 
-def generate(spec: GenerateSpec) -> None:
+def generate(spec: GenerateSpec) -> GenerateResult:
     if spec.config:
         raise ValueError("Parchment generation does not support config")
 
@@ -259,6 +259,10 @@ def generate(spec: GenerateSpec) -> None:
 
         _write_runtime(runtime_path, stage, f"game{game_ext}")
         _publish(stage, spec.destination)
+        return GenerateResult(
+            player_name="Parchment",
+            player_url="https://iplayif.com",
+        )
     finally:
         if stage.exists():
             shutil.rmtree(stage)
