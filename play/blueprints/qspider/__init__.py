@@ -18,6 +18,7 @@ from play.blueprint import (
     Compatibility,
     GenerateResult,
     GenerateSpec,
+    insert_telemetry,
 )
 from play.blueprints.qspider.detection import (
     ALL_QSP_EXTENSIONS,
@@ -192,7 +193,9 @@ def _write_runtime(runtime_path: Path, stage: Path, title: str) -> None:
             target_path.parent.mkdir(parents=True, exist_ok=True)
             if member.filename == "index.html":
                 index_raw = runtime.read(member.filename)
-                target_path.write_bytes(_patch_index_html(index_raw, title))
+                target_path.write_bytes(
+                    insert_telemetry(_patch_index_html(index_raw, title))
+                )
             else:
                 with (
                     runtime.open(member) as src,

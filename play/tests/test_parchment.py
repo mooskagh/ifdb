@@ -6,7 +6,11 @@ from zipfile import ZipFile
 
 from django.test import SimpleTestCase
 
-from play.blueprint import GenerateSpec, discover_blueprints
+from play.blueprint import (
+    TELEMETRY_SCRIPT,
+    GenerateSpec,
+    discover_blueprints,
+)
 from play.blueprints.parchment import (
     accepts,
     generate,
@@ -235,6 +239,7 @@ class ParchmentTests(SimpleTestCase):
             installed_game = destination / "game.zblorb"
             self.assertTrue(installed_game.exists())
             index_content = (destination / "index.html").read_text()
+            self.assertIn(TELEMETRY_SCRIPT, index_content)
             self.assertIn('"story": "./game.zblorb"', index_content)
 
     def test_generates_from_tads_file(self) -> None:

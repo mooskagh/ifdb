@@ -5,7 +5,12 @@ from pathlib import Path
 from zipfile import ZipFile
 
 from core.archives import ArchiveError, open_archive, repack_to_zip
-from play.blueprint import BlueprintSpec, GenerateResult, GenerateSpec
+from play.blueprint import (
+    BlueprintSpec,
+    GenerateResult,
+    GenerateSpec,
+    insert_telemetry,
+)
 
 ASSETS_DIR = Path(__file__).parent / "assets"
 
@@ -96,7 +101,7 @@ def _write_runtime(runtime: ZipFile, stage: Path) -> None:
     for member_name in _RUNTIME_MEMBERS:
         if member_name == _LAUNCHER_MEMBER:
             html = _activate_gamefile_marker(runtime.read(member_name))
-            (stage / "index.html").write_bytes(html)
+            (stage / "index.html").write_bytes(insert_telemetry(html))
             continue
 
         with runtime.open(member_name) as source:

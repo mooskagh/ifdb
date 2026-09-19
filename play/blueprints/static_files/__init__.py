@@ -7,7 +7,12 @@ from pathlib import Path
 import charset_normalizer
 
 from core.archives import Archive, ArchiveError, extract_archive, open_archive
-from play.blueprint import BlueprintSpec, GenerateResult, GenerateSpec
+from play.blueprint import (
+    BlueprintSpec,
+    GenerateResult,
+    GenerateSpec,
+    insert_telemetry,
+)
 
 _INDEX_NAMES = frozenset(("index.html", "index.htm"))
 _IGNORED_ROOTS = frozenset(("__MACOSX",))
@@ -195,6 +200,7 @@ def _normalize_file_encoding(path: Path) -> None:
 
     if is_html:
         new_text = _normalize_html_content(text, was_transcoded=was_transcoded)
+        new_text = insert_telemetry(new_text)
         if new_text != text:
             text = new_text
             was_transcoded = True

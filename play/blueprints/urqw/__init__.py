@@ -16,6 +16,7 @@ from play.blueprint import (
     Compatibility,
     GenerateResult,
     GenerateSpec,
+    insert_telemetry,
 )
 from play.blueprints.urqw.detection import (
     SUPPORTED_EXTENSIONS,
@@ -206,7 +207,7 @@ def _write_runtime(runtime_path: Path, stage: Path, title: str) -> None:
     with ZipFile(runtime_path) as runtime:
         index_raw = runtime.read("index.html")
         patched_index = _patch_index_html(index_raw, title)
-        (stage / "index.html").write_bytes(patched_index)
+        (stage / "index.html").write_bytes(insert_telemetry(patched_index))
 
         for member in _RUNTIME_FILES:
             target_path = stage / member

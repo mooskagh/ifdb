@@ -8,7 +8,7 @@ from zipfile import ZipFile
 
 from django.test import SimpleTestCase
 
-from play.blueprint import GenerateSpec
+from play.blueprint import TELEMETRY_SCRIPT_BYTES, GenerateSpec
 from play.blueprints.instead_em import accepts, generate, get_spec
 
 _DEFAULT_HTML = (
@@ -138,6 +138,7 @@ class InsteadEmTests(SimpleTestCase):
                 {path.name for path in destination.iterdir()}, expected
             )
             index = (destination / "index.html").read_bytes()
+            self.assertIn(TELEMETRY_SCRIPT_BYTES, index)
             self.assertIn(b'<meta name="gamefile" content="game.zip">', index)
             self.assertIn(b'href="viewport.css"', index)
             self.assertIn(b'src="viewport.js"', index)
