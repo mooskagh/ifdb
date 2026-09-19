@@ -6,7 +6,11 @@ from pathlib import Path
 from celery import shared_task
 from django.conf import settings
 
-from play.blueprint import GenerateSpec, discover_blueprints
+from play.blueprint import (
+    GenerateResult,
+    GenerateSpec,
+    discover_blueprints,
+)
 from play.caddy import configure_caddy_playable
 from play.domain import generate_playable_domain
 from play.models import Playable
@@ -84,7 +88,7 @@ def generate_playable(playable_id: int) -> None:
             title=playable.game.title,
             tags=tags,
         )
-        blueprint.generate(spec)
+        result = blueprint.generate(spec)
 
         ensure_group_readable(destination)
 
@@ -94,8 +98,17 @@ def generate_playable(playable_id: int) -> None:
                     f"Failed to configure Caddy for playable {playable.pk}"
                 )
 
+        if isinstance(result, GenerateResult):
+            playable.player_name = result.player_name
+            playable.player_url = result.player_url
+        else:
+            playable.player_name = None
+            playable.player_url = None
+
         playable.state = Playable.State.READY
-        playable.save(update_fields=["state", "updated"])
+        playable.save(
+            update_fields=["player_name", "player_url", "state", "updated"]
+        )
     except Exception:
         destination = Path(settings.PLAYABLE_DIR) / str(playable.pk)
         if destination.exists():

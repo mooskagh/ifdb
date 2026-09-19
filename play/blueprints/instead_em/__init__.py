@@ -5,7 +5,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 from core.archives import ArchiveError, open_archive, repack_to_zip
-from play.blueprint import BlueprintSpec, GenerateSpec
+from play.blueprint import BlueprintSpec, GenerateResult, GenerateSpec
 
 ASSETS_DIR = Path(__file__).parent / "assets"
 
@@ -115,7 +115,7 @@ def _publish(stage: Path, destination: Path) -> None:
     stage.rename(destination)
 
 
-def generate(spec: GenerateSpec) -> None:
+def generate(spec: GenerateSpec) -> GenerateResult:
     if spec.config != {}:
         raise ValueError("INSTEAD-EM generation does not support config")
 
@@ -130,6 +130,10 @@ def generate(spec: GenerateSpec) -> None:
             _write_runtime(runtime, stage)
         repack_to_zip(spec.game_file, stage / "game.zip")
         _publish(stage, spec.destination)
+        return GenerateResult(
+            player_name="INSTEAD",
+            player_url="https://instead3.hugeping.ru/",
+        )
     finally:
         if stage.exists():
             shutil.rmtree(stage)

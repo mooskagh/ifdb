@@ -7,7 +7,7 @@ from pathlib import Path
 import charset_normalizer
 
 from core.archives import Archive, ArchiveError, extract_archive, open_archive
-from play.blueprint import BlueprintSpec, GenerateSpec
+from play.blueprint import BlueprintSpec, GenerateResult, GenerateSpec
 
 _INDEX_NAMES = frozenset(("index.html", "index.htm"))
 _IGNORED_ROOTS = frozenset(("__MACOSX",))
@@ -219,7 +219,7 @@ def _normalize_tree_encoding(stage: Path) -> None:
             _normalize_file_encoding(path)
 
 
-def generate(spec: GenerateSpec) -> None:
+def generate(spec: GenerateSpec) -> GenerateResult:
     if spec.config:
         raise ValueError("Static files generation does not support config")
 
@@ -285,6 +285,7 @@ def generate(spec: GenerateSpec) -> None:
 
         _normalize_tree_encoding(stage)
         _publish(stage, spec.destination)
+        return GenerateResult(player_name=None, player_url=None)
     finally:
         if stage.exists():
             shutil.rmtree(stage)

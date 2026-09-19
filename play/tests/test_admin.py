@@ -3,8 +3,8 @@ from django.test import TestCase
 
 from games.admin import GameAdmin, InlinePlayableAdmin
 from games.models import Game
-from play.admin import PlayableAdmin
-from play.models import Playable
+from play.admin import PlayableAdmin, PlaySegmentAdmin, PlaySessionAdmin
+from play.models import Playable, PlaySegment, PlaySession
 
 
 class PlayableAdminTests(TestCase):
@@ -18,6 +18,18 @@ class PlayableAdminTests(TestCase):
         self.assertIn("visible", admin_instance.list_filter)
         self.assertIn("created", admin_instance.readonly_fields)
         self.assertIn("updated", admin_instance.readonly_fields)
+
+    def test_playsession_admin_registered(self) -> None:
+        self.assertIn(PlaySession, site._registry)
+        admin_instance = site._registry[PlaySession]
+        self.assertIsInstance(admin_instance, PlaySessionAdmin)
+        self.assertIn("play_session_id", admin_instance.list_display)
+
+    def test_playsegment_admin_registered(self) -> None:
+        self.assertIn(PlaySegment, site._registry)
+        admin_instance = site._registry[PlaySegment]
+        self.assertIsInstance(admin_instance, PlaySegmentAdmin)
+        self.assertIn("active_seconds", admin_instance.list_display)
 
     def test_game_admin_has_playable_inline(self) -> None:
         self.assertIn(Game, site._registry)

@@ -11,7 +11,12 @@ from core.archives import (
     extract_archive,
     open_archive,
 )
-from play.blueprint import BlueprintSpec, Compatibility, GenerateSpec
+from play.blueprint import (
+    BlueprintSpec,
+    Compatibility,
+    GenerateResult,
+    GenerateSpec,
+)
 from play.blueprints.urqw.detection import (
     SUPPORTED_EXTENSIONS,
     detect_encoding,
@@ -332,7 +337,7 @@ def _publish(stage: Path, destination: Path) -> None:
     stage.rename(destination)
 
 
-def generate(spec: GenerateSpec) -> None:
+def generate(spec: GenerateSpec) -> GenerateResult:
     for key in spec.config:
         if key not in VALID_CONFIG_KEYS:
             raise ValueError(
@@ -385,6 +390,10 @@ def generate(spec: GenerateSpec) -> None:
             tags=spec.tags,
         )
         _publish(stage, spec.destination)
+        return GenerateResult(
+            player_name="UrqW",
+            player_url="https://urqw.github.io/UrqW/",
+        )
     finally:
         if stage.exists():
             shutil.rmtree(stage)

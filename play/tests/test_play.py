@@ -199,6 +199,10 @@ class TaskTests(TestCase):
             playable.refresh_from_db()
             self.assertEqual(playable.state, Playable.State.READY)
             self.assertEqual(playable.slug, "auto-slug")
+            self.assertEqual(playable.player_name, "INSTEAD")
+            self.assertEqual(
+                playable.player_url, "https://instead3.hugeping.ru/"
+            )
             mock_gen_domain.assert_called_once_with(
                 playable.game, current_playable_pk=playable.pk
             )

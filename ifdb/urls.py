@@ -32,6 +32,7 @@ urlpatterns = [
     path("rss/", include("rss.urls"), name="rss"),
     path("curation/", include("curation.urls"), name="curation"),
     path("api/", include("api.urls")),
+    path("play/", include("play.urls")),
 ]
 
 if settings.DEBUG:
