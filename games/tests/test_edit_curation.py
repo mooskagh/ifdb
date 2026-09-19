@@ -498,53 +498,35 @@ class GameEditCurationViewTests(TestCase):
             kwargs["state"] = state
         return GameCuration.objects.create(**kwargs)
 
-    def test_superuser_nav_shows_needs_attention_count(self):
-        self.user.is_superuser = True
-        self.user.save(update_fields=["is_superuser"])
+    def test_superuser_nav_attention_badge(self):
         self._make_history(state=GameCuration.State.NEEDS_ATTENTION)
-        self._make_history()
-
         response = self.client.get(reverse("list_games"))
+        self.assertNotContains(response, "top-nav-attention")
 
-        self.assertContains(
-            response,
-            (
-                f'<a class="top-nav-attention " '
-                f'href="{reverse("curation_history_list")}">Модерация (1)</a>'
-            ),
-        )
-
-    def test_selected_superuser_nav_keeps_normal_style_with_count(self):
-        self.user.is_superuser = True
-        self.user.save(update_fields=["is_superuser"])
-        self._make_history(state=GameCuration.State.NEEDS_ATTENTION)
-
-        response = self.client.get(reverse("curation_history_list"))
-
-        self.assertContains(
-            response,
-            (
-                f'<a class="top-nav-attention current" '
-                f'href="{reverse("curation_history_list")}">Модерация (1)</a>'
-            ),
-        )
-
-    def test_superuser_nav_omits_needs_attention_count_when_zero(self):
         self.user.is_superuser = True
         self.user.save(update_fields=["is_superuser"])
         self._make_history()
-
         response = self.client.get(reverse("list_games"))
+        curation_url = reverse("curation_history_list")
+        self.assertContains(
+            response,
+            f'<a class="top-nav-attention " href="{curation_url}">'
+            "Модерация (1)</a>",
+        )
 
+        response = self.client.get(curation_url)
+        self.assertContains(
+            response,
+            f'<a class="top-nav-attention current" href="{curation_url}">'
+            "Модерация (1)</a>",
+        )
+
+        GameCuration.objects.filter(
+            state=GameCuration.State.NEEDS_ATTENTION
+        ).update(state=GameCuration.State.SETTLED)
+        response = self.client.get(reverse("list_games"))
         self.assertNotContains(response, "top-nav-attention")
         self.assertContains(response, ">Модерация</a>")
-
-    def test_non_superuser_nav_omits_needs_attention_count(self):
-        self._make_history(state=GameCuration.State.NEEDS_ATTENTION)
-
-        response = self.client.get(reverse("list_games"))
-
-        self.assertNotContains(response, "top-nav-attention")
 
     def test_game_page_renders_media_without_description(self):
         url = URL.objects.create(

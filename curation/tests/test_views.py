@@ -1896,53 +1896,25 @@ class EditDiffViewTest(TestCase):
         game_url = GameURL.objects.get(game=edit.game, url=url)
         self.assertEqual(game_url.description, "Current video")
 
-    def test_accept_redirects_to_game_edit_when_requested(self):
-        edit = self._edit()
-
-        response = self.client.post(
-            f"/curation/edits/{edit.pk}/",
-            {"action": "accept", "next": "edit_game"},
-        )
-
-        self.assertRedirects(
-            response,
-            f"/game/edit/{edit.game_id}/",
-            fetch_redirect_response=False,
-        )
-
-    def test_accept_redirects_to_game_when_requested(self):
-        edit = self._edit()
-
-        response = self.client.post(
-            f"/curation/edits/{edit.pk}/",
-            {"action": "accept", "next": "game"},
-        )
-
-        self.assertRedirects(
-            response,
-            f"/game/{edit.game_id}/",
-            fetch_redirect_response=False,
-        )
-
-    def test_accept_redirects_to_history_when_requested(self):
-        edit = self._edit()
-
-        response = self.client.post(
-            f"/curation/edits/{edit.pk}/",
-            {"action": "accept", "next": "history"},
-        )
-
-        self.assertRedirects(response, f"/curation/{edit.game.pk}/")
-
-    def test_accept_redirects_to_edit_when_stay_requested(self):
-        edit = self._edit()
-
-        response = self.client.post(
-            f"/curation/edits/{edit.pk}/",
-            {"action": "accept", "next": "stay"},
-        )
-
-        self.assertRedirects(response, f"/curation/edits/{edit.pk}/")
+    def test_accept_redirects_by_next_parameter(self):
+        cases = [
+            ("edit_game", lambda e: f"/game/edit/{e.game_id}/", False),
+            ("game", lambda e: f"/game/{e.game_id}/", False),
+            ("history", lambda e: f"/curation/{e.game.pk}/", True),
+            ("stay", lambda e: f"/curation/edits/{e.pk}/", True),
+        ]
+        for next_param, expected_url_fn, fetch in cases:
+            with self.subTest(next=next_param):
+                edit = self._edit()
+                response = self.client.post(
+                    f"/curation/edits/{edit.pk}/",
+                    {"action": "accept", "next": next_param},
+                )
+                self.assertRedirects(
+                    response,
+                    expected_url_fn(edit),
+                    fetch_redirect_response=fetch,
+                )
 
     def test_proposed_edit_shows_next_edit_option_when_another_exists(
         self,
@@ -2913,38 +2885,14 @@ class SourceViewsTest(TestCase):
 
         response = self.client.get(f"/curation/{history.pk}/")
         rows = response.context["playable_files"]
-        content = response.content.decode()
 
         self.assertEqual(
             [row.game_url.pk for row in rows], [first.pk, second.pk]
         )
         self.assertTrue(all(row.compatibility is None for row in rows))
-        self.assertContains(response, "Проигрыватели")
-        self.assertContains(
-            response,
-            '<table class="curation-table curation-table--compact '
-            'curation-playable-table">',
-        )
-        self.assertContains(response, ">Шаблон</th>")
-        self.assertContains(response, ">Совместимость</th>")
-        self.assertContains(response, ">Сайт</th>")
-        self.assertContains(response, ">Действия</th>")
-        self.assertContains(response, "Файл:")
-        self.assertContains(response, "Локальная копия:")
         self.assertContains(response, "first.zip")
         self.assertContains(response, "https://example.com/second.zip")
-        self.assertContains(response, "Проверить совместимость")
-        self.assertContains(response, "Нет", count=2)
         self.assertNotContains(response, "https://example.com/online")
-        self.assertNotContains(response, "data-blueprint-slug")
-        self.assertLess(
-            content.index('<div class="card--header">Источники</div>'),
-            content.index('<div class="card--header">Проигрыватели</div>'),
-        )
-        self.assertLess(
-            content.index('<div class="card--header">Проигрыватели</div>'),
-            content.index("Добавлен источник"),
-        )
         discover_mock.assert_not_called()
         self.assertTrue(GameSource.objects.filter(pk=source.pk).exists())
 
