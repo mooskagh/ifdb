@@ -135,7 +135,8 @@ def JumpIfExists(var, if_true=1, if_false=1):
 def Message(msg, text="Press Enter to continue..."):
     def f(ctx):
         print(colors.yellow | msg)
-        input(text)
+        if ctx.get("interactive", True):
+            input(text)
         return True
 
     f.__doc__ = f"Prints message: {msg}"
@@ -159,7 +160,8 @@ def StopTimer(ctx):
         f"Was offline for {hours} hours, {min} minutes, {sec} seconds. "
         "Check prod."
     )
-    input("Press Enter to continue...")
+    if ctx.get("interactive", True):
+        input("Press Enter to continue...")
     return True
 
 
@@ -175,6 +177,8 @@ def ChDir(whereto):
 
 def LoopStep(func, text="Should I?"):
     def f(ctx):
+        if not ctx.get("interactive", True):
+            return True
         while True:
             print(colors.yellow | f"Want to run [{func.__doc__}]")
             if input(f"{text} (y/n): ").lower() != "y":
@@ -221,6 +225,14 @@ def GetNextVersion(ctx):
         (v[0], v[1] + 2, 0),
         (v[0] + 1, 0, 0),
     ]
+    if not ctx.get("interactive", True):
+        ctx["new-version"] = BuildVersionStr(*variants[0])
+        print(
+            colors.yellow
+            | f"Auto-selected next patch version: {ctx['new-version']}"
+        )
+        return True
+
     while True:
         print(
             f"Current version is {BuildVersionStr(*v)}. "
@@ -279,6 +291,12 @@ class DeployApp(cli.Application):
     )
     list_only = cli.Flag("--list", help="List steps only")
     step_by_step = cli.Flag("--steps", help="Run step by step")
+    no_interactive = cli.Flag(
+        "--no-interactive", help="Skip all human prompts (unless error)"
+    )
+    no_staging = cli.Flag(
+        "--no-staging", help="Skip staging-specific deployment steps"
+    )
 
     def __init__(self, executable):
         super().__init__(executable)
@@ -288,6 +306,7 @@ class DeployApp(cli.Application):
         self.pipeline.start = self.start
         self.pipeline.list_only = self.list_only
         self.pipeline.step_by_step = self.step_by_step
+        self.pipeline.interactive = not self.no_interactive
         print("Use subcommands: red, green, deploy")
 
 
@@ -298,6 +317,7 @@ class Pipeline:
         self.end = None
         self.list_only = False
         self.step_by_step = False
+        self.interactive = True
         self.context = {}
         self.cmd_name = "unknown"
 
@@ -309,6 +329,15 @@ class Pipeline:
 
     def MaybeLoadState(self):
         if os.path.isfile(self.StateFileName()):
+            if not self.interactive:
+                print(
+                    colors.yellow
+                    | (
+                        "Forgotten state found, ignoring because "
+                        "non-interactive."
+                    )
+                )
+                return
             if input("Forgotten state found. Restore? (y/n): ").lower() == "y":
                 with open(self.StateFileName(), "rb") as f:
                     self.context = pickle.load(f)
@@ -323,18 +352,21 @@ class Pipeline:
 
     def Run(self, cmd_name):
         self.cmd_name = cmd_name
+        self.context["interactive"] = self.interactive
         if self.list_only:
             for i, n in enumerate(self.steps):
                 print(colors.green | f"{i + 1:2d}. {n.__doc__}")
             return
 
-        os.system("clear")
+        if self.interactive:
+            os.system("clear")
 
         if self.end is None:
             end = len(self.steps)
         self.context["idx"] = self.start - 1
 
         self.MaybeLoadState()
+        self.context["interactive"] = self.interactive
 
         while self.start <= (self.context["idx"] + 1) <= end:
             self.StoreState()
@@ -347,7 +379,7 @@ class Pipeline:
                 )
                 print(f"{step_info} {task_f.__doc__}...")
 
-                if self.step_by_step:
+                if self.step_by_step and self.interactive:
                     if input("Should I run it? (y/n): ").lower() != "y":
                         print("Aborted")
                         sys.exit(1)
@@ -371,7 +403,11 @@ class Pipeline:
             print(colors.red | colors.bold | "[ FAIL ]")
             while True:
                 print(colors.cyan | "(retry/ignore/abort)")
-                value = input(">>>>>>> ")
+                try:
+                    value = input(">>>>>>> ")
+                except EOFError:
+                    print("EOF received, aborting.")
+                    sys.exit(1)
                 if value == "retry":
                     break
                 elif value == "ignore":
@@ -395,12 +431,19 @@ class RedCommand(cli.Application):
         default="Сайт временно не работает (что-то поломалось).",
         help="Maintenance message",
     )
+    no_interactive = cli.Flag(
+        "--no-interactive", help="Skip all human prompts (unless error)"
+    )
 
     def main(self):
         p = Pipeline()
         p.start = self.parent.start
         p.list_only = self.parent.list_only
         p.step_by_step = self.parent.step_by_step
+        p.interactive = not (
+            self.no_interactive
+            or (self.parent and getattr(self.parent, "no_interactive", False))
+        )
 
         p.AddStep(
             GetFromTemplate(
@@ -438,11 +481,19 @@ class RedCommand(cli.Application):
 class GreenCommand(cli.Application):
     """Exit maintenance mode"""
 
+    no_interactive = cli.Flag(
+        "--no-interactive", help="Skip all human prompts (unless error)"
+    )
+
     def main(self):
         p = Pipeline()
         p.start = self.parent.start
         p.list_only = self.parent.list_only
         p.step_by_step = self.parent.step_by_step
+        p.interactive = not (
+            self.no_interactive
+            or (self.parent and getattr(self.parent, "no_interactive", False))
+        )
 
         p.AddStep(CheckFromTemplate("nginx.tpl", "nginx.conf"))
         p.AddStep(
@@ -481,6 +532,12 @@ class DeployCommand(cli.Application):
         ),
     )
     from_master = cli.Flag("--from-master", help="Deploy from master branch")
+    no_interactive = cli.Flag(
+        "--no-interactive", help="Skip all human prompts (unless error)"
+    )
+    no_staging = cli.Flag(
+        "--no-staging", help="Skip staging-specific deployment steps"
+    )
 
     def main(self):
         if self.superhot:
@@ -490,6 +547,13 @@ class DeployCommand(cli.Application):
         p.start = self.parent.start
         p.list_only = self.parent.list_only
         p.step_by_step = self.parent.step_by_step
+        p.interactive = not (
+            self.no_interactive
+            or (self.parent and getattr(self.parent, "no_interactive", False))
+        )
+        skip_staging = self.no_staging or (
+            self.parent and getattr(self.parent, "no_staging", False)
+        )
 
         p.AddStep(
             RunCmdStep(
@@ -597,29 +661,30 @@ class DeployCommand(cli.Application):
             p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-celery"))
             p.AddStep(RunCmdStep("sudo /bin/systemctl start ifdb-celery-beat"))
 
-        if not self.hot:
+        if not skip_staging:
+            if not self.hot:
+                p.AddStep(
+                    GetFromTemplate(
+                        "nginx.tpl",
+                        "nginx.conf",
+                        {
+                            "configs": [
+                                {"host": "prod", "conf": "wallpage"},
+                                {"host": "kontigr", "conf": "wallpage"},
+                                {"host": "zok", "conf": "wallpage"},
+                                {"host": "staging", "conf": "prod"},
+                            ]
+                        },
+                    )
+                )
+                p.AddStep(RunCmdStep("sudo /bin/systemctl reload nginx"))
+
             p.AddStep(
-                GetFromTemplate(
-                    "nginx.tpl",
-                    "nginx.conf",
-                    {
-                        "configs": [
-                            {"host": "prod", "conf": "wallpage"},
-                            {"host": "kontigr", "conf": "wallpage"},
-                            {"host": "zok", "conf": "wallpage"},
-                            {"host": "staging", "conf": "prod"},
-                        ]
-                    },
+                LoopStep(
+                    RunCmdStep("sudo /bin/systemctl restart ifdb-uwsgi"),
+                    "Check STAGING and reload if needed.",
                 )
             )
-            p.AddStep(RunCmdStep("sudo /bin/systemctl reload nginx"))
-
-        p.AddStep(
-            LoopStep(
-                RunCmdStep("sudo /bin/systemctl restart ifdb-uwsgi"),
-                "Check STAGING and reload if needed.",
-            )
-        )
 
         if not self.hot:
             p.AddStep(
