@@ -4,6 +4,7 @@ import re
 import shutil
 import tempfile
 import tomllib
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from zipfile import ZipFile, is_zipfile
 
@@ -32,7 +33,14 @@ _RELEASE_NAME = re.compile(
 )
 _TITLE_TAG = re.compile(rb"<title>[^<]*</title>", re.IGNORECASE)
 
-VALID_CONFIG_KEYS = frozenset(("mode", "title", "entrypoint", "save_slots"))
+VALID_CONFIG_KEYS = frozenset((
+    "mode",
+    "title",
+    "entrypoint",
+    "save_slots",
+    "width",
+    "height",
+))
 VALID_MODES = frozenset(("classic", "aero"))
 
 
@@ -240,6 +248,8 @@ def _generate_game_cfg(
     entrypoint: str,
     mode: str,
     save_slots: int | None = None,
+    aero_width: int | None = None,
+    aero_height: int | None = None,
 ) -> str:
     safe_title = title.replace("\\", "\\\\").replace('"', '\\"')
     safe_file = entrypoint.replace("\\", "/")
@@ -252,6 +262,13 @@ def _generate_game_cfg(
     ]
     if save_slots is not None:
         lines.append(f"save_slots = {int(save_slots)}")
+    if mode == "aero" and aero_width is not None and aero_height is not None:
+        lines.extend([
+            "",
+            "[game.aero]",
+            f"width = {int(aero_width)}",
+            f"height = {int(aero_height)}",
+        ])
     return "\n".join(lines) + "\n"
 
 
@@ -360,6 +377,114 @@ def _create_case_insensitive_aliases(game_stage: Path) -> None:
                         pass
 
 
+def _decode_xml(raw: bytes) -> str | None:
+    if raw.startswith(b"\xff\xfe"):
+        return raw[2:].decode("utf-16le", errors="replace")
+    if raw.startswith(b"\xfe\xff"):
+        return raw[2:].decode("utf-16be", errors="replace")
+    if raw.startswith(b"\xef\xbb\xbf"):
+        return raw[3:].decode("utf-8", errors="replace")
+    if b"\x00" in raw[:100]:
+        try:
+            return raw.decode("utf-16le")
+        except Exception:
+            pass
+    for enc in ("utf-8", "cp1251"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            pass
+    try:
+        return raw.decode("latin-1")
+    except Exception:
+        return None
+
+
+def _extract_aero_dimensions(xml_text: str) -> tuple[int | None, int | None]:
+    width: int | None = None
+    height: int | None = None
+    try:
+        root = ET.fromstring(xml_text)
+        game_tag = root if root.tag.lower() == "game" else root.find(".//game")
+        if game_tag is not None:
+            for k, v in game_tag.attrib.items():
+                if k.lower() == "width":
+                    try:
+                        width = int(v)
+                    except ValueError:
+                        pass
+                elif k.lower() == "height":
+                    try:
+                        height = int(v)
+                    except ValueError:
+                        pass
+    except ET.ParseError:
+        pass
+
+    if width is None:
+        m_w = re.search(
+            r'\bwidth\s*=\s*["\'](\d+)["\']', xml_text, re.IGNORECASE
+        )
+        if m_w:
+            width = int(m_w.group(1))
+    if height is None:
+        m_h = re.search(
+            r'\bheight\s*=\s*["\'](\d+)["\']', xml_text, re.IGNORECASE
+        )
+        if m_h:
+            height = int(m_h.group(1))
+
+    return (width, height)
+
+
+def _process_config_xml(game_stage: Path) -> tuple[int | None, int | None]:
+    """Find, decode, normalize to UTF-8, and extract Aero dimensions."""
+    config_paths = [
+        p
+        for p in game_stage.rglob("*")
+        if p.is_file() and p.name.lower() == "config.xml"
+    ]
+    if not config_paths:
+        return (None, None)
+
+    config_path = next(
+        (p for p in config_paths if p.parent == game_stage),
+        config_paths[0],
+    )
+
+    try:
+        raw = config_path.read_bytes()
+    except OSError:
+        return (None, None)
+
+    decoded = _decode_xml(raw)
+    if not decoded:
+        return (None, None)
+
+    dims = _extract_aero_dimensions(decoded)
+
+    try:
+        normalized = re.sub(
+            r'(<\?xml[^>]*?encoding\s*=\s*["\'])[^"\']+(["\'])',
+            r"\g<1>utf-8\g<2>",
+            decoded,
+            flags=re.IGNORECASE,
+        )
+        config_path.write_text(normalized, encoding="utf-8")
+    except OSError:
+        pass
+
+    root_config = game_stage / "config.xml"
+    if not root_config.exists() and not root_config.is_symlink():
+        try:
+            rel = os.path.relpath(config_path, game_stage)
+            os.symlink(rel, root_config)
+        except OSError:
+            pass
+
+    return dims
+
+
 def _prepare_game_dir(
     game_file: Path,
     game_stage: Path,
@@ -373,6 +498,8 @@ def _prepare_game_dir(
     if ext == ".aqsp":
         with ZipFile(game_file) as zf:
             zf.extractall(game_stage)
+        _fix_mojibake_names(game_stage)
+        _flatten_single_dir(game_stage)
     elif ext in ALL_QSP_EXTENSIONS:
         shutil.copyfile(game_file, game_stage / game_file.name)
     else:
@@ -380,6 +507,8 @@ def _prepare_game_dir(
         _unpack_nested_aqsp(game_stage)
         _fix_mojibake_names(game_stage)
         _flatten_single_dir(game_stage)
+
+    xml_width, xml_height = _process_config_xml(game_stage)
 
     # Check if a valid game.cfg already exists
     existing_cfg = game_stage / "game.cfg"
@@ -427,12 +556,27 @@ def _prepare_game_dir(
         int(str(config["save_slots"])) if "save_slots" in config else None
     )
 
+    aero_width: int | None = None
+    aero_height: int | None = None
+    if resolved_mode == "aero":
+        if "width" in config:
+            aero_width = int(str(config["width"]))
+        elif xml_width is not None:
+            aero_width = xml_width
+
+        if "height" in config:
+            aero_height = int(str(config["height"]))
+        elif xml_height is not None:
+            aero_height = xml_height
+
     cfg_text = _generate_game_cfg(
         game_id="game",
         title=title,
         entrypoint=entrypoint,
         mode=resolved_mode,
         save_slots=save_slots,
+        aero_width=aero_width,
+        aero_height=aero_height,
     )
     (game_stage / "game.cfg").write_text(cfg_text, encoding="utf-8")
     _create_case_insensitive_aliases(game_stage)
@@ -464,6 +608,18 @@ def generate(spec: GenerateSpec) -> None:
                 "save_slots must be a positive integer: "
                 f"{spec.config['save_slots']}"
             )
+
+    for dim_key in ("width", "height"):
+        if dim_key in spec.config:
+            try:
+                val = int(str(spec.config[dim_key]))
+                if val < 1:
+                    raise ValueError
+            except (ValueError, TypeError):
+                raise ValueError(
+                    f"{dim_key} must be a positive integer: "
+                    f"{spec.config[dim_key]}"
+                )
 
     releases = _release_paths()
     if spec.version not in releases:

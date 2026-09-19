@@ -516,3 +516,213 @@ class QSpiderTests(SimpleTestCase):
             # Bark.mp3 has bark.mp3 symlink
             self.assertTrue((content_dir / "bark.mp3").is_file())
             self.assertTrue((content_dir / "bark.mp3").is_symlink())
+
+    def test_aero_utf16_config_xml_dimensions_and_normalization(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            assets = root / "assets"
+            _write_release(assets)
+
+            # Create an .aqsp with UTF-16LE config.xml
+            aqsp_path = root / "witch.aqsp"
+            utf16_xml = (
+                b"\xff\xfe"
+                + '<game width="1000" height="700" title="В тени"/>\n'.encode(
+                    "utf-16le"
+                )
+            )
+            with ZipFile(aqsp_path, "w") as zf:
+                zf.writestr("witch.qsp", b"QSPGAME\r\n")
+                zf.writestr("config.xml", utf16_xml)
+
+            destination = root / "generated"
+            with patch("play.blueprints.qspider.ASSETS_DIR", assets):
+                generate(
+                    GenerateSpec(
+                        version="1.3.1",
+                        config={},
+                        destination=destination,
+                        game_file=aqsp_path,
+                        title="В тени",
+                    )
+                )
+
+            # Check game.cfg
+            cfg_path = destination / "game" / "game.cfg"
+            self.assertTrue(cfg_path.is_file())
+            cfg_data = tomllib.loads(cfg_path.read_text(encoding="utf-8"))
+            game = cfg_data["game"][0]
+            self.assertEqual(game["mode"], "aero")
+            self.assertIn("aero", game)
+            self.assertEqual(game["aero"]["width"], 1000)
+            self.assertEqual(game["aero"]["height"], 700)
+
+            # Check config.xml on disk is normalized to UTF-8
+            # without BOM or nulls
+            xml_on_disk = destination / "game" / "config.xml"
+            self.assertTrue(xml_on_disk.is_file())
+            raw_bytes = xml_on_disk.read_bytes()
+            self.assertFalse(raw_bytes.startswith(b"\xff\xfe"))
+            self.assertFalse(raw_bytes.startswith(b"\xef\xbb\xbf"))
+            self.assertNotIn(b"\x00", raw_bytes)
+            self.assertIn(
+                'width="1000"', xml_on_disk.read_text(encoding="utf-8")
+            )
+
+    def test_aero_utf8_bom_and_cp1251_config_xml(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            assets = root / "assets"
+            _write_release(assets)
+
+            # 1. UTF-8 with BOM
+            aqsp_bom = root / "game_bom.aqsp"
+            with ZipFile(aqsp_bom, "w") as zf:
+                zf.writestr("game.qsp", b"QSPGAME\r\n")
+                zf.writestr(
+                    "config.xml",
+                    b"\xef\xbb\xbf" + b'<game width="900" height="680"/>',
+                )
+
+            dest_bom = root / "dest_bom"
+            with patch("play.blueprints.qspider.ASSETS_DIR", assets):
+                generate(
+                    GenerateSpec(
+                        version="1.3.1",
+                        config={},
+                        destination=dest_bom,
+                        game_file=aqsp_bom,
+                        title="BOM Game",
+                    )
+                )
+
+            cfg_data = tomllib.loads(
+                (dest_bom / "game" / "game.cfg").read_text(encoding="utf-8")
+            )
+            self.assertEqual(cfg_data["game"][0]["aero"]["width"], 900)
+            self.assertEqual(cfg_data["game"][0]["aero"]["height"], 680)
+
+            # 2. CP1251 encoding
+            aqsp_cp = root / "game_cp.aqsp"
+            with ZipFile(aqsp_cp, "w") as zf:
+                zf.writestr("game.qsp", b"QSPGAME\r\n")
+                zf.writestr(
+                    "CONFIG.XML",
+                    '<game width="1024" height="768" title="Тест"/>'.encode(
+                        "cp1251"
+                    ),
+                )
+
+            dest_cp = root / "dest_cp"
+            with patch("play.blueprints.qspider.ASSETS_DIR", assets):
+                generate(
+                    GenerateSpec(
+                        version="1.3.1",
+                        config={},
+                        destination=dest_cp,
+                        game_file=aqsp_cp,
+                        title="CP Game",
+                    )
+                )
+
+            cfg_data_cp = tomllib.loads(
+                (dest_cp / "game" / "game.cfg").read_text(encoding="utf-8")
+            )
+            self.assertEqual(cfg_data_cp["game"][0]["aero"]["width"], 1024)
+            self.assertEqual(cfg_data_cp["game"][0]["aero"]["height"], 768)
+            # Lowercase config.xml symlink exists
+            self.assertTrue((dest_cp / "game" / "config.xml").is_file())
+
+    def test_aero_explicit_dimensions_override(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            assets = root / "assets"
+            _write_release(assets)
+
+            aqsp_path = root / "game.aqsp"
+            with ZipFile(aqsp_path, "w") as zf:
+                zf.writestr("game.qsp", b"QSPGAME\r\n")
+                zf.writestr("config.xml", b'<game width="800" height="600"/>')
+
+            destination = root / "generated"
+            with patch("play.blueprints.qspider.ASSETS_DIR", assets):
+                generate(
+                    GenerateSpec(
+                        version="1.3.1",
+                        config={"width": 1280, "height": 720},
+                        destination=destination,
+                        game_file=aqsp_path,
+                        title="Override Game",
+                    )
+                )
+
+            cfg_data = tomllib.loads(
+                (destination / "game" / "game.cfg").read_text(encoding="utf-8")
+            )
+            self.assertEqual(cfg_data["game"][0]["aero"]["width"], 1280)
+            self.assertEqual(cfg_data["game"][0]["aero"]["height"], 720)
+
+    def test_aero_invalid_dimensions_raise_error(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            assets = root / "assets"
+            _write_release(assets)
+            game_file = root / "game.qsp"
+            game_file.write_bytes(b"QSPGAME\r\n")
+
+            with patch("play.blueprints.qspider.ASSETS_DIR", assets):
+                with self.assertRaises(ValueError):
+                    generate(
+                        GenerateSpec(
+                            version="1.3.1",
+                            config={"width": -10},
+                            destination=root / "dest",
+                            game_file=game_file,
+                            title="Invalid",
+                        )
+                    )
+                with self.assertRaises(ValueError):
+                    generate(
+                        GenerateSpec(
+                            version="1.3.1",
+                            config={"height": "invalid"},
+                            destination=root / "dest",
+                            game_file=game_file,
+                            title="Invalid",
+                        )
+                    )
+
+    def test_real_witch_aqsp_generates_correct_dimensions(self) -> None:
+        witch_path = Path("files/backups/witch.1.1.aqsp")
+        if not witch_path.is_file():
+            self.skipTest("witch.1.1.aqsp not available in files/backups/")
+
+        with TemporaryDirectory() as directory:
+            destination = Path(directory) / "witch_playable"
+            generate(
+                GenerateSpec(
+                    version="1.3.1",
+                    config={},
+                    destination=destination,
+                    game_file=witch_path,
+                    title="В тени Сумрачного леса",
+                )
+            )
+
+            cfg_data = tomllib.loads(
+                (destination / "game" / "game.cfg").read_text(encoding="utf-8")
+            )
+            game = cfg_data["game"][0]
+            self.assertEqual(game["mode"], "aero")
+            self.assertEqual(game["aero"]["width"], 1000)
+            self.assertEqual(game["aero"]["height"], 700)
+
+            # Verify config.xml is clean UTF-8
+            raw_xml = (destination / "game" / "config.xml").read_bytes()
+            self.assertFalse(raw_xml.startswith(b"\xff\xfe"))
+            self.assertNotIn(b"\x00", raw_xml)
+            text_xml = (destination / "game" / "config.xml").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("1000", text_xml)
+            self.assertIn("700", text_xml)
