@@ -54,7 +54,7 @@ from play.blueprint import (
 )
 from play.caddy import configure_caddy_playable
 from play.domain import is_domain_busy, is_valid_domain_slug
-from play.models import Playable
+from play.models import Playable, PlaySegment, PlaySession
 from play.tasks import generate_playable
 
 from . import openrouter
@@ -3224,3 +3224,122 @@ def history_reconcile(request, game_id):
 def reconcile_game_json(request, game_id):
     game = get_object_or_404(Game, pk=game_id)
     return JsonResponse(column_for_game(game))
+
+
+def _format_duration(seconds: float | int) -> str:
+    total_secs = max(0, int(round(seconds)))
+    hours = total_secs // 3600
+    minutes = (total_secs % 3600) // 60
+    secs = total_secs % 60
+    return f"{hours}:{minutes:02d}:{secs:02d}"
+
+
+def _get_segment_duration(segment: PlaySegment) -> float:
+    if (
+        segment.state == PlaySegment.State.ACTIVE
+        and segment.active_seconds > 0
+    ):
+        return float(segment.active_seconds)
+    elapsed = (segment.last_seen_at - segment.started_at).total_seconds()
+    return max(0.0, elapsed)
+
+
+def session_list(request: HttpRequest) -> HttpResponse:
+    sessions_qs = (
+        PlaySession.objects
+        .select_related("playable", "playable__game")
+        .prefetch_related(
+            Prefetch(
+                "segments",
+                queryset=PlaySegment.objects.select_related("user").order_by(
+                    "started_at", "id"
+                ),
+            )
+        )
+        .order_by("-last_seen_at")
+    )
+    paginator = Paginator(sessions_qs, 100)
+    page_number = request.GET.get("page")
+    page = paginator.get_page(page_number)
+
+    state_display_map = {
+        PlaySegment.State.ACTIVE: "Играли",
+        PlaySegment.State.IDLE: "Бездействовали",
+        PlaySegment.State.BACKGROUND: "Неактивно",
+    }
+    base_domain = getattr(
+        settings, "PLAYABLE_BASE_DOMAIN", "play.crem.xyz"
+    ).strip()
+
+    sessions_data: list[dict[str, object]] = []
+    for session in page.object_list:
+        playable = session.playable
+        slug = playable.slug if playable.slug else f"playable-{playable.pk}"
+        playable_url = f"{slug}.{base_domain}"
+
+        segments = list(session.segments.all())
+
+        last_user = None
+        for seg in segments:
+            if seg.user:
+                last_user = seg.user.username or str(seg.user)
+
+        if last_user:
+            user_or_ip = last_user
+            has_user = True
+        elif segments and segments[-1].ip_addr:
+            user_or_ip = segments[-1].ip_addr
+            has_user = False
+        else:
+            user_or_ip = "—"
+            has_user = False
+
+        active_total = 0.0
+        idle_total = 0.0
+        background_total = 0.0
+
+        segment_items: list[dict[str, object]] = []
+        for seg in segments:
+            seg_dur = _get_segment_duration(seg)
+            if seg.state == PlaySegment.State.ACTIVE:
+                active_total += seg_dur
+            elif seg.state == PlaySegment.State.IDLE:
+                idle_total += seg_dur
+            elif seg.state == PlaySegment.State.BACKGROUND:
+                background_total += seg_dur
+            else:
+                active_total += seg_dur
+
+            user_str = seg.user.username if seg.user else None
+            segment_items.append({
+                "pk": seg.pk,
+                "state": seg.state,
+                "state_display": state_display_map.get(seg.state, seg.state),
+                "started_at": seg.started_at,
+                "last_seen_at": seg.last_seen_at,
+                "duration_str": _format_duration(seg_dur),
+                "user": user_str,
+                "ip_addr": seg.ip_addr,
+            })
+
+        sessions_data.append({
+            "session": session,
+            "playable": playable,
+            "playable_url": playable_url,
+            "game": playable.game,
+            "user_or_ip": user_or_ip,
+            "has_user": has_user,
+            "active_duration": _format_duration(active_total),
+            "idle_duration": _format_duration(idle_total),
+            "background_duration": _format_duration(background_total),
+            "segments": segment_items,
+        })
+
+    return render(
+        request,
+        "curation/session_list.html",
+        {
+            "page": page,
+            "sessions": sessions_data,
+        },
+    )
