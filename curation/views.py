@@ -3367,9 +3367,15 @@ def session_list(request: HttpRequest) -> HttpResponse:
             "user_or_ip": user_or_ip,
             "last_ip": last_ip if has_user else None,
             "has_user": has_user,
-            "active_secs": round(active_total),
-            "idle_secs": round(idle_total),
-            "background_secs": round(background_total),
+            "active_secs": max(1, int(round(active_total)))
+            if active_total > 0
+            else 0,
+            "idle_secs": max(1, int(round(idle_total)))
+            if idle_total > 0
+            else 0,
+            "background_secs": max(1, int(round(background_total)))
+            if background_total > 0
+            else 0,
             "active_duration": _format_duration(active_total),
             "idle_duration": _format_duration(idle_total),
             "background_duration": _format_duration(background_total),
