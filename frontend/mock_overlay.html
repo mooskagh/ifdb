@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Play Overlay Mock Test (Local File)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif;
+      background: #1a1a24;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transition: background 0.3s, color 0.3s;
+    }
+    body.light-theme {
+      background: #f0f2f5;
+      color: #1f2937;
+    }
+    header {
+      padding: 12px 20px;
+      background: rgba(0, 0, 0, 0.3);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    body.light-theme header {
+      background: rgba(255, 255, 255, 0.8);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    button {
+      padding: 6px 12px;
+      font-size: 12px;
+      border: 1px solid #4f46e5;
+      background: #4f46e5;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover {
+      background: #4338ca;
+    }
+    button.secondary {
+      background: transparent;
+      border-color: rgba(255, 255, 255, 0.3);
+      color: inherit;
+    }
+    body.light-theme button.secondary {
+      border-color: rgba(0, 0, 0, 0.3);
+    }
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+      padding: 20px;
+    }
+    .game-viewport {
+      border: 2px dashed rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      position: relative;
+      background: rgba(0, 0, 0, 0.15);
+    }
+    body.light-theme .game-viewport {
+      border-color: rgba(0, 0, 0, 0.2);
+      background: rgba(255, 255, 255, 0.5);
+    }
+    .game-title {
+      font-size: 24px;
+      margin-bottom: 8px;
+      color: #818cf8;
+    }
+    .game-desc {
+      font-size: 13px;
+      max-width: 500px;
+      line-height: 1.6;
+      opacity: 0.85;
+      margin-bottom: 20px;
+    }
+    .interactive-area {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      max-width: 380px;
+    }
+    .interactive-area input {
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(0, 0, 0, 0.3);
+      color: inherit;
+      font-size: 13px;
+    }
+    body.light-theme .interactive-area input {
+      background: #ffffff;
+      border-color: rgba(0, 0, 0, 0.2);
+    }
+    .sidebar {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      font-size: 12px;
+    }
+    body.light-theme .sidebar {
+      background: #ffffff;
+      border-color: rgba(0, 0, 0, 0.1);
+    }
+    .sidebar h2 {
+      font-size: 13px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #9ca3af;
+    }
+    .log-list {
+      flex: 1;
+      overflow-y: auto;
+      max-height: 400px;
+      font-family: monospace;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-right: 4px;
+    }
+    .log-item {
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      border-left: 3px solid #6366f1;
+      word-break: break-all;
+    }
+    body.light-theme .log-item {
+      background: #f3f4f6;
+    }
+    .log-item.active { border-left-color: #10b981; }
+    .log-item.idle { border-left-color: #f59e0b; }
+    .log-item.background { border-left-color: #6b7280; }
+    .log-time {
+      color: #9ca3af;
+      margin-right: 4px;
+    }
+    .mock-notice {
+      margin-top: 10px;
+      padding: 8px;
+      border-radius: 4px;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+  </style>
+
+  <script>
+    // Telemetry logger & Mock Handler
+    const originalFetch = window.fetch;
+
+    function addLog(event, payload, note = '') {
+      const logContainer = document.getElementById('telemetry-logs');
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = `log-item ${payload.state || ''}`;
+      div.innerHTML = `<span class="log-time">[${time}]</span> <strong>${event}</strong>: ${JSON.stringify(payload)} ${note ? '<em>(' + note + ')</em>' : ''}`;
+      if (logContainer) {
+        logContainer.prepend(div);
+      }
+    }
+
+    // Intercept fetch to mock /play/telemetry/ responses
+    window.fetch = async function(url, options) {
+      const urlStr = String(url);
+      if (urlStr.includes('/play/telemetry/')) {
+        let body = {};
+        try {
+          body = JSON.parse(options?.body || '{}');
+        } catch (e) {}
+
+        const useMock = document.getElementById('mock-backend-toggle')?.checked ?? true;
+        if (useMock) {
+          addLog(body.event || 'unknown', body, 'mocked response');
+          if (body.event === 'game_loaded') {
+            return new Response(JSON.stringify({
+              status: 'ok',
+              play_session_id: body.play_session_id,
+              playable_id: 105,
+              game_name: 'Mystic Woods',
+              authors: 'Jane Doe, John Smith',
+              game_url: 'https://db.crem.xyz/game/105/',
+              player_name: 'INSTEAD',
+              player_url: 'https://instead3.hugeping.ru/'
+            }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          } else {
+            return new Response(JSON.stringify({
+              status: 'ok',
+              play_session_id: body.play_session_id,
+              active_seconds: body.seconds_since_last_ping || 0
+            }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+        } else {
+          addLog(body.event || 'unknown', body, 'forwarded to live backend');
+          return originalFetch.apply(this, arguments);
+        }
+      }
+      return originalFetch.apply(this, arguments);
+    };
+  </script>
+</head>
+<body>
+  <header>
+    <h1>Play Overlay Manual Test (file:///)</h1>
+    <div class="controls">
+      <label style="font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+        <input type="checkbox" id="mock-backend-toggle" checked> Mock Backend Responses
+      </label>
+      <button class="secondary" onclick="document.body.classList.toggle('light-theme')">Toggle Theme</button>
+      <button class="secondary" onclick="simulateActivity()">Trigger Activity</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="game-viewport">
+      <div class="game-title">Interactive Game Area</div>
+      <div class="game-desc">
+        This mock page simulates a running game. The overlay script is loaded below before &lt;/body&gt;.
+        Look at the bottom right corner: you should see <code>(icon) db.crem.xyz ◂</code>.
+        Click it to slide open into: <code>(icon) db.crem.xyz ▸ [&lt;title&gt; на db.crem.xyz] [&lt;player&gt;]</code>.
+      </div>
+      <div class="interactive-area">
+        <input type="text" placeholder="Type here to produce user activity events..." autofocus>
+        <button onclick="alert('Game button clicked!')">Interact with game</button>
+      </div>
+      <div style="margin-top: 20px; font-size: 11px; opacity: 0.7;">
+        Waiting 60 seconds without input will trigger the <strong>idle</strong> state.
+        Switching tabs will trigger the <strong>background</strong> state.
+      </div>
+    </div>
+
+    <aside class="sidebar">
+      <h2>Telemetry Events Log</h2>
+      <div class="log-list" id="telemetry-logs"></div>
+      <div class="mock-notice">
+        Telemetries are sent on initial load (<code>game_loaded</code>), state change (<code>active</code>, <code>idle</code>, <code>background</code>), and periodic pings.
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    function simulateActivity() {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
+    }
+  </script>
+
+  <!-- Load play-overlay.js before </body> via relative file path -->
+  <script src="../core/static/play-overlay.js" defer></script>
+</body>
+</html>

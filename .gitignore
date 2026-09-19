@@ -8,6 +8,7 @@
 /core/static/edit_diff.js
 /core/static/llm_models.js
 /core/static/reconcile.js
+/core/static/play-overlay.js
 /loonchator/out
 /virtualenv
 __pycache__
