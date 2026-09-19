@@ -53,7 +53,7 @@ class SessionListViewTest(TestCase):
         self.client.force_login(self.admin)
         res = self.client.get("/curation/sessions/")
         self.assertEqual(res.status_code, 200)
-        self.assertContains(res, "Игровых сессий нет.")
+        self.assertContains(res, "Игровых сессий не найдено.")
         self.assertContains(res, "Игровые сессии")
 
     @override_settings(PLAYABLE_BASE_DOMAIN="play.crem.xyz")
@@ -85,17 +85,19 @@ class SessionListViewTest(TestCase):
         self.assertContains(res, "test-quest.play.crem.xyz")
         self.assertContains(res, "Test Quest")
 
-        # Start datetime – End datetime (YYYY-MM-DD HH:MM:SS formats)
-        self.assertContains(res, "2026-09-19 10:00:00 – 2026-09-19 12:01:03")
+        # Start datetime and End datetime on separate lines
+        self.assertContains(res, "2026-09-19 10:00:00")
+        self.assertContains(res, "2026-09-19 12:01:03")
 
         # UUID should NOT be visible
         self.assertNotContains(res, str(session_uuid))
 
-        # Durations formatted as 2:01:03
-        self.assertContains(
-            res,
-            "Играли: 2:01:03, бездействовали 0:00:00, неактивно: 0:00:00",
-        )
+        # Durations formatted: 2:01:03 for active, :00 for zero idle/bg
+        self.assertContains(res, "Играли:")
+        self.assertContains(res, "2:01:03")
+        self.assertContains(res, "Бездействовали:")
+        self.assertContains(res, ":00")
+        self.assertContains(res, "Неактивно:")
 
     def test_username_if_any_segment_has_user_else_ip(self) -> None:
         self.client.force_login(self.admin)
@@ -185,7 +187,7 @@ class SessionListViewTest(TestCase):
             active_seconds=7263.0,
             ip_addr="192.168.1.1",
         )
-        # 2. Idle: 312s (0:05:12)
+        # 2. Idle: 312s (05:12)
         PlaySegment.objects.create(
             play_session=session,
             state=PlaySegment.State.IDLE,
@@ -194,7 +196,7 @@ class SessionListViewTest(TestCase):
             active_seconds=0.0,
             ip_addr="192.168.1.1",
         )
-        # 3. Background: 45s (0:00:45)
+        # 3. Background: 45s (:45)
         PlaySegment.objects.create(
             play_session=session,
             state=PlaySegment.State.BACKGROUND,
@@ -207,19 +209,72 @@ class SessionListViewTest(TestCase):
         res = self.client.get("/curation/sessions/")
         self.assertEqual(res.status_code, 200)
 
-        # Summary line
-        self.assertContains(
-            res,
-            "Играли: 2:01:03, бездействовали 0:05:12, неактивно: 0:00:45",
-        )
+        # Durations formatted with zero-hiding rules:
+        # Active: 2h 1m 3s -> 2:01:03
+        self.assertContains(res, "2:01:03")
+        # Idle: 0h 5m 12s -> 05:12 (hours hidden)
+        self.assertContains(res, "05:12")
+        # Background: 0h 0m 45s -> :45 (hours and minutes hidden, colon kept)
+        self.assertContains(res, ":45")
 
         # Segment breakdown table details
-        self.assertContains(res, "2:01:03")
-        self.assertContains(res, "0:05:12")
-        self.assertContains(res, "0:00:45")
         self.assertContains(res, "Играли")
         self.assertContains(res, "Бездействовали")
         self.assertContains(res, "Неактивно")
+
+    def test_search_filter(self) -> None:
+        self.client.force_login(self.admin)
+        now = timezone.now()
+        game2 = Game.objects.create(
+            title="Another Adventure",
+            creation_time=now,
+        )
+        playable2 = Playable.objects.create(
+            slug="another-adv",
+            game=game2,
+            template="instead",
+            template_version="1.0",
+        )
+
+        s1 = PlaySession.objects.create(
+            play_session_id=uuid.uuid4(),
+            playable=self.playable,
+            started_at=now,
+            last_seen_at=now,
+        )
+        PlaySegment.objects.create(
+            play_session=s1,
+            state=PlaySegment.State.ACTIVE,
+            ip_addr="10.0.0.1",
+            started_at=now,
+            last_seen_at=now,
+        )
+
+        s2 = PlaySession.objects.create(
+            play_session_id=uuid.uuid4(),
+            playable=playable2,
+            started_at=now,
+            last_seen_at=now,
+        )
+        PlaySegment.objects.create(
+            play_session=s2,
+            state=PlaySegment.State.ACTIVE,
+            ip_addr="10.0.0.2",
+            started_at=now,
+            last_seen_at=now,
+        )
+
+        # Search by game title
+        res = self.client.get("/curation/sessions/?q=Adventure")
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "another-adv")
+        self.assertNotContains(res, "test-quest")
+
+        # Search by IP
+        res_ip = self.client.get("/curation/sessions/?q=10.0.0.1")
+        self.assertEqual(res_ip.status_code, 200)
+        self.assertContains(res_ip, "test-quest")
+        self.assertNotContains(res_ip, "another-adv")
 
     def test_ordering_by_last_seen_at_and_pagination(self) -> None:
         self.client.force_login(self.admin)
