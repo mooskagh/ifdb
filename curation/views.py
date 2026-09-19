@@ -3231,7 +3231,11 @@ def _format_duration(seconds: float | int) -> str:
     hours = total_secs // 3600
     minutes = (total_secs % 3600) // 60
     secs = total_secs % 60
-    return f"{hours}:{minutes:02d}:{secs:02d}"
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    if minutes > 0:
+        return f"{minutes:02d}:{secs:02d}"
+    return f":{secs:02d}"
 
 
 def _get_segment_duration(segment: PlaySegment) -> float:
@@ -3245,6 +3249,7 @@ def _get_segment_duration(segment: PlaySegment) -> float:
 
 
 def session_list(request: HttpRequest) -> HttpResponse:
+    q = request.GET.get("q", "").strip()
     sessions_qs = (
         PlaySession.objects
         .select_related("playable", "playable__game")
@@ -3258,6 +3263,14 @@ def session_list(request: HttpRequest) -> HttpResponse:
         )
         .order_by("-last_seen_at")
     )
+    if q:
+        sessions_qs = sessions_qs.filter(
+            Q(playable__slug__icontains=q)
+            | Q(playable__game__title__icontains=q)
+            | Q(segments__user__username__icontains=q)
+            | Q(segments__ip_addr__icontains=q)
+        ).distinct()
+
     paginator = Paginator(sessions_qs, 100)
     page_number = request.GET.get("page")
     page = paginator.get_page(page_number)
@@ -3280,15 +3293,18 @@ def session_list(request: HttpRequest) -> HttpResponse:
         segments = list(session.segments.all())
 
         last_user = None
+        last_ip = None
         for seg in segments:
             if seg.user:
                 last_user = seg.user.username or str(seg.user)
+            if seg.ip_addr:
+                last_ip = seg.ip_addr
 
         if last_user:
             user_or_ip = last_user
             has_user = True
-        elif segments and segments[-1].ip_addr:
-            user_or_ip = segments[-1].ip_addr
+        elif last_ip:
+            user_or_ip = last_ip
             has_user = False
         else:
             user_or_ip = "—"
@@ -3311,16 +3327,37 @@ def session_list(request: HttpRequest) -> HttpResponse:
                 active_total += seg_dur
 
             user_str = seg.user.username if seg.user else None
+            if seg.started_at.date() == seg.last_seen_at.date():
+                time_display = (
+                    f"{seg.started_at.strftime('%H:%M:%S')} – "
+                    f"{seg.last_seen_at.strftime('%H:%M:%S')}"
+                )
+            else:
+                time_display = (
+                    f"{seg.started_at.strftime('%Y-%m-%d %H:%M:%S')} – "
+                    f"{seg.last_seen_at.strftime('%H:%M:%S')}"
+                )
+
             segment_items.append({
                 "pk": seg.pk,
                 "state": seg.state,
                 "state_display": state_display_map.get(seg.state, seg.state),
                 "started_at": seg.started_at,
                 "last_seen_at": seg.last_seen_at,
+                "time_display": time_display,
                 "duration_str": _format_duration(seg_dur),
+                "is_zero": round(seg_dur) == 0,
                 "user": user_str,
                 "ip_addr": seg.ip_addr,
             })
+
+        total_time = active_total + idle_total + background_total
+        if total_time > 0:
+            active_pct = round(active_total / total_time * 100, 1)
+            idle_pct = round(idle_total / total_time * 100, 1)
+            background_pct = max(0.0, round(100.0 - active_pct - idle_pct, 1))
+        else:
+            active_pct = idle_pct = background_pct = 0.0
 
         sessions_data.append({
             "session": session,
@@ -3328,10 +3365,18 @@ def session_list(request: HttpRequest) -> HttpResponse:
             "playable_url": playable_url,
             "game": playable.game,
             "user_or_ip": user_or_ip,
+            "last_ip": last_ip if has_user else None,
             "has_user": has_user,
+            "active_secs": round(active_total),
+            "idle_secs": round(idle_total),
+            "background_secs": round(background_total),
             "active_duration": _format_duration(active_total),
             "idle_duration": _format_duration(idle_total),
             "background_duration": _format_duration(background_total),
+            "active_pct": active_pct,
+            "idle_pct": idle_pct,
+            "background_pct": background_pct,
+            "has_activity": total_time > 0,
             "segments": segment_items,
         })
 
@@ -3341,5 +3386,6 @@ def session_list(request: HttpRequest) -> HttpResponse:
         {
             "page": page,
             "sessions": sessions_data,
+            "q": q,
         },
     )
