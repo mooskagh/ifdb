@@ -931,6 +931,12 @@ a.card--line:hover {
     margin: 50px auto 5px;
 }
 
+.content--curation {
+    max-width: 1400px;
+    padding: 0 10px;
+    box-sizing: border-box;
+}
+
 .content-box-inner {
     padding: 5px 20px 20px;
 }
@@ -3218,6 +3224,11 @@ h6 {
     }
 }
 
+.curation-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+}
+
 .curation-menu-item {
     display: block;
     padding: 8px 12px;
@@ -3227,6 +3238,41 @@ h6 {
 .curation-menu-item:hover,
 .curation-menu-item.current {
     background: var(--c-purple-bg-hover);
+}
+
+@media (max-width: 1080px) {
+    .curation-grid {
+        flex-direction: column;
+    }
+    .curation-sidebar {
+        width: 100%;
+        order: -1;
+    }
+    .curation-menu-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 8px 12px;
+    }
+    .curation-menu-list > * {
+        border-bottom: none;
+    }
+    .curation-menu-item {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 10px;
+        font-size: 13px;
+        border-radius: 4px;
+        background: #f4ecfa;
+        white-space: nowrap;
+    }
+    .curation-menu-item:hover {
+        background: var(--c-purple-bg-hover);
+    }
+    .curation-menu-item.current {
+        background: var(--c-purple-bg-hover);
+        font-weight: 600;
+    }
 }
 
 .curation-controls {
@@ -3431,41 +3477,96 @@ h6 {
 
 /* Blueprint playables table layout */
 .curation-blueprint-playables-table {
-    table-layout: fixed;
+    table-layout: auto;
     width: 100%;
 }
 .curation-blueprint-table-id {
-    width: 50px;
-}
-.curation-blueprint-table-game {
-    width: auto;
-}
-.curation-blueprint-table-site {
-    width: 175px;
-    word-break: break-all;
-}
-.curation-blueprint-table-template {
-    width: 130px;
-}
-.curation-blueprint-table-state {
-    width: 80px;
-}
-.curation-blueprint-table-visible {
-    width: 65px;
+    width: 38px;
+    white-space: nowrap;
     text-align: center;
 }
-.curation-blueprint-table-date {
-    width: 110px;
+.curation-blueprint-table-game {
+    min-width: 160px;
+    word-break: normal;
+    overflow-wrap: break-word;
+}
+.curation-blueprint-site-wrap {
+    margin-top: 2px;
+    line-height: 1.25;
+}
+.curation-blueprint-site-link {
+    font-size: 12px;
+    word-break: break-all;
+    color: #0b8043;
+}
+.curation-blueprint-table-template {
+    width: 85px;
+    white-space: nowrap;
+}
+.curation-blueprint-table-state {
+    width: 60px;
+    white-space: nowrap;
+    text-align: center;
+}
+.curation-blueprint-table-visible {
+    width: 45px;
+    text-align: center;
+    white-space: nowrap;
+}
+.curation-blueprint-table-dates {
+    width: 125px;
+    white-space: nowrap;
+    font-size: 12px;
+    line-height: 1.35;
 }
 .curation-blueprint-table-actions {
-    width: 160px;
-    white-space: normal;
+    width: 78px;
+    white-space: nowrap;
+}
+.curation-blueprint-actions-col {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: stretch;
+}
+.curation-blueprint-actions-col form {
+    margin: 0;
+    padding: 0;
+    display: block;
+}
+.curation-blueprint-action-btn {
+    display: block;
+    width: 100%;
+    font-size: 11px;
+    padding: 2px 4px;
+    line-height: 1.3;
+    white-space: nowrap;
+    border-radius: 2px;
+    cursor: pointer;
+    box-shadow: none;
+    text-align: center;
+    box-sizing: border-box;
+}
+.curation-blueprint-action-btn--recreate {
+    background-color: #ff5431;
+    color: #fff;
+    border: none;
+}
+.curation-blueprint-action-btn--delete {
+    background-color: #fff;
+    color: #c5221f;
+    border: 1px solid #c5221f;
+}
+.curation-blueprint-action-btn--delete:hover {
+    background-color: #fce8e6;
+    color: #a51d24;
 }
 
 /* Blueprint candidates section */
 .curation-blueprint-candidates-table {
     table-layout: auto;
     width: 100%;
+    min-width: 650px;
 }
 .curation-blueprint-candidates-table th,
 .curation-blueprint-candidates-table td {
@@ -3476,17 +3577,17 @@ h6 {
     text-align: center;
 }
 .curation-blueprint-candidates-table-game {
-    min-width: 180px;
+    min-width: 160px;
 }
 .curation-blueprint-candidates-table-file {
-    min-width: 180px;
+    min-width: 160px;
     word-break: break-all;
 }
 .curation-blueprint-candidates-table-blueprint {
-    min-width: 140px;
+    min-width: 120px;
 }
 .curation-blueprint-candidates-table-domain {
-    min-width: 170px;
+    min-width: 150px;
     white-space: nowrap;
 }
 .curation-blueprint-candidates-table-actions {
@@ -3497,7 +3598,7 @@ h6 {
 .curation-blueprint-filter-form {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 16px;
+    gap: 8px 12px;
     align-items: center;
     padding: 10px 14px;
     background: #f8f9fa;
@@ -3507,6 +3608,11 @@ h6 {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    font-size: 13px;
+}
+.curation-blueprint-filter-item select,
+.curation-blueprint-filter-item input {
+    max-width: 100%;
     font-size: 13px;
 }
 .curation-blueprint-toolbar {

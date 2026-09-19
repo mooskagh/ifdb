@@ -5,6 +5,7 @@
 {% block curation_main %}
 <div class="card card--green">
     <div class="card--header">Проигрыватели</div>
+    <div class="curation-playable-table-wrap">
     <table class="curation-table curation-table--compact">
         <thead>
             <tr>
@@ -41,6 +42,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
 </div>
 
 <div class="card card--green" style="margin-top: 16px;" id="playables-section">
@@ -91,92 +93,191 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="bulk_visibility">
     </form>
-    <table class="curation-table curation-table--compact curation-blueprint-playables-table">
-        <thead>
-            <tr>
-                <th class="curation-blueprint-table-id">
-                    <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.id.next_sort }}#playables-section" title="Сортировать по ID">ID{% if columns_sort.id.indicator %} {{ columns_sort.id.indicator }}{% endif %}</a>
-                </th>
-                <th class="curation-blueprint-table-game">
-                    <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.game.next_sort }}#playables-section" title="Сортировать по названию игры">Игра{% if columns_sort.game.indicator %} {{ columns_sort.game.indicator }}{% endif %}</a>
-                </th>
-                <th class="curation-blueprint-table-site">
-                    <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.site.next_sort }}#playables-section" title="Сортировать по сайту">Сайт{% if columns_sort.site.indicator %} {{ columns_sort.site.indicator }}{% endif %}</a>
-                </th>
-                <th class="curation-blueprint-table-template">
-                    <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.template.next_sort }}#playables-section" title="Сортировать по шаблону">Шаблон{% if columns_sort.template.indicator %} {{ columns_sort.template.indicator }}{% endif %}</a>
-                </th>
-                <th class="curation-blueprint-table-state">
-                    <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.state.next_sort }}#playables-section" title="Сортировать по статусу">Статус{% if columns_sort.state.indicator %} {{ columns_sort.state.indicator }}{% endif %}</a>
-                </th>
-                <th class="curation-blueprint-table-visible">
-                    <input type="checkbox" id="select-all-playables-visible" title="Выбрать все">
-                    <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.visible.next_sort }}#playables-section" title="Сортировать по видимости">Виден{% if columns_sort.visible.indicator %} {{ columns_sort.visible.indicator }}{% endif %}</a>
-                </th>
-                <th class="curation-blueprint-table-date">
-                    <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.created.next_sort }}#playables-section" title="Сортировать по дате создания">Создан{% if columns_sort.created.indicator %} {{ columns_sort.created.indicator }}{% endif %}</a>
-                </th>
-                <th class="curation-blueprint-table-date">
-                    <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.updated.next_sort }}#playables-section" title="Сортировать по дате обновления">Обновлён{% if columns_sort.updated.indicator %} {{ columns_sort.updated.indicator }}{% endif %}</a>
-                </th>
-                <th class="curation-blueprint-table-actions">Действия</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for playable in playables %}
-            <tr>
-                <td>#{{ playable.pk }}</td>
-                <td>
-                    <a href="{% url 'show_game' playable.game.pk %}">{{ playable.game.title }}</a>
-                    (<a href="{% url 'curation_history_detail' playable.game.pk %}">модерация</a>)
-                </td>
-                <td class="curation-blueprint-table-site">
-                    {% if playable.slug %}
-                    <a href="http{% if request.is_secure %}s{% endif %}://{{ playable.slug }}.{{ playable_base_domain }}" target="_blank">{{ playable.slug }}.{{ playable_base_domain }}</a>
-                    {% else %}
-                    <span class="curation-meta">—</span>
-                    {% endif %}
-                </td>
-                <td><a href="?template={{ playable.template|urlencode }}#playables-section">{{ playable.template }}</a>{% if playable.template_version %} (<a href="?template={{ playable.template|urlencode }}&version={{ playable.template_version|urlencode }}#playables-section">v{{ playable.template_version }}</a>){% endif %}</td>
-                <td>
-                    {% if playable.state == "READY" %}
-                    <span class="curation-badge curation-badge--ready">Готов</span>
-                    {% elif playable.state == "BUILDING" or playable.state == "PENDING" %}
-                    <span class="curation-meta">{{ playable.get_state_display }}</span>
-                    {% elif playable.state == "ERROR" %}
-                    <span class="curation-meta" style="color: #c5221f; font-weight: bold;">Ошибка</span>
-                    {% else %}
-                    <span>{{ playable.get_state_display }}</span>
-                    {% endif %}
-                </td>
-                <td style="text-align: center;">
-                    <input type="hidden" form="bulk-visibility-form" name="playable_ids" value="{{ playable.pk }}">
-                    <input type="checkbox" form="bulk-visibility-form" name="visible_{{ playable.pk }}" value="1" class="playable-visible-checkbox"{% if playable.visible %} checked{% endif %}>
-                </td>
-                <td class="curation-nowrap">{{ playable.created|date:"d.m.Y H:i" }}</td>
-                <td class="curation-nowrap">{{ playable.updated|date:"d.m.Y H:i" }}</td>
-                <td class="curation-blueprint-table-actions">
-                    <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
-                        {% if playable.state != "BUILDING" and playable.state != "PENDING" %}
-                        <form method="post" action="{% url 'curation_history_playable_regenerate' playable.game.pk playable.pk %}" style="display: inline;">
-                            {% csrf_token %}
-                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                            <button type="submit" title="Пересоздать сайт">пересоздать</button>
-                        </form>
+    <style>
+        .curation-blueprint-playables-table {
+            table-layout: auto;
+            width: 100%;
+        }
+        .curation-blueprint-table-id {
+            width: 38px;
+            white-space: nowrap;
+            text-align: center;
+        }
+        .curation-blueprint-table-game {
+            min-width: 160px;
+            word-break: normal;
+            overflow-wrap: break-word;
+        }
+        .curation-blueprint-site-wrap {
+            margin-top: 2px;
+            line-height: 1.25;
+        }
+        .curation-blueprint-site-link {
+            font-size: 12px;
+            word-break: break-all;
+            color: #0b8043;
+        }
+        .curation-blueprint-table-template {
+            width: 85px;
+            white-space: nowrap;
+        }
+        .curation-blueprint-table-state {
+            width: 60px;
+            white-space: nowrap;
+            text-align: center;
+        }
+        .curation-blueprint-table-visible {
+            width: 45px;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .curation-blueprint-table-dates {
+            width: 125px;
+            white-space: nowrap;
+            font-size: 12px;
+            line-height: 1.35;
+        }
+        .curation-blueprint-table-actions {
+            width: 78px;
+            white-space: nowrap;
+        }
+        .curation-blueprint-actions-col {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            align-items: stretch;
+        }
+        .curation-blueprint-actions-col form {
+            margin: 0;
+            padding: 0;
+            display: block;
+        }
+        .curation-blueprint-action-btn {
+            display: block;
+            width: 100%;
+            font-size: 11px;
+            padding: 2px 4px;
+            line-height: 1.3;
+            white-space: nowrap;
+            border-radius: 2px;
+            cursor: pointer;
+            box-shadow: none;
+            text-align: center;
+            box-sizing: border-box;
+        }
+        .curation-blueprint-action-btn--recreate {
+            background-color: #ff5431;
+            color: #fff;
+            border: none;
+        }
+        .curation-blueprint-action-btn--delete {
+            background-color: #fff;
+            color: #c5221f;
+            border: 1px solid #c5221f;
+        }
+        .curation-blueprint-action-btn--delete:hover {
+            background-color: #fce8e6;
+            color: #a51d24;
+        }
+    </style>
+
+    <div class="curation-playable-table-wrap">
+        <table class="curation-table curation-table--compact curation-blueprint-playables-table">
+            <thead>
+                <tr>
+                    <th class="curation-blueprint-table-id">
+                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.id.next_sort }}#playables-section" title="Сортировать по ID">ID{% if columns_sort.id.indicator %} {{ columns_sort.id.indicator }}{% endif %}</a>
+                    </th>
+                    <th class="curation-blueprint-table-game">
+                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.game.next_sort }}#playables-section" title="Сортировать по названию игры">Игра{% if columns_sort.game.indicator %} {{ columns_sort.game.indicator }}{% endif %}</a>
+                        <span class="curation-meta"> / </span>
+                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.site.next_sort }}#playables-section" title="Сортировать по сайту">Сайт{% if columns_sort.site.indicator %} {{ columns_sort.site.indicator }}{% endif %}</a>
+                    </th>
+                    <th class="curation-blueprint-table-template">
+                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.template.next_sort }}#playables-section" title="Сортировать по шаблону">Шаблон{% if columns_sort.template.indicator %} {{ columns_sort.template.indicator }}{% endif %}</a>
+                    </th>
+                    <th class="curation-blueprint-table-state">
+                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.state.next_sort }}#playables-section" title="Сортировать по статусу">Статус{% if columns_sort.state.indicator %} {{ columns_sort.state.indicator }}{% endif %}</a>
+                    </th>
+                    <th class="curation-blueprint-table-visible">
+                        <input type="checkbox" id="select-all-playables-visible" title="Выбрать все">
+                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.visible.next_sort }}#playables-section" title="Сортировать по видимости">Виден{% if columns_sort.visible.indicator %} {{ columns_sort.visible.indicator }}{% endif %}</a>
+                    </th>
+                    <th class="curation-blueprint-table-dates">
+                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.updated.next_sort }}#playables-section" title="Сортировать по дате обновления">Обновлён{% if columns_sort.updated.indicator %} {{ columns_sort.updated.indicator }}{% endif %}</a>
+                        <span class="curation-meta"> / </span>
+                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.created.next_sort }}#playables-section" title="Сортировать по дате создания" class="curation-meta">создан{% if columns_sort.created.indicator %} {{ columns_sort.created.indicator }}{% endif %}</a>
+                    </th>
+                    <th class="curation-blueprint-table-actions">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for playable in playables %}
+                <tr>
+                    <td class="curation-blueprint-table-id">#{{ playable.pk }}</td>
+                    <td class="curation-blueprint-table-game">
+                        <div>
+                            <a href="{% url 'show_game' playable.game.pk %}"><strong>{{ playable.game.title }}</strong></a>
+                            <span class="curation-meta">(<a href="{% url 'curation_history_detail' playable.game.pk %}">модерация</a>)</span>
+                        </div>
+                        <div class="curation-blueprint-site-wrap">
+                            {% if playable.slug %}
+                            <a href="http{% if request.is_secure %}s{% endif %}://{{ playable.slug }}.{{ playable_base_domain }}" target="_blank" class="curation-blueprint-site-link">{{ playable.slug }}.{{ playable_base_domain }}</a>
+                            {% else %}
+                            <span class="curation-meta">—</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="curation-blueprint-table-template">
+                        <a href="?template={{ playable.template|urlencode }}#playables-section">{{ playable.template }}</a>
+                        {% if playable.template_version %}
+                        <div class="curation-meta">
+                            <a href="?template={{ playable.template|urlencode }}&version={{ playable.template_version|urlencode }}#playables-section">v{{ playable.template_version }}</a>
+                        </div>
                         {% endif %}
-                        <form method="post" action="{% url 'curation_history_playable_delete' playable.game.pk playable.pk %}" style="display: inline;" onsubmit="return confirm('Удалить проигрыватель #{{ playable.pk }}?');">
-                            {% csrf_token %}
-                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                            <button type="submit" style="color: #c5221f;" title="Удалить проигрыватель">удалить</button>
-                        </form>
-                    </div>
-                </td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="9">{% if selected_template or selected_version %}По заданным фильтрам сайтов не найдено.{% else %}Созданных сайтов нет.{% endif %}</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                    </td>
+                    <td class="curation-blueprint-table-state">
+                        {% if playable.state == "READY" %}
+                        <span class="curation-badge curation-badge--ready">Готов</span>
+                        {% elif playable.state == "BUILDING" or playable.state == "PENDING" %}
+                        <span class="curation-meta">{{ playable.get_state_display }}</span>
+                        {% elif playable.state == "ERROR" %}
+                        <span class="curation-meta" style="color: #c5221f; font-weight: bold;">Ошибка</span>
+                        {% else %}
+                        <span>{{ playable.get_state_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="curation-blueprint-table-visible" style="text-align: center;">
+                        <input type="hidden" form="bulk-visibility-form" name="playable_ids" value="{{ playable.pk }}">
+                        <input type="checkbox" form="bulk-visibility-form" name="visible_{{ playable.pk }}" value="1" class="playable-visible-checkbox"{% if playable.visible %} checked{% endif %}>
+                    </td>
+                    <td class="curation-blueprint-table-dates">
+                        <div class="curation-nowrap" title="Обновлён: {{ playable.updated|date:'d.m.Y H:i' }}">{{ playable.updated|date:"d.m.Y H:i" }}</div>
+                        <div class="curation-meta curation-nowrap" title="Создан: {{ playable.created|date:'d.m.Y H:i' }}">созд: {{ playable.created|date:"d.m.Y H:i" }}</div>
+                    </td>
+                    <td class="curation-blueprint-table-actions">
+                        <div class="curation-blueprint-actions-col">
+                            {% if playable.state != "BUILDING" and playable.state != "PENDING" %}
+                            <form method="post" action="{% url 'curation_history_playable_regenerate' playable.game.pk playable.pk %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="curation-blueprint-action-btn curation-blueprint-action-btn--recreate" title="Пересоздать сайт">пересоздать</button>
+                            </form>
+                            {% endif %}
+                            <form method="post" action="{% url 'curation_history_playable_delete' playable.game.pk playable.pk %}" onsubmit="return confirm('Удалить проигрыватель #{{ playable.pk }}?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="curation-blueprint-action-btn curation-blueprint-action-btn--delete" title="Удалить проигрыватель">удалить</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7">{% if selected_template or selected_version %}По заданным фильтрам сайтов не найдено.{% else %}Созданных сайтов нет.{% endif %}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% if playables %}
     <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
         <button type="submit" form="bulk-visibility-form">Сохранить видимость</button>
