@@ -2,6 +2,7 @@ import json
 import uuid
 from datetime import timedelta
 
+from django.contrib.staticfiles.finders import find
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
@@ -483,3 +484,15 @@ class TelemetryAPITests(TestCase):
     def test_method_not_allowed(self) -> None:
         res = self.client.get("/play/telemetry/")
         self.assertEqual(res.status_code, 405)
+
+    def test_play_overlay_static_asset(self) -> None:
+        overlay_path = find("play-overlay.js")
+        self.assertIsNotNone(overlay_path)
+        assert overlay_path is not None
+        with open(overlay_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("db.crem.xyz", content)
+        self.assertIn("game_loaded", content)
+
+        # Ensure mock_overlay.html is not in static assets
+        self.assertIsNone(find("mock_overlay.html"))

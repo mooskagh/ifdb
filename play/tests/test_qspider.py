@@ -7,7 +7,12 @@ from zipfile import ZipFile
 
 from django.test import SimpleTestCase
 
-from play.blueprint import Compatibility, GenerateSpec, discover_blueprints
+from play.blueprint import (
+    TELEMETRY_SCRIPT,
+    Compatibility,
+    GenerateSpec,
+    discover_blueprints,
+)
 from play.blueprints.qspider import accepts, generate, get_spec
 from play.blueprints.qspider.detection import (
     detect_qsp_mode,
@@ -414,6 +419,7 @@ class QSpiderTests(SimpleTestCase):
             index_content = (destination / "index.html").read_text(
                 encoding="utf-8"
             )
+            self.assertIn(TELEMETRY_SCRIPT, index_content)
             self.assertIn("<title>Real Asset Test</title>", index_content)
 
     def test_case_insensitive_aliases_created(self) -> None:

@@ -6,7 +6,12 @@ from zipfile import ZipFile
 
 from django.test import SimpleTestCase
 
-from play.blueprint import Compatibility, GenerateSpec, discover_blueprints
+from play.blueprint import (
+    TELEMETRY_SCRIPT,
+    Compatibility,
+    GenerateSpec,
+    discover_blueprints,
+)
 from play.blueprints.urqw import accepts, generate, get_spec
 from play.blueprints.urqw.detection import (
     detect_encoding,
@@ -206,6 +211,7 @@ class UrqWTests(SimpleTestCase):
             index_path = destination / "index.html"
             self.assertTrue(index_path.exists())
             index_html = index_path.read_text()
+            self.assertIn(TELEMETRY_SCRIPT, index_html)
             self.assertIn('var urqw_default_game = "game";', index_html)
 
             self.assertTrue((destination / "rss.svg").is_file())

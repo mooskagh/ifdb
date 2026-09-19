@@ -12,6 +12,7 @@ build-frontend:
     esbuild frontend/editDiff.ts --bundle --outfile=core/static/edit_diff.js
     esbuild frontend/llmModels.ts --bundle --outfile=core/static/llm_models.js
     esbuild frontend/reconcile.ts --bundle --outfile=core/static/reconcile.js
+    esbuild frontend/playOverlay.ts --bundle --minify --outfile=core/static/play-overlay.js
 
 # Django system checks
 check-django:

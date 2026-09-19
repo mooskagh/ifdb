@@ -5,7 +5,12 @@ from pathlib import Path
 from zipfile import ZipFile, is_zipfile
 
 from core.archives import Archive, ArchiveError, extract_archive, open_archive
-from play.blueprint import BlueprintSpec, GenerateResult, GenerateSpec
+from play.blueprint import (
+    BlueprintSpec,
+    GenerateResult,
+    GenerateSpec,
+    insert_telemetry,
+)
 
 ASSETS_DIR = Path(__file__).parent / "assets"
 
@@ -205,7 +210,7 @@ def _write_runtime(
         html = runtime.read(launcher_name)
 
     patched = _patch_parchment_options(html, game_filename)
-    (stage / "index.html").write_bytes(patched)
+    (stage / "index.html").write_bytes(insert_telemetry(patched))
 
 
 def _publish(stage: Path, destination: Path) -> None:
