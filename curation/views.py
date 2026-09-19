@@ -3351,14 +3351,6 @@ def session_list(request: HttpRequest) -> HttpResponse:
                 "ip_addr": seg.ip_addr,
             })
 
-        total_time = active_total + idle_total + background_total
-        if total_time > 0:
-            active_pct = round(active_total / total_time * 100, 1)
-            idle_pct = round(idle_total / total_time * 100, 1)
-            background_pct = max(0.0, round(100.0 - active_pct - idle_pct, 1))
-        else:
-            active_pct = idle_pct = background_pct = 0.0
-
         sessions_data.append({
             "session": session,
             "playable": playable,
@@ -3367,22 +3359,12 @@ def session_list(request: HttpRequest) -> HttpResponse:
             "user_or_ip": user_or_ip,
             "last_ip": last_ip if has_user else None,
             "has_user": has_user,
-            "active_secs": max(1, int(round(active_total)))
-            if active_total > 0
-            else 0,
-            "idle_secs": max(1, int(round(idle_total)))
-            if idle_total > 0
-            else 0,
-            "background_secs": max(1, int(round(background_total)))
-            if background_total > 0
-            else 0,
+            "active_secs": round(active_total),
+            "idle_secs": round(idle_total),
+            "background_secs": round(background_total),
             "active_duration": _format_duration(active_total),
             "idle_duration": _format_duration(idle_total),
             "background_duration": _format_duration(background_total),
-            "active_pct": active_pct,
-            "idle_pct": idle_pct,
-            "background_pct": background_pct,
-            "has_activity": total_time > 0,
             "segments": segment_items,
         })
 

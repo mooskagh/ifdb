@@ -4128,31 +4128,6 @@ progress.curation-scan-progress-bar {
     font-weight: normal;
 }
 
-.curation-activity-bar {
-    display: flex;
-    height: 3px;
-    border-radius: 2px;
-    overflow: hidden;
-    background: #e2e8f0;
-    margin-top: 1px;
-}
-
-.curation-activity-bar-seg {
-    height: 100%;
-}
-
-.curation-activity-bar-seg.bar-active {
-    background: #16a34a;
-}
-
-.curation-activity-bar-seg.bar-idle {
-    background: #eab308;
-}
-
-.curation-activity-bar-seg.bar-bg {
-    background: #94a3b8;
-}
-
 .curation-session-details-row.is-hidden {
     display: none;
 }
