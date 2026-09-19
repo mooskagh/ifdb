@@ -70,10 +70,16 @@
                             <span class="curation-activity-val{% if item.background_secs == 0 %} is-zero{% endif %}">{{ item.background_duration }}</span>
                         </div>
                         {% if item.has_activity %}
-                        <div class="curation-activity-bar" title="Играли: {{ item.active_pct }}%, бездействовали: {{ item.idle_pct }}%, неактивно: {{ item.background_pct }}%">
-                            <span class="curation-activity-bar-seg bar-active" style="width: {{ item.active_pct }}%;"></span>
-                            <span class="curation-activity-bar-seg bar-idle" style="width: {{ item.idle_pct }}%;"></span>
-                            <span class="curation-activity-bar-seg bar-bg" style="width: {{ item.background_pct }}%;"></span>
+                        <div class="curation-activity-bar" title="Играли: {{ item.active_duration }} · Бездействовали: {{ item.idle_duration }} · Неактивно: {{ item.background_duration }}">
+                            {% if item.active_secs > 0 %}
+                            <span class="curation-activity-bar-seg bar-active" style="flex: {{ item.active_secs }}; min-width: 1px;"></span>
+                            {% endif %}
+                            {% if item.idle_secs > 0 %}
+                            <span class="curation-activity-bar-seg bar-idle" style="flex: {{ item.idle_secs }}; min-width: 1px;"></span>
+                            {% endif %}
+                            {% if item.background_secs > 0 %}
+                            <span class="curation-activity-bar-seg bar-bg" style="flex: {{ item.background_secs }}; min-width: 1px;"></span>
+                            {% endif %}
                         </div>
                         {% endif %}
                     </div>
