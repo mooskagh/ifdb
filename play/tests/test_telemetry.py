@@ -258,6 +258,49 @@ class TelemetryAPITests(TestCase):
         self.assertEqual(len(segments), 1)
         self.assertEqual(segments[0].active_seconds, 120)
 
+    def test_ping_float_seconds_accumulates(self) -> None:
+        self.client.post(
+            "/play/telemetry/",
+            data=json.dumps({
+                "event": "game_loaded",
+                "play_session_id": str(self.session_id),
+                "playable_id": self.playable.pk,
+            }),
+            content_type="application/json",
+        )
+
+        res1 = self.client.post(
+            "/play/telemetry/",
+            data=json.dumps({
+                "event": "ping",
+                "play_session_id": str(self.session_id),
+                "state": "active",
+                "seconds_since_last_ping": 12.5,
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(res1.status_code, 200)
+
+        segment = PlaySegment.objects.get(
+            play_session__play_session_id=self.session_id
+        )
+        self.assertAlmostEqual(segment.active_seconds, 12.5)
+
+        res2 = self.client.post(
+            "/play/telemetry/",
+            data=json.dumps({
+                "event": "ping",
+                "play_session_id": str(self.session_id),
+                "state": "active",
+                "seconds_since_last_ping": 7.25,
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(res2.status_code, 200)
+
+        segment.refresh_from_db()
+        self.assertAlmostEqual(segment.active_seconds, 19.75)
+
     def test_ping_state_transition_attributes_time_to_previous_segment(
         self,
     ) -> None:

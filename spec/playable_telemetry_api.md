@@ -67,7 +67,7 @@ Sent periodically (recommended: every 60 seconds), on user state transitions, an
 |---|---|---|---|
 | `event` | `string` | **Yes** | Must be `"ping"`. |
 | `play_session_id` | `string` | **Yes** | Same UUIDv4 string generated for `game_loaded`. |
-| `seconds_since_last_ping` | `integer` | **Yes** | Number of elapsed seconds since the previous ping (non-negative integer). |
+| `seconds_since_last_ping` | `number` | **Yes** | Number of elapsed seconds since the previous ping (non-negative number). |
 | `state` | `string` | **Yes** | Current user state: `"active"`, `"idle"`, or `"background"`. |
 
 #### Example Request
@@ -197,7 +197,7 @@ class PlayTelemetry {
 
   async _transitionTo(newState) {
     const now = Date.now();
-    const elapsedSeconds = Math.max(0, Math.round((now - this.lastPingTime) / 1000));
+    const elapsedSeconds = Math.max(0, (now - this.lastPingTime) / 1000);
     this.lastPingTime = now;
     this.currentState = newState;
 
@@ -212,7 +212,7 @@ class PlayTelemetry {
   async _tick() {
     const newState = this._computeState();
     const now = Date.now();
-    const elapsedSeconds = Math.max(0, Math.round((now - this.lastPingTime) / 1000));
+    const elapsedSeconds = Math.max(0, (now - this.lastPingTime) / 1000);
     this.lastPingTime = now;
     this.currentState = newState;
 
@@ -236,7 +236,7 @@ class PlayTelemetry {
 
   _flushUnload() {
     const now = Date.now();
-    const elapsedSeconds = Math.max(0, Math.round((now - this.lastPingTime) / 1000));
+    const elapsedSeconds = Math.max(0, (now - this.lastPingTime) / 1000);
     if (elapsedSeconds > 0) {
       this._send({
         event: 'ping',

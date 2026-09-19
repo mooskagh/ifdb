@@ -138,8 +138,8 @@ class PlaySegment(models.Model):
     last_seen_at: models.DateTimeField[datetime, datetime] = (
         models.DateTimeField(default=timezone.now)
     )
-    active_seconds: models.PositiveIntegerField[int, int] = (
-        models.PositiveIntegerField(default=0)
+    active_seconds: models.FloatField[float, float] = models.FloatField(
+        default=0.0
     )
 
     def __str__(self) -> str:
