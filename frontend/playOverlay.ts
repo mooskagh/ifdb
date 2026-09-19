@@ -445,7 +445,7 @@ class PlayOverlay {
       return;
     }
     const now = Date.now();
-    const elapsedSeconds = Math.max(0, Math.round((now - this.lastPingTime) / 1000));
+    const elapsedSeconds = Math.max(0, (now - this.lastPingTime) / 1000);
     this.lastPingTime = now;
     this.currentState = newState;
 
@@ -464,7 +464,7 @@ class PlayOverlay {
   private async tickHeartbeat(): Promise<void> {
     const newState = this.computeState();
     const now = Date.now();
-    const elapsedSeconds = Math.max(0, Math.round((now - this.lastPingTime) / 1000));
+    const elapsedSeconds = Math.max(0, (now - this.lastPingTime) / 1000);
     this.lastPingTime = now;
     this.currentState = newState;
 
@@ -496,7 +496,7 @@ class PlayOverlay {
 
   private flushUnload(): void {
     const now = Date.now();
-    const elapsedSeconds = Math.max(0, Math.round((now - this.lastPingTime) / 1000));
+    const elapsedSeconds = Math.max(0, (now - this.lastPingTime) / 1000);
     if (elapsedSeconds > 0) {
       this.send(
         {

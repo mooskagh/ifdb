@@ -1,4 +1,5 @@
 import json
+import math
 import uuid
 from typing import Any
 from urllib.parse import urlparse
@@ -246,7 +247,7 @@ def _handle_game_loaded(
                 state=state,
                 started_at=now,
                 last_seen_at=now,
-                active_seconds=0,
+                active_seconds=0.0,
             )
 
     game_authors = _get_game_authors(playable.game)
@@ -299,12 +300,14 @@ def _handle_ping(request: HttpRequest, data: dict[str, Any]) -> HttpResponse:
         )
 
     try:
-        seconds_since_last_ping = int(raw_seconds)
-        if seconds_since_last_ping < 0:
+        seconds_since_last_ping = float(raw_seconds)
+        if seconds_since_last_ping < 0 or not math.isfinite(
+            seconds_since_last_ping
+        ):
             raise ValueError()
     except (ValueError, TypeError):
         return JsonResponse(
-            {"error": "seconds_since_last_ping must be an int >= 0"},
+            {"error": "seconds_since_last_ping must be a float >= 0"},
             status=400,
         )
 
@@ -335,7 +338,7 @@ def _handle_ping(request: HttpRequest, data: dict[str, Any]) -> HttpResponse:
                 active_seconds=(
                     seconds_since_last_ping
                     if current_state == PlaySegment.State.ACTIVE
-                    else 0
+                    else 0.0
                 ),
             )
         else:
@@ -374,7 +377,7 @@ def _handle_ping(request: HttpRequest, data: dict[str, Any]) -> HttpResponse:
                     state=current_state,
                     started_at=now,
                     last_seen_at=now,
-                    active_seconds=0,
+                    active_seconds=0.0,
                 )
             else:
                 # Inactivity gap exceeded: prior segment ended in the past
@@ -389,7 +392,7 @@ def _handle_ping(request: HttpRequest, data: dict[str, Any]) -> HttpResponse:
                     active_seconds=(
                         seconds_since_last_ping
                         if current_state == PlaySegment.State.ACTIVE
-                        else 0
+                        else 0.0
                     ),
                 )
 
