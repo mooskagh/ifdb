@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 
+from games.gameinfo import GameInfo
 from games.importer.ifwiki import IfwikiImporter, ImportFromIfwiki
 
 
@@ -1042,6 +1043,55 @@ This is a horror game.
                 ("translator", "Иван Иванов"),
             ],
         )
+
+    def test_title_unescapes_html_entities_and_displaytitle(self):
+        test_url = "https://ifwiki.ru/ICED_HEAD"
+        wikitext = """{{DISPLAYTITLE:I&#91;ED HEAD}}
+{{game info
+ |название=I&#91;ED HEAD
+ |серия=MEЯE W1SH
+ |часть=спин-офф
+ |обложка=IH-front.jpeg
+ |автор=[[Автор::Карташёв, Никита|De@th K!d]]
+ |вышла=24.02.2019
+ |платформа=QSP
+ |темы=Арт-хаус, Сюрреализм
+}}{{ЗОК|2019}}
+== Особенности ==
+Тестовое описание.
+"""
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            res = ImportFromIfwiki(test_url)
+
+        self.assertEqual(res["title"], "I[ED HEAD")
+        gi = GameInfo.from_importer_dict(res)
+        self.assertIn('- name: "I[ED HEAD"', gi.to_canonical())
+
+    def test_displaytitle_without_gameinfo_title(self):
+        test_url = "https://ifwiki.ru/ICED_HEAD"
+        wikitext = """{{DISPLAYTITLE:I&#91;ED HEAD}}
+{{game info
+ |платформа=QSP
+}}
+"""
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            res = ImportFromIfwiki(test_url)
+
+        self.assertEqual(res["title"], "I[ED HEAD")
+
+    def test_gameinfo_title_unescapes_entities_without_displaytitle(self):
+        test_url = "https://ifwiki.ru/Some_Game"
+        wikitext = """{{game info
+ |название=Rock &amp; Roll
+}}
+"""
+        with patch("games.importer.ifwiki.FetchUrlToString") as mock_fetch:
+            mock_fetch.return_value = wikitext
+            res = ImportFromIfwiki(test_url)
+
+        self.assertEqual(res["title"], "Rock & Roll")
 
 
 if __name__ == "__main__":

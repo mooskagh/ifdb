@@ -2,6 +2,7 @@ import datetime
 import json
 import re
 import time
+from html import unescape
 from logging import getLogger
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
@@ -163,7 +164,7 @@ def ParseAuthorFromIfwiki(cont, url, res=None):
         return ImportAuthorFromIfwiki(url_to_fetch, res)
 
     _base_url, title = ParseIfwikiUrl(url)
-    name = unquote(title).replace("_", " ")
+    name = unescape(unquote(title)).replace("_", " ")
     context = WikiAuthorParsingContext(name, url)
     parsed_wikitext = mwparserfromhell.parse(cont)
 
@@ -198,7 +199,9 @@ def ParseIfwiki(cont, url):
     res = {"priority": 100}
 
     _base_url, title = ParseIfwikiUrl(url)
-    context = WikiParsingContext(unquote(title).replace("_", " "), url)
+    context = WikiParsingContext(
+        unescape(unquote(title)).replace("_", " "), url
+    )
 
     try:
         parsed_wikitext = mwparserfromhell.parse(cont)
@@ -207,7 +210,7 @@ def ParseIfwiki(cont, url):
         logger.exception(f"Error while parsing {url}")
         return {"error": "Какая-то ошибка при парсинге. Надо сказать админам."}
 
-    res["title"] = context.title
+    res["title"] = unescape(context.title).strip()
     res["desc"] = output
     AddDescriptionAttribution(res, "ifwiki.ru")
     if context.release_date:
@@ -332,9 +335,9 @@ IFWIKI_COMPETITIONS = {
     "Ludum Dare": "Ludum Dare {_1}",
 }
 
-IFWIKI_IGNORE = {"ЗаглушкаТекста", "ЗаглушкаСсылок"}
+IFWIKI_IGNORE = {"ЗаглушкаТекста", "ЗаглушкаСсылок", "Игры серии"}
 
-GAMEINFO_IGNORE = {"ширинаобложки", "высотаобложки"}
+GAMEINFO_IGNORE = {"ширинаобложки", "высотаобложки", "серия", "часть"}
 
 IFWIKI_SHORT_LINK_LIST_MAX_LABEL = 80
 IFWIKI_SHORT_LINK_LIST_MAX_URL = 2048
@@ -344,12 +347,14 @@ IFWIKI_SHORT_LINK_LIST_MAX_SUFFIX = 80
 
 class WikiAuthorParsingContext:
     def __init__(self, name, url):
-        self.name = name
+        self.name = unescape(name)
         self.url = url
         self.urls = [CategorizeAuthorUrl(url)]
         self.title = "(no title)"
 
     def AddUrl(self, url, desc="", category=None, base=None):
+        if desc:
+            desc = unescape(desc)
         self.urls.append(CategorizeAuthorUrl(url, desc, category, base))
 
     def ProcessLink(self, text):
@@ -377,7 +382,8 @@ class WikiAuthorParsingContext:
 
 class WikiParsingContext:
     def __init__(self, game_name, url):
-        self.title = game_name
+        self.title = unescape(game_name)
+        self._title_from_gameinfo = False
         self.release_date = None
         self.authors = []
         self.tags = []
@@ -385,6 +391,8 @@ class WikiParsingContext:
         self.url = url
 
     def AddUrl(self, url, desc="", category=None, base=None):
+        if desc:
+            desc = unescape(desc)
         self.urls.append(CategorizeUrl(url, desc, category, base))
 
     def ProcessLink(self, text, default_role=None):
@@ -400,7 +408,7 @@ class WikiParsingContext:
         if role_lower in IFWIKI_ROLES:
             self.authors.append({
                 "role_slug": IFWIKI_ROLES[role_lower],
-                "name": display_name or name,
+                "name": unescape(display_name or name),
                 "url": f"http://ifwiki.ru/{WikiQuote(name)}",
                 "urldesc": "Страница автора на ifwiki",
             })
@@ -418,7 +426,7 @@ class WikiParsingContext:
                     self.url,
                 )
             elif role == "Тема":
-                self.tags.append({"cat_slug": "tag", "tag": name})
+                self.tags.append({"cat_slug": "tag", "tag": unescape(name)})
             elif role == "ifwiki-en":
                 self.AddUrl(
                     "http://ifwiki.org/index.php/" + WikiQuote(name),
@@ -431,7 +439,7 @@ class WikiParsingContext:
             elif default_role:
                 self.authors.append({
                     "role_slug": default_role,
-                    "name": display_name or name,
+                    "name": unescape(display_name or name),
                     "url": f"http://ifwiki.ru/{WikiQuote(name)}",
                     "urldesc": "Страница автора на ifwiki",
                 })
@@ -468,7 +476,7 @@ class WikiParsingContext:
                         role_slug = IFWIKI_ROLES[role.lower()]
                     else:
                         role_slug = current_role
-                    author_name = (display_name or name).strip()
+                    author_name = unescape((display_name or name).strip())
                     self.authors.append({
                         "role_slug": role_slug,
                         "name": author_name,
@@ -491,7 +499,7 @@ class WikiParsingContext:
                 if part:
                     self.authors.append({
                         "role_slug": current_role,
-                        "name": part,
+                        "name": unescape(part),
                     })
 
     def ProcessGameinfo(self, params):
@@ -506,23 +514,31 @@ class WikiParsingContext:
             except ValueError:
                 return None
 
+        def set_title(v):
+            cleaned = unescape(v).strip()
+            if cleaned:
+                self.title = cleaned
+                self._title_from_gameinfo = True
+
         handlers = {
             "автор": self.ProcessAuthorLine,
-            "название": lambda v: setattr(self, "title", v),
+            "название": set_title,
             "вышла": lambda v: setattr(self, "release_date", parse_date(v)),
-            "платформа": lambda v: add_tag("platform", v),
+            "платформа": lambda v: add_tag("platform", unescape(v).strip()),
             "язык": lambda v: [
-                add_tag("language", lang.strip())
+                add_tag("language", unescape(lang).strip())
                 for lang in v.split(",")
                 if lang.strip()
             ],
             "темы": lambda v: [
-                add_tag("tag", t.strip()) for t in v.split(",") if t.strip()
+                add_tag("tag", unescape(t).strip())
+                for t in v.split(",")
+                if t.strip()
             ],
             "обложка": lambda v: self.AddUrl(
                 f"/files/{WikiQuote(v)}", "Обложка", "poster", self.url
             ),
-            "IFID": lambda v: add_tag("ifid", v),
+            "IFID": lambda v: add_tag("ifid", unescape(v).strip()),
         }
 
         for k, v in params.items():
@@ -560,7 +576,17 @@ class WikiParsingContext:
             return f"[{params['на']} {params.get('1') or 'ссылка'}]"
 
         # Template handlers
-        if name == "PAGENAME":
+        norm_name = name.lower()
+        if norm_name.startswith("displaytitle"):
+            if ":" in name:
+                dt_title = name.split(":", 1)[1].strip()
+            else:
+                dt_title = params.get("1", "").strip()
+            dt_title = unescape(dt_title).strip()
+            if dt_title and not getattr(self, "_title_from_gameinfo", False):
+                self.title = dt_title
+            return ""
+        elif name == "PAGENAME":
             return self.title
         elif name == "game info":
             self.ProcessGameinfo(params)
@@ -577,7 +603,7 @@ class WikiParsingContext:
             return handle_link()
         elif name == "Тема":
             if "1" in params:
-                add_tag("tag", params["1"])
+                add_tag("tag", unescape(params["1"]).strip())
             return ""
         elif name == "ns:6":
             return "Media"
@@ -608,7 +634,9 @@ def process_wikitext_for_game(wikicode, context):
 
             # Process nested templates (like {{PAGENAME}})
             if value == "{{PAGENAME}}":
-                value = unquote(context.url.split("/")[-1]).replace("_", " ")
+                value = unescape(unquote(context.url.split("/")[-1])).replace(
+                    "_", " "
+                )
 
             if key:
                 params[key] = value
