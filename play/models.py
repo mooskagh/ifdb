@@ -77,6 +77,9 @@ class Playable(models.Model):
 class PlaySession(models.Model):
     class Meta:
         default_permissions = ()
+        indexes = [
+            models.Index(fields=["-last_seen_at"]),
+        ]
 
     play_session_id: models.UUIDField[uuid.UUID | str, uuid.UUID] = (
         models.UUIDField(unique=True, db_index=True)

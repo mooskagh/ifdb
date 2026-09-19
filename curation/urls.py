@@ -22,6 +22,11 @@ urlpatterns = [
         name="curation_blueprint_list",
     ),
     path(
+        "sessions/",
+        superuser_required(views.session_list),
+        name="curation_session_list",
+    ),
+    path(
         "blueprints/candidates/ids/",
         superuser_required(views.blueprint_candidate_ids),
         name="curation_blueprint_candidate_ids",

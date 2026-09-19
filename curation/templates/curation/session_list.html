@@ -1,0 +1,120 @@
+{% extends "curation/base.html" %}
+{% load tags %}
+
+{% block titlesection %}Модерация - Игровые сессии - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--green">
+    <div class="card--header">Игровые сессии</div>
+    <table class="curation-table curation-table--compact curation-sessions-table">
+        <thead>
+            <tr>
+                <th class="curation-session-toggle-col"></th>
+                <th>URL</th>
+                <th>Время сессии</th>
+                <th>Пользователь / IP</th>
+                <th>Активность</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in sessions %}
+            <tr class="curation-session-row" data-target="session-details-{{ item.session.pk }}" title="Нажмите, чтобы развернуть/свернуть сегменты">
+                <td class="curation-session-toggle-col">
+                    <span class="session-row-toggle">▶</span>
+                </td>
+                <td class="curation-nowrap">
+                    <a href="http{% if request.is_secure %}s{% endif %}://{{ item.playable_url }}" target="_blank" class="curation-blueprint-site-link">{{ item.playable_url }}</a>
+                    {% if item.game %}
+                    <br><span class="curation-meta">{{ item.game.title }}</span>
+                    {% endif %}
+                </td>
+                <td class="curation-nowrap">
+                    {{ item.session.started_at|date:"Y-m-d H:i:s" }} – {{ item.session.last_seen_at|date:"Y-m-d H:i:s" }}
+                </td>
+                <td class="curation-nowrap">
+                    {% if item.has_user %}
+                    <strong>{{ item.user_or_ip }}</strong>
+                    {% else %}
+                    <code>{{ item.user_or_ip }}</code>
+                    {% endif %}
+                </td>
+                <td>
+                    Играли: {{ item.active_duration }}, бездействовали {{ item.idle_duration }}, неактивно: {{ item.background_duration }}
+                </td>
+            </tr>
+            <tr id="session-details-{{ item.session.pk }}" class="curation-session-details-row is-hidden">
+                <td colspan="5">
+                    <div class="curation-session-details-content">
+                        <div class="curation-session-details-header">Сегменты сессии ({{ item.segments|length }}):</div>
+                        {% if item.segments %}
+                        <table class="curation-table curation-table--compact curation-segments-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Состояние</th>
+                                    <th>Начало</th>
+                                    <th>Окончание</th>
+                                    <th>Длительность</th>
+                                    <th>Пользователь</th>
+                                    <th>IP</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for seg in item.segments %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>
+                                        <span class="curation-segment-badge curation-segment-badge--{{ seg.state }}">{{ seg.state_display }}</span>
+                                    </td>
+                                    <td class="curation-nowrap">{{ seg.started_at|date:"Y-m-d H:i:s" }}</td>
+                                    <td class="curation-nowrap">{{ seg.last_seen_at|date:"Y-m-d H:i:s" }}</td>
+                                    <td class="curation-nowrap"><strong>{{ seg.duration_str }}</strong></td>
+                                    <td class="curation-nowrap">{% if seg.user %}{{ seg.user }}{% else %}—{% endif %}</td>
+                                    <td class="curation-nowrap"><code>{{ seg.ip_addr|default:"—" }}</code></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <div class="curation-meta">Сегментов нет.</div>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5">Игровых сессий нет.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if page.has_other_pages %}
+    <div class="curation-pagination">
+        {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">← Назад</a>{% endif %}
+        <span>Страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a href="?page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.curation-session-row').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+            if (e.target.closest('a')) {
+                return;
+            }
+            var targetId = row.getAttribute('data-target');
+            var detailRow = document.getElementById(targetId);
+            var toggleBtn = row.querySelector('.session-row-toggle');
+            if (detailRow) {
+                var isHidden = detailRow.classList.toggle('is-hidden');
+                if (toggleBtn) {
+                    toggleBtn.textContent = isHidden ? '▶' : '▼';
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

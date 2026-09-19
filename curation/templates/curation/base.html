@@ -36,6 +36,8 @@
                            href="{% url 'curation_llm_trajectories' %}">Траектории LLM</a>
                         <a class="curation-menu-item {% current 'curation_blueprint_list' %}"
                            href="{% url 'curation_blueprint_list' %}">Проигрыватели</a>
+                        <a class="curation-menu-item {% current 'curation_session_list' %}"
+                           href="{% url 'curation_session_list' %}">Игровые сессии</a>
                     </div>
                 </div>
                 {% block curation_sidebar %}{% endblock %}
