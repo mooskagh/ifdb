@@ -208,6 +208,14 @@ class UrqWTests(SimpleTestCase):
             index_html = index_path.read_text()
             self.assertIn('var urqw_default_game = "game";', index_html)
 
+            self.assertTrue((destination / "rss.svg").is_file())
+            for font in (
+                "glyphicons-halflings-regular.woff2",
+                "glyphicons-halflings-regular.woff",
+                "glyphicons-halflings-regular.ttf",
+            ):
+                self.assertTrue((destination / "fonts" / font).is_file())
+
             quests_zip = destination / "quests" / "game.zip"
             self.assertTrue(quests_zip.exists())
 

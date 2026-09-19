@@ -34,6 +34,7 @@ _RUNTIME_FILES = (
     "dist/style.min.css",
     "logo.svg",
     "favicon.png",
+    "rss.svg",
 )
 
 VALID_CONFIG_KEYS = frozenset((
@@ -212,6 +213,20 @@ def _write_runtime(runtime_path: Path, stage: Path, title: str) -> None:
             target_path.parent.mkdir(parents=True, exist_ok=True)
             with runtime.open(member) as src, target_path.open("wb") as dst:
                 shutil.copyfileobj(src, dst)
+
+        for member in runtime.namelist():
+            if member.startswith("fonts/") and not member.endswith("/"):
+                target_path = stage / member
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                with (
+                    runtime.open(member) as src,
+                    target_path.open("wb") as dst,
+                ):
+                    shutil.copyfileobj(src, dst)
+
+    fonts_dir = ASSETS_DIR / "fonts"
+    if fonts_dir.is_dir():
+        shutil.copytree(fonts_dir, stage / "fonts", dirs_exist_ok=True)
 
 
 def _flatten_single_dir(directory: Path) -> None:
