@@ -3,8 +3,9 @@ import json
 import shutil
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
@@ -15,6 +16,7 @@ from django.db.models import (
     BooleanField,
     Case,
     Count,
+    Exists,
     F,
     Func,
     IntegerField,
@@ -37,6 +39,8 @@ from django.http import (
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import now
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
@@ -3248,20 +3252,60 @@ def _get_segment_duration(segment: PlaySegment) -> float:
     return max(0.0, elapsed)
 
 
+def _parse_cursor_timestamp(val: str) -> datetime | None:
+    if not val:
+        return None
+    val = val.strip()
+    try:
+        ts_float = float(val)
+        return datetime.fromtimestamp(ts_float, tz=timezone.utc)
+    except (ValueError, TypeError, OverflowError):
+        pass
+    parsed = parse_datetime(val)
+    if parsed is not None:
+        if timezone.is_naive(parsed):
+            parsed = timezone.make_aware(parsed)
+        return parsed
+    return None
+
+
 def session_list(request: HttpRequest) -> HttpResponse:
     q = request.GET.get("q", "").strip()
-    sessions_qs = (
-        PlaySession.objects
-        .select_related("playable", "playable__game")
-        .prefetch_related(
-            Prefetch(
-                "segments",
-                queryset=PlaySegment.objects.select_related("user").order_by(
-                    "started_at", "id"
-                ),
-            )
+
+    if "hide_empty" in request.GET:
+        hide_empty = request.GET.get("hide_empty") in ("1", "true", "True")
+    elif "filtered" in request.GET:
+        hide_empty = False
+    else:
+        hide_empty = True
+
+    if "hide_admins" in request.GET:
+        hide_admins = request.GET.get("hide_admins") in ("1", "true", "True")
+    elif "filtered" in request.GET:
+        hide_admins = False
+    else:
+        hide_admins = True
+
+    user_type = request.GET.get("user_type", "").strip().lower()
+    if user_type not in ("logged_in", "anonymous"):
+        user_type = "all"
+
+    cursor_ts_raw = (
+        request.GET.get("before") or request.GET.get("timestamp") or ""
+    ).strip()
+    cursor_ts = _parse_cursor_timestamp(cursor_ts_raw)
+    cursor_id_raw = request.GET.get("before_id", "").strip()
+    cursor_id = int(cursor_id_raw) if cursor_id_raw.isdigit() else None
+
+    sessions_qs = PlaySession.objects.select_related(
+        "playable", "playable__game"
+    ).prefetch_related(
+        Prefetch(
+            "segments",
+            queryset=PlaySegment.objects.select_related("user").order_by(
+                "started_at", "id"
+            ),
         )
-        .order_by("-last_seen_at")
     )
     if q:
         sessions_qs = sessions_qs.filter(
@@ -3271,9 +3315,59 @@ def session_list(request: HttpRequest) -> HttpResponse:
             | Q(segments__ip_addr__icontains=q)
         ).distinct()
 
-    paginator = Paginator(sessions_qs, 100)
-    page_number = request.GET.get("page")
-    page = paginator.get_page(page_number)
+    if hide_empty:
+        sessions_qs = sessions_qs.filter(
+            last_seen_at__gte=F("started_at") + timedelta(seconds=1)
+        )
+
+    if hide_admins:
+        sessions_qs = sessions_qs.filter(
+            ~Exists(
+                PlaySegment.objects.filter(
+                    play_session=OuterRef("pk"), user__is_superuser=True
+                )
+            )
+        )
+
+    if user_type == "logged_in":
+        sessions_qs = sessions_qs.filter(
+            Exists(
+                PlaySegment.objects.filter(
+                    play_session=OuterRef("pk"), user__isnull=False
+                )
+            )
+        )
+    elif user_type == "anonymous":
+        sessions_qs = sessions_qs.filter(
+            ~Exists(
+                PlaySegment.objects.filter(
+                    play_session=OuterRef("pk"), user__isnull=False
+                )
+            )
+        )
+
+    if cursor_ts is not None:
+        if cursor_id is not None:
+            sessions_qs = sessions_qs.filter(
+                Q(last_seen_at__lt=cursor_ts)
+                | Q(last_seen_at=cursor_ts, id__lte=cursor_id)
+            )
+        else:
+            sessions_qs = sessions_qs.filter(last_seen_at__lte=cursor_ts)
+
+    sessions_qs = sessions_qs.order_by("-last_seen_at", "-id")
+
+    fetched_sessions = list(sessions_qs[:101])
+    has_next = len(fetched_sessions) > 100
+    if has_next:
+        page_sessions = fetched_sessions[:100]
+        next_session = fetched_sessions[100]
+        next_before = next_session.last_seen_at.isoformat()
+        next_before_id = next_session.id
+    else:
+        page_sessions = fetched_sessions
+        next_before = None
+        next_before_id = None
 
     state_display_map = {
         PlaySegment.State.ACTIVE: "Играли",
@@ -3285,7 +3379,7 @@ def session_list(request: HttpRequest) -> HttpResponse:
     ).strip()
 
     sessions_data: list[dict[str, object]] = []
-    for session in page.object_list:
+    for session in page_sessions:
         playable = session.playable
         slug = playable.slug if playable.slug else f"playable-{playable.pk}"
         playable_url = f"{slug}.{base_domain}"
@@ -3368,12 +3462,58 @@ def session_list(request: HttpRequest) -> HttpResponse:
             "segments": segment_items,
         })
 
+    filter_params: dict[str, str] = {}
+    if (
+        "filtered" in request.GET
+        or not hide_empty
+        or not hide_admins
+        or user_type != "all"
+    ):
+        filter_params["filtered"] = "1"
+    if q:
+        filter_params["q"] = q
+    if hide_empty:
+        filter_params["hide_empty"] = "1"
+    else:
+        filter_params["hide_empty"] = "0"
+    if hide_admins:
+        filter_params["hide_admins"] = "1"
+    else:
+        filter_params["hide_admins"] = "0"
+    if user_type != "all":
+        filter_params["user_type"] = user_type
+
+    first_page_query = urlencode(filter_params)
+
+    next_page_query = ""
+    if has_next and next_before:
+        next_params = dict(filter_params)
+        next_params["before"] = next_before
+        if next_before_id is not None:
+            next_params["before_id"] = str(next_before_id)
+        next_page_query = urlencode(next_params)
+
+    has_custom_filters = bool(
+        q
+        or not hide_empty
+        or not hide_admins
+        or user_type != "all"
+        or cursor_ts is not None
+    )
+
     return render(
         request,
         "curation/session_list.html",
         {
-            "page": page,
             "sessions": sessions_data,
             "q": q,
+            "hide_empty": hide_empty,
+            "hide_admins": hide_admins,
+            "user_type": user_type,
+            "has_next": has_next,
+            "has_before": cursor_ts is not None,
+            "first_page_query": first_page_query,
+            "next_page_query": next_page_query,
+            "has_custom_filters": has_custom_filters,
         },
     )

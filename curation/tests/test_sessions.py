@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.urls import reverse
 from django.utils import timezone
 
 from games.models import Game
@@ -240,28 +241,28 @@ class SessionListViewTest(TestCase):
             play_session_id=uuid.uuid4(),
             playable=self.playable,
             started_at=now,
-            last_seen_at=now,
+            last_seen_at=now + timedelta(seconds=10),
         )
         PlaySegment.objects.create(
             play_session=s1,
             state=PlaySegment.State.ACTIVE,
             ip_addr="10.0.0.1",
             started_at=now,
-            last_seen_at=now,
+            last_seen_at=now + timedelta(seconds=10),
         )
 
         s2 = PlaySession.objects.create(
             play_session_id=uuid.uuid4(),
             playable=playable2,
             started_at=now,
-            last_seen_at=now,
+            last_seen_at=now + timedelta(seconds=10),
         )
         PlaySegment.objects.create(
             play_session=s2,
             state=PlaySegment.State.ACTIVE,
             ip_addr="10.0.0.2",
             started_at=now,
-            last_seen_at=now,
+            last_seen_at=now + timedelta(seconds=10),
         )
 
         # Search by game title
@@ -276,11 +277,11 @@ class SessionListViewTest(TestCase):
         self.assertContains(res_ip, "test-quest")
         self.assertNotContains(res_ip, "another-adv")
 
-    def test_ordering_by_last_seen_at_and_pagination(self) -> None:
+    def test_ordering_by_last_seen_at_and_timestamp_pagination(self) -> None:
         self.client.force_login(self.admin)
         base_time = timezone.now()
 
-        # Create 105 sessions
+        # Create 105 sessions with duration > 1 second
         sessions = [
             PlaySession(
                 play_session_id=uuid.uuid4(),
@@ -295,15 +296,202 @@ class SessionListViewTest(TestCase):
         # Page 1: 100 sessions
         res_p1 = self.client.get("/curation/sessions/")
         self.assertEqual(res_p1.status_code, 200)
-        self.assertEqual(len(res_p1.context["page"].object_list), 100)
-        self.assertContains(res_p1, "Страница 1 из 2")
+        self.assertEqual(len(res_p1.context["sessions"]), 100)
+        self.assertTrue(res_p1.context["has_next"])
+        self.assertFalse(res_p1.context["has_before"])
+        self.assertContains(res_p1, "Следующие 100")
+        self.assertNotContains(res_p1, "В начало")
 
-        # Check that page 1 starts with the most recent last_seen_at
-        first_session = res_p1.context["page"].object_list[0]
+        # Check ordering: first session is newest
+        first_session = res_p1.context["sessions"][0]["session"]
         self.assertEqual(first_session.last_seen_at, base_time)
 
-        # Page 2: 5 sessions
-        res_p2 = self.client.get("/curation/sessions/?page=2")
+        # The next_page_query contains before parameter
+        next_query = res_p1.context["next_page_query"]
+        self.assertIn("before=", next_query)
+
+        # Page 2: remaining 5 sessions
+        res_p2 = self.client.get(f"/curation/sessions/?{next_query}")
         self.assertEqual(res_p2.status_code, 200)
-        self.assertEqual(len(res_p2.context["page"].object_list), 5)
-        self.assertContains(res_p2, "Страница 2 из 2")
+        self.assertEqual(len(res_p2.context["sessions"]), 5)
+        self.assertFalse(res_p2.context["has_next"])
+        self.assertTrue(res_p2.context["has_before"])
+        self.assertContains(res_p2, "В начало")
+        self.assertNotContains(res_p2, "Следующие 100")
+
+    def test_empty_sessions_filter(self) -> None:
+        self.client.force_login(self.admin)
+        now = timezone.now()
+
+        # Empty session (< 1s)
+        empty_session = PlaySession.objects.create(
+            play_session_id=uuid.uuid4(),
+            playable=self.playable,
+            started_at=now,
+            last_seen_at=now,
+        )
+        PlaySegment.objects.create(
+            play_session=empty_session,
+            ip_addr="1.2.3.4",
+            started_at=now,
+            last_seen_at=now,
+        )
+
+        # Non-empty session (>= 1s)
+        normal_session = PlaySession.objects.create(
+            play_session_id=uuid.uuid4(),
+            playable=self.playable,
+            started_at=now,
+            last_seen_at=now + timedelta(seconds=10),
+        )
+        PlaySegment.objects.create(
+            play_session=normal_session,
+            ip_addr="5.6.7.8",
+            started_at=now,
+            last_seen_at=now + timedelta(seconds=10),
+        )
+
+        # By default: hide_empty is ON -> empty session is hidden
+        res_default = self.client.get("/curation/sessions/")
+        self.assertEqual(res_default.status_code, 200)
+        self.assertContains(res_default, "5.6.7.8")
+        self.assertNotContains(res_default, "1.2.3.4")
+
+        # When hide_empty=0 -> empty session is shown
+        res_show = self.client.get("/curation/sessions/?hide_empty=0")
+        self.assertEqual(res_show.status_code, 200)
+        self.assertContains(res_show, "1.2.3.4")
+        self.assertContains(res_show, "5.6.7.8")
+
+    def test_admin_sessions_filter(self) -> None:
+        self.client.force_login(self.admin)
+        now = timezone.now()
+        regular_user = User.objects.create(
+            username="player1", email="p1@example.com", is_superuser=False
+        )
+
+        # Admin session
+        admin_session = PlaySession.objects.create(
+            play_session_id=uuid.uuid4(),
+            playable=self.playable,
+            started_at=now,
+            last_seen_at=now + timedelta(seconds=5),
+        )
+        PlaySegment.objects.create(
+            play_session=admin_session,
+            user=self.admin,
+            started_at=now,
+            last_seen_at=now + timedelta(seconds=5),
+        )
+
+        # Regular user session
+        user_session = PlaySession.objects.create(
+            play_session_id=uuid.uuid4(),
+            playable=self.playable,
+            started_at=now,
+            last_seen_at=now + timedelta(seconds=5),
+        )
+        PlaySegment.objects.create(
+            play_session=user_session,
+            user=regular_user,
+            started_at=now,
+            last_seen_at=now + timedelta(seconds=5),
+        )
+
+        # By default: hide_admins is ON -> admin session is hidden
+        res_default = self.client.get("/curation/sessions/")
+        self.assertEqual(res_default.status_code, 200)
+        self.assertContains(res_default, "player1")
+        self.assertNotContains(res_default, 'title="admin"')
+
+        # When hide_admins=0 -> admin session is shown
+        res_show = self.client.get("/curation/sessions/?hide_admins=0")
+        self.assertEqual(res_show.status_code, 200)
+        self.assertContains(res_show, 'title="admin"')
+        self.assertContains(res_show, "player1")
+
+    def test_user_type_dropdown_filter(self) -> None:
+        self.client.force_login(self.admin)
+        now = timezone.now()
+        regular_user = User.objects.create(
+            username="player2", email="p2@example.com", is_superuser=False
+        )
+
+        # Logged-in user session
+        logged_session = PlaySession.objects.create(
+            play_session_id=uuid.uuid4(),
+            playable=self.playable,
+            started_at=now,
+            last_seen_at=now + timedelta(seconds=5),
+        )
+        PlaySegment.objects.create(
+            play_session=logged_session,
+            user=regular_user,
+            ip_addr="11.22.33.44",
+            started_at=now,
+            last_seen_at=now + timedelta(seconds=5),
+        )
+
+        # Anonymous session
+        anon_session = PlaySession.objects.create(
+            play_session_id=uuid.uuid4(),
+            playable=self.playable,
+            started_at=now,
+            last_seen_at=now + timedelta(seconds=5),
+        )
+        PlaySegment.objects.create(
+            play_session=anon_session,
+            user=None,
+            ip_addr="99.88.77.66",
+            started_at=now,
+            last_seen_at=now + timedelta(seconds=5),
+        )
+
+        # user_type=all (default) -> both shown
+        res_all = self.client.get("/curation/sessions/?user_type=all")
+        self.assertContains(res_all, "player2")
+        self.assertContains(res_all, "99.88.77.66")
+
+        # user_type=logged_in -> only logged-in shown
+        res_logged = self.client.get("/curation/sessions/?user_type=logged_in")
+        self.assertContains(res_logged, "player2")
+        self.assertNotContains(res_logged, "99.88.77.66")
+
+        # user_type=anonymous -> only anonymous shown
+        res_anon = self.client.get("/curation/sessions/?user_type=anonymous")
+        self.assertNotContains(res_anon, "player2")
+        self.assertContains(res_anon, "99.88.77.66")
+
+    def test_game_and_moderation_links_and_mobile_wrap(self) -> None:
+        self.client.force_login(self.admin)
+        now = timezone.now()
+        session = PlaySession.objects.create(
+            play_session_id=uuid.uuid4(),
+            playable=self.playable,
+            started_at=now,
+            last_seen_at=now + timedelta(seconds=10),
+        )
+        PlaySegment.objects.create(
+            play_session=session,
+            ip_addr="1.1.1.1",
+            started_at=now,
+            last_seen_at=now + timedelta(seconds=10),
+        )
+
+        res = self.client.get("/curation/sessions/")
+        self.assertEqual(res.status_code, 200)
+
+        # Check mobile wrapper is present
+        self.assertContains(res, "curation-sessions-table-wrap")
+
+        # Check game page link
+        game_url = reverse("show_game", args=[self.game.pk])
+        self.assertContains(res, f'href="{game_url}"')
+        self.assertContains(res, self.game.title)
+
+        # Check moderation page link
+        moderation_url = reverse(
+            "curation_history_detail", args=[self.game.pk]
+        )
+        self.assertContains(res, f'href="{moderation_url}"')
+        self.assertContains(res, "(модерация)")
