@@ -10,14 +10,17 @@ from django.test import SimpleTestCase
 from core.archives import (
     ArchiveToolNotFoundError,
     BadArchiveError,
+    UnarArchive,
     ZipArchive,
     extract_archive,
+    is_supported_zip,
     list_archive_members,
     open_archive,
     repack_to_zip,
 )
 
 RAR_SAMPLE = Path("files/backups/0.3.rar")
+THRIEF_SAMPLE = Path("files/backups/thrief.zip")
 UNAR_AVAILABLE = bool(shutil.which("unar") and shutil.which("lsar"))
 
 
@@ -99,3 +102,32 @@ class ArchivesTest(SimpleTestCase):
             dest_zip = temp_path / "dest.zip"
             repack_to_zip(source_zip, dest_zip)
             self.assertEqual(dest_zip.read_bytes(), source_zip.read_bytes())
+
+    @unittest.skipUnless(
+        UNAR_AVAILABLE and THRIEF_SAMPLE.is_file(),
+        "unar/lsar or sample thrief.zip not available",
+    )
+    def test_deflate64_zip_extract(self) -> None:
+        self.assertFalse(is_supported_zip(THRIEF_SAMPLE))
+        with open_archive(THRIEF_SAMPLE) as archive:
+            self.assertIsInstance(archive, UnarArchive)
+            names = archive.namelist()
+            self.assertTrue(any(n.endswith(".qst") for n in names))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dest = Path(temp_dir) / "out"
+            extract_archive(THRIEF_SAMPLE, dest)
+            qst_files = list(dest.rglob("*.qst"))
+            self.assertEqual(len(qst_files), 1)
+
+    @unittest.skipUnless(
+        UNAR_AVAILABLE and THRIEF_SAMPLE.is_file(),
+        "unar/lsar or sample thrief.zip not available",
+    )
+    def test_repack_to_zip_from_deflate64(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dest_zip = Path(temp_dir) / "repacked.zip"
+            repack_to_zip(THRIEF_SAMPLE, dest_zip)
+            self.assertTrue(is_supported_zip(dest_zip))
+            members = list_archive_members(dest_zip)
+            self.assertTrue(any(m.endswith(".qst") for m in members))

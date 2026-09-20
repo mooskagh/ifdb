@@ -246,8 +246,7 @@ def _unpack_nested_qsz(directory: Path) -> None:
     """Unpack any .qsz archives within directory in place."""
     for qsz in list(directory.rglob("*.qsz")):
         extract_dir = qsz.parent
-        with ZipFile(qsz) as zf:
-            zf.extractall(extract_dir)
+        extract_archive(qsz, extract_dir)
         qsz.unlink()
 
 
@@ -266,9 +265,6 @@ def _prepare_game_zip(
         ext = game_file.suffix.lower()
         if ext in (".qst", ".qs1", ".qs2"):
             shutil.copyfile(game_file, game_stage / game_file.name)
-        elif ext == ".qsz":
-            with ZipFile(game_file) as zf:
-                zf.extractall(game_stage)
         else:
             extract_archive(game_file, game_stage)
             _unpack_nested_qsz(game_stage)
