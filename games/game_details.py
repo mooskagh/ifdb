@@ -14,7 +14,6 @@ from django.urls import reverse
 
 from contest.models import GameListEntry
 from contest.views import CompetitionHead, FormatHead
-from core.views import BuildPackageUserFingerprint
 from moder.actions import GetModerActions
 from play.models import Playable
 
@@ -206,7 +205,6 @@ class GamePage(GameContent):
     last_edit_date: str | None
     votes: GameScore
     comments: list[GameCommentValue]
-    loonchator_links: list[str]
     competitions: list[GameCompetition]
 
 
@@ -363,19 +361,6 @@ class GameDetailsBuilder:
             last_edit_date=FormatDate(game.edit_time),
             votes=self.GetGameScore(game, request),
             comments=self.GetGameComments(game, request),
-            loonchator_links=[
-                "%s://rungame/%s"
-                % (
-                    "ersatzplut-debug" if settings.DEBUG else "ersatzplut",
-                    BuildPackageUserFingerprint(
-                        request.user
-                        if request.user.is_authenticated
-                        else None,
-                        package.id,
-                    ),
-                )
-                for package in game.package_set.all()
-            ],
             competitions=self.GetCompetitions(game),
         )
 

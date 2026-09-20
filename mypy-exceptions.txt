@@ -14,13 +14,11 @@ core/feedfetcher.py
 core/forms.py
 core/management/commands/batchjob.py
 core/management/commands/celeryworker.py
-core/management/commands/populatepackages.py
 core/models.py
 core/snippets.py
 core/tasks.py
 core/tests/test_celery.py
 core/tests/test_feedfetcher.py
-core/views.py
 curation/admin.py
 curation/apps.py
 curation/discovery.py
