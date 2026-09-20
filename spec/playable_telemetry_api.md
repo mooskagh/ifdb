@@ -201,12 +201,16 @@ class PlayTelemetry {
     this.lastPingTime = now;
     this.currentState = newState;
 
+    const isHiding =
+      newState === 'background' ||
+      (typeof document !== 'undefined' && document.visibilityState === 'hidden');
+
     await this._send({
       event: 'ping',
       play_session_id: this.sessionId,
       seconds_since_last_ping: elapsedSeconds,
       state: newState,
-    });
+    }, isHiding);
   }
 
   async _tick() {
