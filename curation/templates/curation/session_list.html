@@ -7,17 +7,34 @@
 <div class="card card--green">
     <div class="card--header">Игровые сессии</div>
     <div class="card--body curation-sessions-toolbar-body">
-        <form class="curation-filter" method="get">
-            <div class="curation-filter-field">
+        <form class="curation-filter curation-sessions-filter" method="get">
+            <input type="hidden" name="filtered" value="1">
+            <div class="curation-filter-field curation-filter-search">
                 <input type="search" name="q" value="{{ q }}" placeholder="Поиск по игре, slug, пользователю, IP...">
             </div>
+            <label class="curation-checkbox-label">
+                <input type="checkbox" name="hide_empty" value="1" {% if hide_empty %}checked{% endif %}>
+                Спрятать пустые сессии
+            </label>
+            <label class="curation-checkbox-label">
+                <input type="checkbox" name="hide_admins" value="1" {% if hide_admins %}checked{% endif %}>
+                Спрятать админов
+            </label>
+            <div class="curation-filter-field">
+                <select name="user_type">
+                    <option value="all" {% if user_type == "all" %}selected{% endif %}>Все</option>
+                    <option value="logged_in" {% if user_type == "logged_in" %}selected{% endif %}>только залогиненные</option>
+                    <option value="anonymous" {% if user_type == "anonymous" %}selected{% endif %}>только анонимные</option>
+                </select>
+            </div>
             <button type="submit">Найти</button>
-            {% if q %}
+            {% if has_custom_filters %}
             <a href="{% url 'curation_session_list' %}" class="curation-action-link">Сбросить</a>
             {% endif %}
         </form>
         <button type="button" id="btn-toggle-all" class="curation-button-toggle-all">Развернуть все</button>
     </div>
+    <div class="curation-sessions-table-wrap">
     <table class="curation-table curation-table--compact curation-sessions-table">
         <thead>
             <tr>
@@ -38,7 +55,8 @@
                     <a href="http{% if request.is_secure %}s{% endif %}://{{ item.playable_url }}" target="_blank" class="curation-blueprint-site-link">{{ item.playable_url }}</a>
                     {% if item.game %}
                     <div class="curation-meta">
-                        <a href="{% url 'curation_history_detail' item.game.pk %}" class="curation-game-link" title="Перейти к модерации игры">{{ item.game.title }}</a>
+                        <a href="{% url 'show_game' item.game.pk %}" class="curation-game-link" target="_blank">{{ item.game.title }}</a>
+                        <a href="{% url 'curation_history_detail' item.game.pk %}" class="curation-meta-link" title="Перейти к модерации игры">(модерация)</a>
                     </div>
                     {% endif %}
                 </td>
@@ -105,7 +123,7 @@
                                     </td>
                                     <td class="col-seg-user">
                                         {% if seg.user %}
-                                        <strong>{{ seg.user }}</strong>{% if seg.ip_addr %} <span class="curation-meta">({{ seg.ip_addr }})</span>{% endif %}
+                                         <strong>{{ seg.user }}</strong>{% if seg.ip_addr %} <span class="curation-meta">({{ seg.ip_addr }})</span>{% endif %}
                                         {% elif seg.ip_addr %}
                                         <code>{{ seg.ip_addr }}</code>
                                         {% else %}
@@ -129,11 +147,15 @@
             {% endfor %}
         </tbody>
     </table>
-    {% if page.has_other_pages %}
+    </div>
+    {% if has_next or has_before %}
     <div class="curation-pagination">
-        {% if page.has_previous %}<a href="?{% if q %}q={{ q|urlencode }}&{% endif %}page={{ page.previous_page_number }}">← Назад</a>{% endif %}
-        <span>Страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
-        {% if page.has_next %}<a href="?{% if q %}q={{ q|urlencode }}&{% endif %}page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
+        {% if has_before %}
+        <a href="?{{ first_page_query }}" class="curation-pagination-btn">В начало</a>
+        {% endif %}
+        {% if has_next %}
+        <a href="?{{ next_page_query }}" class="curation-pagination-btn">Следующие 100</a>
+        {% endif %}
     </div>
     {% endif %}
 </div>

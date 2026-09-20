@@ -4023,9 +4023,71 @@ progress.curation-scan-progress-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 10px;
     padding: 8px 12px;
     border-bottom: 1px solid #eee;
+}
+
+.curation-sessions-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}
+
+.curation-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #444;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.curation-checkbox-label input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+.curation-sessions-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.curation-sessions-table {
+    min-width: 680px;
+}
+
+.curation-meta-link {
+    font-size: 11px;
+    color: #64748b;
+    margin-left: 4px;
+    text-decoration: none;
+}
+
+.curation-meta-link:hover {
+    text-decoration: underline;
+    color: #0284c7;
+}
+
+.curation-pagination-btn {
+    display: inline-block;
+    padding: 4px 10px;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    color: #334155;
+    text-decoration: none;
+    font-size: 12px;
+}
+
+.curation-pagination-btn:hover {
+    background: #e2e8f0;
+    text-decoration: none;
 }
 
 .curation-button-toggle-all {
