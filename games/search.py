@@ -1,7 +1,10 @@
 import re
 
+from django.conf import settings
 from django.db.models import Count, Q, prefetch_related_objects
 from django.utils import timezone
+
+from play.models import Playable
 
 from .models import (
     URL,
@@ -530,8 +533,8 @@ class SB_UserFlags(SB_Flags):
         "С комментариями",
         "С обсуждениями на форуме",
         "Можно скачать",
-        "Можно поиграть онлайн",
-        "Можно запустить лунчатором",
+        f"Можно поиграть на {settings.PLAYABLE_BASE_DOMAIN}",
+        "Можно поиграть на других сайтах",
     ]
 
     ANNOTATIONS = {}
@@ -547,8 +550,15 @@ class SB_UserFlags(SB_Flags):
                 "download_landing",
             ]
         ),
-        5: Q(gameurl__category__symbolic_id="play_online"),
-        6: Q(package__isnull=False),
+        5: (
+            Q(
+                playable__state=Playable.State.READY,
+                playable__visible=True,
+                playable__slug__isnull=False,
+            )
+            & ~Q(playable__slug="")
+        ),
+        6: Q(gameurl__category__symbolic_id="play_online"),
     }
 
 
