@@ -19,7 +19,7 @@ interface GameLoadedResponse {
 
 type UserState = 'active' | 'idle' | 'background';
 
-const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="13" height="13" shape-rendering="crispEdges" aria-hidden="true" style="vertical-align: -1px; margin-right: 3px;">
+const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="13" height="13" shape-rendering="crispEdges" aria-hidden="true" style="vertical-align: -1px;">
   <path fill="#ff5431" d="M1,9h3v1h-3z M1,10h3v1h-3z M15,25h3v1h-3z M15,26h3v1h-3z M15,27h3v1h-3z M15,28h3v1h-3z M13,29h5v1h-5z M13,30h4v1h-4z"/>
   <path fill="#3f51b5" d="M7,1h5v1h-5z M6,2h9v1h-9z M5,3h11v1h-11z M4,4h12v1h-12z M4,5h2v1h-2z M8,5h9v1h-9z M4,6h2v1h-2z M8,6h9v1h-9z M4,7h13v1h-13z M4,8h12v1h-12z M4,9h12v1h-12z M4,10h11v1h-11z M29,10h1v1h-1z M5,11h9v1h-9z M28,11h2v1h-2z M8,12h9v1h-9z M27,12h4v1h-4z M7,13h13v1h-13z M25,13h6v1h-6z M6,14h25v1h-25z M5,15h7v1h-7z M18,15h13v1h-13z M4,16h7v1h-7z M19,16h4v1h-4z M25,16h5v1h-5z M4,17h6v1h-6z M24,17h6v1h-6z M4,18h6v1h-6z M23,18h6v1h-6z M4,19h6v1h-6z M22,19h7v1h-7z M4,20h7v1h-7z M21,20h7v1h-7z M5,21h7v1h-7z M20,21h7v1h-7z M6,22h20v1h-20z M7,23h17v1h-17z M9,24h13v1h-13z"/>
   <path fill="#ffffff" d="M12,15h6v1h-6z M11,16h8v1h-8z M23,16h2v1h-2z M10,17h14v1h-14z M10,18h13v1h-13z M10,19h12v1h-12z M11,20h10v1h-10z M12,21h8v1h-8z"/>
@@ -89,7 +89,7 @@ const STYLES = `
   display: inline-block;
   font-size: 10px;
   line-height: 1;
-  margin-left: 2px;
+  margin-left: 1px;
   color: #666;
   vertical-align: baseline;
 }
@@ -192,6 +192,7 @@ class PlayOverlay {
 
   private shadowRoot!: ShadowRoot;
   private overlayBarEl!: HTMLElement;
+  private labelEl: HTMLElement | null = null;
   private chevronEl!: HTMLElement;
   private gameLinkEl!: HTMLAnchorElement;
   private playerLinkEl!: HTMLAnchorElement;
@@ -311,7 +312,13 @@ class PlayOverlay {
     toggleBtn.setAttribute('aria-expanded', 'false');
     toggleBtn.setAttribute('title', 'db.crem.xyz');
 
-    toggleBtn.innerHTML = `${FAVICON_SVG}<span class="label">db.crem.xyz</span>`;
+    toggleBtn.innerHTML = FAVICON_SVG;
+
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = 'db.crem.xyz';
+    this.labelEl = label;
+    toggleBtn.appendChild(label);
 
     const chevron = document.createElement('span');
     chevron.className = 'chevron';
@@ -362,6 +369,10 @@ class PlayOverlay {
 
   private toggle(): void {
     this.isExpanded = !this.isExpanded;
+    if (this.labelEl) {
+      this.labelEl.remove();
+      this.labelEl = null;
+    }
     if (this.isExpanded) {
       this.overlayBarEl.classList.add('expanded');
       this.chevronEl.textContent = '▸';
@@ -453,12 +464,19 @@ class PlayOverlay {
       await this.gameLoadedPromise.catch(() => null);
     }
 
-    await this.send({
-      event: 'ping',
-      play_session_id: this.sessionId,
-      seconds_since_last_ping: elapsedSeconds,
-      state: newState,
-    });
+    const isHiding =
+      newState === 'background' ||
+      (typeof document !== 'undefined' && document.visibilityState === 'hidden');
+
+    await this.send(
+      {
+        event: 'ping',
+        play_session_id: this.sessionId,
+        seconds_since_last_ping: elapsedSeconds,
+        state: newState,
+      },
+      isHiding
+    );
   }
 
   private async tickHeartbeat(): Promise<void> {
