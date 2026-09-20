@@ -43,6 +43,7 @@ from .permissions import (
     can_add_game,
     can_comment_game,
     can_edit_game,
+    can_manage_internal_tags,
     can_view_game,
     can_vote_game,
 )
@@ -603,7 +604,11 @@ def authors(request):
 
 def tags(request):
     res = {"categories": [], "value": []}
-    for x in GameTagCategory.objects.order_by("order", "name"):
+    can_manage = can_manage_internal_tags(request.user)
+    cats = GameTagCategory.objects.order_by("order", "name")
+    if not can_manage:
+        cats = cats.filter(is_internal=False)
+    for x in cats:
         val = {
             "id": x.id,
             "name": x.name,
@@ -649,7 +654,10 @@ def BuildJsonGameInfo(request, game_id):
             g["authors"].append((x.role_id, x.author_id))
 
         g["tags"] = []
-        for x in game.tags.select_related("category").all():
+        tags_qs = game.tags.select_related("category").all()
+        if not can_manage_internal_tags(request.user):
+            tags_qs = tags_qs.filter(category__is_internal=False)
+        for x in tags_qs:
             g["tags"].append((x.category_id, x.id))
 
         g["links"] = []

@@ -12,7 +12,11 @@ from .models import (
     Personality,
     PersonalityAlias,
 )
-from .permissions import can_view_author, can_view_game
+from .permissions import (
+    can_manage_internal_tags,
+    can_view_author,
+    can_view_game,
+)
 from .tools import (
     ComputeGameRating,
     ComputeHonors,
@@ -642,8 +646,11 @@ class Search:
             reader = BaseXReader(query)
             while not reader.Done():
                 key = reader.ReadInt()
-                self.id_to_bit[key].LoadFromQuery(reader)
-        except TypeError:
+                if key in self.id_to_bit:
+                    self.id_to_bit[key].LoadFromQuery(reader)
+                else:
+                    break
+        except (TypeError, KeyError):
             pass
 
     def Search(
@@ -701,6 +708,8 @@ def MakeSearch(user=None):
     s.Add(SB_Sorting())
     s.Add(SB_Text())
     for x in GameTagCategory.objects.order_by("order").all():
+        if x.is_internal and not can_manage_internal_tags(user):
+            continue
         s.Add(SB_Tag(x))
     is_admin = False
     if callable(user):

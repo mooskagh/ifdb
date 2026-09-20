@@ -35,6 +35,7 @@ TAG_CATS = [
     ["language", "Язык", True],
     ["ifid", "IFID", True],
     ["version", "Версия", True],
+    ["service", "Служебный", True, True],
 ]
 
 TAGS = [
@@ -127,9 +128,14 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING("already exists."))
 
         for x in TAG_CATS:
-            (slug, desc, allow_new) = x
+            slug, desc, allow_new = x[0], x[1], x[2]
+            is_internal = x[3] if len(x) > 3 else False
             self.stdout.write("Tag cat: %s (%s)... " % (slug, desc), ending="")
-            updates = {"name": desc, "allow_new_tags": allow_new}
+            updates = {
+                "name": desc,
+                "allow_new_tags": allow_new,
+                "is_internal": is_internal,
+            }
             _, created = GameTagCategory.objects.update_or_create(
                 symbolic_id=slug, defaults=updates
             )

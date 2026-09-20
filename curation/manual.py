@@ -19,6 +19,7 @@ from games.models import (
     GameTagCategory,
     GameURLCategory,
 )
+from games.permissions import can_manage_internal_tags
 
 from .models import GameCuration, GameHistoryAuditLog
 from .overrides import build_initial_overrides, update_overrides_from_diff
@@ -50,6 +51,21 @@ def store_manual_edit(
     previous_edit = _latest_applied_edit(game)
     before = previous_edit.canonical_text if previous_edit else ""
     info = editor_payload_to_gameinfo(data)
+    if not can_manage_internal_tags(user):
+        internal_tags = [
+            Tag(
+                category=t.category.symbolic_id or "",
+                slug=t.symbolic_id,
+                tag_id=t.id,
+                text=t.name,
+            )
+            for t in game.tags.filter(
+                category__is_internal=True
+            ).select_related("category")
+        ]
+        if internal_tags:
+            info.tags.extend(internal_tags)
+            info.canonicalize()
     canonical = info.to_canonical()
     edit = GameRevision.objects.create(
         game=game,
