@@ -4,6 +4,7 @@ from urllib.parse import quote
 
 from games.importer.apero import (
     FetchCandidateUrls,
+    ParseApero,
     _catalog_page_count,
     _extract_candidate_urls,
 )
@@ -32,16 +33,25 @@ class AperoDiscoveryTest(TestCase):
         self.assertEqual(_catalog_page_count(""), 1)
 
     @patch("games.importer.apero.FetchUrlToString")
-    def test_fetch_candidate_urls_crawls_catalog_pages(self, fetch):
+    def test_fetch_candidate_urls_crawls_catalog_and_examples_pages(
+        self, fetch
+    ):
         fetch.side_effect = [
+            # Catalog page 1 (2 pages total)
             catalog_html(
                 "https://apero.ru/Текстовые-игры/Первая",
                 "https://apero.ru/Текстовые-игры/Повтор",
                 pages=[1, 2],
             ),
+            # Catalog page 2
             catalog_html(
                 "https://apero.ru/Текстовые-игры/Повтор",
                 "https://apero.ru/Текстовые-игры/Вторая",
+            ),
+            # Examples page 1 (1 page total)
+            catalog_html(
+                "https://apero.ru/Текстовые-игры/Пример-игры",
+                "https://apero.ru/Текстовые-игры/Первая",
             ),
         ]
 
@@ -52,6 +62,7 @@ class AperoDiscoveryTest(TestCase):
             [
                 "https://apero.ru/" + quote("Текстовые-игры") + "/Каталог/1",
                 "https://apero.ru/" + quote("Текстовые-игры") + "/Каталог/2",
+                "https://apero.ru/" + quote("Текстовые-игры") + "/Примеры/1",
             ],
         )
         self.assertEqual(
@@ -69,5 +80,41 @@ class AperoDiscoveryTest(TestCase):
                 + quote("Текстовые-игры")
                 + "/"
                 + quote("Вторая"),
+                "https://apero.ru/"
+                + quote("Текстовые-игры")
+                + "/"
+                + quote("Пример-игры"),
             ],
+        )
+
+
+class AperoParseTest(TestCase):
+    def test_parse_tags(self):
+        html = (
+            '<dd itemprop="name"><div title="t">Пример игры</div></dd>'
+            "<dt>Тэги:</dt><dd><div>"
+            '<span class="label label-info">#Примеры</span>'
+            '<span class="label label-success">#Головоломки</span>'
+            "</div></dd>"
+        )
+        parsed = ParseApero(
+            html, "https://apero.ru/Текстовые-игры/Пример-игры"
+        )
+        self.assertEqual(
+            parsed["tags"],
+            [
+                {"cat_slug": "platform", "tag": "Аперо"},
+                {"cat_slug": "tag", "tag": "примеры"},
+                {"cat_slug": "tag", "tag": "головоломки"},
+            ],
+        )
+
+    def test_parse_without_tags(self):
+        html = '<dd itemprop="name"><div title="t">Обычная игра</div></dd>'
+        parsed = ParseApero(
+            html, "https://apero.ru/Текстовые-игры/Обычная-игра"
+        )
+        self.assertEqual(
+            parsed["tags"],
+            [{"cat_slug": "platform", "tag": "Аперо"}],
         )
