@@ -424,6 +424,29 @@ document.addEventListener('DOMContentLoaded', function() {
     var scanAbortController = null;
     var isScanning = false;
 
+    async function parseJsonResponse(res) {
+        if (res.redirected) {
+            throw new Error('Сессия завершена. Пожалуйста, обновите страницу.');
+        }
+        var contentType = res.headers.get('content-type') || '';
+        var data = null;
+        if (contentType.includes('application/json')) {
+            try {
+                data = await res.json();
+            } catch (e) {
+                // Ignore parse failure here; checked below
+            }
+        }
+        if (!res.ok) {
+            var errMsg = (data && (data.error || data.message)) || ('Ошибка сервера (' + res.status + ')');
+            throw new Error(errMsg);
+        }
+        if (!data) {
+            throw new Error('Сервер вернул ответ не в формате JSON (' + res.status + ').');
+        }
+        return data;
+    }
+
     if (filterForm) {
         filterForm.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -455,8 +478,7 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 var idsUrl = "{% url 'curation_blueprint_candidate_ids' %}?platform=" + encodeURIComponent(platformVal) + "&q=" + encodeURIComponent(qVal);
                 var idsRes = await fetch(idsUrl, { signal: signal });
-                if (!idsRes.ok) throw new Error('Ошибка сервера при получении списка кандидатов (' + idsRes.status + ')');
-                var idsData = await idsRes.json();
+                var idsData = await parseJsonResponse(idsRes);
                 var gameIds = idsData.game_ids || [];
                 var total = gameIds.length;
 
@@ -491,7 +513,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     try {
                         var checkRes = await fetch(checkUrl, { signal: signal });
                         if (checkRes.ok) {
-                            var checkData = await checkRes.json();
+                            var checkData = await parseJsonResponse(checkRes);
                             if (checkData.compatible && checkData.html) {
                                 var tempWrapper = document.createElement('tbody');
                                 tempWrapper.innerHTML = checkData.html;
@@ -578,25 +600,26 @@ document.addEventListener('DOMContentLoaded', function() {
             var csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
             var csrfToken = csrfInput ? csrfInput.value : '';
 
-            var formData = new FormData();
-            formData.append('single_create', gameId);
-            formData.append('pair_' + gameId, pairVal);
-            formData.append('domain_' + gameId, domainVal);
-            formData.append('has_visible_field', '1');
-            if (isVisible) formData.append('visible', '1');
+            var payload = {
+                single_create: parseInt(gameId, 10),
+                pair: pairVal,
+                domain: domainVal,
+                visible: isVisible
+            };
 
             try {
                 var res = await fetch("{% url 'curation_blueprint_list' %}", {
                     method: 'POST',
-                    body: formData,
+                    body: JSON.stringify(payload),
                     headers: {
+                        'Content-Type': 'application/json',
                         'X-CSRFToken': csrfToken,
                         'X-Requested-With': 'XMLHttpRequest',
                         'Accept': 'application/json'
                     }
                 });
-                var data = await res.json();
-                if (res.ok && data.success) {
+                var data = await parseJsonResponse(res);
+                if (data.success) {
                     row.remove();
                     var currentCount = parseInt(countEl.textContent, 10) || 0;
                     countEl.textContent = String(Math.max(0, currentCount - 1));
@@ -611,7 +634,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     btn.textContent = 'создать';
                 }
             } catch (err) {
-                alert('Сетевая ошибка: ' + err.message);
+                alert('Ошибка: ' + err.message);
                 btn.disabled = false;
                 btn.textContent = 'создать';
             }
@@ -629,46 +652,104 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            submitter.disabled = true;
-            submitter.textContent = 'Создание...';
+            var visibleCheckbox = document.getElementById('bulk-create-visible');
+            var isVisible = visibleCheckbox ? visibleCheckbox.checked : true;
 
+            var itemsToCreate = [];
+            for (var c = 0; c < checkedBoxes.length; c++) {
+                var box = checkedBoxes[c];
+                var gameId = box.value;
+                var row = document.getElementById('candidate-game-' + gameId);
+                if (!row) continue;
+
+                var pairVal = '';
+                var checkedRadio = row.querySelector('input[name="pair_' + gameId + '"]:checked');
+                if (checkedRadio) {
+                    pairVal = checkedRadio.value;
+                } else {
+                    var hiddenPair = row.querySelector('input[name="pair_' + gameId + '"][type="hidden"]');
+                    if (hiddenPair) pairVal = hiddenPair.value;
+                }
+
+                var domainInput = row.querySelector('input[name="domain_' + gameId + '"]');
+                var domainVal = domainInput ? domainInput.value.trim() : '';
+
+                itemsToCreate.push({
+                    game_id: parseInt(gameId, 10),
+                    pair: pairVal,
+                    domain: domainVal
+                });
+            }
+
+            if (!itemsToCreate.length) {
+                alert('Не выбрано ни одной игры для создания проигрывателя.');
+                return;
+            }
+
+            submitter.disabled = true;
             var csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
             var csrfToken = csrfInput ? csrfInput.value : '';
-            var formData = new FormData(formWrap);
-            formData.set('action', 'bulk_create');
+
+            var BATCH_SIZE = 50;
+            var totalItems = itemsToCreate.length;
+            var totalCreated = 0;
+            var allErrors = [];
 
             try {
-                var res = await fetch("{% url 'curation_blueprint_list' %}", {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-CSRFToken': csrfToken,
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json'
+                for (var startIdx = 0; startIdx < totalItems; startIdx += BATCH_SIZE) {
+                    var chunk = itemsToCreate.slice(startIdx, startIdx + BATCH_SIZE);
+                    var currentProgress = Math.min(startIdx + BATCH_SIZE, totalItems);
+                    if (totalItems > BATCH_SIZE) {
+                        submitter.textContent = 'Создание (' + currentProgress + ' / ' + totalItems + ')...';
+                    } else {
+                        submitter.textContent = 'Создание...';
                     }
-                });
-                var data = await res.json();
-                if (res.ok && data.success) {
-                    var createdIds = data.created_ids || [];
-                    for (var k = 0; k < createdIds.length; k++) {
-                        var r = document.getElementById('candidate-game-' + createdIds[k]);
-                        if (r) r.remove();
+
+                    var payload = {
+                        action: 'bulk_create',
+                        visible: isVisible,
+                        items: chunk
+                    };
+
+                    var res = await fetch("{% url 'curation_blueprint_list' %}", {
+                        method: 'POST',
+                        body: JSON.stringify(payload),
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    var data = await parseJsonResponse(res);
+                    if (data.success) {
+                        var createdIds = data.created_ids || [];
+                        totalCreated += createdIds.length;
+                        for (var k = 0; k < createdIds.length; k++) {
+                            var r = document.getElementById('candidate-game-' + createdIds[k]);
+                            if (r) r.remove();
+                        }
+                        var remaining = tbody.querySelectorAll('tr').length;
+                        countEl.textContent = String(remaining);
+                        if (remaining === 0) {
+                            formWrap.style.display = 'none';
+                            placeholder.textContent = 'Совместимых файлов не найдено.';
+                            placeholder.style.display = 'block';
+                        }
+                        if (data.errors && data.errors.length) {
+                            allErrors = allErrors.concat(data.errors);
+                        }
+                    } else {
+                        throw new Error(data.error || 'Не удалось создать сайты.');
                     }
-                    var remaining = tbody.querySelectorAll('tr').length;
-                    countEl.textContent = String(remaining);
-                    if (remaining === 0) {
-                        formWrap.style.display = 'none';
-                        placeholder.textContent = 'Совместимых файлов не найдено.';
-                        placeholder.style.display = 'block';
-                    }
-                    if (data.errors && data.errors.length) {
-                        alert('Создано: ' + createdIds.length + '.\nОшибки:\n' + data.errors.join('\n'));
-                    }
-                } else {
-                    alert('Ошибка: ' + (data.error || 'Не удалось создать сайты.'));
+                }
+
+                if (allErrors.length) {
+                    alert('Создано сайтов: ' + totalCreated + ' из ' + totalItems + '.\nОшибки:\n' + allErrors.join('\n'));
                 }
             } catch (err) {
-                alert('Сетевая ошибка: ' + err.message);
+                alert('Ошибка при создании: ' + err.message + (totalCreated > 0 ? (' (уже создано: ' + totalCreated + ')') : ''));
             } finally {
                 submitter.disabled = false;
                 submitter.textContent = 'Создать выбранные';

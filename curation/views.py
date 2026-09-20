@@ -154,6 +154,13 @@ class PlayableFile:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class CandidateCreateItem:
+    key: int
+    pair_val: str
+    domain_name: str
+
+
 def _build_playable_files(
     game_id: int | None, should_check_compatibility: bool
 ) -> list[PlayableFile]:
@@ -530,7 +537,45 @@ def blueprint_list(request):
             seen_slugs.add(tmpl)
 
     if request.method == "POST":
-        action = request.POST.get("action")
+        is_ajax = (
+            request.headers.get("x-requested-with") == "XMLHttpRequest"
+            or "application/json" in request.headers.get("accept", "")
+            or request.content_type == "application/json"
+        )
+
+        json_payload: dict[str, object] | None = None
+        if request.content_type == "application/json":
+            try:
+                raw_body = (
+                    request.body.decode("utf-8")
+                    if isinstance(request.body, bytes)
+                    else str(request.body)
+                )
+                loaded = json.loads(raw_body)
+                if isinstance(loaded, dict):
+                    json_payload = loaded
+                else:
+                    return JsonResponse(
+                        {
+                            "success": False,
+                            "error": "Некорректный JSON в теле запроса.",
+                        },
+                        status=400,
+                    )
+            except Exception:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Некорректный JSON в теле запроса.",
+                    },
+                    status=400,
+                )
+
+        if json_payload is not None:
+            action = json_payload.get("action")
+        else:
+            action = request.POST.get("action")
+
         if action == "bulk_visibility":
             playable_ids = [
                 int(pk)
@@ -554,32 +599,132 @@ def blueprint_list(request):
             )
             return redirect(request.get_full_path())
 
-        is_ajax = request.headers.get(
-            "x-requested-with"
-        ) == "XMLHttpRequest" or "application/json" in request.headers.get(
-            "accept", ""
-        )
+        items_to_create: list[CandidateCreateItem] = []
+        is_single = False
 
-        single_create = request.POST.get("single_create")
-        is_single = bool(single_create and single_create.isdigit())
-        if is_single and single_create:
-            selected_keys = [int(single_create)]
-        elif action == "bulk_create":
-            selected_keys = [
-                int(pk)
-                for pk in request.POST.getlist("selected_games")
-                if pk.isdigit()
-            ]
-            if not selected_keys:
+        if json_payload is not None:
+            single_val = json_payload.get("single_create")
+            visible = bool(json_payload.get("visible", True))
+            if single_val is not None and str(single_val).isdigit():
+                is_single = True
+                key = int(single_val)
+                pair_val = str(
+                    json_payload.get("pair")
+                    or json_payload.get(f"pair_{key}")
+                    or ""
+                ).strip()
+                domain_name = (
+                    str(
+                        json_payload.get("domain")
+                        or json_payload.get(f"domain_{key}")
+                        or ""
+                    )
+                    .strip()
+                    .lower()
+                )
+                items_to_create.append(
+                    CandidateCreateItem(
+                        key=key, pair_val=pair_val, domain_name=domain_name
+                    )
+                )
+            elif action == "bulk_create":
+                raw_items = json_payload.get("items")
+                if isinstance(raw_items, list):
+                    for raw in raw_items:
+                        if isinstance(raw, dict) and "game_id" in raw:
+                            try:
+                                key = int(raw["game_id"])
+                            except (ValueError, TypeError):
+                                continue
+                            pair_val = str(raw.get("pair", "")).strip()
+                            domain_name = (
+                                str(raw.get("domain", "")).strip().lower()
+                            )
+                            items_to_create.append(
+                                CandidateCreateItem(
+                                    key=key,
+                                    pair_val=pair_val,
+                                    domain_name=domain_name,
+                                )
+                            )
+                else:
+                    selected_keys = [
+                        int(pk)
+                        for pk in json_payload.get("selected_games", [])
+                        if str(pk).isdigit()
+                    ]
+                    for key in selected_keys:
+                        pair_val = str(
+                            json_payload.get(f"pair_{key}", "")
+                        ).strip()
+                        domain_name = (
+                            str(json_payload.get(f"domain_{key}", ""))
+                            .strip()
+                            .lower()
+                        )
+                        items_to_create.append(
+                            CandidateCreateItem(
+                                key=key,
+                                pair_val=pair_val,
+                                domain_name=domain_name,
+                            )
+                        )
+        else:
+            single_create = request.POST.get("single_create")
+            is_single = bool(single_create and single_create.isdigit())
+            visible = (
+                "visible" in request.POST
+                if (
+                    "has_visible_field" in request.POST
+                    or "visible" in request.POST
+                )
+                else True
+            )
+            if is_single and single_create:
+                key = int(single_create)
+                pair_val = request.POST.get(f"pair_{key}", "").strip()
+                domain_name = (
+                    (
+                        request.POST.get(f"domain_{key}", "")
+                        or request.POST.get(f"domain_{key}", "")
+                    )
+                    .strip()
+                    .lower()
+                )
+                items_to_create.append(
+                    CandidateCreateItem(
+                        key=key, pair_val=pair_val, domain_name=domain_name
+                    )
+                )
+            elif action == "bulk_create":
                 selected_keys = [
                     int(pk)
-                    for pk in request.POST.getlist("selected_urls")
+                    for pk in request.POST.getlist("selected_games")
                     if pk.isdigit()
                 ]
-        else:
-            selected_keys = []
+                if not selected_keys:
+                    selected_keys = [
+                        int(pk)
+                        for pk in request.POST.getlist("selected_urls")
+                        if pk.isdigit()
+                    ]
+                for key in selected_keys:
+                    pair_val = request.POST.get(f"pair_{key}", "").strip()
+                    domain_name = (
+                        (
+                            request.POST.get(f"domain_{key}", "")
+                            or request.POST.get(f"domain_{key}", "")
+                        )
+                        .strip()
+                        .lower()
+                    )
+                    items_to_create.append(
+                        CandidateCreateItem(
+                            key=key, pair_val=pair_val, domain_name=domain_name
+                        )
+                    )
 
-        if not selected_keys:
+        if not items_to_create:
             if is_ajax:
                 return JsonResponse(
                     {
@@ -594,30 +739,44 @@ def blueprint_list(request):
             )
             return redirect(request.get_full_path())
 
+        gu_ids: list[int] = []
+        for item in items_to_create:
+            if ":" in item.pair_val:
+                gu_id_str, _ = item.pair_val.split(":", 1)
+                if gu_id_str.isdigit():
+                    gu_ids.append(int(gu_id_str))
+
+        prefetched_game_urls: dict[int, GameURL] = {
+            gu.pk: gu
+            for gu in GameURL.objects.filter(pk__in=gu_ids).select_related(
+                "game", "url"
+            )
+        }
+
+        all_item_keys = [item.key for item in items_to_create]
+        existing_playable_game_ids: set[int] = set(
+            Playable.objects.filter(
+                game_id__in=all_item_keys,
+                state__in=(
+                    Playable.State.PENDING,
+                    Playable.State.BUILDING,
+                    Playable.State.READY,
+                ),
+            ).values_list("game_id", flat=True)
+        )
+
         success_count = 0
         created_game_ids: list[int] = []
         errors: list[str] = []
-        visible = (
-            "visible" in request.POST
-            if (
-                "has_visible_field" in request.POST
-                or "visible" in request.POST
-            )
-            else True
-        )
-        for key in selected_keys:
-            pair_val = request.POST.get(f"pair_{key}", "").strip()
+        for item in items_to_create:
+            key = item.key
+            pair_val = item.pair_val
             game_url: GameURL | None = None
             blueprint_slug = ""
             if ":" in pair_val:
                 gu_id_str, bp_slug = pair_val.split(":", 1)
                 if gu_id_str.isdigit():
-                    game_url = (
-                        GameURL.objects
-                        .filter(pk=int(gu_id_str))
-                        .select_related("game", "url")
-                        .first()
-                    )
+                    game_url = prefetched_game_urls.get(int(gu_id_str))
                     blueprint_slug = bp_slug.strip()
 
             if not game_url:
@@ -668,9 +827,11 @@ def blueprint_list(request):
                         .select_related("game", "url")
                         .first()
                     )
-                    blueprint_slug = request.POST.get(
-                        f"blueprint_{key}", ""
-                    ).strip()
+                    blueprint_slug = (
+                        request.POST.get(f"blueprint_{key}", "").strip()
+                        if json_payload is None
+                        else ""
+                    )
 
             if not game_url:
                 msg = f"Не найден файл для элемента #{key}."
@@ -680,14 +841,7 @@ def blueprint_list(request):
                 continue
 
             game = game_url.game
-            if Playable.objects.filter(
-                game=game,
-                state__in=(
-                    Playable.State.PENDING,
-                    Playable.State.BUILDING,
-                    Playable.State.READY,
-                ),
-            ).exists():
+            if game.pk in existing_playable_game_ids:
                 msg = f"Для игры «{game.title}» сайт уже создан или создаётся."
                 errors.append(msg)
                 if not is_ajax:
@@ -734,14 +888,15 @@ def blueprint_list(request):
             spec = bp.get_spec()
             version = spec.versions[-1] if spec.versions else ""
 
-            domain_name = (
-                (
-                    request.POST.get(f"domain_{key}", "")
-                    or request.POST.get(f"domain_{game_url.pk}", "")
+            domain_name = item.domain_name
+            if not domain_name and json_payload is None:
+                domain_name = (
+                    request.POST
+                    .get(f"domain_{game_url.pk}", "")
+                    .strip()
+                    .lower()
                 )
-                .strip()
-                .lower()
-            )
+
             slug: str | None = None
             if domain_name:
                 if not is_valid_domain_slug(domain_name):
@@ -778,6 +933,7 @@ def blueprint_list(request):
                 visible=visible,
             )
             generate_playable.delay(new_playable.pk)
+            existing_playable_game_ids.add(game.pk)
             success_count += 1
             created_game_ids.append(game.pk)
 
