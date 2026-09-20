@@ -426,3 +426,30 @@ class UrqWTests(SimpleTestCase):
                     manifest["urq_mode"],
                     ("akurq", "ripurq", "dosurq", "urqw"),
                 )
+
+    def test_real_backup_generation_thrief(self) -> None:
+        sample_zip = Path("files/backups/thrief.zip")
+        if not sample_zip.is_file():
+            self.skipTest("files/backups/thrief.zip not found")
+
+        self.assertEqual(accepts(sample_zip), Compatibility.FULL)
+        with TemporaryDirectory() as directory:
+            destination = Path(directory) / "urqw_out"
+            generate(
+                GenerateSpec(
+                    "2026-08-21",
+                    {},
+                    destination,
+                    sample_zip,
+                    title="Квартирный вор",
+                )
+            )
+            quests_zip = destination / "quests" / "game.zip"
+            self.assertTrue(quests_zip.exists())
+            with ZipFile(quests_zip) as zf:
+                manifest = json.loads(zf.read("manifest.json"))
+                self.assertEqual(manifest["urqw_title"], "Квартирный вор")
+                self.assertEqual(manifest["game_encoding"], "CP1251")
+                self.assertEqual(manifest["urq_mode"], "ripurq")
+                names = zf.namelist()
+                self.assertTrue(any(n.endswith(".qst") for n in names))

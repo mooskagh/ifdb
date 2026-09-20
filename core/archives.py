@@ -40,6 +40,30 @@ class Archive(Protocol):
     ) -> None: ...
 
 
+_SUPPORTED_ZIP_COMPRESSIONS = {
+    zipfile.ZIP_STORED,
+    zipfile.ZIP_DEFLATED,
+    zipfile.ZIP_BZIP2,
+    zipfile.ZIP_LZMA,
+}
+if hasattr(zipfile, "ZIP_ZSTANDARD"):
+    _SUPPORTED_ZIP_COMPRESSIONS.add(zipfile.ZIP_ZSTANDARD)
+
+
+def is_supported_zip(path: Path | str) -> bool:
+    file_path = Path(path)
+    if not zipfile.is_zipfile(file_path):
+        return False
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            return all(
+                info.compress_type in _SUPPORTED_ZIP_COMPRESSIONS
+                for info in zf.infolist()
+            )
+    except (zipfile.BadZipFile, OSError):
+        return False
+
+
 class ZipArchive:
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -48,6 +72,12 @@ class ZipArchive:
         except zipfile.BadZipFile as exc:
             raise BadArchiveError(f"Bad zip file: {path}") from exc
 
+    def is_supported(self) -> bool:
+        return all(
+            info.compress_type in _SUPPORTED_ZIP_COMPRESSIONS
+            for info in self._zip.infolist()
+        )
+
     def namelist(self) -> list[str]:
         return [name.replace("\\", "/") for name in self._zip.namelist()]
 
@@ -55,7 +85,13 @@ class ZipArchive:
         destination.mkdir(parents=True, exist_ok=True)
         try:
             self._zip.extractall(destination)
-        except zipfile.BadZipFile as exc:
+        except (NotImplementedError, zipfile.BadZipFile) as exc:
+            if shutil.which("unar"):
+                try:
+                    UnarArchive(self.path).extract(destination)
+                    return
+                except ArchiveError:
+                    pass
             raise BadArchiveError(
                 f"Failed to extract zip file: {self.path}"
             ) from exc
@@ -165,7 +201,7 @@ def open_archive(path: Path | str) -> Archive:
     if not file_path.is_file():
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    if zipfile.is_zipfile(file_path):
+    if is_supported_zip(file_path):
         return ZipArchive(file_path)
 
     if is_rarfile(file_path) or file_path.suffix.lower() == ".rar":
@@ -178,6 +214,9 @@ def open_archive(path: Path | str) -> Archive:
             return unar_archive
         except ArchiveError:
             pass
+
+    if zipfile.is_zipfile(file_path):
+        return ZipArchive(file_path)
 
     raise BadArchiveError(f"Unsupported or invalid archive: {file_path}")
 
@@ -197,7 +236,7 @@ def repack_to_zip(source: Path | str, destination: Path | str) -> None:
     dest_path = Path(destination)
     dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if zipfile.is_zipfile(source_path):
+    if is_supported_zip(source_path):
         shutil.copyfile(source_path, dest_path)
         return
 
