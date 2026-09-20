@@ -30,7 +30,11 @@ from .models import (
     GameURLCategory,
     PersonalityAlias,
 )
-from .permissions import can_comment_game, can_vote_game
+from .permissions import (
+    can_comment_game,
+    can_manage_internal_tags,
+    can_vote_game,
+)
 from .search import BaseXWriter
 from .tools import (
     ExtractYoutubeId,
@@ -59,6 +63,7 @@ class TagCategory(Protocol):
     id: int | None
     name: str
     order: int
+    is_internal: bool
 
 
 _CategoryT = TypeVar("_CategoryT")
@@ -218,6 +223,7 @@ def _Category(row: _CategoryT | None, symbolic_id: str | None) -> _CategoryT:
             title=label,
             order=1000,
             allow_cloning=False,
+            is_internal=False,
         ),
     )
 
@@ -485,6 +491,10 @@ class GameDetailsBuilder:
     def GetTagsForDetails(
         self, request: HttpRequest | None = None
     ) -> GameTagDetails:
+        user = (
+            request.user if request and request.user.is_authenticated else None
+        )
+        can_view_internal = can_manage_internal_tags(user)
         primary_sids = {"version", "language", "platform", "age"}
         stored = {
             tag.id: tag
@@ -519,6 +529,11 @@ class GameDetailsBuilder:
             category: TagCategory = cast(
                 TagCategory, _Category(category_row, category_id)
             )
+            if (
+                getattr(category, "is_internal", False)
+                and not can_view_internal
+            ):
+                continue
             if tag_row:
                 writer = BaseXWriter()
                 writer.addHeader(2, category.id)

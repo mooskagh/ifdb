@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from django.contrib.auth.models import AnonymousUser
 
 from core.models import User
@@ -19,6 +21,25 @@ def can_edit_game(
         user.is_staff
         or user.is_superuser
         or user.groups.filter(name="moder").exists()
+    )
+
+
+def can_manage_internal_tags(
+    user: User | AnonymousUser | Callable[..., bool] | None,
+) -> bool:
+    if not user:
+        return False
+    if callable(user):
+        return bool(user("@admin"))
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return bool(
+        user.is_staff
+        or user.is_superuser
+        or (
+            hasattr(user, "groups")
+            and user.groups.filter(name="moder").exists()
+        )
     )
 
 

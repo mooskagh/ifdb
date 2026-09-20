@@ -11,6 +11,7 @@ from games.permissions import (
     can_delete_game,
     can_edit_author,
     can_edit_game,
+    can_manage_internal_tags,
     can_view_author,
     can_view_game,
     can_vote_game,
@@ -64,6 +65,19 @@ class GamePermissionsTest(TestCase):
         self.assertFalse(can_edit_game(self.user, self.published_game))
         self.assertTrue(can_edit_game(self.staff, self.published_game))
         self.assertTrue(can_edit_game(self.admin, self.published_game))
+
+    def test_can_manage_internal_tags(self) -> None:
+        from django.contrib.auth.models import Group
+
+        self.assertFalse(can_manage_internal_tags(self.anon))
+        self.assertFalse(can_manage_internal_tags(self.user))
+        self.assertFalse(can_manage_internal_tags(None))
+        self.assertTrue(can_manage_internal_tags(self.staff))
+        self.assertTrue(can_manage_internal_tags(self.admin))
+
+        moder_group = Group.objects.create(name="moder")
+        self.user.groups.add(moder_group)
+        self.assertTrue(can_manage_internal_tags(self.user))
 
     def test_can_delete_game(self) -> None:
         self.assertFalse(can_delete_game(self.anon, self.published_game))

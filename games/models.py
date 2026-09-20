@@ -564,6 +564,7 @@ class GameTagCategory(models.Model):
     )
     name = models.CharField(max_length=255, db_index=True)
     allow_new_tags = models.BooleanField(default=True)
+    is_internal = models.BooleanField(default=False, db_index=True)
     order = models.SmallIntegerField(default=0)
 
 
