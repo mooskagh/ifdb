@@ -250,6 +250,7 @@ PLAYABLE_BASE_DOMAIN = env(
 CADDY_PORT = env("CADDY_PORT", default=None) or None
 CADDY_ADMIN_URL = env("CADDY_ADMIN_URL", default=None) or None
 CADDY_SERVER_NAME = env("CADDY_SERVER_NAME", default="srv0")
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
 
 
 class PrefixList(list):

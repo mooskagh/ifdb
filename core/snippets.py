@@ -11,7 +11,7 @@ from django.views.decorators.cache import never_cache
 
 from contest.models import Competition, CompetitionSchedule, CompetitionURL
 from contest.views import CompetitionGameFetcher
-from games.models import GameComment, GameURL
+from games.models import Game, GameComment, GameURL
 from games.search import MakeSearch
 from games.tools import (
     ComputeGameRating,
@@ -24,7 +24,7 @@ from games.tools import (
 )
 from moder.tools import GetPopularGameids
 
-from .models import BlogFeed, FeedCache, Game, Snippet, SnippetPin
+from .models import BlogFeed, FeedCache, Snippet, SnippetPin
 
 COMMENT_SVG = (
     "M40 4H8C5.79 4 4.02 5.79 4.02 8L4 44l8-8h28c2.21 0 4-1.79 "

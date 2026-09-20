@@ -10,8 +10,6 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
-from games.models import Game
-
 
 class User(AbstractBaseUser, PermissionsMixin):
     """
@@ -100,54 +98,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         Sends an email to this User.
         """
         send_mail(subject, message, from_email, [self.email], **kwargs)
-
-
-class Package(models.Model):
-    class Meta:
-        default_permissions = ()
-
-    def __str__(self):
-        return self.name
-
-    name = models.CharField(db_index=True, max_length=128)
-    game = models.ForeignKey(
-        Game, null=True, blank=True, on_delete=models.CASCADE
-    )
-
-
-class PackageVersion(models.Model):
-    class Meta:
-        default_permissions = ()
-
-    package = models.ForeignKey(Package, on_delete=models.CASCADE)
-    version = models.CharField(max_length=32)
-    md5hash = models.CharField(max_length=32)
-    metadata_json = models.TextField()
-    creation_date = models.DateTimeField()
-
-
-class PackageSession(models.Model):
-    class Meta:
-        default_permissions = ()
-
-    package = models.ForeignKey(
-        Package,
-        db_index=True,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-    )
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-    )
-    client = models.CharField(max_length=64)
-    duration_secs = models.IntegerField(null=True, blank=True)
-    start_time = models.DateTimeField()
-    last_update = models.DateTimeField()
-    is_finished = models.BooleanField(default=False)
 
 
 class Snippet(models.Model):

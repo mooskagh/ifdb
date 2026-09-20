@@ -3746,6 +3746,193 @@ class SourceViewsTest(TestCase):
         self.assertEqual(delay_mock.call_count, 2)
 
     @patch("curation.views.generate_playable.delay")
+    @patch.object(FileSystemStorage, "exists", return_value=True)
+    @patch("curation.views.discover_blueprints")
+    def test_blueprint_list_json_single_create(
+        self, discover_mock, exists_mock, delay_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="JSON Single Game",
+            creation_time=ts,
+        )
+        gu = self._download_link(
+            game, "https://example.com/single.zip", local_filename="single.zip"
+        )
+        blueprint = ModuleType("play.blueprints.instead_em")
+        setattr(
+            blueprint,
+            "get_spec",
+            lambda: BlueprintSpec(
+                name="INSTEAD Emscripten", versions=["3.5.2"]
+            ),
+        )
+        setattr(blueprint, "accepts", lambda p: True)
+        discover_mock.return_value = [
+            BlueprintInfo("instead_em", cast(BlueprintModule, blueprint))
+        ]
+
+        payload = {
+            "single_create": game.pk,
+            "pair": f"{gu.pk}:instead_em",
+            "domain": "json-slug",
+            "visible": True,
+        }
+        response = self.client.post(
+            "/curation/blueprints/",
+            payload,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["created_ids"], [game.pk])
+        playable = Playable.objects.get(game=game, game_url=gu)
+        self.assertEqual(playable.slug, "json-slug")
+        self.assertTrue(playable.visible)
+        delay_mock.assert_called_once_with(playable.pk)
+
+    @patch("curation.views.generate_playable.delay")
+    @patch.object(FileSystemStorage, "exists", return_value=True)
+    @patch("curation.views.discover_blueprints")
+    def test_blueprint_list_json_bulk_create(
+        self, discover_mock, exists_mock, delay_mock
+    ):
+        ts = timezone.now()
+        game1 = Game.objects.create(
+            state=Game.State.PUBLISHED, title="JSON Bulk 1", creation_time=ts
+        )
+        gu1 = self._download_link(
+            game1, "https://example.com/jb1.zip", local_filename="jb1.zip"
+        )
+        game2 = Game.objects.create(
+            state=Game.State.PUBLISHED, title="JSON Bulk 2", creation_time=ts
+        )
+        gu2 = self._download_link(
+            game2, "https://example.com/jb2.zip", local_filename="jb2.zip"
+        )
+        blueprint = ModuleType("play.blueprints.instead_em")
+        setattr(
+            blueprint,
+            "get_spec",
+            lambda: BlueprintSpec(
+                name="INSTEAD Emscripten", versions=["3.5.2"]
+            ),
+        )
+        setattr(blueprint, "accepts", lambda p: True)
+        discover_mock.return_value = [
+            BlueprintInfo("instead_em", cast(BlueprintModule, blueprint))
+        ]
+
+        payload = {
+            "action": "bulk_create",
+            "visible": True,
+            "items": [
+                {
+                    "game_id": game1.pk,
+                    "pair": f"{gu1.pk}:instead_em",
+                    "domain": "bulk-json-1",
+                },
+                {
+                    "game_id": game2.pk,
+                    "pair": f"{gu2.pk}:instead_em",
+                    "domain": "",
+                },
+            ],
+        }
+        response = self.client.post(
+            "/curation/blueprints/",
+            payload,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["created_ids"], [game1.pk, game2.pk])
+        self.assertEqual(delay_mock.call_count, 2)
+
+    def test_blueprint_list_json_invalid_payload(self):
+        response = self.client.post(
+            "/curation/blueprints/",
+            "not a json",
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertFalse(data["success"])
+        self.assertIn("error", data)
+
+    @patch("curation.views.generate_playable.delay")
+    @patch.object(FileSystemStorage, "exists", return_value=True)
+    @patch("curation.views.discover_blueprints")
+    def test_blueprint_list_json_bulk_create_skips_existing(
+        self, discover_mock, exists_mock, delay_mock
+    ):
+        ts = timezone.now()
+        game1 = Game.objects.create(
+            state=Game.State.PUBLISHED, title="Existing Game", creation_time=ts
+        )
+        gu1 = self._download_link(
+            game1, "https://example.com/ex.zip", local_filename="ex.zip"
+        )
+        Playable.objects.create(
+            game=game1,
+            game_url=gu1,
+            template="instead_em",
+            state=Playable.State.READY,
+        )
+
+        game2 = Game.objects.create(
+            state=Game.State.PUBLISHED, title="New Game", creation_time=ts
+        )
+        gu2 = self._download_link(
+            game2, "https://example.com/new.zip", local_filename="new.zip"
+        )
+
+        blueprint = ModuleType("play.blueprints.instead_em")
+        setattr(
+            blueprint,
+            "get_spec",
+            lambda: BlueprintSpec(
+                name="INSTEAD Emscripten", versions=["3.5.2"]
+            ),
+        )
+        setattr(blueprint, "accepts", lambda p: True)
+        discover_mock.return_value = [
+            BlueprintInfo("instead_em", cast(BlueprintModule, blueprint))
+        ]
+
+        payload = {
+            "action": "bulk_create",
+            "visible": True,
+            "items": [
+                {
+                    "game_id": game1.pk,
+                    "pair": f"{gu1.pk}:instead_em",
+                    "domain": "",
+                },
+                {
+                    "game_id": game2.pk,
+                    "pair": f"{gu2.pk}:instead_em",
+                    "domain": "",
+                },
+            ],
+        }
+        response = self.client.post(
+            "/curation/blueprints/",
+            payload,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["created_ids"], [game2.pk])
+        self.assertEqual(len(data["errors"]), 1)
+        self.assertIn("уже создан", data["errors"][0])
+        delay_mock.assert_called_once()
+
+    @patch("curation.views.generate_playable.delay")
     @patch("curation.views.discover_blueprints")
     def test_history_playable_create_post_with_duplicate_slug(
         self, discover_mock, delay_mock

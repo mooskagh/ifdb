@@ -5,7 +5,6 @@ from django.db.models import Model
 from django.utils.timezone import now
 
 from contest.models import CompetitionQuestion, CompetitionVote, GameListEntry
-from core.models import Package
 from games.gameinfo import GameInfo, merge
 from games.models import (
     Game,
@@ -86,7 +85,6 @@ def merge_game_into_game(
     _move_game_authors(source_game, target_game)
     _move_game_votes(source_game, target_game)
     _move_related(GameComment, source_game, target_game)
-    _move_related(Package, source_game, target_game)
     if remap_contests:
         for model in CONTEST_RELATED_MODELS:
             _move_related(model, source_game, target_game)

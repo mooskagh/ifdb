@@ -49,15 +49,22 @@ APERO_LISTING_TITLE_RE = re.compile(
 )
 APERO_LISTING_PAGE_RE = re.compile(r'data-page="(\d+)"')
 APERO_CATALOG_URL = "https://apero.ru/" + quote("Текстовые-игры") + "/Каталог"
+APERO_LISTING_URLS = [
+    APERO_CATALOG_URL,
+    "https://apero.ru/" + quote("Текстовые-игры") + "/Примеры",
+    # "https://apero.ru/" + quote("Текстовые-игры") + "/Песочница",
+]
 
 
 def FetchCandidateUrls():
-    html = FetchUrlToString(APERO_CATALOG_URL + "/1", use_cache=False)
-    urls = _extract_candidate_urls(html)
-
-    for page in range(2, _catalog_page_count(html) + 1):
-        html = FetchUrlToString(f"{APERO_CATALOG_URL}/{page}", use_cache=False)
+    urls = []
+    for listing_url in APERO_LISTING_URLS:
+        html = FetchUrlToString(f"{listing_url}/1", use_cache=False)
         urls.extend(_extract_candidate_urls(html))
+
+        for page in range(2, _catalog_page_count(html) + 1):
+            html = FetchUrlToString(f"{listing_url}/{page}", use_cache=False)
+            urls.extend(_extract_candidate_urls(html))
 
     return [QuoteUtf8(url) for url in dict.fromkeys(urls)]
 
@@ -82,6 +89,11 @@ APERO_DESC = re.compile(
     r"<dt>Описание:</dt>\s*<dd><div>(.*?)</div>", re.DOTALL
 )
 APERO_IMAGE = re.compile(r'<img src="([^"]+)" [^>]* itemprop="image" />')
+APERO_TAGS = re.compile(r"<dt>Тэги:</dt>\s*<dd><div>(.*?)</div>", re.DOTALL)
+APERO_TAG_ITEM = re.compile(
+    r'<span\b[^>]*class="label[^"]*"[^>]*>\s*#?([^<]+)</span>',
+    re.DOTALL,
+)
 
 
 def FetchApero(url, use_cache=True):
@@ -130,6 +142,16 @@ def ParseApero(html, url):
         })
     res["authors"] = authors
     res["tags"] = [{"cat_slug": "platform", "tag": "Аперо"}]
+    m = APERO_TAGS.search(html)
+    if m:
+        seen_tags = {"аперо"}
+        for tag_m in APERO_TAG_ITEM.finditer(m.group(1)):
+            tag_name = (
+                unescape(tag_m.group(1)).strip().lstrip("#").strip().lower()
+            )
+            if tag_name and tag_name not in seen_tags:
+                seen_tags.add(tag_name)
+                res["tags"].append({"cat_slug": "tag", "tag": tag_name})
 
     m = APERO_IMAGE.search(html)
     if m:
