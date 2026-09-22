@@ -14,6 +14,8 @@ from games.models import (
     GameURL,
     GameVote,
 )
+from play.models import Playable
+from play.services import move_game_url
 
 from .models import GameCuration, GameHistoryAuditLog, GameSource
 from .overrides import (
@@ -82,6 +84,10 @@ def merge_game_into_game(
     target_game.tags.add(*source_game.tags.all())
 
     _move_game_urls(source_game, target_game)
+    Playable.objects.filter(game=source_game, game_url__isnull=True).update(
+        game=target_game
+    )
+    assert not Playable.objects.filter(game=source_game).exists()
     _move_game_authors(source_game, target_game)
     _move_game_votes(source_game, target_game)
     _move_related(GameComment, source_game, target_game)
@@ -231,15 +237,9 @@ def _move_related(model: type[Model], source_game: Game, target_game: Game):
     model.objects.filter(game=source_game).update(game=target_game)
 
 
-def _move_game_urls(source_game: Game, target_game: Game):
-    for row in GameURL.objects.filter(game=source_game):
-        if GameURL.objects.filter(
-            game=target_game, category=row.category, url=row.url
-        ).exists():
-            row.delete()
-            continue
-        row.game = target_game
-        row.save(update_fields=["game"])
+def _move_game_urls(source_game: Game, target_game: Game) -> None:
+    for row in list(GameURL.objects.filter(game=source_game)):
+        move_game_url(row, target_game)
 
 
 def _move_game_authors(source_game: Game, target_game: Game):

@@ -37,6 +37,7 @@ from games.models import (
     PersonalityAliasRedirect,
 )
 from games.tools import CreateUrl
+from play.models import Playable
 
 _T = TypeVar("_T")
 _SortKey = int | tuple[int, str]
@@ -387,7 +388,30 @@ class GameInfo:
                 )
                 gu.save()
         if stale := [v[0] for k, v in existing.items() if k not in desired]:
-            GameURL.objects.filter(id__in=stale).delete()
+            pinned_ids = set(
+                Playable.objects.filter(game_url_id__in=stale).values_list(
+                    "game_url_id", flat=True
+                )
+            )
+            unpinned_stale = [gid for gid in stale if gid not in pinned_ids]
+            if unpinned_stale:
+                GameURL.objects.filter(id__in=unpinned_stale).delete()
+            if pinned_ids:
+                retained_urls = (
+                    GameURL.objects
+                    .filter(id__in=pinned_ids)
+                    .select_related("category", "url")
+                    .order_by("category__order", "category__title", "id")
+                )
+                for gu in retained_urls:
+                    self.urls.append(
+                        GameUrl(
+                            category=gu.category.symbolic_id,
+                            url_id=gu.url_id,
+                            description=gu.description,
+                            url=gu.url.original_url,
+                        )
+                    )
 
     def _save_attributions(self, game: Game) -> None:
         ids = []

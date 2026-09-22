@@ -7,8 +7,9 @@ from django.utils.timezone import now
 
 from core.models import User
 from curation.models import GameCuration, GameHistoryAuditLog, GameSource
-from games.models import Game, GameRevision
+from games.models import URL, Game, GameRevision, GameURL, GameURLCategory
 from moder.actions.games_action import GameDeleteAction
+from play.models import Playable
 
 
 class GameDeleteActionTest(TestCase):
@@ -292,3 +293,107 @@ class GameDeleteActionTest(TestCase):
         self.game.refresh_from_db()
         self.assertEqual(self.game.state, Game.State.REDIRECT)
         self.assertEqual(self.game.redirect_to, self.target_game)
+
+    def _create_playable(
+        self, game: Game, game_url: GameURL | None = None, slug: str = "play-1"
+    ) -> Playable:
+        return Playable.objects.create(
+            game=game,
+            game_url=game_url,
+            slug=slug,
+            template="parchment",
+            template_version="1",
+        )
+
+    def _create_game_url(self, game: Game, url_str: str) -> GameURL:
+        cat, _ = GameURLCategory.objects.get_or_create(
+            symbolic_id="web_site", defaults={"title": "Site"}
+        )
+        url_obj, _ = URL.objects.get_or_create(
+            original_url=url_str, defaults={"creation_date": now()}
+        )
+        return GameURL.objects.create(game=game, url=url_obj, category=cat)
+
+    def test_deletion_and_moder_form_validations(self) -> None:
+        self._create_playable(self.game, slug="del-val")
+        # Game.abandon rejects without redirect
+        with self.assertRaises(ValueError):
+            self.game.abandon(self.superuser, redirect_to=None)
+
+        # curation history_delete rejects
+        self.client.force_login(self.superuser)
+        self.client.post(
+            reverse("curation_history_delete", args=[self.game.id])
+        )
+        self.assertNotEqual(self.game.state, Game.State.ABANDONED)
+
+        # Moder form rejects without redirect or transfer checkbox
+        form_no_redir = GameDeleteAction.Form({}, current_game=self.game)
+        self.assertFalse(form_no_redir.is_valid())
+        form_no_check = GameDeleteAction.Form(
+            {"redirect_to": str(self.target_game.id)}, current_game=self.game
+        )
+        self.assertFalse(form_no_check.is_valid())
+
+    def test_moder_delete_with_playables_and_transfer_checkbox_succeeds(
+        self,
+    ) -> None:
+        gu = self._create_game_url(self.game, "https://example.com/play-del")
+        p_pinned = self._create_playable(self.game, gu, slug="p-pinned")
+        p_unlinked = self._create_playable(self.game, None, slug="p-unlinked")
+
+        self.client.force_login(self.superuser)
+
+        # 1. Submit form with redirect and transfer_playables checked
+        payload: dict[str, Any] = {
+            "object": {
+                "ctx": "Game",
+                "cls": "GameDeleteAction",
+                "obj": self.game.id,
+            },
+            "state": {},
+            "form": {
+                "redirect_to": str(self.target_game.id),
+                "transfer_playables": "on",
+                "keep_orphans": "on",
+            },
+            "action": "ok",
+        }
+        resp = self.client.post(
+            reverse("handle_action"),
+            {"request": json.dumps(payload)},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("Удалить эту игру?", data["content"])
+        self.assertIn(
+            "Онлайн-версии (Playables) будут перенесены", data["content"]
+        )
+        self.assertIn("p-pinned", data["content"])
+        self.assertIn("p-unlinked", data["content"])
+
+        # 2. Confirm deletion
+        confirm_payload = {
+            "object": data["object"],
+            "state": data["state"],
+            "form": {},
+            "action": "ok",
+        }
+        resp2 = self.client.post(
+            reverse("handle_action"),
+            {"request": json.dumps(confirm_payload)},
+        )
+        self.assertEqual(resp2.status_code, 200)
+
+        self.game.refresh_from_db()
+        p_pinned.refresh_from_db()
+        p_unlinked.refresh_from_db()
+        gu.refresh_from_db()
+
+        self.assertEqual(self.game.state, Game.State.REDIRECT)
+        self.assertEqual(self.game.redirect_to, self.target_game)
+        self.assertEqual(p_pinned.game_id, self.target_game.id)
+        self.assertEqual(p_pinned.game_url_id, gu.id)
+        self.assertEqual(gu.game_id, self.target_game.id)
+        self.assertEqual(p_unlinked.game_id, self.target_game.id)
+        self.assertFalse(self.game.playable_set.exists())

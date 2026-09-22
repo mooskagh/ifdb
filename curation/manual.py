@@ -20,6 +20,7 @@ from games.models import (
     GameURLCategory,
 )
 from games.permissions import can_manage_internal_tags
+from play.services import PinnedURLError, format_pinned_url_error
 
 from .models import GameCuration, GameHistoryAuditLog
 from .overrides import build_initial_overrides, update_overrides_from_diff
@@ -43,6 +44,25 @@ def editor_payload_to_gameinfo(data: dict) -> GameInfo:
     return info
 
 
+def _validate_pinned_urls(game: Game, info: GameInfo) -> None:
+    for gu in (
+        game.gameurl_set
+        .filter(playables__isnull=False)
+        .distinct()
+        .select_related("url", "category")
+    ):
+        retained = any(
+            u.category == gu.category.symbolic_id
+            and (
+                u.url_id == gu.url_id
+                or (u.url and u.url.strip() == gu.url.original_url.strip())
+            )
+            for u in info.urls
+        )
+        if not retained:
+            raise PinnedURLError(format_pinned_url_error(gu))
+
+
 @transaction.atomic
 def store_manual_edit(
     game: Game, data: dict, user, *, apply: bool
@@ -51,6 +71,7 @@ def store_manual_edit(
     previous_edit = _latest_applied_edit(game)
     before = previous_edit.canonical_text if previous_edit else ""
     info = editor_payload_to_gameinfo(data)
+    _validate_pinned_urls(game, info)
     if not can_manage_internal_tags(user):
         internal_tags = [
             Tag(
@@ -213,8 +234,15 @@ def _tag_from_payload(row: list) -> Tag:
     return Tag(category, None, None, str(tag_value).strip())
 
 
-def _url_from_payload(row: list) -> GameUrl:
-    cat_value, description, url = row
+def _url_from_payload(row: list | dict) -> GameUrl:
+    if isinstance(row, dict):
+        cat_value = row.get("category")
+        description = row.get("description")
+        url = row.get("url")
+    else:
+        cat_value, description, url = row
+    if isinstance(cat_value, str) and cat_value.isdigit():
+        cat_value = int(cat_value)
     category = (
         GameURLCategory.objects.get(pk=cat_value).symbolic_id
         if isinstance(cat_value, int)

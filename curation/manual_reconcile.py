@@ -12,9 +12,12 @@ from games.models import (
     GameRevision,
     GameTag,
     GameTagCategory,
+    GameURL,
     GameURLCategory,
     PersonalityAlias,
 )
+from play.models import Playable
+from play.services import format_pinned_url_error, move_game_url
 
 from .manual import _latest_applied_edit, editor_payload_to_gameinfo
 from .merge import contest_related_usage
@@ -124,14 +127,20 @@ def column_for_game(game: Game, *, history: Any = None) -> dict:
             )
         ],
         "links": [
-            [
-                row.category_id,
-                row.description or "",
-                row.url.original_url or "",
-            ]
-            for row in game.gameurl_set.select_related(
-                "url", "category"
-            ).order_by("category__order", "category__title", "id")
+            {
+                "category": row.category_id,
+                "description": row.description or "",
+                "url": row.url.original_url or "",
+                "game_url_id": row.id,
+                "playables": [
+                    {"id": p.id, "slug": p.slug} for p in row.playables.all()
+                ],
+                "confirmed_move": False,
+            }
+            for row in game.gameurl_set
+            .select_related("url", "category")
+            .prefetch_related("playables")
+            .order_by("category__order", "category__title", "id")
         ],
         "description_attributions": [
             row.name for row in game.description_attributions.order_by("name")
@@ -173,6 +182,7 @@ def save_reconcile_payload(data: dict, actor) -> ReconcileResult:
     _validate_columns(columns, histories, games)
     _validate_deletions(columns, histories, games, orphan_source_ids)
     sources = _lock_sources(columns, histories, orphan_source_ids)
+    _handle_pinned_urls(columns, games, actor)
 
     targets: dict[str, GameCuration | None] = {}
     for col in columns:
@@ -251,12 +261,36 @@ def _clean_pairs(rows: list) -> list:
     ]
 
 
-def _clean_links(rows: list) -> list:
-    return [
-        row
-        for row in rows
-        if len(row) >= 3 and _filled(row[0]) and str(row[2]).strip()
-    ]
+def _clean_links(rows: list) -> list[dict]:
+    cleaned: list[dict] = []
+    for row in rows:
+        if isinstance(row, dict):
+            cat = row.get("category")
+            url = str(row.get("url") or "").strip()
+            if not _filled(cat) or not url:
+                continue
+            cleaned.append({
+                "category": cat,
+                "description": str(row.get("description") or "").strip(),
+                "url": url,
+                "game_url_id": _int_or_none(row.get("game_url_id")),
+                "playables": [],
+                "confirmed_move": bool(row.get("confirmed_move")),
+            })
+        elif isinstance(row, (list, tuple)) and len(row) >= 3:
+            cat = row[0]
+            url = str(row[2] or "").strip()
+            if not _filled(cat) or not url:
+                continue
+            cleaned.append({
+                "category": cat,
+                "description": str(row[1] or "").strip(),
+                "url": url,
+                "game_url_id": None,
+                "playables": [],
+                "confirmed_move": False,
+            })
+    return cleaned
 
 
 def _clean_strings(rows: list) -> list[str]:
@@ -409,6 +443,23 @@ def _validate_deletions(
                 "Нельзя удалить игру с источниками. "
                 f"Сначала перенесите или открепите: {ids}."
             )
+        target_col_by_url_id = {
+            link["game_url_id"]: col["client_id"]
+            for col in columns
+            if not col["delete"]
+            for link in col["links"]
+            if link.get("game_url_id")
+        }
+        for p in Playable.objects.filter(game=game):
+            if (
+                p.game_url_id is None
+                or p.game_url_id not in target_col_by_url_id
+            ):
+                raise ValueError(
+                    f"Игру #{game.id} нельзя удалить: "
+                    "у неё есть онлайн-версии (Playables). "
+                    "Сначала удалите или переместите их."
+                )
 
 
 def _lock_sources(
@@ -445,6 +496,86 @@ def _lock_sources(
                 f"Источник #{source.id} уже не принадлежит открытым играм."
             )
     return sources
+
+
+def _handle_pinned_urls(
+    columns: list[dict], games: dict[int, Game], actor: Any
+) -> None:
+    pinned_ids = Playable.objects.filter(
+        game__in=games.values(), game_url__isnull=False
+    ).values_list("game_url_id", flat=True)
+    pinned = {
+        gu.id: gu
+        for gu in GameURL.objects
+        .select_for_update()
+        .filter(id__in=pinned_ids)
+        .select_related("url", "game")
+    }
+    if not pinned:
+        return
+
+    for col in columns:
+        if not col["delete"] and col["game_id"]:
+            for link in col["links"]:
+                if link.get("game_url_id") is None:
+                    for gu_id, gu in pinned.items():
+                        if (
+                            gu.game_id == col["game_id"]
+                            and link.get("url") == gu.url.original_url
+                        ):
+                            link["game_url_id"] = gu_id
+                            break
+
+    occurrences: dict[int, list[tuple[dict, dict]]] = {
+        uid: [] for uid in pinned
+    }
+    for col in columns:
+        if not col["delete"]:
+            for link in col["links"]:
+                gid = link.get("game_url_id")
+                if gid in occurrences:
+                    occurrences[gid].append((col, link))
+
+    for gu_id, matches in occurrences.items():
+        gu = pinned[gu_id]
+        if not matches:
+            raise ValueError(format_pinned_url_error(gu))
+        if len(matches) > 1:
+            raise ValueError(
+                f"Ссылка {gu.url.original_url} указана в нескольких колонках."
+            )
+        col, link = matches[0]
+        if col["game_id"] != gu.game_id:
+            if not link.get("confirmed_move"):
+                slugs = ", ".join(p.slug for p in gu.playables.all())
+                raise ValueError(
+                    f"Перемещение ссылки {gu.url.original_url} "
+                    f"требует подтверждения: "
+                    f"к ней привязана онлайн-версия ({slugs})."
+                )
+            if col["game_id"] is None:
+                state = (
+                    Game.State.PUBLISHED
+                    if (
+                        getattr(actor, "is_staff", False)
+                        or getattr(actor, "is_superuser", False)
+                    )
+                    else Game.State.DRAFT
+                )
+                target = Game.objects.create(
+                    creation_time=now(),
+                    state=state,
+                    added_by=(
+                        actor
+                        if getattr(actor, "is_authenticated", False)
+                        else None
+                    ),
+                )
+                games[target.id] = target
+                col["game_id"] = target.id
+            else:
+                target = games[col["game_id"]]
+            link["game_url_id"] = move_game_url(gu, target).id
 
 
 def _save_column(

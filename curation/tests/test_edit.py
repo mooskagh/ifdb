@@ -22,15 +22,19 @@ from curation.models import (
 )
 from games.gameinfo import GameInfo, Person, Tag
 from games.models import (
+    URL,
     Game,
     GameAuthorRole,
     GameDescriptionAttribution,
     GameRevision,
     GameTag,
     GameTagCategory,
+    GameURL,
     GameURLCategory,
     PersonalityAlias,
 )
+from play.models import Playable
+from play.services import PinnedURLError
 
 
 class _TagAndApprove(GameEditPass):
@@ -796,3 +800,82 @@ class ManualEditTests(TestCase):
         self.assertIsNone(audit.actor)
         self.assertIsNone(audit.old_text)
         self.assertEqual(audit.new_text, "Пользователь предложил правку")
+
+    def test_manual_edit_rejects_omitting_pinned_url_on_apply(self):
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Game With Pinned",
+            creation_time=now(),
+        )
+        urlcat = GameURLCategory.objects.get(symbolic_id="download_direct")
+        url_obj = URL.objects.create(
+            original_url="https://example.com/game.zip", creation_date=now()
+        )
+        gu = GameURL.objects.create(game=game, category=urlcat, url=url_obj)
+        Playable.objects.create(
+            game=game,
+            game_url=gu,
+            slug="cool-game",
+            template="parchment",
+            template_version="1",
+        )
+
+        with self.assertRaises(PinnedURLError) as ctx:
+            store_manual_edit(game, self._payload(), None, apply=True)
+        self.assertIn(
+            "URL нельзя удалить: из него создан сайт cool-game.",
+            str(ctx.exception),
+        )
+
+    def test_manual_edit_rejects_omitting_pinned_url_on_propose(self):
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Game With Pinned",
+            creation_time=now(),
+        )
+        urlcat = GameURLCategory.objects.get(symbolic_id="download_direct")
+        url_obj = URL.objects.create(
+            original_url="https://example.com/game.zip", creation_date=now()
+        )
+        gu = GameURL.objects.create(game=game, category=urlcat, url=url_obj)
+        Playable.objects.create(
+            game=game,
+            game_url=gu,
+            slug="cool-game",
+            template="parchment",
+            template_version="1",
+        )
+
+        with self.assertRaises(PinnedURLError):
+            store_manual_edit(game, self._payload(), None, apply=False)
+
+    def test_manual_edit_allows_retaining_pinned_url(self):
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Game With Pinned",
+            creation_time=now(),
+        )
+        urlcat = GameURLCategory.objects.get(symbolic_id="download_direct")
+        url_obj = URL.objects.create(
+            original_url="https://example.com/game.zip", creation_date=now()
+        )
+        gu = GameURL.objects.create(game=game, category=urlcat, url=url_obj)
+        Playable.objects.create(
+            game=game,
+            game_url=gu,
+            slug="cool-game",
+            template="parchment",
+            template_version="1",
+        )
+
+        payload = self._payload()
+        payload["links"].append([
+            urlcat.id,
+            "new description",
+            "https://example.com/game.zip",
+        ])
+
+        edit_row = store_manual_edit(game, payload, None, apply=True)
+        self.assertEqual(edit_row.status, GameRevision.Status.ACCEPTED)
+        gu.refresh_from_db()
+        self.assertEqual(gu.description, "new description")

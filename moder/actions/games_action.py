@@ -12,6 +12,7 @@ from games.gameinfo import parse
 from games.models import Game, GameAuthor, GameRevision, GameURL
 from games.permissions import can_delete_game, can_edit_game
 from moder.actions.tools import ModerAction, RegisterAction
+from play.services import transfer_game_playables
 
 
 def GenLinkButton(text, link, new_tab=False):
@@ -135,6 +136,11 @@ class GameDeleteAction(GameAction):
             help_text="Опциональный ID игры для редиректа.",
         )
 
+        transfer_playables = forms.BooleanField(
+            required=False,
+            label="Перенести онлайн-версии (Playables) на целевую игру",
+        )
+
         def __init__(
             self,
             *args: Any,
@@ -176,6 +182,23 @@ class GameDeleteAction(GameAction):
 
             return target_id
 
+        def clean(self) -> dict[str, Any]:
+            cleaned_data = super().clean()
+            target_id = cleaned_data.get("redirect_to")
+            transfer = cleaned_data.get("transfer_playables")
+            if self.current_game and self.current_game.playable_set.exists():
+                if not target_id:
+                    raise forms.ValidationError(
+                        "Игру нельзя удалить, пока у неё есть Playables. "
+                        "Сначала удалите или переместите их."
+                    )
+                if not transfer:
+                    raise forms.ValidationError(
+                        "У игры есть онлайн-версии (Playables). "
+                        "Подтвердите их перенос чекбоксом."
+                    )
+            return cleaned_data
+
     def GetForm(self, var: Any) -> Form:
         return self.Form(var, current_game=self.obj)
 
@@ -202,11 +225,25 @@ class GameDeleteAction(GameAction):
                     f"Перенаправление на: #{target_game.id} "
                     f"«{target_game.title}»"
                 )
+            if self.obj.playable_set.exists():
+                playables = list(self.obj.playable_set.all())
+                slugs = ", ".join(p.slug for p in playables)
+                if target_game:
+                    details.append(
+                        f"Онлайн-версии (Playables) будут перенесены: {slugs}"
+                    )
+                else:
+                    details.append(
+                        f"Внимание: у игры есть онлайн-версии: {slugs}"
+                    )
             if keep_orphans:
                 details.append("Оставить источники сиротами: да")
             else:
                 details.append("Оставить источники сиротами: нет")
             return msg + "\n" + "\n".join(details)
+
+        if target_game and self.obj.playable_set.exists():
+            transfer_game_playables(self.obj, target_game)
 
         self.obj.abandon(
             self.request.user,

@@ -65,6 +65,11 @@ class Game(models.Model):
         )
 
         game = Game.objects.select_for_update().get(pk=self.pk)
+        if redirect_to is None and game.playable_set.exists():
+            raise ValueError(
+                "Игру нельзя удалить/забросить, пока у неё есть Playables. "
+                "Сначала удалите или переместите их."
+            )
         curation = (
             GameCuration.objects.select_for_update().filter(pk=game.pk).first()
         )
