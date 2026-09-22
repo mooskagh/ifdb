@@ -6,6 +6,7 @@ from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 
 from games.tools import CreateUrl
+from play.models import Playable
 
 from .importer import Importer
 from .models import (
@@ -336,9 +337,17 @@ def UpdateGameUrls(request, game, data, update, kill_existing=True):
         GameURL.objects.bulk_create(objs)
 
     if existing_urls and kill_existing:
-        GameURL.objects.filter(
-            id__in=[x[0].id for x in existing_urls.values()]
-        ).delete()
+        to_delete_ids = [x[0].id for x in existing_urls.values()]
+        pinned_ids = set(
+            Playable.objects.filter(game_url_id__in=to_delete_ids).values_list(
+                "game_url_id", flat=True
+            )
+        )
+        safe_to_delete = [
+            gid for gid in to_delete_ids if gid not in pinned_ids
+        ]
+        if safe_to_delete:
+            GameURL.objects.filter(id__in=safe_to_delete).delete()
 
 
 def UpdateGame(request, j, update_edit_time=True, kill_existing_urls=True):

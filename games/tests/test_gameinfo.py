@@ -26,6 +26,8 @@ from games.models import (
     PersonalityAlias,
     PersonalityAliasRedirect,
 )
+from games.updater import UpdateGameUrls
+from play.models import Playable
 
 
 class GameInfoTestBase(TestCase):
@@ -678,3 +680,77 @@ class SaveTest(GameInfoTestBase):
         )
         self.assertIn("os_linux", slugs)
         self.assertNotIn("os_win", slugs)
+
+    def test_stale_pinned_url_preserved_in_save(self) -> None:
+        game, _ = self._seeded_info().save()
+        urls = list(game.gameurl_set.order_by("pk"))
+        self.assertEqual(len(urls), 2)
+        pinned_gu = urls[0]
+        unpinned_gu = urls[1]
+
+        # Pin the first URL
+        Playable.objects.create(
+            game=game,
+            game_url=pinned_gu,
+            slug="test-pinned",
+            template="parchment",
+            template_version="1",
+        )
+
+        # Update omitting all URLs
+        empty_urls_doc = parse('---\n- name: "Updated Game"\n---\n')
+        _, canonical = empty_urls_doc.save(game)
+
+        # Ordinary unpinned URL was removed
+        self.assertFalse(GameURL.objects.filter(pk=unpinned_gu.pk).exists())
+        # Pinned URL survived
+        self.assertTrue(GameURL.objects.filter(pk=pinned_gu.pk).exists())
+        # Canonical text includes the preserved pinned URL
+        self.assertIn(pinned_gu.url.original_url, canonical)
+        self.assertNotIn(unpinned_gu.url.original_url, canonical)
+
+    def test_pinned_url_description_updated_when_submitted(self) -> None:
+        game, _ = self._seeded_info().save()
+        pinned_gu = game.gameurl_set.first()
+        assert pinned_gu is not None
+        Playable.objects.create(
+            game=game,
+            game_url=pinned_gu,
+            slug="test-pinned-desc",
+            template="parchment",
+            template_version="1",
+        )
+
+        cat = pinned_gu.category.symbolic_id
+        orig = pinned_gu.url.original_url
+        doc = parse(
+            f'---\n- urls:\n  - ["{cat}", "new desc", "{orig}"]\n---\n'
+        )
+        doc.save(game)
+        pinned_gu.refresh_from_db()
+        self.assertEqual(pinned_gu.description, "new desc")
+
+    def test_legacy_updater_preserves_pinned_url(self) -> None:
+        game, _ = self._seeded_info().save()
+        urls = list(game.gameurl_set.order_by("pk"))
+        pinned_gu = urls[0]
+        unpinned_gu = urls[1]
+
+        Playable.objects.create(
+            game=game,
+            game_url=pinned_gu,
+            slug="legacy-test",
+            template="parchment",
+            template_version="1",
+        )
+
+        class DummyRequest:
+            user = None
+
+        # Call UpdateGameUrls with empty data and kill_existing=True
+        UpdateGameUrls(
+            DummyRequest(), game, [], update=True, kill_existing=True
+        )
+
+        self.assertFalse(GameURL.objects.filter(pk=unpinned_gu.pk).exists())
+        self.assertTrue(GameURL.objects.filter(pk=pinned_gu.pk).exists())
