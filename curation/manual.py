@@ -20,6 +20,7 @@ from games.models import (
     GameURLCategory,
 )
 from games.permissions import can_manage_internal_tags
+from play.services import PinnedURLError, format_pinned_url_error
 
 from .models import GameCuration, GameHistoryAuditLog
 from .overrides import build_initial_overrides, update_overrides_from_diff
@@ -43,6 +44,27 @@ def editor_payload_to_gameinfo(data: dict) -> GameInfo:
     return info
 
 
+def _validate_pinned_urls(game: Game, info: GameInfo) -> None:
+    pinned_urls = (
+        game.gameurl_set
+        .filter(playables__isnull=False)
+        .distinct()
+        .select_related("url", "category")
+    )
+    for gu in pinned_urls:
+        retained = False
+        for u in info.urls:
+            if u.category == gu.category.symbolic_id:
+                if u.url_id is not None and u.url_id == gu.url_id:
+                    retained = True
+                    break
+                if u.url and u.url.strip() == gu.url.original_url.strip():
+                    retained = True
+                    break
+        if not retained:
+            raise PinnedURLError(format_pinned_url_error(gu))
+
+
 @transaction.atomic
 def store_manual_edit(
     game: Game, data: dict, user, *, apply: bool
@@ -51,6 +73,7 @@ def store_manual_edit(
     previous_edit = _latest_applied_edit(game)
     before = previous_edit.canonical_text if previous_edit else ""
     info = editor_payload_to_gameinfo(data)
+    _validate_pinned_urls(game, info)
     if not can_manage_internal_tags(user):
         internal_tags = [
             Tag(

@@ -20,8 +20,11 @@ from games.models import (
     Game,
     GameDescriptionAttribution,
     GameRevision,
+    GameURL,
+    GameURLCategory,
     PersonalityAlias,
 )
+from play.models import Playable
 
 
 class GameEditCurationViewTests(TestCase):
@@ -635,6 +638,36 @@ class GameEditCurationViewTests(TestCase):
         self.assertIsNotNone(game.published_revision)
         self.assertEqual(
             game.published_revision.status, GameRevision.Status.ACCEPTED
+        )
+
+    def test_store_game_pinned_url_removal_renders_error_page(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        game = self._published_game("Game Title", "Game description")
+        urlcat = GameURLCategory.objects.get_or_create(
+            symbolic_id="download_direct", defaults={"title": "Direct"}
+        )[0]
+        url_obj = URL.objects.create(
+            original_url="https://example.com/play.zip", creation_date=now()
+        )
+        gu = GameURL.objects.create(game=game, category=urlcat, url=url_obj)
+        Playable.objects.create(
+            game=game,
+            game_url=gu,
+            slug="hero-quest",
+            template="parchment",
+            template_version="1",
+        )
+
+        response = self.client.post(
+            reverse("store_game"),
+            {"json": json.dumps(self._payload(game, title="Updated Title"))},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "games/error.html")
+        self.assertIn(
+            "URL нельзя удалить: из него создан сайт hero-quest.",
+            response.context["message"],
         )
 
     def test_edit_diff_approval_mode_renders_checkboxes(self):

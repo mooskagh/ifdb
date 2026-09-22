@@ -127,7 +127,14 @@ def store_game(request):
             request.user.is_authenticated and request.user.is_active
         ):
             raise PermissionDenied
-        edit = store_manual_edit(game, j, request.user, apply=can_save)
+        try:
+            edit = store_manual_edit(game, j, request.user, apply=can_save)
+        except ValueError as exc:
+            return render(
+                request,
+                "games/error.html",
+                {"message": str(exc)},
+            )
         LogAction(
             request,
             "gam-store" if can_save else "gam-propose",
