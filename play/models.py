@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
@@ -30,6 +31,7 @@ class Playable(models.Model):
     game: models.ForeignKey[Game, Game] = models.ForeignKey(
         "games.Game", on_delete=models.PROTECT
     )
+    game_id: int
     game_url: models.ForeignKey[GameURL | None, GameURL | None] = (
         models.ForeignKey(
             "games.GameURL",
@@ -39,6 +41,7 @@ class Playable(models.Model):
             related_name="playables",
         )
     )
+    game_url_id: int | None
     template: models.SlugField[str, str] = models.SlugField()
     template_version: models.CharField[str, str] = models.CharField(
         max_length=32
@@ -69,6 +72,27 @@ class Playable(models.Model):
     updated: models.DateTimeField[datetime, datetime] = models.DateTimeField(
         auto_now=True
     )
+
+    def clean(self) -> None:
+        super().clean()
+        if self.game_url_id is not None:
+            url_game_id = (
+                self.game_url.game_id
+                if hasattr(self, "_state")
+                and "game_url" in self._state.fields_cache
+                and self.game_url
+                else GameURL.objects
+                .filter(pk=self.game_url_id)
+                .values_list("game_id", flat=True)
+                .first()
+            )
+            if url_game_id is not None and self.game_id != url_game_id:
+                raise ValidationError({
+                    "game_url": _(
+                        "GameURL belongs to a different game than "
+                        "the Playable."
+                    )
+                })
 
     def __str__(self) -> str:
         return self.slug or f"playable-{self.pk}"
