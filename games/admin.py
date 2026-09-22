@@ -1,6 +1,12 @@
-from django.contrib import admin
+from typing import Any
+
+from django import forms
+from django.contrib import admin, messages
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
+from django.urls import reverse
 
 from play.models import Playable
+from play.services import format_pinned_url_error, is_game_url_pinned
 
 from .models import (
     URL,
@@ -37,8 +43,28 @@ class InlinePersonalityUrlAdmin(admin.TabularInline):
     extra = 1
 
 
+class InlineGameURLFormSet(forms.models.BaseInlineFormSet):
+    def clean(self) -> None:
+        errors = []
+        for form in self.forms:
+            if not hasattr(form, "cleaned_data"):
+                continue
+            if self.can_delete and self._should_delete_form(form):
+                instance = form.instance
+                if instance.pk and is_game_url_pinned(instance):
+                    errors.append(
+                        forms.ValidationError(
+                            format_pinned_url_error(instance)
+                        )
+                    )
+        if errors:
+            raise forms.ValidationError(errors)
+        super().clean()
+
+
 class InlineGameURLAdmin(admin.TabularInline):
     model = GameURL
+    formset = InlineGameURLFormSet
     readonly_fields = ("id",)
     raw_id_fields = ["url", "game"]
     extra = 1
@@ -206,6 +232,35 @@ class GameURLAdmin(admin.ModelAdmin):
     search_fields = ["pk", "description", "game__title", "url__id"]
     list_filter = ["category"]
     raw_id_fields = ["game", "url"]
+
+    def delete_view(
+        self, request: HttpRequest, object_id: str, extra_context: Any = None
+    ) -> HttpResponse:
+        obj = self.get_object(request, object_id)
+        if obj and is_game_url_pinned(obj):
+            self.message_user(
+                request,
+                format_pinned_url_error(obj),
+                level=messages.ERROR,
+            )
+            return HttpResponseRedirect(
+                reverse("admin:games_gameurl_change", args=[object_id])
+            )
+        return super().delete_view(
+            request, object_id, extra_context=extra_context
+        )
+
+    def delete_queryset(self, request: HttpRequest, queryset: Any) -> None:
+        pinned = [obj for obj in queryset if is_game_url_pinned(obj)]
+        if pinned:
+            for obj in pinned:
+                self.message_user(
+                    request,
+                    format_pinned_url_error(obj),
+                    level=messages.ERROR,
+                )
+            queryset = queryset.exclude(id__in=[obj.id for obj in pinned])
+        super().delete_queryset(request, queryset)
 
 
 @admin.register(GameAuthorRole)
