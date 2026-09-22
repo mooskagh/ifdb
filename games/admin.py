@@ -6,7 +6,7 @@ from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.urls import reverse
 
 from play.models import Playable
-from play.services import format_pinned_url_error, is_game_url_pinned
+from play.services import format_pinned_url_error
 
 from .models import (
     URL,
@@ -51,7 +51,7 @@ class InlineGameURLFormSet(forms.models.BaseInlineFormSet):
                 continue
             if self.can_delete and self._should_delete_form(form):
                 instance = form.instance
-                if instance.pk and is_game_url_pinned(instance):
+                if instance.pk and instance.playables.exists():
                     errors.append(
                         forms.ValidationError(
                             format_pinned_url_error(instance)
@@ -237,7 +237,7 @@ class GameURLAdmin(admin.ModelAdmin):
         self, request: HttpRequest, object_id: str, extra_context: Any = None
     ) -> HttpResponse:
         obj = self.get_object(request, object_id)
-        if obj and is_game_url_pinned(obj):
+        if obj and obj.playables.exists():
             self.message_user(
                 request,
                 format_pinned_url_error(obj),
@@ -251,7 +251,7 @@ class GameURLAdmin(admin.ModelAdmin):
         )
 
     def delete_queryset(self, request: HttpRequest, queryset: Any) -> None:
-        pinned = [obj for obj in queryset if is_game_url_pinned(obj)]
+        pinned = [obj for obj in queryset if obj.playables.exists()]
         if pinned:
             for obj in pinned:
                 self.message_user(

@@ -45,22 +45,20 @@ def editor_payload_to_gameinfo(data: dict) -> GameInfo:
 
 
 def _validate_pinned_urls(game: Game, info: GameInfo) -> None:
-    pinned_urls = (
+    for gu in (
         game.gameurl_set
         .filter(playables__isnull=False)
         .distinct()
         .select_related("url", "category")
-    )
-    for gu in pinned_urls:
-        retained = False
-        for u in info.urls:
-            if u.category == gu.category.symbolic_id:
-                if u.url_id is not None and u.url_id == gu.url_id:
-                    retained = True
-                    break
-                if u.url and u.url.strip() == gu.url.original_url.strip():
-                    retained = True
-                    break
+    ):
+        retained = any(
+            u.category == gu.category.symbolic_id
+            and (
+                u.url_id == gu.url_id
+                or (u.url and u.url.strip() == gu.url.original_url.strip())
+            )
+            for u in info.urls
+        )
         if not retained:
             raise PinnedURLError(format_pinned_url_error(gu))
 

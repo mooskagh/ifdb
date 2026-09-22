@@ -17,11 +17,7 @@ from games.models import (
     PersonalityAlias,
 )
 from play.models import Playable
-from play.services import (
-    format_pinned_url_error,
-    get_pinned_playables,
-    move_game_url,
-)
+from play.services import format_pinned_url_error, move_game_url
 
 from .manual import _latest_applied_edit, editor_payload_to_gameinfo
 from .merge import contest_related_usage
@@ -183,13 +179,10 @@ def save_reconcile_payload(data: dict, actor) -> ReconcileResult:
 
     histories = _lock_histories(columns)
     games = _lock_games(columns, histories)
-    locked_game_urls, pinned_urls = _lock_and_validate_urls(columns, games)
     _validate_columns(columns, histories, games)
     _validate_deletions(columns, histories, games, orphan_source_ids)
     sources = _lock_sources(columns, histories, orphan_source_ids)
-
-    _materialize_new_games(columns, games, actor)
-    _execute_pinned_moves(columns, pinned_urls, games)
+    _handle_pinned_urls(columns, games, actor)
 
     targets: dict[str, GameCuration | None] = {}
     for col in columns:
@@ -505,165 +498,84 @@ def _lock_sources(
     return sources
 
 
-def _matches_category(cat_value: Any, gu: GameURL) -> bool:
-    if isinstance(cat_value, int):
-        return cat_value == gu.category_id
-    if isinstance(cat_value, str):
-        if cat_value.isdigit():
-            return int(cat_value) == gu.category_id
-        return cat_value == gu.category.symbolic_id
-    return False
-
-
-def _lock_and_validate_urls(
-    columns: list[dict], games: dict[int, Game]
-) -> tuple[dict[int, GameURL], dict[int, GameURL]]:
-    url_ids = list(
-        GameURL.objects.filter(game__in=games.values()).values_list(
-            "id", flat=True
-        )
-    )
-    locked_game_urls = {
+def _handle_pinned_urls(
+    columns: list[dict], games: dict[int, Game], actor: Any
+) -> None:
+    pinned_ids = Playable.objects.filter(
+        game__in=games.values(), game_url__isnull=False
+    ).values_list("game_url_id", flat=True)
+    pinned = {
         gu.id: gu
         for gu in GameURL.objects
         .select_for_update()
-        .filter(id__in=url_ids)
-        .select_related("game", "url", "category")
+        .filter(id__in=pinned_ids)
+        .select_related("url", "game")
     }
-
-    pinned_ids = set(
-        Playable.objects.filter(
-            game_url__in=locked_game_urls.values()
-        ).values_list("game_url_id", flat=True)
-    )
-    pinned_urls = {
-        uid: locked_game_urls[uid] for uid in pinned_ids if uid is not None
-    }
+    if not pinned:
+        return
 
     for col in columns:
-        if col["delete"]:
-            continue
-        for link in col["links"]:
-            if link.get("game_url_id") is None and col["game_id"] is not None:
-                for gu_id, gu in pinned_urls.items():
-                    if gu.game_id == col["game_id"]:
+        if not col["delete"] and col["game_id"]:
+            for link in col["links"]:
+                if link.get("game_url_id") is None:
+                    for gu_id, gu in pinned.items():
                         if (
-                            _matches_category(link["category"], gu)
-                            and link["url"] == gu.url.original_url
+                            gu.game_id == col["game_id"]
+                            and link.get("url") == gu.url.original_url
                         ):
-                            if not any(
-                                other.get("game_url_id") == gu_id
-                                for c in columns
-                                for other in c["links"]
-                            ):
-                                link["game_url_id"] = gu_id
-                                break
+                            link["game_url_id"] = gu_id
+                            break
 
-    for col in columns:
-        for link in col["links"]:
-            gid = link.get("game_url_id")
-            if gid is not None and gid not in locked_game_urls:
-                raise ValueError(
-                    f"Ссылка #{gid} не относится к редактируемым играм."
-                )
-
-    pinned_occurrences: dict[int, list[tuple[dict, dict]]] = {
-        uid: [] for uid in pinned_urls
+    occurrences: dict[int, list[tuple[dict, dict]]] = {
+        uid: [] for uid in pinned
     }
     for col in columns:
-        if col["delete"]:
-            continue
-        for link in col["links"]:
-            gid = link.get("game_url_id")
-            if gid in pinned_occurrences:
-                pinned_occurrences[gid].append((col, link))
+        if not col["delete"]:
+            for link in col["links"]:
+                gid = link.get("game_url_id")
+                if gid in occurrences:
+                    occurrences[gid].append((col, link))
 
-    for gu_id, occurrences in pinned_occurrences.items():
-        gu = pinned_urls[gu_id]
-        if len(occurrences) == 0:
+    for gu_id, matches in occurrences.items():
+        gu = pinned[gu_id]
+        if not matches:
             raise ValueError(format_pinned_url_error(gu))
-        if len(occurrences) > 1:
+        if len(matches) > 1:
             raise ValueError(
                 f"Ссылка {gu.url.original_url} указана в нескольких колонках."
             )
-        col, link = occurrences[0]
-        if not (
-            _matches_category(link["category"], gu)
-            and link["url"] == gu.url.original_url
-        ):
-            raise ValueError(format_pinned_url_error(gu))
+        col, link = matches[0]
         if col["game_id"] != gu.game_id:
             if not link.get("confirmed_move"):
-                playables = get_pinned_playables(gu)
-                slugs = ", ".join(p.slug for p in playables)
+                slugs = ", ".join(p.slug for p in gu.playables.all())
                 raise ValueError(
                     f"Перемещение ссылки {gu.url.original_url} "
                     f"требует подтверждения: "
                     f"к ней привязана онлайн-версия ({slugs})."
                 )
-
-    return locked_game_urls, pinned_urls
-
-
-def _materialize_new_games(
-    columns: list[dict],
-    games: dict[int, Game],
-    actor: Any,
-) -> None:
-    for col in columns:
-        if col["delete"]:
-            continue
-        if col["game_id"] is None and col["history_id"] in games:
-            col["game_id"] = games[col["history_id"]].id
-        elif (
-            col["game_id"] is None
-            and col["history_id"] is None
-            and _has_game_data(col)
-        ):
-            target_state = (
-                Game.State.PUBLISHED
-                if (
-                    getattr(actor, "is_staff", False)
-                    or getattr(actor, "is_superuser", False)
+            if col["game_id"] is None:
+                state = (
+                    Game.State.PUBLISHED
+                    if (
+                        getattr(actor, "is_staff", False)
+                        or getattr(actor, "is_superuser", False)
+                    )
+                    else Game.State.DRAFT
                 )
-                else Game.State.DRAFT
-            )
-            game = Game.objects.create(
-                creation_time=now(),
-                state=target_state,
-                added_by=(
-                    actor
-                    if getattr(actor, "is_authenticated", False)
-                    else None
-                ),
-            )
-            games[game.id] = game
-            col["game_id"] = game.id
-
-
-def _execute_pinned_moves(
-    columns: list[dict],
-    pinned_urls: dict[int, GameURL],
-    games: dict[int, Game],
-) -> None:
-    col_by_url_id: dict[int, tuple[dict, dict]] = {}
-    for col in columns:
-        if col["delete"]:
-            continue
-        for link in col["links"]:
-            gid = link.get("game_url_id")
-            if gid is not None and gid in pinned_urls:
-                col_by_url_id[gid] = (col, link)
-
-    for gu_id, gu in pinned_urls.items():
-        if gu_id not in col_by_url_id:
-            continue
-        col, link = col_by_url_id[gu_id]
-        dest_game_id = col["game_id"]
-        if dest_game_id is not None and dest_game_id != gu.game_id:
-            dest_game = games[dest_game_id]
-            moved_gu = move_game_url(gu, dest_game)
-            link["game_url_id"] = moved_gu.id
+                target = Game.objects.create(
+                    creation_time=now(),
+                    state=state,
+                    added_by=(
+                        actor
+                        if getattr(actor, "is_authenticated", False)
+                        else None
+                    ),
+                )
+                games[target.id] = target
+                col["game_id"] = target.id
+            else:
+                target = games[col["game_id"]]
+            link["game_url_id"] = move_game_url(gu, target).id
 
 
 def _save_column(

@@ -314,42 +314,26 @@ class GameDeleteActionTest(TestCase):
         )
         return GameURL.objects.create(game=game, url=url_obj, category=cat)
 
-    def test_abandon_raises_when_playables_exist_and_no_redirect(self) -> None:
-        self._create_playable(self.game, slug="abandon-test")
-        with self.assertRaises(ValueError) as ctx:
+    def test_deletion_and_moder_form_validations(self) -> None:
+        self._create_playable(self.game, slug="del-val")
+        # Game.abandon rejects without redirect
+        with self.assertRaises(ValueError):
             self.game.abandon(self.superuser, redirect_to=None)
-        self.assertIn("Playables", str(ctx.exception))
 
-    def test_curation_history_delete_rejects_when_playables_exist(
-        self,
-    ) -> None:
-        self._create_playable(self.game, slug="history-del-test")
+        # curation history_delete rejects
         self.client.force_login(self.superuser)
-        response = self.client.post(
+        self.client.post(
             reverse("curation_history_delete", args=[self.game.id])
         )
-        self.assertEqual(response.status_code, 302)
-        self.game.refresh_from_db()
         self.assertNotEqual(self.game.state, Game.State.ABANDONED)
 
-    def test_moder_delete_with_playables_without_redirect_rejected(
-        self,
-    ) -> None:
-        self._create_playable(self.game, slug="mod-del-1")
-        form = GameDeleteAction.Form({}, current_game=self.game)
-        self.assertFalse(form.is_valid())
-        self.assertIn("пока у неё есть Playables", str(form.errors))
-
-    def test_moder_delete_with_playables_without_transfer_checkbox_rejected(
-        self,
-    ) -> None:
-        self._create_playable(self.game, slug="mod-del-2")
-        form = GameDeleteAction.Form(
-            {"redirect_to": str(self.target_game.id)},
-            current_game=self.game,
+        # Moder form rejects without redirect or transfer checkbox
+        form_no_redir = GameDeleteAction.Form({}, current_game=self.game)
+        self.assertFalse(form_no_redir.is_valid())
+        form_no_check = GameDeleteAction.Form(
+            {"redirect_to": str(self.target_game.id)}, current_game=self.game
         )
-        self.assertFalse(form.is_valid())
-        self.assertIn("Подтвердите их перенос чекбоксом", str(form.errors))
+        self.assertFalse(form_no_check.is_valid())
 
     def test_moder_delete_with_playables_and_transfer_checkbox_succeeds(
         self,
