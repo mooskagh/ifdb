@@ -25,6 +25,7 @@ class Playable(models.Model):
         READY = "READY", _("Ready")
         ERROR = "ERROR", _("Error")
 
+    id: int
     slug: models.SlugField[str | None, str | None] = models.SlugField(
         unique=True, null=True, blank=True
     )

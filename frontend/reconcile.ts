@@ -2,7 +2,20 @@ import {el, getCookie} from './editor/util';
 
 type Ref = number | string;
 type Pair = [Ref, Ref];
-type Link = [Ref, string, string];
+interface PlayableRef {
+  id: number;
+  slug: string;
+}
+
+interface LinkData {
+  category: Ref;
+  description: string;
+  url: string;
+  game_url_id: number | null;
+  playables: PlayableRef[];
+  confirmed_move: boolean;
+}
+
 type ListField =
   | 'tags'
   | 'authors'
@@ -26,7 +39,7 @@ interface ColumnData {
   release_date: string;
   tags: Pair[];
   authors: Pair[];
-  links: Link[];
+  links: LinkData[];
   description_attributions: string[];
   description: string;
   delete: boolean;
@@ -321,19 +334,35 @@ function linkCell(col: ColumnData, index: number): HTMLElement {
   col.links.forEach((row, itemIndex) => {
     const cat = select(
       payload.choices.links.categories.map(c => [c.id, c.title]),
-      row[0],
-      value => (row[0] = Number(value)),
+      row.category,
+      value => (row.category = Number(value)),
     );
-    const desc = textInput(row[1], input => (row[1] = input.value));
+    const desc = textInput(row.description, input => (row.description = input.value));
     desc.placeholder = 'Описание';
-    const url = textInput(row[2], input => (row[2] = input.value));
+    const url = textInput(row.url, input => (row.url = input.value));
     url.placeholder = 'URL';
-    root.append(
-      itemRow(cat, desc, url, itemActions('links', index, itemIndex, true)),
-    );
+    const rowChildren: Node[] = [cat, desc, url];
+    if (row.playables && row.playables.length > 0) {
+      const slugs = row.playables.map(p => p.slug).join(', ');
+      rowChildren.push(
+        el('span', {
+          class: 'curation-meta',
+          text: `📌 play: ${slugs}`,
+        }),
+      );
+    }
+    rowChildren.push(itemActions('links', index, itemIndex, true));
+    root.append(itemRow(...rowChildren));
   });
   root.append(addItemButton('Добавить URL', () => {
-    col.links.push([payload.choices.links.categories[0]?.id || '', '', '']);
+    col.links.push({
+      category: payload.choices.links.categories[0]?.id || '',
+      description: '',
+      url: '',
+      game_url_id: null,
+      playables: [],
+      confirmed_move: false,
+    });
     render();
   }));
   return cell(root);
@@ -467,6 +496,17 @@ function copyButton(
 function moveItem(field: ListField, from: number, itemIndex: number, to: number): void {
   if (to < 0 || to >= columns.length) return;
   const fromList = asList(columns[from], field);
+  if (field === 'links') {
+    const link = fromList[itemIndex] as LinkData;
+    if (link.playables && link.playables.length > 0) {
+      const slugs = link.playables.map(p => p.slug).join(', ');
+      const confirmed = window.confirm(
+        `Этот URL привязан к сайту (${slugs}). Перемещение URL переместит и сайт в целевую игру. Продолжить?`,
+      );
+      if (!confirmed) return;
+      link.confirmed_move = true;
+    }
+  }
   const [item] = fromList.splice(itemIndex, 1);
   if (field === 'sources') {
     orphanSourceIds.delete((item as SourceData).id);
@@ -478,11 +518,28 @@ function moveItem(field: ListField, from: number, itemIndex: number, to: number)
 
 function copyItem(field: ListField, from: number, itemIndex: number, to: number): void {
   if (to < 0 || to >= columns.length) return;
-  asList(columns[to], field).push(clone(asList(columns[from], field)[itemIndex]));
+  const copied = clone(asList(columns[from], field)[itemIndex]);
+  if (field === 'links') {
+    const link = copied as LinkData;
+    link.game_url_id = null;
+    link.playables = [];
+    link.confirmed_move = false;
+  }
+  asList(columns[to], field).push(copied);
   render();
 }
 
 function removeItem(field: ListField, colIndex: number, itemIndex: number): void {
+  if (field === 'links') {
+    const link = columns[colIndex].links[itemIndex];
+    if (link.playables && link.playables.length > 0) {
+      const slugs = link.playables.map(p => p.slug).join(', ');
+      window.alert(
+        `URL ${link.url} нельзя удалить: к нему привязана онлайн-версия (${slugs}).`,
+      );
+      return;
+    }
+  }
   asList(columns[colIndex], field).splice(itemIndex, 1);
   render();
 }
@@ -627,6 +684,9 @@ function validationError(): string | null {
     if (col.delete) {
       if (col.sources.length) {
         return 'Нельзя удалить игру с источниками: перенесите или открепите их.';
+      }
+      if (col.links.some(l => l.playables && l.playables.length > 0)) {
+        return 'Нельзя удалить игру с онлайн-версиями (Playables): сначала перенесите их.';
       }
       continue;
     }

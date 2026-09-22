@@ -236,8 +236,15 @@ def _tag_from_payload(row: list) -> Tag:
     return Tag(category, None, None, str(tag_value).strip())
 
 
-def _url_from_payload(row: list) -> GameUrl:
-    cat_value, description, url = row
+def _url_from_payload(row: list | dict) -> GameUrl:
+    if isinstance(row, dict):
+        cat_value = row.get("category")
+        description = row.get("description")
+        url = row.get("url")
+    else:
+        cat_value, description, url = row
+    if isinstance(cat_value, str) and cat_value.isdigit():
+        cat_value = int(cat_value)
     category = (
         GameURLCategory.objects.get(pk=cat_value).symbolic_id
         if isinstance(cat_value, int)
