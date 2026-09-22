@@ -3316,6 +3316,14 @@ def history_delete(request, game_id):
             Game.objects.select_for_update(),
             pk=game_id,
         )
+        if game.playable_set.exists():
+            messages.error(
+                request,
+                f"Игру #{game.id} нельзя удалить: "
+                "у неё есть онлайн-версии (Playables). "
+                "Сначала удалите или переместите их.",
+            )
+            return redirect("curation_history_detail", game_id=game.pk)
         if usage := contest_related_usage(game):
             related = ", ".join(
                 f"{item.label}: {item.count}" for item in usage
