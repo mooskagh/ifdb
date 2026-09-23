@@ -143,6 +143,7 @@ class GameSource(models.Model):
         QUESTBOOK = "QUESTBOOK", _("QuestBook")
         IFICTION = "IFICTION", _("ifiction")
         RILARHIV = "RILARHIV", _("Rilarhiv")
+        AXMA = "AXMA", _("AXMA")
         CURRENT_TEXT = "CURRENT_TEXT", _("Current text")
         STICKY_NOTE = "STICKY_NOTE", _("Sticky note")
 
