@@ -24,6 +24,7 @@ _SOURCE_PRIORITY = {
     GameSource.SourceType.IFWIKI: 100,
     GameSource.SourceType.INSTEAD: 80,
     GameSource.SourceType.AXMA: 70,
+    GameSource.SourceType.HYPERBOOK: 70,
     GameSource.SourceType.QUESTBOOK: 51,
     GameSource.SourceType.PLUT: 50,
     GameSource.SourceType.APERO: 49,

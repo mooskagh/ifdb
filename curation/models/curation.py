@@ -144,6 +144,7 @@ class GameSource(models.Model):
         IFICTION = "IFICTION", _("ifiction")
         RILARHIV = "RILARHIV", _("Rilarhiv")
         AXMA = "AXMA", _("AXMA")
+        HYPERBOOK = "HYPERBOOK", _("Hyperbook")
         CURRENT_TEXT = "CURRENT_TEXT", _("Current text")
         STICKY_NOTE = "STICKY_NOTE", _("Sticky note")
 
