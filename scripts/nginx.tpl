@@ -1,3 +1,17 @@
+log_format ifdb_json escape=json
+    '{"time":"$time_local",'
+    '"remote_addr":"$remote_addr",'
+    '"remote_user":"$remote_user",'
+    '"host":"$host",'
+    '"request":"$request",'
+    '"status":$status,'
+    '"body_bytes_sent":$body_bytes_sent,'
+    '"request_time":$request_time,'
+    '"http_referer":"$http_referer",'
+    '"http_user_agent":"$http_user_agent",'
+    '"http_x_forwarded_for":"$http_x_forwarded_for",'
+    '"cookie_sessionid":"$cookie_sessionid"}';
+
 {% for c in configs %}
 {% if c.conf == 'prod' %}
 upstream django {
@@ -21,19 +35,19 @@ server {
     server_name db.crem.xyz db-tmp.mooskagh.com;
 
     error_log    /home/ifdb/logs/nginx-error.log;
-    access_log    /home/ifdb/logs/nginx-access.log main;
+    access_log    /home/ifdb/logs/nginx-access.json.log ifdb_json;
 
 {% elif c.host == 'kontigr' %}
     server_name kontigr.com;
 
     error_log    /home/ifdb/logs/nginx-kontigr-error.log;
-    access_log    /home/ifdb/logs/nginx-kontigr-access.log main;
+    access_log    /home/ifdb/logs/nginx-kontigr-access.json.log ifdb_json;
 
 {% elif c.host == 'zok' %}
     server_name zok.cx;
 
     error_log    /home/ifdb/logs/nginx-zok-error.log;
-    access_log    /home/ifdb/logs/nginx-zok-access.log main;
+    access_log    /home/ifdb/logs/nginx-zok-access.json.log ifdb_json;
 
 {% elif c.host == 'staging' %}
     server_name db-staging.crem.xyz;

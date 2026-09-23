@@ -596,6 +596,246 @@ class AxmaProvider(GameSourceProvider):
         return (DiscoveredSource(url) for url in _axma_candidates())
 
 
+HYPERBOOK_GAME_URL = re.compile(
+    r"https?://(?:www\.)?hyperbook\.ru/comments\.php\?id=\d+"
+)
+HYPERBOOK_LIBRARY_URL = "https://hyperbook.ru/lib.php"
+HYPERBOOK_H1_RE = re.compile(
+    r"<h1[^>]*title=['\"]запустить['\"][^>]*>(.*?)</h1>", re.DOTALL
+)
+HYPERBOOK_AUTHOR_DIV_RE = re.compile(
+    r"<div[^>]*margin-bottom:\s*14px[^>]*>(.*?)</div>", re.DOTALL
+)
+HYPERBOOK_DATE_RE = re.compile(
+    r"Параграфов:.*?</div>\s*<div[^>]*>(\d{2}\.\d{2}\.\d{2})</div>", re.DOTALL
+)
+HYPERBOOK_GENRE_RE = re.compile(
+    r"<a[^>]+href=['\"]lib\.php\?sort=genre\d+['\"][^>]*>([^<]+)</a>"
+)
+
+
+def _hyperbook_game_id(url: str) -> str | None:
+    if m := re.search(r"[?&]id=(\d+)", url):
+        return m.group(1)
+    if m := re.search(r"/file(\d+)", url):
+        return m.group(1)
+    return None
+
+
+def _hyperbook_candidates() -> Iterable[str]:
+    seen: set[str] = set()
+    offset = 0
+    item_re = re.compile(
+        r"<h3[^>]*><a[^>]+href=['\"]file(\d+)['\"][^>]*>(.*?)</h3>"
+        r"(.*?)"
+        r"(?=<h3|<div style=['\"]margin-top:28px;['\"]|$)",
+        re.DOTALL,
+    )
+    para_re = re.compile(r"Параграфов:\s*(\d+)")
+    com_re = re.compile(r"комментарии \((\d+)\)")
+    star_re = re.compile(r"<span style=['\"]color:#999999['\"]>(\*+)</span>")
+
+    while True:
+        catalog_url = f"{HYPERBOOK_LIBRARY_URL}?sort=time&from={offset}"
+        html = FetchUrlToString(catalog_url, use_cache=False)
+        items = item_re.findall(html)
+        if not items:
+            break
+        for gid, _title, body in items:
+            para_m = para_re.search(body)
+            paras = int(para_m.group(1)) if para_m else 0
+            com_m = com_re.search(body)
+            coms = int(com_m.group(1)) if com_m else 0
+            star_m = star_re.search(body)
+            rating = len(star_m.group(1)) if star_m else 0
+            has_award = "medal" in body
+
+            if has_award or rating > 0 or (paras >= 20 and coms >= 2):
+                game_url = f"https://hyperbook.ru/comments.php?id={gid}"
+                if game_url not in seen:
+                    seen.add(game_url)
+                    yield game_url
+        offset += len(items)
+
+
+def _parse_hyperbook_personalities(raw_text: str) -> dict[str, list[str]]:
+    text = unescape(raw_text).strip()
+    role_pattern = (
+        r"(Автор|Художник|Редактор|Переводчик|Программист|Композитор)"
+        r"\s*[:–-]\s*"
+    )
+    parts = re.split(role_pattern, text)
+    personalities: dict[str, list[str]] = {}
+    if len(parts) > 1:
+        for i in range(1, len(parts), 2):
+            role_label = parts[i]
+            names_str = parts[i + 1].strip()
+            if role_label == "Автор":
+                role = "author"
+            elif role_label == "Художник":
+                role = "artist"
+            elif role_label == "Переводчик":
+                role = "translator"
+            elif role_label == "Программист":
+                role = "programmer"
+            elif role_label == "Композитор":
+                role = "composer"
+            else:
+                role = "member"
+            for name in re.split(r"[,;]|\s+и\s+|\s+&\s+", names_str):
+                name = name.strip()
+                if name:
+                    personalities.setdefault(role, []).append(name)
+    else:
+        for name in re.split(r"[,;]|\s+&\s+", text):
+            name = name.strip()
+            if name:
+                personalities.setdefault("author", []).append(name)
+    return personalities
+
+
+def _hyperbook_date(date_str: str | None) -> str | None:
+    if not date_str:
+        return None
+    try:
+        return datetime.datetime.strptime(date_str, "%d.%m.%y").strftime(
+            "%Y-%m-%d"
+        )
+    except ValueError:
+        return None
+
+
+def _hyperbook_game_info(html: str, url: str) -> GameInfo:
+    gid = _hyperbook_game_id(url)
+    if not gid:
+        raise ValueError(f"Game ID not found in Hyperbook URL: {url}")
+
+    content = re.split(r"<h3[^>]*>\s*Комментари", html)[0]
+
+    h1_match = HYPERBOOK_H1_RE.search(content)
+    if not h1_match:
+        raise ValueError(f"Game not found on Hyperbook page: {url}")
+
+    h1_raw = h1_match.group(1)
+    name = (
+        unescape(re.sub(r"<[^>]+>", "", h1_raw.split("<span")[0]))
+        .replace("\xa0", " ")
+        .strip()
+    )
+
+    version_text = None
+    if vm := re.search(r">v([^<]+)<", h1_raw):
+        version_text = f"v{vm.group(1).strip()}"
+
+    date = None
+    date_match = HYPERBOOK_DATE_RE.search(content)
+    if date_match:
+        date = _hyperbook_date(date_match.group(1))
+
+    idx_dl = content.find(f"download.php?id={gid}")
+    if idx_dl == -1:
+        idx_dl = content.find("download.php")
+    desc_section = content[idx_dl:] if idx_dl != -1 else content
+    desc_match = re.search(
+        r"<div class=['\"]small['\"]>(.*?)</div>", desc_section, re.DOTALL
+    )
+    description = None
+    if desc_match:
+        tt = HTML2Text()
+        tt.body_width = 0
+        desc_text = tt.handle(desc_match.group(1)).strip()
+        awards_match = re.search(
+            r"<span class=['\"]accentsmall['\"]>Награды</span><br>(.*?)</p>",
+            desc_section,
+            re.DOTALL,
+        )
+        if awards_match:
+            awards_raw = re.sub(r"<img[^>]*>", "", awards_match.group(1))
+            award_lines = [
+                unescape(line.strip())
+                for line in re.split(r"<br\s*/?>", awards_raw)
+                if line.strip()
+            ]
+            if award_lines:
+                desc_text += "\n\n**Награды:**\n" + "\n".join(
+                    f"- {line}" for line in award_lines
+                )
+        if desc_text:
+            description = desc_text
+
+    info = GameInfo(
+        name=name,
+        date=date,
+        description=description,
+        attributions=[Attribution(None, "hyperbook.ru")],
+    )
+
+    author_match = HYPERBOOK_AUTHOR_DIV_RE.search(content)
+    if author_match:
+        for role, names in _parse_hyperbook_personalities(
+            author_match.group(1)
+        ).items():
+            info.personalities[role] = [Person(None, n) for n in names]
+
+    info.tags.append(Tag("platform", None, None, "AXMA Story Maker"))
+    info.tags.append(Tag("language", None, None, "русский"))
+
+    if version_text:
+        info.tags.append(Tag("version", None, None, version_text))
+
+    for genre in HYPERBOOK_GENRE_RE.findall(desc_section):
+        tag_name = unescape(genre.strip()).lower()
+        if tag_name:
+            info.tags.append(Tag("tag", None, None, tag_name))
+
+    info.urls.append(
+        GameUrl(
+            "game_page",
+            None,
+            "Страница на hyperbook.ru",
+            f"https://hyperbook.ru/comments.php?id={gid}",
+        )
+    )
+    info.urls.append(
+        GameUrl(
+            "play_online",
+            None,
+            "Играть онлайн",
+            f"https://hyperbook.ru/file{gid}",
+        )
+    )
+    info.urls.append(
+        GameUrl(
+            "download_direct",
+            None,
+            "Скачать с hyperbook.ru",
+            f"https://hyperbook.ru/download.php?id={gid}",
+        )
+    )
+
+    return info
+
+
+class HyperbookProvider(GameSourceProvider):
+    source_type = GameSource.SourceType.HYPERBOOK
+
+    def owns(self, url: str) -> bool:
+        return bool(HYPERBOOK_GAME_URL.match(url))
+
+    def fetch(self, url: str) -> str:
+        return FetchUrlToString(url, use_cache=False)
+
+    def canonicalize(self, raw: str, url: str) -> GameInfo:
+        return _hyperbook_game_info(raw, url)
+
+    def discover(self) -> Iterable[DiscoveredSource]:
+        return (DiscoveredSource(url) for url in _hyperbook_candidates())
+
+    def source_key(self, url: str) -> str:
+        gid = _hyperbook_game_id(url)
+        return f"hyperbook:id={gid}" if gid else _base_source_key(url)
+
+
 # Mirrors the legacy ``REGISTERED_IMPORTERS``.
 REGISTERED_PROVIDERS: list[GameSourceProvider] = [
     AperoProvider(),
@@ -607,6 +847,7 @@ REGISTERED_PROVIDERS: list[GameSourceProvider] = [
     PlutProvider(),
     RilarhivProvider(),
     AxmaProvider(),
+    HyperbookProvider(),
 ]
 
 PROVIDER_BY_TYPE: dict[str, GameSourceProvider] = {

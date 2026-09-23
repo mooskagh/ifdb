@@ -9,6 +9,7 @@ from curation.providers import (
     AperoProvider,
     AxmaProvider,
     CanonicalAuthor,
+    HyperbookProvider,
     IfictionProvider,
     IfwikiProvider,
     InsteadGamesProvider,
@@ -556,6 +557,103 @@ class AxmaProviderTest(ProviderTestBase):
             )
 
 
+HYPERBOOK_HTML = (
+    "<a href='preview.php?id=123'><h1 title='запустить'>Игра&nbsp;"
+    "<span class='small' style='color:#999999'>v1</span>&nbsp;"
+    "<span class='accent'>→</span></h1></a>"
+    "<div style='float: left; width: 50%; "
+    "margin-bottom:14px; text-align: left;'>"
+    "Автор: Автор Редактор: Редактор Художник: Иллюстратор"
+    "</div>"
+    "<div style='clear:both;'></div>"
+    "<div style='float: left; width: 80%; color:#999999;' class='small'>"
+    "Параграфов: 25. Размер: <nobr>100 Кб</nobr>. /2.0/</div>"
+    "<div style='float: left; width: 20%; text-align:right;' class='small'>"
+    "01.02.20</div>"
+    "<div style='clear:both; text-align:right;' class='small'>"
+    "<a href='file123'><span class='accent'>запустить</span></a> / "
+    "<a href='download.php?id=123' target='_blank'>скачать</a>"
+    "</div>"
+    "<div class='small'>Описание игры.</div>"
+    "<div class='sortsel'><a href='lib.php?sort=genre1'>Фантастика</a></div>"
+    "<p class='small'><span class='accentsmall'>Награды</span><br>"
+    "<img src='medal31-24.png'>Лучшая игра 2020<br></p>"
+    "<h3 style='margin-top:2em;'>Комментарии: 5.</h3>"
+)
+
+
+class HyperbookProviderTest(ProviderTestBase):
+    url = "https://hyperbook.ru/comments.php?id=123"
+
+    def test_owns(self):
+        provider = HyperbookProvider()
+        self.assertTrue(provider.owns(self.url))
+        self.assertFalse(provider.owns("https://hyperbook.ru/lib.php"))
+        self.assertFalse(provider.owns("https://example.com/"))
+
+    def test_canonicalize(self):
+        info = HyperbookProvider().canonicalize(HYPERBOOK_HTML, self.url)
+        self.assertEqual(info.name, "Игра")
+        self.assertEqual(info.date, "2020-02-01")
+        self.assertIn("Описание игры.", info.description)
+        self.assertIn("Лучшая игра 2020", info.description)
+        self.assertEqual(self._person_names(info, "author"), ["Автор"])
+        self.assertEqual(self._person_names(info, "member"), ["Редактор"])
+        self.assertEqual(self._person_names(info, "artist"), ["Иллюстратор"])
+        self.assertIn("AXMA Story Maker", self._tag_texts(info))
+        self.assertIn("фантастика", self._tag_texts(info))
+        self.assertIn("v1", self._tag_texts(info))
+        self.assertEqual(
+            self._url_cats(info),
+            {"game_page", "play_online", "download_direct"},
+        )
+        self.assertEqual([a.name for a in info.attributions], ["hyperbook.ru"])
+        self.assert_round_trips(info)
+
+    def test_discover(self):
+        with patch(
+            "curation.providers._hyperbook_candidates",
+            return_value=["https://hyperbook.ru/comments.php?id=123"],
+        ):
+            discovered = list(HyperbookProvider().discover())
+            self.assertEqual(len(discovered), 1)
+            self.assertEqual(
+                discovered[0].url, "https://hyperbook.ru/comments.php?id=123"
+            )
+
+    def test_candidates_filter(self):
+        mock_html = (
+            "<h3><a href='file1'>Игра 1</a></h3>"
+            "<div class='small'><img src='medal31-24.png'></div>"
+            "<div>Параграфов: 5.</div><div>комментарии (0)</div>"
+            "<h3><a href='file2'>Игра 2</a></h3>"
+            "<div><span style='color:#999999'>*****</span></div>"
+            "<div>Параграфов: 5.</div><div>комментарии (0)</div>"
+            "<h3><a href='file3'>Игра 3</a></h3>"
+            "<div><span style='color:#999999'></span></div>"
+            "<div>Параграфов: 20.</div><div>комментарии (2)</div>"
+            "<h3><a href='file4'>Игра 4</a></h3>"
+            "<div>Параграфов: 20.</div><div>комментарии (1)</div>"
+            "<h3><a href='file5'>Игра 5</a></h3>"
+            "<div>Параграфов: 15.</div><div>комментарии (5)</div>"
+        )
+        with patch(
+            "curation.providers.FetchUrlToString",
+            side_effect=[mock_html, ""],
+        ):
+            from curation.providers import _hyperbook_candidates
+
+            candidates = list(_hyperbook_candidates())
+            self.assertEqual(
+                candidates,
+                [
+                    "https://hyperbook.ru/comments.php?id=1",
+                    "https://hyperbook.ru/comments.php?id=2",
+                    "https://hyperbook.ru/comments.php?id=3",
+                ],
+            )
+
+
 class OwnsRoutingTest(ProviderTestBase):
     def test_each_provider_claims_only_its_urls(self):
         cases = [
@@ -568,6 +666,7 @@ class OwnsRoutingTest(ProviderTestBase):
             (PlutProvider(), PlutProviderTest.url),
             (RilarhivProvider(), RilarhivProviderTest.qsp_url),
             (AxmaProvider(), AxmaProviderTest.url),
+            (HyperbookProvider(), HyperbookProviderTest.url),
         ]
         for provider, url in cases:
             with self.subTest(provider=type(provider).__name__):
@@ -607,6 +706,12 @@ class OwnsRoutingTest(ProviderTestBase):
                 "http://rilarhiv.ru/qsp.htm",
             ),
             (AxmaProvider(), "FetchUrlToString", AxmaProviderTest.url, None),
+            (
+                HyperbookProvider(),
+                "FetchUrlToString",
+                HyperbookProviderTest.url,
+                None,
+            ),
         ]
 
         for provider, fetch_name, url, expected_url in cases:
