@@ -37,3 +37,23 @@ class TestUrlCategorizer(unittest.TestCase):
 
         self.assertEqual(result["urlcat_slug"], "download_direct")
         self.assertEqual(result["description"], "Скачать с qsp.org")
+
+    def test_axma_game_page(self):
+        result = CategorizeUrl("https://axmajs.ru/library/?id=224")
+
+        self.assertEqual(result["urlcat_slug"], "game_page")
+        self.assertEqual(result["description"], "Страница на axmajs.ru")
+
+    def test_axma_download(self):
+        result = CategorizeUrl(
+            "https://axmajs.ru/include/download_zip.php?id=224"
+        )
+
+        self.assertEqual(result["urlcat_slug"], "download_direct")
+        self.assertEqual(result["description"], "Скачать с axmajs.ru")
+
+    def test_axma_play_online(self):
+        result = CategorizeUrl("https://lib.axmajs.ru/BV2APb6M/")
+
+        self.assertEqual(result["urlcat_slug"], "play_online")
+        self.assertEqual(result["description"], "Играть онлайн")
