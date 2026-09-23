@@ -134,6 +134,21 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
         "Обсуждение на hyperbook.ru",
     ),
     (
+        "axmajs.ru",
+        r"^/include/download_zip\.php$",
+        r".*id=\d+.*",
+        "download_direct",
+        "Скачать с axmajs.ru",
+    ),
+    (
+        "axmajs.ru",
+        r"^/library/?$",
+        r".*id=\d+.*",
+        "game_page",
+        "Страница на axmajs.ru",
+    ),
+    ("lib.axmajs.ru", "", "", "play_online", "Играть онлайн"),
+    (
         "",
         r"(?i).*\.(zip|rar|z5)",
         "",
