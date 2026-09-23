@@ -1,5 +1,4 @@
 from .apero import AperoImporter
-from .axma import AxmaImporter
 from .ifiction import IfictionImporter
 from .ifwiki import IfwikiImporter
 from .insteadgames import InsteadGamesImporter
@@ -15,5 +14,4 @@ REGISTERED_IMPORTERS.append(RilarhivImporter)
 REGISTERED_IMPORTERS.append(InsteadGamesImporter)
 REGISTERED_IMPORTERS.append(QuestBookImporter)
 REGISTERED_IMPORTERS.append(IfictionImporter)
-REGISTERED_IMPORTERS.append(AxmaImporter)
 Importer

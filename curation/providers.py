@@ -16,11 +16,14 @@ resolve redirects** (ifiction's ``ResolveRedirect``, ifwiki's
 ``#REDIRECT``-chase).  No nicer design exists; this is intended behavior.
 """
 
+import datetime
 import json
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from html import unescape
+from urllib.parse import urljoin
 
 from html2text import HTML2Text
 
@@ -446,6 +449,153 @@ class RilarhivProvider(GameSourceProvider):
         return RilarhivListingUrlForTarget(url)
 
 
+AXMA_GAME_URL = re.compile(r"https?://axmajs\.ru/library/\?id=\d+")
+AXMA_LIBRARY_URL = "https://axmajs.ru/library/"
+AXMA_H5_RE = re.compile(r"<h5>(.*?)</h5>", re.DOTALL)
+AXMA_VERSION_RE = re.compile(r"<span class=['\"]version['\"]>([^<]+)</span>")
+AXMA_AUTHOR_RE = re.compile(r"<span class=['\"]author['\"]>([^<]+)</span>")
+AXMA_DATE_RE = re.compile(
+    r"<div class=['\"]small['\"] style=['\"]float:right;['\"]>"
+    r"(\d{2}\.\d{2}\.\d{2})</div>"
+)
+AXMA_SUBTITLE_RE = re.compile(
+    r"<div class=['\"]subtitle['\"]>(.*?)</div>", re.DOTALL
+)
+AXMA_COVER_RE = re.compile(
+    r"<img class=['\"]coverlib['\"][^>]*src=['\"]([^'\"]+)['\"]"
+)
+AXMA_PLAY_RE = re.compile(r"https?://lib\.axmajs\.ru/[^'\"/\s]+/?")
+AXMA_DOWNLOAD_RE = re.compile(
+    r"(?:nohr|href)=['\"]([^'\"]*download_zip\.php\?id=\d+)"
+)
+AXMA_TAG_RE = re.compile(r"<a href=['\"]\?tag=\d+['\"][^>]*>([^<]+)</a>")
+
+
+def _axma_candidates() -> Iterable[str]:
+    seen: set[str] = set()
+    offset = 0
+    while True:
+        catalog_url = f"{AXMA_LIBRARY_URL}?from={offset}&sort=last"
+        html = FetchUrlToString(catalog_url, use_cache=False)
+        content = html.split("<h3>Последние комментарии")[0]
+        ids = re.findall(r"download_zip\.php\?id=(\d+)", content)
+        if not ids:
+            break
+        for gid in ids:
+            game_url = f"{AXMA_LIBRARY_URL}?id={gid}"
+            if game_url not in seen:
+                seen.add(game_url)
+                yield game_url
+        offset += len(ids)
+
+
+def _axma_date(date_str: str | None) -> str | None:
+    if not date_str:
+        return None
+    try:
+        return datetime.datetime.strptime(date_str, "%d.%m.%y").strftime(
+            "%Y-%m-%d"
+        )
+    except ValueError:
+        return None
+
+
+def _axma_game_info(html: str, url: str) -> GameInfo:
+    content = html.split("<h3>Последние комментарии")[0]
+
+    h5_match = AXMA_H5_RE.search(content)
+    if not h5_match:
+        raise ValueError(f"Game not found on AXMA page: {url}")
+
+    h5_content = h5_match.group(1)
+    name = unescape(h5_content.split("<span")[0].strip())
+
+    date = None
+    date_match = AXMA_DATE_RE.search(content)
+    if date_match:
+        date = _axma_date(date_match.group(1))
+
+    description = None
+    desc_match = AXMA_SUBTITLE_RE.search(content)
+    if desc_match:
+        tt = HTML2Text()
+        tt.body_width = 0
+        desc_text = tt.handle(desc_match.group(1)).strip()
+        if desc_text:
+            description = desc_text
+
+    info = GameInfo(
+        name=name,
+        date=date,
+        description=description,
+        attributions=[Attribution(None, "axmajs.ru")],
+    )
+
+    author_match = AXMA_AUTHOR_RE.search(h5_content)
+    if author_match:
+        raw_author = unescape(author_match.group(1).strip())
+        author = re.sub(
+            r"^Автор:\s*", "", raw_author, flags=re.IGNORECASE
+        ).strip()
+        if author:
+            info.personalities["author"] = [Person(None, author)]
+
+    info.tags.append(Tag("platform", None, None, "AXMA Story Maker JS"))
+    info.tags.append(Tag("language", None, None, "русский"))
+
+    version_match = AXMA_VERSION_RE.search(h5_content)
+    if version_match:
+        version_text = unescape(version_match.group(1).strip())
+        if version_text:
+            info.tags.append(Tag("version", None, None, version_text))
+
+    for tag in AXMA_TAG_RE.findall(content):
+        tag_name = unescape(tag.strip()).lower()
+        if tag_name:
+            info.tags.append(Tag("tag", None, None, tag_name))
+
+    info.urls.append(GameUrl("game_page", None, "Страница на axmajs.ru", url))
+
+    cover_match = AXMA_COVER_RE.search(content)
+    if cover_match:
+        cover_url = urljoin(url, cover_match.group(1))
+        info.urls.append(GameUrl("poster", None, "Обложка", cover_url))
+
+    play_match = AXMA_PLAY_RE.search(content)
+    if play_match:
+        play_url = play_match.group(0)
+        if not play_url.endswith("/"):
+            play_url += "/"
+        info.urls.append(
+            GameUrl("play_online", None, "Играть онлайн", play_url)
+        )
+
+    dl_match = AXMA_DOWNLOAD_RE.search(content)
+    if dl_match:
+        dl_url = urljoin(url, dl_match.group(1))
+        info.urls.append(
+            GameUrl("download_direct", None, "Скачать с axmajs.ru", dl_url)
+        )
+
+    return info
+
+
+class AxmaProvider(GameSourceProvider):
+    source_type = GameSource.SourceType.AXMA
+
+    def owns(self, url: str) -> bool:
+        return bool(AXMA_GAME_URL.match(url))
+
+    def fetch(self, url: str) -> str:
+        return FetchUrlToString(url, use_cache=False)
+
+    def canonicalize(self, raw: str, url: str) -> GameInfo:
+        return _axma_game_info(raw, url)
+
+    def discover(self) -> Iterable[DiscoveredSource]:
+        return (DiscoveredSource(url) for url in _axma_candidates())
+
+
 # Mirrors the legacy ``REGISTERED_IMPORTERS``.
 REGISTERED_PROVIDERS: list[GameSourceProvider] = [
     AperoProvider(),
@@ -456,6 +606,7 @@ REGISTERED_PROVIDERS: list[GameSourceProvider] = [
     QspSuProvider(),
     PlutProvider(),
     RilarhivProvider(),
+    AxmaProvider(),
 ]
 
 PROVIDER_BY_TYPE: dict[str, GameSourceProvider] = {

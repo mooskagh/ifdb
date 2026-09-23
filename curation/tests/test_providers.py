@@ -7,6 +7,7 @@ from django.test import TestCase
 
 from curation.providers import (
     AperoProvider,
+    AxmaProvider,
     CanonicalAuthor,
     IfictionProvider,
     IfwikiProvider,
@@ -499,6 +500,62 @@ class RilarhivProviderTest(ProviderTestBase):
         )
 
 
+AXMA_HTML = (
+    "<article>"
+    "<h5>Игра<span class='version'>v1</span>"
+    "<span class='author'>Автор: Автор</span></h5>"
+    "<div class='pubinfo small' style='float:left;'>Параграфов:&nbsp;10.</div>"
+    "<div class='small' style='float:right;'>01.02.20</div>"
+    "<div style='clear:both;'><img class='coverlib' src='/lib/ABC/cover.jpg'>"
+    "</div>"
+    "<div class='pubbuttons small'>"
+    "<a href='https://lib.axmajs.ru/ABC/'>Запустить</a>"
+    "<a nohr='/include/download_zip.php?id=100'>Скачать</a>"
+    "</div>"
+    "<div style='clear:both;'></div>ru"
+    "<div style='margin-top:1em;' class='small'>"
+    "<a href='?tag=1'>Фантастика</a></div>"
+    "<div class='subtitle'>Описание игры.</div>"
+    "</article>"
+)
+
+
+class AxmaProviderTest(ProviderTestBase):
+    url = "https://axmajs.ru/library/?id=100"
+
+    def test_owns(self):
+        provider = AxmaProvider()
+        self.assertTrue(provider.owns(self.url))
+        self.assertFalse(provider.owns("https://axmajs.ru/library/"))
+        self.assertFalse(provider.owns("https://example.com/"))
+
+    def test_canonicalize(self):
+        info = AxmaProvider().canonicalize(AXMA_HTML, self.url)
+        self.assertEqual(info.name, "Игра")
+        self.assertEqual(info.date, "2020-02-01")
+        self.assertIn("Описание игры.", info.description)
+        self.assertEqual(self._person_names(info, "author"), ["Автор"])
+        self.assertIn("AXMA Story Maker JS", self._tag_texts(info))
+        self.assertIn("фантастика", self._tag_texts(info))
+        self.assertIn("v1", self._tag_texts(info))
+        self.assertEqual(
+            self._url_cats(info),
+            {"game_page", "poster", "play_online", "download_direct"},
+        )
+        self.assert_round_trips(info)
+
+    def test_discover(self):
+        with patch(
+            "curation.providers._axma_candidates",
+            return_value=["https://axmajs.ru/library/?id=100"],
+        ):
+            discovered = list(AxmaProvider().discover())
+            self.assertEqual(len(discovered), 1)
+            self.assertEqual(
+                discovered[0].url, "https://axmajs.ru/library/?id=100"
+            )
+
+
 class OwnsRoutingTest(ProviderTestBase):
     def test_each_provider_claims_only_its_urls(self):
         cases = [
@@ -510,6 +567,7 @@ class OwnsRoutingTest(ProviderTestBase):
             (QspSuProvider(), QspSuProviderTest.url),
             (PlutProvider(), PlutProviderTest.url),
             (RilarhivProvider(), RilarhivProviderTest.qsp_url),
+            (AxmaProvider(), AxmaProviderTest.url),
         ]
         for provider, url in cases:
             with self.subTest(provider=type(provider).__name__):
@@ -548,6 +606,7 @@ class OwnsRoutingTest(ProviderTestBase):
                 RilarhivProviderTest.qsp_url,
                 "http://rilarhiv.ru/qsp.htm",
             ),
+            (AxmaProvider(), "FetchUrlToString", AxmaProviderTest.url, None),
         ]
 
         for provider, fetch_name, url, expected_url in cases:
