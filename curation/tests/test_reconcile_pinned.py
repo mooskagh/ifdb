@@ -1,10 +1,18 @@
 from django.test import TestCase
+from django.urls import reverse
 from django.utils.timezone import now
 
 from core.models import User
 from curation.manual_reconcile import column_for_game, save_reconcile_payload
 from curation.models import GameCuration
-from games.models import URL, Game, GameURL, GameURLCategory
+from games.models import (
+    URL,
+    Game,
+    GameTag,
+    GameTagCategory,
+    GameURL,
+    GameURLCategory,
+)
 from play.models import Playable
 from play.services import format_pinned_url_error
 
@@ -106,3 +114,61 @@ class ReconcilePinnedURLTest(TestCase):
         col1["delete"] = True
         with self.assertRaises(ValueError):
             save_reconcile_payload({"columns": [col1]}, self.user)
+
+    def test_reconcile_ignores_blank_tags(self) -> None:
+        cat = GameTagCategory.objects.create(
+            symbolic_id="genre_cat", name="Жанр", allow_new_tags=False
+        )
+        col = column_for_game(self.game1)
+        col["tags"] = [[cat.id, ""], [cat.id, "   "]]
+        save_reconcile_payload({"columns": [col]}, self.user)
+        self.game1.refresh_from_db()
+        self.assertEqual(self.game1.tags.count(), 0)
+
+    def test_reconcile_restricted_tag_not_found_raises_value_error(
+        self,
+    ) -> None:
+        cat = GameTagCategory.objects.create(
+            symbolic_id="genre_cat2", name="Жанр", allow_new_tags=False
+        )
+        col = column_for_game(self.game1)
+        col["tags"] = [[cat.id, "Несуществующий жанр"]]
+        with self.assertRaises(ValueError) as ctx:
+            save_reconcile_payload({"columns": [col]}, self.user)
+        self.assertIn("Несуществующий жанр", str(ctx.exception))
+        self.assertIn("не найден в категории", str(ctx.exception))
+
+    def test_reconcile_restricted_tag_exact_match(self) -> None:
+        cat = GameTagCategory.objects.create(
+            symbolic_id="genre_cat3", name="Жанр", allow_new_tags=False
+        )
+        tag = GameTag.objects.create(
+            category=cat, name="Детектив", symbolic_id="g_detective"
+        )
+        col = column_for_game(self.game1)
+        col["tags"] = [[cat.id, "Детектив"]]
+        save_reconcile_payload({"columns": [col]}, self.user)
+        self.game1.refresh_from_db()
+        self.assertIn(tag, self.game1.tags.all())
+
+        # Non-matching case raises ValueError
+        col["tags"] = [[cat.id, "детектив"]]
+        with self.assertRaises(ValueError):
+            save_reconcile_payload({"columns": [col]}, self.user)
+
+    def test_reconcile_view_returns_400_json_on_value_error(self) -> None:
+        cat = GameTagCategory.objects.create(
+            symbolic_id="genre_cat4", name="Жанр", allow_new_tags=False
+        )
+        col = column_for_game(self.game1)
+        col["tags"] = [[cat.id, "Несуществующий жанр"]]
+        self.client.force_login(self.user)
+        url = reverse("curation_history_reconcile", args=[self.game1.id])
+        resp = self.client.post(
+            url,
+            data={"columns": [col]},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.json())
+        self.assertIn("Несуществующий жанр", resp.json()["error"])

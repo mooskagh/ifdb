@@ -1600,11 +1600,15 @@ class EditDiffViewTest(TestCase):
         response = self.client.get(f"/curation/edits/{edit.pk}/")
 
         self.assertContains(response, "Принять")
-        self.assertContains(response, "Отклонить")
+        self.assertContains(response, "Отклонить (закрепить текущее)")
+        self.assertContains(response, "Отклонить (спрашивать снова)")
         self.assertContains(response, "Пропустить")
         self.assertNotContains(response, "к следующей правке на проверку")
-        self.assertContains(response, "В дальнейшем автоматически принимать")
-        self.assertContains(response, 'name="auto_accept" checked')
+        self.assertContains(
+            response, "В дальнейшем отсылать все правки на проверку"
+        )
+        self.assertContains(response, 'name="require_review"')
+        self.assertNotContains(response, 'name="require_review" checked')
         self.assertContains(response, 'name="next"')
         self.assertContains(
             response, '<option value="list" selected>к списку игр</option>'
@@ -1710,7 +1714,7 @@ class EditDiffViewTest(TestCase):
         self.assertNotContains(response, "Принять")
         self.assertNotContains(response, "Отклонить")
         self.assertNotContains(
-            response, "В дальнейшем автоматически принимать"
+            response, "В дальнейшем отсылать все правки на проверку"
         )
 
     def test_reject_settles_and_redirects_without_changing_game(self):
@@ -1829,6 +1833,107 @@ class EditDiffViewTest(TestCase):
             curation.exclude_overrides.get("urls"),
             [["play_online", "Play 2", url2.id]],
         )
+
+    def test_reject_canonical_updates_overrides_including_title_and_date(self):
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Canon Title",
+            creation_time=self.now,
+            added_by=self.user,
+        )
+        before_info = GameInfo(name="Canon Title", date="2000")
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=self.now,
+            published_at=self.now,
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text=before_info.to_canonical(),
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
+        curation = GameCuration.objects.create(
+            game=game,
+            state=GameCuration.State.NEEDS_ATTENTION,
+            auto_updates=GameCuration.AutoUpdate.PROPOSE,
+        )
+
+        after_info = GameInfo(name="Source Title", date="2005")
+        edit = GameRevision.objects.create(
+            game=game,
+            created_at=self.now,
+            created_by=self.user,
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
+            canonical_text=after_info.to_canonical(),
+        )
+
+        response = self.client.post(
+            f"/curation/edits/{edit.pk}/", {"action": "reject_canonical"}
+        )
+        self.assertRedirects(response, "/curation/")
+
+        edit.refresh_from_db()
+        curation.refresh_from_db()
+        game.refresh_from_db()
+
+        self.assertEqual(edit.status, GameRevision.Status.REJECTED)
+        self.assertEqual(curation.state, GameCuration.State.SETTLED)
+        self.assertEqual(game.title, "Canon Title")
+        self.assertEqual(
+            curation.include_overrides.get("title"), "Canon Title"
+        )
+        self.assertEqual(curation.include_overrides.get("date"), "2000")
+        self.assertNotIn("title", curation.exclude_overrides)
+        self.assertNotIn("date", curation.exclude_overrides)
+
+    def test_reject_repropose_does_not_update_overrides(self):
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Canon Title",
+            creation_time=self.now,
+            added_by=self.user,
+        )
+        before_info = GameInfo(name="Canon Title", date="2000")
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=self.now,
+            published_at=self.now,
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text=before_info.to_canonical(),
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
+        curation = GameCuration.objects.create(
+            game=game,
+            state=GameCuration.State.NEEDS_ATTENTION,
+            auto_updates=GameCuration.AutoUpdate.PROPOSE,
+        )
+
+        after_info = GameInfo(name="Source Title", date="2005")
+        edit = GameRevision.objects.create(
+            game=game,
+            created_at=self.now,
+            created_by=self.user,
+            status=GameRevision.Status.PROPOSED,
+            origin=GameRevision.Origin.AUTO_IMPORT,
+            canonical_text=after_info.to_canonical(),
+        )
+
+        response = self.client.post(
+            f"/curation/edits/{edit.pk}/", {"action": "reject_repropose"}
+        )
+        self.assertRedirects(response, "/curation/")
+
+        edit.refresh_from_db()
+        curation.refresh_from_db()
+
+        self.assertEqual(edit.status, GameRevision.Status.REJECTED)
+        self.assertEqual(curation.state, GameCuration.State.SETTLED)
+        # Overrides must be untouched (empty)
+        self.assertEqual(curation.include_overrides, {})
+        self.assertEqual(curation.exclude_overrides, {})
 
     def test_accept_applies_and_settles(self):
         edit = self._edit()
@@ -2044,6 +2149,30 @@ class EditDiffViewTest(TestCase):
             ).exists()
         )
 
+    def test_accept_updates_auto_accept_via_require_review(self):
+        edit = self._edit(auto_updates=GameCuration.AutoUpdate.PROPOSE)
+
+        # 1. Unchecked (default) -> sets to ACCEPT
+        self.client.post(
+            f"/curation/edits/{edit.pk}/",
+            {"action": "accept"},
+        )
+        history = edit.game.curation
+        history.refresh_from_db()
+        self.assertEqual(history.auto_updates, GameCuration.AutoUpdate.ACCEPT)
+
+        # 2. Checked -> sets to PROPOSE
+        edit2 = self._edit(auto_updates=GameCuration.AutoUpdate.ACCEPT)
+        self.client.post(
+            f"/curation/edits/{edit2.pk}/",
+            {"action": "accept", "require_review": "on"},
+        )
+        history2 = edit2.game.curation
+        history2.refresh_from_db()
+        self.assertEqual(
+            history2.auto_updates, GameCuration.AutoUpdate.PROPOSE
+        )
+
     def test_accept_clears_note_with_audit(self):
         edit = self._edit()
         history = edit.game.curation
@@ -2071,7 +2200,7 @@ class EditDiffViewTest(TestCase):
 
         self.assertContains(response, "Принять")
         self.assertNotContains(
-            response, "В дальнейшем автоматически принимать"
+            response, "В дальнейшем отсылать все правки на проверку"
         )
 
     def test_history_page_resolve_button_only_for_proposed_edits(self):

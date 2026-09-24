@@ -253,13 +253,24 @@ class GameInfo:
             found = GameTag.objects.filter(symbolic_id=tag.slug).first()
             tag.tag_id = found.id if found else None
             return tag.tag_id
-        cat = GameTagCategory.objects.get(symbolic_id=tag.category)
+        if not tag.text or not tag.text.strip():
+            return None
+        cat = GameTagCategory.objects.filter(symbolic_id=tag.category).first()
+        if cat is None:
+            raise ValueError(f"Категория тегов «{tag.category}» не найдена.")
         if cat.allow_new_tags:
             found, _ = GameTag.objects.get_or_create(
-                name=tag.text, category=cat
+                name=tag.text.strip(), category=cat
             )
         else:
-            found = GameTag.objects.get(name=tag.text, category=cat)
+            found = GameTag.objects.filter(
+                category=cat, name=tag.text.strip()
+            ).first()
+            if found is None:
+                raise ValueError(
+                    f"Тег «{tag.text.strip()}» не найден "
+                    f"в категории «{cat.name}»."
+                )
         tag.tag_id, tag.text = found.id, None
         return tag.tag_id
 
@@ -526,7 +537,7 @@ def normalize_tags(tags: Iterable[Tag]) -> list[Tag]:
                 result.extend(
                     Tag(t.category, None, None, norm) for norm in norms
                 )
-        else:
+        elif t.tag_id is not None or t.slug:
             result.append(t)
     return result
 

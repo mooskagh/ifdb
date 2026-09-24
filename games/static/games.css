@@ -3824,6 +3824,16 @@ progress.curation-scan-progress-bar {
 .curation-save__checkbox {
     margin-right: auto;
 }
+.curation-save button.button-gray {
+    background-color: #e6e6e6;
+    color: #444;
+    box-shadow: none;
+    border: 1px solid #ccc;
+}
+.curation-save button.button-gray:hover {
+    background-color: #d8d8d8;
+    color: #222;
+}
 .curation-edit-action-dialog {
     border: 0;
     box-shadow: var(--card-box-shadow);

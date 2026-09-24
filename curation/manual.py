@@ -33,7 +33,11 @@ def editor_payload_to_gameinfo(data: dict) -> GameInfo:
         description=data.get("desc") or None,
     )
     info.personalities = _personalities_from_payload(data.get("authors") or [])
-    info.tags = [_tag_from_payload(row) for row in data.get("tags") or []]
+    info.tags = [
+        tag
+        for row in data.get("tags") or []
+        if (tag := _tag_from_payload(row)) is not None
+    ]
     info.urls = [_url_from_payload(row) for row in data.get("links") or []]
     info.attributions = [
         _attribution_from_payload(item)
@@ -221,15 +225,32 @@ def _role_slug(value) -> str:
     return str(value)
 
 
-def _tag_from_payload(row: list) -> Tag:
-    cat_value, tag_value = row
-    category = (
-        GameTagCategory.objects.get(pk=cat_value).symbolic_id
-        if isinstance(cat_value, int)
-        else str(cat_value)
-    )
+def _tag_from_payload(row: list) -> Tag | None:
+    if len(row) < 2:
+        return None
+    cat_value, tag_value = row[0], row[1]
+    if tag_value is None or (
+        isinstance(tag_value, str) and not tag_value.strip()
+    ):
+        return None
+    if isinstance(cat_value, int):
+        cat = GameTagCategory.objects.filter(pk=cat_value).first()
+        if cat is None:
+            raise ValueError(f"Категория свойства {cat_value} не найдена.")
+        category = cat.symbolic_id
+    else:
+        category = str(cat_value).strip()
+    if not category:
+        return None
     if isinstance(tag_value, int):
-        tag = GameTag.objects.select_related("category").get(pk=tag_value)
+        tag = (
+            GameTag.objects
+            .select_related("category")
+            .filter(pk=tag_value)
+            .first()
+        )
+        if tag is None:
+            raise ValueError(f"Свойство с id {tag_value} не найдено.")
         return Tag(tag.category.symbolic_id, tag.symbolic_id, tag.id, None)
     return Tag(category, None, None, str(tag_value).strip())
 
