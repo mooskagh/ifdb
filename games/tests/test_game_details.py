@@ -353,3 +353,19 @@ Game Description
         playable.save(update_fields=["visible", "state"])
         response = self.client.get(reverse("show_game", args=[game.id]))
         self.assertNotContains(response, expected_btn)
+
+    def test_indented_description_renders_in_game_content_text(self) -> None:
+        canonical = """---
+title: Indented game
+---
+    First indented paragraph line.
+"""
+        info = parse(canonical)
+        content = GameDetailsBuilder(info).GetContentDict()
+        html = render_to_string(
+            "games/game.html", vars(content), request=self._request()
+        )
+        self.assertIn('<div class="card--body game--content-text">', html)
+        self.assertIn(
+            "<pre><code>First indented paragraph line.\n</code></pre>", html
+        )
