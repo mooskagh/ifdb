@@ -462,3 +462,56 @@ class OverridesTest(TestCase):
         self.assertIn(
             "author", curation.include_overrides.get("personalities", {})
         )
+
+    def test_apply_and_prune_overrides_title_and_date(self) -> None:
+        _, curation = self._create_game_and_curation("Original")
+        curation.include_overrides = {
+            "title": "Pinned Title",
+            "date": "1999",
+        }
+        curation.exclude_overrides = {}
+
+        # 1. Sources differ -> overrides are applied and kept
+        sources_info = GameInfo(name="Source Title", date="2005")
+        updated, changed = apply_and_prune_overrides(curation, sources_info)
+        self.assertEqual(updated.name, "Pinned Title")
+        self.assertEqual(updated.date, "1999")
+        self.assertEqual(
+            curation.include_overrides.get("title"), "Pinned Title"
+        )
+        self.assertEqual(curation.include_overrides.get("date"), "1999")
+
+        # 2. Sources match -> title and date are pruned from include_overrides
+        matching_sources = GameInfo(name="Pinned Title", date="1999")
+        updated2, changed2 = apply_and_prune_overrides(
+            curation, matching_sources
+        )
+        self.assertTrue(changed2)
+        self.assertEqual(updated2.name, "Pinned Title")
+        self.assertEqual(updated2.date, "1999")
+        self.assertNotIn("title", curation.include_overrides)
+        self.assertNotIn("date", curation.include_overrides)
+
+    def test_update_overrides_from_diff_title_and_date(self) -> None:
+        _, curation = self._create_game_and_curation("Diff Game")
+        curation.include_overrides = {}
+        curation.exclude_overrides = {}
+
+        before = GameInfo(name="Old Title", date="1990")
+        after = GameInfo(name="New Title", date="1991")
+
+        changed = update_overrides_from_diff(curation, before, after)
+        self.assertTrue(changed)
+        self.assertEqual(curation.include_overrides.get("title"), "New Title")
+        self.assertEqual(curation.include_overrides.get("date"), "1991")
+        # Ensure title and date NEVER enter exclude_overrides
+        self.assertNotIn("title", curation.exclude_overrides)
+        self.assertNotIn("name", curation.exclude_overrides)
+        self.assertNotIn("date", curation.exclude_overrides)
+        self.assertNotIn("release_date", curation.exclude_overrides)
+
+    def test_format_overrides_yaml_title_and_date(self) -> None:
+        overrides = {"title": "Cool Game", "date": "1995"}
+        yaml_text = format_overrides_yaml(overrides)
+        self.assertIn('title: "Cool Game"', yaml_text)
+        self.assertIn('date: "1995"', yaml_text)

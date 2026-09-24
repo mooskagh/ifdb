@@ -92,10 +92,10 @@
     <form class="curation-save" method="post" id="curation-save-form">
         {% csrf_token %}
         <input type="hidden" name="has_diff_checkboxes" value="1">
-        {% if show_auto_accept %}
+        {% if show_require_review or show_auto_accept %}
         <label class="curation-save__checkbox">
-            <input type="checkbox" name="auto_accept"{% if auto_accept_checked %} checked{% endif %}>
-            В дальнейшем автоматически принимать
+            <input type="checkbox" name="require_review"{% if require_review_checked %} checked{% endif %}>
+            В дальнейшем отсылать все правки на проверку
         </label>
         {% endif %}
         <label>
@@ -114,7 +114,8 @@
             </select>
         </label>
         <button type="submit" name="action" value="accept">Принять</button>
-        <button type="submit" name="action" value="reject">Отклонить</button>
+        <button type="submit" name="action" value="reject_canonical" title="Отклонить правку и сделать текущее каноническим (записать в переопределения)">Отклонить (закрепить текущее)</button>
+        <button type="submit" name="action" value="reject_repropose" class="button-gray" title="Отклонить правку без сохранения в переопределения (в дальнейшем снова присылать на проверку)">Отклонить (спрашивать снова)</button>
         <button type="submit" name="action" value="skip">Пропустить</button>
     </form>
     {% endif %}
