@@ -1769,6 +1769,38 @@ a.contest-result-item:hover {
     background-color: #fbfbfb;
 }
 
+.game--content-text pre,
+.game-description pre {
+    background-color: var(--card-panel-bg, #f8f8f8);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 1em 0;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.game--content-text code,
+.game-description code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.9em;
+}
+
+.game--content-text :not(pre) > code,
+.game-description :not(pre) > code {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 2px 5px;
+    border-radius: 3px;
+    word-break: break-word;
+}
+
+
 .game-header {
     margin-top: 1em;
     margin-bottom: 3em;
