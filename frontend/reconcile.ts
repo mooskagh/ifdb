@@ -581,8 +581,9 @@ function tagText(pair: Pair): string {
 
 function tagValue(categoryId: number, text: string): Ref {
   const cat = tagCatById.get(categoryId);
-  const match = cat?.tags.find(tag => tag.name === text);
-  return match?.id ?? text.trim();
+  const trimmed = text.trim();
+  const match = cat?.tags.find(tag => tag.name === trimmed);
+  return match?.id ?? trimmed;
 }
 
 function authorText(pair: Pair): string {
@@ -649,25 +650,67 @@ async function saveReconcile(): Promise<void> {
     window.alert(error);
     return;
   }
-  const response = await fetch(window.location.href, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrfInput.value || getCookie('csrftoken'),
-    },
-    body: JSON.stringify({
-      columns,
-      orphan_source_ids: Array.from(orphanSourceIds),
-      keep_orphan_source_ids: Array.from(keepOrphanSourceIds),
-      pipeline_by_client_id: pipelinePayload(),
-    }),
-  });
-  const result = await response.json();
-  if (!response.ok) {
-    window.alert(result.error || 'Не удалось сохранить сверку.');
+  const cleanedColumns = columns.map(col => ({
+    ...col,
+    tags: col.tags.filter(
+      pair =>
+        pair[1] !== '' &&
+        pair[1] !== null &&
+        pair[1] !== undefined &&
+        (typeof pair[1] !== 'string' || pair[1].trim() !== ''),
+    ),
+    authors: col.authors.filter(
+      pair =>
+        pair[1] !== '' &&
+        pair[1] !== null &&
+        pair[1] !== undefined &&
+        (typeof pair[1] !== 'string' || pair[1].trim() !== ''),
+    ),
+    description_attributions: col.description_attributions.filter(
+      a => a.trim() !== '',
+    ),
+  }));
+
+  let response: Response;
+  try {
+    response = await fetch(window.location.href, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfInput.value || getCookie('csrftoken'),
+      },
+      body: JSON.stringify({
+        columns: cleanedColumns,
+        orphan_source_ids: Array.from(orphanSourceIds),
+        keep_orphan_source_ids: Array.from(keepOrphanSourceIds),
+        pipeline_by_client_id: pipelinePayload(),
+      }),
+    });
+  } catch {
+    window.alert('Сетевая ошибка при сохранении сверки.');
     return;
   }
-  window.location.href = result.redirect;
+
+  let result: {error?: string; redirect?: string} | null = null;
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      result = (await response.json()) as {error?: string; redirect?: string};
+    } catch {
+      result = null;
+    }
+  }
+
+  if (!response.ok) {
+    window.alert(
+      result?.error ||
+        `Не удалось сохранить сверку (ошибка сервера ${response.status}).`,
+    );
+    return;
+  }
+  if (result?.redirect) {
+    window.location.href = result.redirect;
+  }
 }
 
 function pipelinePayload(): Record<string, number> {
@@ -693,6 +736,17 @@ function validationError(): string | null {
     const createsOrHasGame = col.game_id || !col.history_id;
     if (createsOrHasGame && !col.title.trim()) {
       return 'У каждой новой или существующей игры должно быть название.';
+    }
+    for (const pair of col.tags) {
+      if (typeof pair[1] === 'string' && pair[1].trim()) {
+        const cat = tagCatById.get(Number(pair[0]));
+        if (cat && !cat.allow_new_tags) {
+          const match = cat.tags.find(t => t.name === pair[1].trim());
+          if (!match) {
+            return `В категории «${cat.name}» нельзя создавать новые теги. Значение «${pair[1]}» не найдено в списке.`;
+          }
+        }
+      }
     }
   }
   return null;

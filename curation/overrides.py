@@ -155,6 +155,10 @@ def build_initial_overrides(
 ) -> dict[str, Any]:
     overrides: dict[str, Any] = {}
     if not is_rich_source:
+        if info.name and info.name.strip():
+            overrides["title"] = info.name.strip()
+        if info.date and info.date.strip():
+            overrides["date"] = info.date.strip()
         personalities = serialize_personalities(info.personalities)
         if personalities:
             overrides["personalities"] = personalities
@@ -182,6 +186,48 @@ def apply_and_prune_overrides(
     overrides_changed = False
     include_overrides = dict(curation.include_overrides or {})
     exclude_overrides = dict(curation.exclude_overrides or {})
+
+    # Exclude overrides should never contain title or date
+    for key in ("title", "name", "date", "release_date"):
+        if key in exclude_overrides:
+            exclude_overrides.pop(key, None)
+            overrides_changed = True
+
+    # Title
+    include_title = include_overrides.get("title") or include_overrides.get(
+        "name"
+    )
+    if include_title is not None:
+        include_title_str = str(include_title).strip()
+        if include_title_str:
+            if sources_info.name == include_title_str:
+                include_overrides.pop("title", None)
+                include_overrides.pop("name", None)
+                overrides_changed = True
+            else:
+                sources_info.name = include_title_str
+        else:
+            include_overrides.pop("title", None)
+            include_overrides.pop("name", None)
+            overrides_changed = True
+
+    # Release date
+    include_date = include_overrides.get("date") or include_overrides.get(
+        "release_date"
+    )
+    if include_date is not None:
+        include_date_str = str(include_date).strip()
+        if include_date_str:
+            if sources_info.date == include_date_str:
+                include_overrides.pop("date", None)
+                include_overrides.pop("release_date", None)
+                overrides_changed = True
+            else:
+                sources_info.date = include_date_str
+        else:
+            include_overrides.pop("date", None)
+            include_overrides.pop("release_date", None)
+            overrides_changed = True
 
     # --- 1. Tags ---
     source_tag_map = {tag_key(t): t for t in sources_info.tags}
@@ -356,6 +402,27 @@ def update_overrides_from_diff(
 ) -> bool:
     include_overrides = dict(curation.include_overrides or {})
     exclude_overrides = dict(curation.exclude_overrides or {})
+
+    # Title
+    if before.name != after.name:
+        include_overrides.pop("name", None)
+        if after.name and after.name.strip():
+            include_overrides["title"] = after.name.strip()
+        else:
+            include_overrides.pop("title", None)
+
+    # Release date
+    if before.date != after.date:
+        include_overrides.pop("release_date", None)
+        if after.date and after.date.strip():
+            include_overrides["date"] = after.date.strip()
+        else:
+            include_overrides.pop("date", None)
+
+    exclude_overrides.pop("title", None)
+    exclude_overrides.pop("name", None)
+    exclude_overrides.pop("date", None)
+    exclude_overrides.pop("release_date", None)
 
     # 1. Tags
     before_tag_map = {tag_key(t): t for t in before.tags}
@@ -536,6 +603,8 @@ class OverridesDisplay:
     tags: list[OverrideTagDisplay]
     personalities: list[OverridePersonDisplay]
     urls: list[OverrideUrlDisplay]
+    title: str | None = None
+    date: str | None = None
 
 
 def format_overrides_for_display(overrides_data: Any) -> OverridesDisplay:
@@ -543,6 +612,12 @@ def format_overrides_for_display(overrides_data: Any) -> OverridesDisplay:
         return OverridesDisplay(
             has_content=False, tags=[], personalities=[], urls=[]
         )
+
+    title = overrides_data.get("title") or overrides_data.get("name")
+    title_str = str(title) if title else None
+
+    date = overrides_data.get("date") or overrides_data.get("release_date")
+    date_str = str(date) if date else None
 
     raw_tags = overrides_data.get("tags") or []
     parsed_tags = parse_tags(raw_tags)
@@ -606,12 +681,20 @@ def format_overrides_for_display(overrides_data: Any) -> OverridesDisplay:
             )
         )
 
-    has_content = bool(tag_displays or person_displays or url_displays)
+    has_content = bool(
+        title_str
+        or date_str
+        or tag_displays
+        or person_displays
+        or url_displays
+    )
     return OverridesDisplay(
         has_content=has_content,
         tags=tag_displays,
         personalities=person_displays,
         urls=url_displays,
+        title=title_str,
+        date=date_str,
     )
 
 
@@ -619,6 +702,8 @@ def format_overrides_yaml(overrides_data: Any) -> str:
     if not isinstance(overrides_data, dict):
         return ""
 
+    title = overrides_data.get("title") or overrides_data.get("name")
+    date = overrides_data.get("date") or overrides_data.get("release_date")
     raw_tags = overrides_data.get("tags") or []
     raw_pers = overrides_data.get("personalities") or {}
     raw_urls = overrides_data.get("urls") or []
@@ -627,10 +712,21 @@ def format_overrides_yaml(overrides_data: Any) -> str:
     parsed_pers = parse_personalities(raw_pers)
     parsed_urls = parse_urls(raw_urls)
 
-    if not parsed_tags and not parsed_pers and not parsed_urls:
+    if (
+        not title
+        and not date
+        and not parsed_tags
+        and not parsed_pers
+        and not parsed_urls
+    ):
         return ""
 
     lines: list[str] = []
+
+    if title:
+        lines.append(f"title: {_dump(str(title))}")
+    if date:
+        lines.append(f"date: {_dump(str(date))}")
 
     if parsed_pers:
         alias_ids = {
@@ -749,6 +845,18 @@ def merge_overrides_dicts(
     incoming = incoming or {}
     result: dict[str, Any] = {}
 
+    # Title
+    base_title = base.get("title") or base.get("name")
+    inc_title = incoming.get("title") or incoming.get("name")
+    if base_title or inc_title:
+        result["title"] = base_title or inc_title
+
+    # Release date
+    base_date = base.get("date") or base.get("release_date")
+    inc_date = incoming.get("date") or incoming.get("release_date")
+    if base_date or inc_date:
+        result["date"] = base_date or inc_date
+
     # Tags
     base_tags = parse_tags(base.get("tags") or [])
     inc_tags = parse_tags(incoming.get("tags") or [])
@@ -793,6 +901,21 @@ def remove_from_overrides_dict(
     if not overrides or not to_remove:
         return _cleanup_overrides(dict(overrides or {}))
     result = dict(overrides)
+
+    rem_title = to_remove.get("title") or to_remove.get("name")
+    if rem_title and (
+        result.get("title") == rem_title or result.get("name") == rem_title
+    ):
+        result.pop("title", None)
+        result.pop("name", None)
+
+    rem_date = to_remove.get("date") or to_remove.get("release_date")
+    if rem_date and (
+        result.get("date") == rem_date
+        or result.get("release_date") == rem_date
+    ):
+        result.pop("date", None)
+        result.pop("release_date", None)
 
     # Tags
     if "tags" in result and "tags" in to_remove:

@@ -4,6 +4,7 @@ import shutil
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from logging import getLogger
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -96,6 +97,8 @@ from .tasks import (
     fetch_sources,
     reconcile_sources,
 )
+
+logger = getLogger(__name__)
 
 GROUP_WINDOW = timedelta(minutes=1)
 
@@ -2684,7 +2687,12 @@ def edit_diff(request, edit_id):
                 current_edit_id=edit.pk,
             )
 
-        if action not in {"accept", "reject"}:
+        if action not in {
+            "accept",
+            "reject",
+            "reject_canonical",
+            "reject_repropose",
+        }:
             return HttpResponseBadRequest("Unknown edit action.")
         if edit.status != GameRevision.Status.PROPOSED:
             return HttpResponseBadRequest(
@@ -2816,8 +2824,22 @@ def edit_diff(request, edit_id):
                                 ]
                             )
                         final_edit = correction
-            else:
-                _reject_edit(edit, curation, before, request.user)
+            elif action in {"reject", "reject_canonical"}:
+                _reject_edit(
+                    edit,
+                    curation,
+                    before,
+                    request.user,
+                    update_overrides=True,
+                )
+            elif action == "reject_repropose":
+                _reject_edit(
+                    edit,
+                    curation,
+                    before,
+                    request.user,
+                    update_overrides=False,
+                )
         return _redirect_after_edit(
             request.POST.get("next"),
             final_edit,
@@ -2849,10 +2871,15 @@ def edit_diff(request, edit_id):
                 curation is not None
                 and curation.auto_updates != GameCuration.AutoUpdate.REJECT
             ),
+            "show_require_review": (
+                curation is not None
+                and curation.auto_updates != GameCuration.AutoUpdate.REJECT
+            ),
             "auto_accept_checked": (
                 curation is not None
                 and curation.auto_updates == GameCuration.AutoUpdate.ACCEPT
             ),
+            "require_review_checked": False,
             "rows": build_diff(
                 diff_before,
                 edit.canonical_text,
@@ -3153,11 +3180,18 @@ def _served_canonical(target):
 def _update_auto_accept(curation, request):
     if curation.auto_updates == GameCuration.AutoUpdate.REJECT:
         return
-    new = (
-        GameCuration.AutoUpdate.ACCEPT
-        if request.POST.get("auto_accept") == "on"
-        else GameCuration.AutoUpdate.PROPOSE
-    )
+    if "auto_accept" in request.POST:
+        new = (
+            GameCuration.AutoUpdate.ACCEPT
+            if request.POST.get("auto_accept") == "on"
+            else GameCuration.AutoUpdate.PROPOSE
+        )
+    else:
+        new = (
+            GameCuration.AutoUpdate.PROPOSE
+            if request.POST.get("require_review") == "on"
+            else GameCuration.AutoUpdate.ACCEPT
+        )
     if curation.auto_updates == new:
         return
     GameHistoryAuditLog.record_change(
@@ -3199,7 +3233,14 @@ def _accept_edit(edit, curation, before, user):
         PostNewGameToDiscord(game.id)
 
 
-def _reject_edit(edit, curation, before, user):
+def _reject_edit(
+    edit,
+    curation,
+    before,
+    user,
+    *,
+    update_overrides: bool = True,
+):
     edit.status = GameRevision.Status.REJECTED
     edit.published_at = now()
     edit.published_by = user
@@ -3224,19 +3265,17 @@ def _reject_edit(edit, curation, before, user):
             game.abandon(user)
             return
         curation.state = GameCuration.State.SETTLED
-        before_info = parse(before) if before else GameInfo()
-        after_info = (
-            parse(edit.canonical_text) if edit.canonical_text else GameInfo()
-        )
-        update_overrides_from_diff(curation, after_info, before_info)
-        curation.save(
-            update_fields=[
-                "state",
-                "note",
-                "include_overrides",
-                "exclude_overrides",
-            ]
-        )
+        update_fields = ["state", "note"]
+        if update_overrides:
+            before_info = parse(before) if before else GameInfo()
+            after_info = (
+                parse(edit.canonical_text)
+                if edit.canonical_text
+                else GameInfo()
+            )
+            update_overrides_from_diff(curation, after_info, before_info)
+            update_fields.extend(["include_overrides", "exclude_overrides"])
+        curation.save(update_fields=update_fields)
     elif game.state == Game.State.DRAFT:
         game.abandon(user)
 
@@ -3352,6 +3391,14 @@ def history_reconcile(request, game_id):
             result = save_reconcile_payload(data, request.user)
         except ValueError as exc:
             return JsonResponse({"error": str(exc)}, status=400)
+        except Exception as exc:
+            logger.exception(
+                "Unexpected error saving reconcile payload for game %s",
+                game_id,
+            )
+            return JsonResponse(
+                {"error": f"Ошибка сервера: {exc}"}, status=500
+            )
         started = 0
         for client_id, pipeline in pipelines_by_client_id.items():
             target = result.histories_by_client_id.get(client_id)
