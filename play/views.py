@@ -264,6 +264,11 @@ def _handle_game_loaded(
         "game_url": game_page_url,
         "player_name": playable.player_name,
         "player_url": playable.player_url,
+        "user": {
+            "is_authenticated": user is not None,
+            "username": user.username if user else "",
+            "email": user.email if user else "",
+        },
     })
 
 

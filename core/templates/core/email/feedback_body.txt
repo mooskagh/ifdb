@@ -1,0 +1,16 @@
+{% autoescape off %}Здравствуйте!
+
+Спасибо, что сообщили о неточности или проблеме на странице {{ url }}.
+Мы обязательно рассмотрим ваше обращение.
+
+Ваше сообщение:
+{{ text }}
+
+---
+Техническая информация:
+Пользователь: {{ username }} ({{ email }})
+URL: {{ url }}
+{% if player_url %}Плеер: {{ player_url }}
+{% endif %}{% if game_name and game_url %}Игра: {{ game_name }} ({{ game_url }})
+{% endif %}{% if user_agent %}User-Agent: {{ user_agent }}
+{% endif %}{% endautoescape %}

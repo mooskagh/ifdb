@@ -1,8 +1,9 @@
 from django.urls import path
 
-from . import snippets
+from . import snippets, views_feedback
 
 urlpatterns = [
+    path("feedback/", views_feedback.feedback_view, name="feedback"),
     path("json/snippet/", snippets.AsyncSnippet, name="async_snippet"),
     path(
         "json/snippet/pin/<int:id>/",
