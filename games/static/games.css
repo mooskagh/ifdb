@@ -465,6 +465,37 @@ a.card--subheader:hover {
     flex-shrink: 0;
 }
 
+.contest--docs-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 15px;
+    width: fit-content;
+    min-width: 180px;
+    max-width: 100%;
+}
+
+.contest--docs-item {
+    font-size: 14px;
+    padding: 6px 12px;
+    color: var(--link-color);
+    text-decoration: none;
+    border-radius: 2px;
+}
+
+.contest--docs-item:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+.contest--docs-item.current {
+    font-weight: 600;
+    color: var(--text-color);
+    background-color: rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    cursor: default;
+    text-decoration: none;
+}
+
 
 @media (max-width: 900px) {
     .game--content-grid {
@@ -481,6 +512,10 @@ a.card--subheader:hover {
     }
 
     .game--media {
+        width: 100%;
+    }
+
+    .contest--docs-menu {
         width: 100%;
     }
 }
