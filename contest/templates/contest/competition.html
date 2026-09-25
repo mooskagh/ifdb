@@ -16,12 +16,12 @@
             <div class="game--info">
                 <h1 class="game--title">{{ comp.title }}</h1>
                 {% if docs|length > 1 %}
-                    <div class="game--tag-line">
+                    <div class="contest--docs-menu">
                         {% for x in docs %}
                             {% if x.current %}
-                                <span class="game--tag game--tag-genre">{{ x.title }}</span>
+                                <span class="contest--docs-item current">{{ x.title }}</span>
                             {% else %}
-                                <a href="{% url 'show_competition' slug=comp.slug doc=x.slug %}" class="game--tag">{{ x.title }}</a>
+                                <a href="{% url 'show_competition' slug=comp.slug doc=x.slug %}" class="contest--docs-item">{{ x.title }}</a>
                             {% endif %}
                         {% endfor %}
                     </div>
@@ -40,6 +40,19 @@
     </div>
     <div class="game--content-sidebar">
         {% include 'moder/moder_block.html' with actions=moder_actions only %}
+        {% if schedule %}
+            <div class="card card--orange">
+                <div class="card--header">Расписание</div>
+                <div class="card--listbody">
+                    {% for item in schedule %}
+                        <div class="game--info-row">
+                            <div class="game--info-row-value">{{ item.title }}</div>
+                            <div class="game--info-row-label">{{ item.date_str }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
         {% if comments_html %}
             <div class="card card--green">
                 <div class="card--header">Последние комментарии</div>

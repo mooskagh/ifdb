@@ -1,8 +1,14 @@
+import datetime
+
 from django.contrib.auth.models import AnonymousUser
 from django.test import Client, TestCase
 from django.utils import timezone
 
-from contest.models import Competition, CompetitionDocument
+from contest.models import (
+    Competition,
+    CompetitionDocument,
+    CompetitionSchedule,
+)
 from contest.permissions import (
     can_admin_competition,
     can_view_competition,
@@ -19,7 +25,6 @@ class ShowCompetitionViewTest(TestCase):
 
     def test_show_competition_with_markdown_rendering(self):
         """Test that show_competition view doesn't crash on markdown."""
-        # Create a minimal competition and document
         competition = Competition.objects.create(
             title="Test Competition",
             slug="test-comp",
@@ -34,11 +39,101 @@ class ShowCompetitionViewTest(TestCase):
             text="# Test Markdown\n\nSome test content with **bold** text.",
         )
 
-        # This should trigger the markdown rendering error
         response = self.client.get(f"/jam/{competition.slug}/{document.slug}")
-
-        # The view should not crash (status should be 200, not 500)
         self.assertEqual(response.status_code, 200)
+
+    def test_show_competition_schedule(self):
+        """Test that contest schedule is displayed on competition page."""
+        competition = Competition.objects.create(
+            title="Jam 2025",
+            slug="jam-2025",
+            end_date=timezone.now().date(),
+            published=True,
+        )
+        CompetitionDocument.objects.create(
+            title="Main Doc",
+            slug="",
+            competition=competition,
+            text="Hello contest",
+        )
+        now = timezone.now()
+        past_event = CompetitionSchedule.objects.create(
+            competition=competition,
+            title="Начало конкурса",
+            when=now - datetime.timedelta(days=10),
+            show=True,
+            done=False,
+        )
+        future_event = CompetitionSchedule.objects.create(
+            competition=competition,
+            title="Конец приёма игр",
+            when=now + datetime.timedelta(days=10),
+            show=True,
+            done=False,
+        )
+        hidden_event = CompetitionSchedule.objects.create(
+            competition=competition,
+            title="Секретный этап",
+            when=now + datetime.timedelta(days=20),
+            show=False,
+            done=False,
+        )
+
+        response = self.client.get(f"/jam/{competition.slug}/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+
+        self.assertIn("card--orange", content)
+        self.assertIn("Расписание", content)
+        self.assertIn(past_event.title, content)
+        self.assertIn(future_event.title, content)
+        self.assertNotIn(hidden_event.title, content)
+
+        # Ensure schedule appears in the sidebar
+        sidebar_idx = content.find("game--content-sidebar")
+        schedule_idx = content.find("card--orange")
+        self.assertNotEqual(sidebar_idx, -1)
+        self.assertGreater(schedule_idx, sidebar_idx)
+
+    def test_show_competition_document_navigation(self):
+        """Test document navigation renders as links with current bold."""
+        competition = Competition.objects.create(
+            title="Jam 2025",
+            slug="jam-2025",
+            end_date=timezone.now().date(),
+            published=True,
+        )
+        CompetitionDocument.objects.create(
+            title="О фестивале",
+            slug="",
+            competition=competition,
+            text="Описание",
+            order=0,
+        )
+        CompetitionDocument.objects.create(
+            title="Участники",
+            slug="games",
+            competition=competition,
+            text="Список игр",
+            order=1,
+        )
+
+        response = self.client.get(f"/jam/{competition.slug}/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+
+        self.assertIn("contest--docs-menu", content)
+        self.assertIn(
+            '<span class="contest--docs-item current">О фестивале</span>',
+            content,
+        )
+        self.assertIn(
+            '<a href="/jam/jam-2025/games" '
+            'class="contest--docs-item">Участники</a>',
+            content,
+        )
+        self.assertNotIn("game--tag-genre", content)
+        self.assertNotIn("button-salad", content)
 
 
 class CompetitionPermissionsTest(TestCase):

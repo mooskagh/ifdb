@@ -238,6 +238,19 @@ def show_competition(request, slug, doc=""):
     )
     from core.snippets import CommentsSnippet
 
+    schedule = []
+    for item in CompetitionSchedule.objects.filter(
+        competition=comp, show=True
+    ).order_by("when"):
+        date_str = FormatDate(item.when)
+        if item.when.hour or item.when.minute:
+            date_str = f"{date_str}, {item.when.strftime('%H:%M')}"
+        schedule.append({
+            "title": item.title,
+            "when": item.when,
+            "date_str": date_str,
+        })
+
     comments_data = CommentsSnippet(request, event=comp.slug)
     return render(
         request,
@@ -251,6 +264,7 @@ def show_competition(request, slug, doc=""):
             "logo": logo,
             "docs": links,
             "links": ext_links,
+            "schedule": schedule,
             "comments_html": comments_data.get("content", ""),
             "moder_actions": (
                 GetModerActions(request, "CompetitionDocument", docobj)
