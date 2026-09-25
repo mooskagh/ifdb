@@ -527,8 +527,8 @@ class DeployCommand(cli.Application):
     superhot = cli.Flag(
         "--superhot",
         help=(
-            "Hot deployment without downtime and without restarting celery"
-            " workers"
+            "Hot deployment without downtime, database backup, or restarting"
+            " celery workers"
         ),
     )
     from_master = cli.Flag("--from-master", help="Deploy from master branch")
@@ -555,12 +555,10 @@ class DeployCommand(cli.Application):
             self.parent and getattr(self.parent, "no_staging", False)
         )
 
-        p.AddStep(
-            RunCmdStep(
-                f"pg_dump ifdb > "
-                f"{BACKUPS_DIR / 'database' / time.strftime('%Y%m%d_%H%M')}"
-            )
-        )
+        if not self.superhot:
+            timestamp = time.strftime("%Y%m%d_%H%M")
+            backup_path = BACKUPS_DIR / "database" / timestamp
+            p.AddStep(RunCmdStep(f"pg_dump ifdb > {backup_path}"))
         p.AddStep(ChDir(DISTRIB_DIR))
         p.AddStep(
             RunCmdStep(

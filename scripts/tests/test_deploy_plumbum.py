@@ -146,6 +146,30 @@ class DeployPlumbumTestCase(unittest.TestCase):
             self.assertEqual(len(recorded), 1)
             self.assertFalse(recorded[0].interactive)
 
+    def test_deploy_pipeline_superhot_flag(self) -> None:
+        recorded: list[deploy_plumbum.Pipeline] = []
+
+        def fake_run(self_p: deploy_plumbum.Pipeline, cmd_name: str) -> None:
+            recorded.append(self_p)
+
+        with patch.object(deploy_plumbum.Pipeline, "Run", fake_run):
+            deploy_plumbum.DeployApp.run(
+                ["deploy_plumbum.py", "deploy", "--superhot"], exit=False
+            )
+            self.assertEqual(len(recorded), 1)
+            step_docs = [s.__doc__ or "" for s in recorded[0].steps]
+            self.assertFalse(any("pg_dump" in doc for doc in step_docs))
+
+        recorded.clear()
+
+        with patch.object(deploy_plumbum.Pipeline, "Run", fake_run):
+            deploy_plumbum.DeployApp.run(
+                ["deploy_plumbum.py", "deploy"], exit=False
+            )
+            self.assertEqual(len(recorded), 1)
+            step_docs = [s.__doc__ or "" for s in recorded[0].steps]
+            self.assertTrue(any("pg_dump" in doc for doc in step_docs))
+
 
 if __name__ == "__main__":
     unittest.main()

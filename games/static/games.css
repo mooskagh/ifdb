@@ -119,6 +119,10 @@
     margin: 0;
 }
 
+dialog {
+    margin: auto;
+}
+
 body {
     background-color: var(--background-color);
     color: var(--text-color);
