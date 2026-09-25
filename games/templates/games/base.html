@@ -66,9 +66,6 @@
                     <a class="{% current 'list_games' %}" href="{% url 'list_games' %}">Игры</a>
                     <a class="{% current 'list_authors' %}" href="{% url 'list_authors' %}">Авторы</a>
                     <a class="{% current 'list_competitions' %}" href="{% url 'list_competitions' %}">События</a>
-                    {% if user.is_staff %}
-                        <a href="/adminz/">Django Admin</a>
-                    {% endif %}
                     {% if user.is_staff or user.is_superuser %}
                         {% needs_attention_history_count as needs_attention_count %}
                         {% if needs_attention_count %}

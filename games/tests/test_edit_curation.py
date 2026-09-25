@@ -531,6 +531,25 @@ class GameEditCurationViewTests(TestCase):
         self.assertNotContains(response, "top-nav-attention")
         self.assertContains(response, ">Модерация</a>")
 
+    def test_django_admin_menu_location(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        response = self.client.get(reverse("list_games"))
+        self.assertNotContains(response, "Django Admin")
+
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        response = self.client.get(reverse("list_games"))
+        self.assertNotContains(response, "Django Admin")
+
+        curation_url = reverse("curation_history_list")
+        response = self.client.get(curation_url)
+        self.assertContains(
+            response,
+            '<a class="curation-menu-item"\n'
+            '                           href="/adminz/">Django Admin</a>',
+        )
+
     def test_game_page_renders_media_without_description(self):
         url = URL.objects.create(
             original_url="https://example.com/poster.png",
