@@ -1,7 +1,13 @@
 import re
 
 from django.conf import settings
-from django.db.models import Count, Q, prefetch_related_objects
+from django.db.models import (
+    Count,
+    Exists,
+    OuterRef,
+    Q,
+    prefetch_related_objects,
+)
 from django.utils import timezone
 
 from play.models import Playable
@@ -535,9 +541,20 @@ class SB_UserFlags(SB_Flags):
         "Можно скачать",
         f"Можно поиграть на {settings.PLAYABLE_BASE_DOMAIN}",
         "Можно поиграть на других сайтах",
+        f"Нельзя поиграть на {settings.PLAYABLE_BASE_DOMAIN}",
+        "Нельзя поиграть нигде",
     ]
 
     ANNOTATIONS = {}
+
+    _PLAYABLE_EXISTS = Exists(
+        Playable.objects.filter(
+            game_id=OuterRef("pk"),
+            state=Playable.State.READY,
+            visible=True,
+            slug__isnull=False,
+        ).exclude(slug="")
+    )
 
     QUERIES = {
         0: Q(gameurl__category__symbolic_id="video"),
@@ -559,6 +576,9 @@ class SB_UserFlags(SB_Flags):
             & ~Q(playable__slug="")
         ),
         6: Q(gameurl__category__symbolic_id="play_online"),
+        7: ~_PLAYABLE_EXISTS,
+        8: ~_PLAYABLE_EXISTS
+        & ~Q(gameurl__category__symbolic_id="play_online"),
     }
 
 
