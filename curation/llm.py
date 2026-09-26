@@ -13,6 +13,7 @@ from typing import (
     ClassVar,
     Literal,
     Union,
+    cast,
     get_args,
     get_origin,
     get_type_hints,
@@ -33,7 +34,7 @@ DEFAULT_MAX_ERROR_TOOL_CALLS = 20
 logger = getLogger("worker")
 
 
-def register_llm_runner(cls: type["LlmWorkflowRunner"]):
+def register_llm_runner[T: LlmWorkflowRunner](cls: type[T]) -> type[T]:
     LLM_RUNNERS[cls.runner_name] = cls
     return cls
 
@@ -51,12 +52,12 @@ def runner_for_workflow(
     return cls(workflow, state, **workflow.runner_params)
 
 
-def llm_tool(method: Callable) -> Callable:
-    method.llm_tool = True
+def llm_tool[T: Callable[..., Any]](method: T) -> T:
+    setattr(method, "llm_tool", True)
     return method
 
 
-def _json_schema(annotation) -> dict[str, Any]:
+def _json_schema(annotation: Any) -> dict[str, Any]:
     origin = get_origin(annotation)
     args = get_args(annotation)
     if origin is Annotated:
@@ -85,20 +86,20 @@ def _json_schema(annotation) -> dict[str, Any]:
         items = _json_schema(args[0]) if args else {}
         return {"type": "array", "items": items}
     if is_dataclass(annotation):
-        return _dataclass_schema(annotation)
+        return _dataclass_schema(cast(type[Any], annotation))
     raise TypeError(f"Unsupported LLM tool annotation: {annotation!r}")
 
 
-def _is_optional(annotation) -> bool:
+def _is_optional(annotation: Any) -> bool:
     origin = get_origin(annotation)
     return origin in (UnionType, Union) and type(None) in get_args(annotation)
 
 
-def _optional_type(annotation):
+def _optional_type(annotation: Any) -> Any:
     return next(arg for arg in get_args(annotation) if arg is not type(None))
 
 
-def _dataclass_schema(cls) -> dict[str, Any]:
+def _dataclass_schema(cls: type[Any]) -> dict[str, Any]:
     properties = {}
     required = []
     type_hints = get_type_hints(cls, include_extras=True)
@@ -114,7 +115,7 @@ def _dataclass_schema(cls) -> dict[str, Any]:
     return {"type": "object", "properties": properties, "required": required}
 
 
-def _coerce_tool_arg(annotation, value):
+def _coerce_tool_arg(annotation: Any, value: Any) -> Any:
     origin = get_origin(annotation)
     args = get_args(annotation)
     if origin is Annotated:
@@ -129,7 +130,7 @@ def _coerce_tool_arg(annotation, value):
                 f"Expected object for LLM tool argument {annotation!r}"
             )
         hints = get_type_hints(annotation, include_extras=True)
-        return annotation(**{
+        return cast(type[Any], annotation)(**{
             field.name: _coerce_tool_arg(hints[field.name], value[field.name])
             for field in fields(annotation)
             if field.name in value
@@ -150,8 +151,8 @@ class LlmWorkflowRunner(ABC):
     runner_name: ClassVar[str]
 
     def __init__(
-        self, workflow: LlmWorkflow, state: "GameEditState", **params
-    ):
+        self, workflow: LlmWorkflow, state: "GameEditState", **params: Any
+    ) -> None:
         if workflow.runner != self.runner_name:
             raise ValueError(
                 f"Workflow {workflow.name!r} uses runner {workflow.runner!r}, "
@@ -261,7 +262,7 @@ class LlmWorkflowRunner(ABC):
             ).quantize(Decimal("0.000001")),
         )
 
-    def tools(self) -> dict[str, Callable]:
+    def tools(self) -> dict[str, Callable[..., Any]]:
         return {
             name: method
             for name in dir(self)
@@ -275,10 +276,12 @@ class LlmWorkflowRunner(ABC):
             for name, method in self.tools().items()
         ]
 
-    def _tool_methods(self) -> dict[str, Callable]:
+    def _tool_methods(self) -> dict[str, Callable[..., Any]]:
         return self.tools()
 
-    def _tool_schema(self, name: str, method: Callable) -> dict[str, Any]:
+    def _tool_schema(
+        self, name: str, method: Callable[..., Any]
+    ) -> dict[str, Any]:
         signature = inspect.signature(method)
         params = list(signature.parameters.values())
         if len(params) != 1:
@@ -290,7 +293,7 @@ class LlmWorkflowRunner(ABC):
             raise TypeError(f"Unsupported LLM tool parameter: {param}")
         if not is_dataclass(param.annotation):
             raise TypeError(f"LLM tool {name!r} parameter must be a dataclass")
-        parameters = _dataclass_schema(param.annotation)
+        parameters = _dataclass_schema(cast(type[Any], param.annotation))
         return {
             "type": "function",
             "function": {
@@ -301,7 +304,7 @@ class LlmWorkflowRunner(ABC):
         }
 
     def _run_tool_call(
-        self, call: dict[str, Any], tool_methods: dict[str, Callable]
+        self, call: dict[str, Any], tool_methods: dict[str, Callable[..., Any]]
     ) -> dict[str, Any]:
         function = call["function"]
         name = function["name"]
@@ -404,7 +407,7 @@ def _is_error_tool_result(message: dict[str, Any]) -> bool:
         content = json.loads(message.get("content") or "{}")
     except json.JSONDecodeError:
         return False
-    return content.get("status") == "error"
+    return bool(content.get("status") == "error")
 
 
 def _short_json(value: Any) -> str:

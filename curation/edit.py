@@ -86,6 +86,7 @@ class SourceFetchInfo:
     status: SourceStatus
     # current fetch row, for used_sources; None if DISAPPEARED
     fetch: GameSourceFetch | None
+    previous_fetch: GameSourceFetch | None = None
 
 
 @dataclass
@@ -100,6 +101,7 @@ class GameEditState:
     notes: list[str] = field(default_factory=list)
     needs_attention: bool = False
     last_applied_canonical: str = ""
+    source_snapshots: dict[str, list[int]] | None = None
 
     @property
     def history(self) -> GameCuration | None:
@@ -262,6 +264,7 @@ def _build_sources(
                 ),
                 status=status,
                 fetch=fetch,
+                previous_fetch=prev,
             )
         )
 
@@ -278,6 +281,7 @@ def _build_sources(
                 previous_canonical_text=prev.canonical_text,
                 status=SourceStatus.DISAPPEARED,
                 fetch=None,
+                previous_fetch=prev,
             )
         )
     return sources
@@ -594,6 +598,7 @@ def _process_history(curation: GameCuration, pipeline: EditPipeline) -> str:
             origin=GameRevision.Origin.AUTO_IMPORT,
             status=_EDIT_STATUS_BY_APPROVAL[state.approval],
             passes=[spec.as_json() for spec in pass_specs],
+            source_snapshots=state.source_snapshots or {},
             previous_canonical_text=(
                 None if state.approval is Approval.PROPOSED else base
             ),

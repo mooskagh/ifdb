@@ -33,6 +33,7 @@ from curation.llm_runners.content_editor import (
 )
 from curation.llm_runners.status_review import SetStatusParams
 from curation.models import (
+    EditPipeline,
     GameCuration,
     GameSource,
     GameSourceFetch,
@@ -41,6 +42,7 @@ from curation.models import (
     LlmWorkflow,
 )
 from curation.passes.llm_workflow import LlmWorkflowPass
+from curation.passes.merge_sources import build_description_delta
 from games.gameinfo import GameInfo
 from games.models import Game
 
@@ -1429,3 +1431,219 @@ class ContentEditorRunnerTests(TestCase):
             self.assertIsNone(self.runner().run())
         chat.assert_not_called()
         self.assertEqual(LlmTrajectory.objects.count(), 0)
+
+
+class UpdateDescriptionTests(TestCase):
+    def setUp(self):
+        model = LLMModel.objects.create(
+            name="update-description-test",
+            context_length=1000,
+            input_cost=1,
+            cached_input_cost=0,
+            cache_write_cost=0,
+            output_cost=1,
+        )
+        self.workflow = LlmWorkflow.objects.create(
+            name="update-description-test",
+            runner="update_description",
+            prompt_template="{{ numbered_files }}",
+            model=model,
+        )
+        game = Game.objects.create(
+            state=Game.State.DRAFT, title="LLM Game", creation_time=now()
+        )
+        self.state = GameEditState(
+            curation=GameCuration.objects.create(game=game),
+            current=GameInfo(name="Title", description="Old\nHuman note"),
+            served=GameInfo(name="Title"),
+            last_applied=GameInfo(),
+            approval=Approval.APPLIED,
+            sources=[],
+        )
+
+    def source(
+        self, kind, old=None, new=None, *, old_name="Title", new_name="Title"
+    ):
+        source = GameSource.objects.create(
+            game=self.state.curation.game,
+            type=kind,
+            url=f"https://example.test/{GameSource.objects.count()}",
+        )
+
+        def fetch(description, name):
+            if description is None:
+                return None
+            text = GameInfo(name=name, description=description).to_canonical()
+            return GameSourceFetch.objects.create(
+                source=source,
+                raw_content="",
+                canonical_text=text,
+                canonical_text_hash=str(GameSourceFetch.objects.count()),
+                first_fetch=now(),
+                last_fetch=now(),
+            )
+
+        previous, current = fetch(old, old_name), fetch(new, new_name)
+        return SourceFetchInfo(
+            url=source.url,
+            type=source.type,
+            raw_content="" if current else None,
+            canonical_text=current.canonical_text if current else None,
+            previous_raw_content="" if previous else None,
+            previous_canonical_text=previous.canonical_text
+            if previous
+            else None,
+            status=SourceStatus.CHANGED,
+            fetch=current,
+            previous_fetch=previous,
+        )
+
+    def test_delta_orders_changed_new_disappeared_and_ignores_metadata(self):
+        new = self.source(GameSource.SourceType.IFWIKI, new="New wiki")
+        first = self.source(GameSource.SourceType.AXMA, "Old A", "New A")
+        second = self.source(GameSource.SourceType.AXMA, "Old B", "New B")
+        gone = self.source(GameSource.SourceType.QSP, old="Gone")
+        metadata = self.source(
+            GameSource.SourceType.STICKY_NOTE,
+            "Same",
+            "Same",
+            old_name="Before",
+            new_name="After",
+        )
+        delta = build_description_delta([gone, second, metadata, first, new])
+
+        self.assertEqual(
+            delta.pairs,
+            [
+                (None, new.fetch),
+                (second.previous_fetch, second.fetch),
+                (first.previous_fetch, first.fetch),
+                (gone.previous_fetch, None),
+            ],
+        )
+        self.assertEqual(
+            delta.old_ids,
+            [
+                second.previous_fetch.pk,
+                first.previous_fetch.pk,
+                gone.previous_fetch.pk,
+            ],
+        )
+        self.assertEqual(
+            delta.new_ids,
+            [
+                new.fetch.pk,
+                second.fetch.pk,
+                first.fetch.pk,
+            ],
+        )
+        self.assertEqual(delta.old, "Old B\n\n---\n\nOld A\n\n---\n\nGone")
+        self.assertEqual(delta.new, "New wiki\n\n---\n\nNew B\n\n---\n\nNew A")
+        self.assertIn("--- sources_old", delta.diff)
+        self.assertIn("+++ sources_new", delta.diff)
+        self.assertIn("-Gone", delta.diff)
+        self.assertIn("+New wiki", delta.diff)
+
+    def test_runner_exposes_numbered_readonly_files_and_edits_current(self):
+        source = self.source(GameSource.SourceType.IFWIKI, "Old", "New")
+        self.state.sources = [source]
+        responses = []
+        for index, (name, args) in enumerate(
+            (
+                (
+                    "replace_lines",
+                    {
+                        "start_line": 1,
+                        "end_line": 1,
+                        "text": "New",
+                        "rationale": "update",
+                    },
+                ),
+                ("finish", {"resolution": "commit", "summary": "Done"}),
+            ),
+            1,
+        ):
+            responses.append({
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": f"call_{index}",
+                                    "type": "function",
+                                    "function": {
+                                        "name": name,
+                                        "arguments": json.dumps(args),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {},
+            })
+        with patch.object(
+            openrouter, "chat_completion", side_effect=responses
+        ) as chat:
+            self.assertIsNotNone(
+                runner_for_workflow(self.workflow, self.state).run()
+            )
+
+        prompt = chat.call_args_list[0].args[1][0]["content"]
+        for excerpt in (
+            "FILE: current [editable]\n1: Old\n2: Human note",
+            "FILE: sources_old [readonly]\n1: Old",
+            "FILE: sources_new [readonly]\n1: New",
+            "FILE: sources_diff [readonly]",
+        ):
+            self.assertIn(excerpt, prompt)
+        self.assertIn("-Old", prompt)
+        self.assertIn("+New", prompt)
+        self.assertEqual(self.state.current.description, "New\nHuman note")
+        self.assertEqual(
+            self.state.source_snapshots,
+            {
+                "old": [source.previous_fetch.pk],
+                "new": [source.fetch.pk],
+            },
+        )
+
+    def test_equal_merged_descriptions_skip_agent_even_with_changed_metadata(
+        self,
+    ):
+        source = self.source(
+            GameSource.SourceType.IFWIKI,
+            "Same",
+            "Same",
+            old_name="Before",
+            new_name="After",
+        )
+        self.state.sources = [source]
+        with patch.object(openrouter, "chat_completion") as chat:
+            self.assertIsNone(
+                runner_for_workflow(self.workflow, self.state).run()
+            )
+        chat.assert_not_called()
+        self.assertEqual(self.state.source_snapshots, {"old": [], "new": []})
+        self.assertFalse(LlmTrajectory.objects.exists())
+
+
+class UpdateDescriptionSeedTests(TestCase):
+    def test_workflow_is_seeded_without_pipeline_changes(self):
+        workflow = LlmWorkflow.objects.get(name="update_description")
+        self.assertEqual(workflow.runner, "update_description")
+        self.assertEqual(workflow.model.name, "google/gemma-4-26b-a4b-it")
+        self.assertIn("{{ numbered_files }}", workflow.prompt_template)
+        self.assertIn(
+            "apply the semantic change from `sources_old` to `sources_new`",
+            workflow.prompt_template,
+        )
+        self.assertFalse(
+            EditPipeline.objects.filter(
+                passes__contains=[
+                    {"name": "llm_workflow", "workflow": "update_description"}
+                ]
+            ).exists()
+        )

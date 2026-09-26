@@ -3925,6 +3925,35 @@ progress.curation-scan-progress-bar {
     justify-content: flex-end;
 }
 
+.source-review-snapshots {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.source-review-snapshot {
+    min-width: 0;
+    padding: 10px 16px;
+    overflow-wrap: anywhere;
+}
+.source-review-snapshot:first-child {
+    border-right: 1px solid var(--diff-border);
+}
+.source-review-snapshot h3 {
+    margin: 0 0 8px;
+}
+.source-review-snapshot ol {
+    margin: 0;
+    padding-left: 24px;
+}
+@media (max-width: 700px) {
+    .source-review-snapshots {
+        grid-template-columns: 1fr;
+    }
+    .source-review-snapshot:first-child {
+        border-right: 0;
+        border-bottom: 1px solid var(--diff-border);
+    }
+}
+
 .diff {
     background: var(--card-bg-color);
     box-shadow: var(--card-box-shadow);

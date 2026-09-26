@@ -1,3 +1,4 @@
+from datetime import timedelta
 from io import StringIO
 from unittest import mock
 
@@ -9,6 +10,9 @@ from django.utils.timezone import now
 
 from curation import edit
 from curation.edit import Approval, GameEditPass, run_edit
+from curation.llm import runner_for_workflow
+from curation.llm_runners.content_editor import ReplaceLinesParams
+from curation.llm_runners.update_description import UpdateDescriptionRunner
 from curation.manual import store_manual_edit
 from curation.models import (
     EditPipeline,
@@ -20,6 +24,7 @@ from curation.models import (
     LlmTrajectory,
     LlmWorkflow,
 )
+from curation.passes.llm_workflow import LlmWorkflowPass
 from games.gameinfo import GameInfo, Person, Tag
 from games.models import (
     URL,
@@ -697,6 +702,222 @@ class RunEditTests(TestCase):
         )
 
         self.assertEqual(observer.seen, Person(alias.id, ""))
+
+    def _update_description_fixture(self, source_descriptions):
+        history = self._history()
+        game = history.game
+        game.description = "Old\nHuman note"
+        game.save(update_fields=["description"])
+        previous = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.BACKFILL,
+            canonical_text=GameInfo(
+                name="A Game", description="Old\nHuman note"
+            ).to_canonical(),
+        )
+        game.published_revision = previous
+        game.save(update_fields=["published_revision"])
+        pairs = []
+        for kind, old, new, metadata_only in source_descriptions:
+            source = GameSource.objects.create(
+                game=game,
+                type=kind,
+                url=f"https://example.test/{len(pairs)}",
+            )
+            old_time = now()
+            old_fetch = GameSourceFetch.objects.create(
+                source=source,
+                raw_content="",
+                canonical_text=GameInfo(
+                    name="Before" if metadata_only else "Title",
+                    description=old,
+                ).to_canonical(),
+                canonical_text_hash=f"old-{len(pairs)}",
+                first_fetch=old_time,
+                last_fetch=old_time,
+            )
+            new_fetch = GameSourceFetch.objects.create(
+                source=source,
+                raw_content="",
+                canonical_text=GameInfo(
+                    name="After" if metadata_only else "Title",
+                    description=new,
+                ).to_canonical(),
+                canonical_text_hash=f"new-{len(pairs)}",
+                first_fetch=old_time + timedelta(seconds=1),
+                last_fetch=old_time + timedelta(seconds=1),
+            )
+            previous.used_sources.add(old_fetch)
+            pairs.append((old_fetch, new_fetch))
+        return history, previous, pairs
+
+    def _update_workflow(self):
+        model = LLMModel.objects.create(
+            name="update-description-test",
+            context_length=1000,
+            input_cost=1,
+            cached_input_cost=0,
+            cache_write_cost=0,
+            output_cost=1,
+        )
+        return LlmWorkflow.objects.create(
+            name="update-description-test",
+            runner="update_description",
+            prompt_template="{{ numbered_files }}",
+            model=model,
+        )
+
+    def test_update_description_default_skips_noop_before_runner(self):
+        history, previous, pairs = self._update_description_fixture([
+            (GameSource.SourceType.IFWIKI, "Old", "New", False),
+        ])
+        workflow = self._update_workflow()
+        with mock.patch(
+            "curation.passes.llm_workflow.runner_for_workflow"
+        ) as runner:
+            stats = self._run_with(
+                [LlmWorkflowPass()],
+                history,
+                [{"name": "llm_workflow", "workflow": workflow.name}],
+            )
+        runner.assert_not_called()
+        self.assertEqual(stats.unchanged, 1)
+        self.assertEqual(
+            list(GameRevision.objects.filter(game=history.game)), [previous]
+        )
+        self.assertEqual(list(previous.used_sources.all()), [pairs[0][0]])
+
+    def test_update_description_run_on_noop_skips_equal_delta_without_revision(
+        self,
+    ):
+        history, previous, pairs = self._update_description_fixture([
+            (GameSource.SourceType.IFWIKI, "Same", "Same", True),
+        ])
+        workflow = self._update_workflow()
+        with (
+            mock.patch(
+                "curation.passes.llm_workflow.runner_for_workflow",
+                wraps=runner_for_workflow,
+            ) as runner,
+            mock.patch.object(
+                UpdateDescriptionRunner, "run_agent_loop"
+            ) as agent,
+        ):
+            stats = self._run_with(
+                [LlmWorkflowPass()],
+                history,
+                [
+                    {
+                        "name": "llm_workflow",
+                        "workflow": workflow.name,
+                        "run_on_noop": True,
+                    }
+                ],
+            )
+        runner.assert_called_once()
+        agent.assert_not_called()
+        self.assertEqual(stats.unchanged, 1)
+        self.assertEqual(
+            list(GameRevision.objects.filter(game=history.game)), [previous]
+        )
+        self.assertEqual(list(previous.used_sources.all()), [pairs[0][0]])
+
+    def test_update_description_metadata_only_revision_has_empty_snapshots(
+        self,
+    ):
+        history, previous, pairs = self._update_description_fixture([
+            (GameSource.SourceType.IFWIKI, "Same", "Same", True),
+        ])
+        workflow = self._update_workflow()
+        with mock.patch.object(
+            UpdateDescriptionRunner, "run_agent_loop"
+        ) as agent:
+            stats = self._run_with(
+                [_SetDescription(), LlmWorkflowPass()],
+                history,
+                [
+                    {"name": "set_description", "description": "Curated"},
+                    {"name": "llm_workflow", "workflow": workflow.name},
+                ],
+            )
+        agent.assert_not_called()
+        self.assertEqual(stats.applied, 1)
+        revision = (
+            GameRevision.objects
+            .filter(game=history.game)
+            .exclude(pk=previous.pk)
+            .get()
+        )
+        self.assertEqual(revision.source_snapshots, {"old": [], "new": []})
+        self.assertEqual(list(revision.used_sources.all()), [pairs[0][1]])
+        self.assertEqual(list(previous.used_sources.all()), [pairs[0][0]])
+
+    def test_update_description_revision_persists_priority_ordered_snapshots(
+        self,
+    ):
+        history, previous, pairs = self._update_description_fixture([
+            (GameSource.SourceType.AXMA, "Old axma", "New axma", False),
+            (GameSource.SourceType.IFWIKI, "Old wiki", "New wiki", False),
+        ])
+        workflow = self._update_workflow()
+
+        def edit_description(runner, *args, **kwargs):
+            result = runner.replace_lines(
+                ReplaceLinesParams(
+                    1,
+                    1,
+                    "update",
+                    "New",
+                    None,
+                )
+            )
+            self.assertEqual(result["status"], "replaced")
+            return mock.Mock()
+
+        with mock.patch.object(
+            UpdateDescriptionRunner,
+            "run_agent_loop",
+            autospec=True,
+            side_effect=edit_description,
+        ) as agent:
+            stats = self._run_with(
+                [LlmWorkflowPass()],
+                history,
+                [
+                    {
+                        "name": "llm_workflow",
+                        "workflow": workflow.name,
+                        "run_on_noop": True,
+                    }
+                ],
+            )
+        agent.assert_called_once()
+        self.assertEqual(stats.applied, 1)
+        revision = (
+            GameRevision.objects
+            .filter(game=history.game)
+            .exclude(pk=previous.pk)
+            .get()
+        )
+        self.assertEqual(
+            revision.source_snapshots,
+            {
+                "old": [pairs[1][0].pk, pairs[0][0].pk],
+                "new": [pairs[1][1].pk, pairs[0][1].pk],
+            },
+        )
+        self.assertIn("New\nHuman note", revision.canonical_text)
+        self.assertCountEqual(
+            list(revision.used_sources.all()),
+            [pairs[0][1], pairs[1][1]],
+        )
+        self.assertCountEqual(
+            list(previous.used_sources.all()),
+            [pairs[0][0], pairs[1][0]],
+        )
 
 
 class ManualEditTests(TestCase):

@@ -90,6 +90,7 @@ from .overrides import (
     format_overrides_yaml,
     update_overrides_from_diff,
 )
+from .passes.merge_sources import description_diff, merge_descriptions
 from .providers import REGISTERED_PROVIDERS
 from .tasks import (
     discover_sources,
@@ -2767,6 +2768,12 @@ def edit_diff(request, edit_id):
                         else:
                             val = default_val
 
+                        if (
+                            i == len(rows) - 1
+                            and row.tag == "equal"
+                            and not row.right_text
+                        ):
+                            val = default_val
                         if val != default_val:
                             is_changed = True
 
@@ -2848,6 +2855,7 @@ def edit_diff(request, edit_id):
         )
 
     is_proposed = edit.status == GameRevision.Status.PROPOSED
+    source_review = _description_source_review(edit)
     diff_before = _edit_before_canonical(edit)
     has_next_edit = (
         _get_next_unresolved_edit_id(edit.pk) is not None
@@ -2885,8 +2893,60 @@ def edit_diff(request, edit_id):
                 edit.canonical_text,
             ),
             "edit_sources": _get_sources_for_edit(edit),
+            "source_review": source_review,
         },
     )
+
+
+def _description_source_review(edit: GameRevision) -> dict | None:
+    snapshots = edit.source_snapshots
+    if (
+        edit.origin != GameRevision.Origin.AUTO_IMPORT
+        or not isinstance(snapshots, dict)
+        or "old" not in snapshots
+        or "new" not in snapshots
+        or not any(
+            isinstance(item, dict)
+            and item.get("name") == "llm_workflow"
+            and item.get("workflow") == "update_description"
+            for item in edit.passes
+        )
+    ):
+        return None
+
+    old_ids, new_ids = snapshots["old"], snapshots["new"]
+    fetches = GameSourceFetch.objects.filter(
+        pk__in=[*old_ids, *new_ids]
+    ).select_related("source")
+    by_id = {fetch.pk: fetch for fetch in fetches}
+    old = [by_id.get(pk) for pk in old_ids]
+    new = [by_id.get(pk) for pk in new_ids]
+    old_sources = {fetch.source_id for fetch in old if fetch is not None}
+    new_sources = {fetch.source_id for fetch in new if fetch is not None}
+    old_text = merge_descriptions(fetch for fetch in old if fetch is not None)
+    new_text = merge_descriptions(fetch for fetch in new if fetch is not None)
+    return {
+        "rows": build_diff(old_text, new_text),
+        "old": [
+            {
+                "id": pk,
+                "fetch": fetch,
+                "disappeared": fetch is not None
+                and fetch.source_id not in new_sources,
+            }
+            for pk, fetch in zip(old_ids, old, strict=True)
+        ],
+        "new": [
+            {
+                "id": pk,
+                "fetch": fetch,
+                "is_new": fetch is not None
+                and fetch.source_id not in old_sources,
+            }
+            for pk, fetch in zip(new_ids, new, strict=True)
+        ],
+        "diff": description_diff(old_text, new_text),
+    }
 
 
 def _get_sources_for_edit(

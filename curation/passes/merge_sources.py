@@ -1,9 +1,17 @@
 """Merge fetched source canonicals into a draft ``GameInfo``."""
 
 import copy
+from dataclasses import dataclass
+from difflib import unified_diff
+from typing import Iterable
 
-from curation.edit import GameEditPass, GameEditState, register_pass
-from curation.models import GameSource
+from curation.edit import (
+    GameEditPass,
+    GameEditState,
+    SourceFetchInfo,
+    register_pass,
+)
+from curation.models import GameSource, GameSourceFetch
 from games.gameinfo import (
     GameInfo,
     GameUrl,
@@ -31,6 +39,75 @@ _SOURCE_PRIORITY = {
     GameSource.SourceType.IFICTION: 45,
     GameSource.SourceType.QSP: 40,
 }
+
+
+def ordered_sources(
+    sources: Iterable[SourceFetchInfo],
+) -> list[SourceFetchInfo]:
+    return sorted(
+        sources,
+        key=lambda s: _SOURCE_PRIORITY.get(s.type, _DEFAULT_PRIORITY),
+        reverse=True,
+    )
+
+
+def description_diff(old: str, new: str) -> str:
+    return "\n".join(
+        unified_diff(
+            old.splitlines(),
+            new.splitlines(),
+            fromfile="sources_old",
+            tofile="sources_new",
+            lineterm="",
+        )
+    )
+
+
+def merge_descriptions(fetches: Iterable[GameSourceFetch]) -> str:
+    return _merge_descriptions(fetch.canonical_text for fetch in fetches)
+
+
+def _description(text: str | None) -> str:
+    return (parse(text).description or "") if text else ""
+
+
+def _merge_descriptions(texts: Iterable[str | None]) -> str:
+    return "\n\n---\n\n".join(
+        description for text in texts if (description := _description(text))
+    )
+
+
+@dataclass(frozen=True)
+class SourceDescriptionDelta:
+    pairs: list[tuple[GameSourceFetch | None, GameSourceFetch | None]]
+    old_ids: list[int]
+    new_ids: list[int]
+    old: str
+    new: str
+    diff: str
+
+
+def build_description_delta(
+    sources: Iterable[SourceFetchInfo],
+) -> SourceDescriptionDelta:
+    pairs = [
+        (s.previous_fetch, s.fetch)
+        for s in ordered_sources(sources)
+        if _description(s.previous_canonical_text)
+        != _description(s.canonical_text)
+    ]
+    old_fetches = [old for old, _ in pairs if old is not None]
+    new_fetches = [new for _, new in pairs if new is not None]
+    old = merge_descriptions(old_fetches)
+    new = merge_descriptions(new_fetches)
+    return SourceDescriptionDelta(
+        pairs,
+        [fetch.pk for fetch in old_fetches],
+        [fetch.pk for fetch in new_fetches],
+        old,
+        new,
+        description_diff(old, new),
+    )
 
 
 def _correlate_source_urls_with_current(
@@ -90,11 +167,9 @@ class MergeSourcesPass(GameEditPass):
 
     def apply(self, state: GameEditState, params: dict) -> None:
         keep_existing = params.get("keep_existing", True)
-        usable = sorted(
-            (s for s in state.sources if s.canonical_text),
-            key=lambda s: _SOURCE_PRIORITY.get(s.type, _DEFAULT_PRIORITY),
-            reverse=True,
-        )
+        usable = [
+            s for s in ordered_sources(state.sources) if s.canonical_text
+        ]
         if not usable:  # nothing to merge -> keep served draft
             return
         merged = GameInfo()
@@ -103,7 +178,6 @@ class MergeSourcesPass(GameEditPass):
         if keep_existing:
             source_name = merged.name
             source_date = merged.date
-            source_description = merged.description
             if state.current:
                 merged.urls = _correlate_source_urls_with_current(
                     merged.urls, state.current.urls
@@ -115,6 +189,6 @@ class MergeSourcesPass(GameEditPass):
                 )
             merged.name = source_name or state.current.name
             merged.date = source_date or state.current.date
-            merged.description = source_description or state.served.description
+            merged.description = state.current.description
 
         state.current = merged
