@@ -3,36 +3,25 @@ from decimal import Decimal
 from django.db import migrations, models
 
 DEDUPLICATE_PROMPT = """\
-Your task is to produce one final description by removing duplicate or \
-near-duplicate imported copies.
+Your task is to remove whole imported copies or substantial duplicated blocks \
+from the file `current` shown below. Use replace_lines, \
+insert_lines, or replace_text with line numbers from the latest file display. \
+After each edit or undo, inspect the freshly numbered `current` returned \
+by the tool.
 
-Descriptions may be separated by "---". If two sections contain the same \
-information, keep only one copy. Do not keep repeated duplicate sections.
+Descriptions may be separated by "---", remove these separators. If two \
+sections contain the same information, keep only one copy. \
+Do not change formatting inside kept text, fix spelling, or delete unique \
+content. Preserve unique tail lines. Do not \
+remove translated dialogue, quotes, examples, or repeated phrases within a \
+single coherent description.
 
-Do NOT change formatting inside the kept text, do NOT fix spelling mistakes, \
-and do NOT delete unique content. Only remove duplicated content.
+Call finish with resolution `commit` when done, including when no substantial \
+duplication exists and no edits are needed. Use `abort` if you need to \
+discard your edits, or `request_human_review` if uncertain. Use complain \
+if the task or tool API is unclear.
 
-You can do that in multiple steps. After each successful edit tool call, \
-inspect the returned result, which is a snippet around the edit location.
-
-Deduplicate whole imported copies or substantial repeated blocks only.
-Do not remove translated dialogue, quotes, examples, or repeated phrases \
-inside a single coherent description. If a duplicate section has unique tail \
-lines, preserve those unique lines.
-
-Once you are happy with the result, call commit_edited_result.
-If the initial input already contains no large repeated blocks, call \
-no_duplicates_found without editing.
-
-If you feel you messed up, call abort. If you are not sure, call \
-request_human_review.
-
-If you are lost at what's expected, or have a suggestion for better tool API, \
-use "complain" function.
-
-<text>
-{{ current_content_text }}
-</text>
+{{ current_file }}
 """
 
 STATUS_REVIEW_PROMPT = """\

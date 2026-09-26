@@ -7,6 +7,7 @@ from decimal import Decimal
 from logging import getLogger
 from types import UnionType
 from typing import (
+    TYPE_CHECKING,
     Annotated,
     Any,
     ClassVar,
@@ -21,8 +22,10 @@ from django.template import Context, Template
 from django.utils.timezone import now
 
 from . import openrouter
-from .edit import GameEditState
 from .models import LlmTrajectory, LlmWorkflow
+
+if TYPE_CHECKING:
+    from .edit import GameEditState
 
 LLM_RUNNERS: dict[str, type["LlmWorkflowRunner"]] = {}
 DEFAULT_MAX_STEPS = 100
@@ -36,7 +39,7 @@ def register_llm_runner(cls: type["LlmWorkflowRunner"]):
 
 
 def runner_for_workflow(
-    workflow: LlmWorkflow, state: GameEditState
+    workflow: LlmWorkflow, state: "GameEditState"
 ) -> "LlmWorkflowRunner":
     try:
         cls = LLM_RUNNERS[workflow.runner]
@@ -146,7 +149,9 @@ def _coerce_tool_arg(annotation, value):
 class LlmWorkflowRunner(ABC):
     runner_name: ClassVar[str]
 
-    def __init__(self, workflow: LlmWorkflow, state: GameEditState, **params):
+    def __init__(
+        self, workflow: LlmWorkflow, state: "GameEditState", **params
+    ):
         if workflow.runner != self.runner_name:
             raise ValueError(
                 f"Workflow {workflow.name!r} uses runner {workflow.runner!r}, "

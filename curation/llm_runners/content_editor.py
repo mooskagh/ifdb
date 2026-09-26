@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from curation.edit import Approval
 from curation.llm import llm_tool, register_llm_runner
@@ -8,165 +8,45 @@ from .base import GameEditStateLlmRunner
 
 
 @dataclass
-class MatchParams:
-    text_start: Annotated[
-        str,
-        "Existing body text at the start of the span to replace; not new "
-        "text; must not be empty; around 5 words recommended",
-    ]
-    text_end: Annotated[
-        str,
-        "Existing body text at the end of the span to replace; included in "
-        "the span; must not be empty unless to_end is true",
-    ]
-    occurrence: Annotated[
-        int | None,
-        "0-based occurrence; required only for non-unique text_start",
-    ] = None
-    to_end: Annotated[
-        bool,
-        "Set true only when the span must continue through the end of "
-        "current_text; text_end must then be empty",
-    ] = False
+class SourceRef:
+    file: Annotated[str, "Name of a configured readonly file (not current)"]
+    start_line: Annotated[int, "First source line, 1-based and inclusive"]
+    end_line: Annotated[int, "Last source line, 1-based and inclusive"]
 
 
 @dataclass
-class DeleteExactParams:
-    rationale: Annotated[str, "Explain why this exact text should be deleted"]
+class ReplaceLinesParams:
+    start_line: Annotated[int, "First current line, 1-based and inclusive"]
+    end_line: Annotated[int, "Last current line, 1-based and inclusive"]
+    rationale: Annotated[str, "Explain the decided edit"]
     text: Annotated[
-        str,
-        "Exact current_text substring to delete; must not be empty",
-    ]
-    occurrence: Annotated[
-        int | None,
-        "0-based occurrence; required for duplicate text; optional for "
-        "unique text",
+        str | None, "Literal replacement; empty string deletes lines"
+    ] = None
+    source: Annotated[
+        SourceRef | None,
+        "Readonly source; with text use file='', start_line=0, end_line=0",
     ] = None
 
 
 @dataclass
-class ReplaceExactParams:
-    rationale: Annotated[str, "Explain why this exact text should be replaced"]
-    old: Annotated[
-        str,
-        "Exact current_text substring to replace; must not be empty",
-    ]
-    new: Annotated[str, "Exact replacement text"]
-    occurrence: Annotated[
-        int | None,
-        "0-based occurrence; required for duplicate old text; optional for "
-        "unique text",
+class InsertLinesParams:
+    line: Annotated[int, "Current line; for an empty file use line 1, before"]
+    position: Annotated[Literal["before", "after"], "Insert relative to line"]
+    rationale: Annotated[str, "Explain the decided insertion"]
+    text: Annotated[str | None, "Literal lines to insert"] = None
+    source: Annotated[
+        SourceRef | None,
+        "Readonly source; with text use file='', start_line=0, end_line=0",
     ] = None
 
 
 @dataclass
-class PatchParams:
-    replace: Annotated[
-        str,
-        "Exact final text replacing the matched span; use an empty string to "
-        "delete it",
-    ]
-
-
-@dataclass
-class ReplacementParams:
-    text: Annotated[
-        str | None,
-        "Exact text to insert; use an empty string to delete the matched span",
-    ] = None
-    clipboard_id: Annotated[
-        str | None,
-        "Clipboard id from a previous cut call to insert instead of text",
-    ] = None
-
-
-@dataclass
-class EditParams:
-    rationale: Annotated[
-        str,
-        "Explain the decided edit before selecting match/replace; do not edit "
-        "while uncertain",
-    ]
-    match: MatchParams
-    edit: PatchParams
-
-
-@dataclass
-class ReplaceParams:
-    rationale: Annotated[
-        str,
-        "Explain the decided replacement before selecting match/replacement; "
-        "do not replace while uncertain",
-    ]
-    match: MatchParams
-    replacement: ReplacementParams
-
-
-@dataclass
-class CutParams:
-    rationale: Annotated[
-        str,
-        "Explain why this exact span should be cut before selecting match",
-    ]
-    match: MatchParams
-
-
-@dataclass
-class DeduplicateParams:
-    rationale: Annotated[
-        str,
-        "State the two or more occurrence indexes that are duplicates and why "
-        "one should be removed. Do not use this tool if there are fewer than "
-        "two matching spans",
-    ]
-    start_text: Annotated[
-        str,
-        "Existing body text at the start of every duplicate span; included in "
-        "each span; must not be empty",
-    ]
-    end_text: Annotated[
-        str,
-        "Existing body text at the end of every duplicate span; included in "
-        "each span; must not be empty",
-    ]
-    occurrence_to_keep: Annotated[
-        int,
-        "0-based occurrence index to keep. Valid only when at least two spans "
-        "match start_text/end_text.",
-    ]
-    allow_nonexact_match: Annotated[
-        bool,
-        "Set true to remove spans with the same start_text/end_text even when "
-        "the text between them differs; false requires every matched span to "
-        "be identical",
-    ] = False
-
-
-@dataclass
-class PasteParams:
-    rationale: Annotated[
-        str,
-        "Explain why this text should be pasted at the selected position",
-    ]
-    position: Literal["start", "end", "before", "after"]
-    text: Annotated[
-        str | None,
-        "Exact text to paste; provide exactly one of text or clipboard_id",
-    ] = None
-    clipboard_id: Annotated[
-        str | None,
-        "Clipboard id from a previous cut call; provide exactly one of text "
-        "or clipboard_id",
-    ] = None
-    anchor: Annotated[
-        str | None,
-        "Existing current_text used for before/after insertion; forbidden for "
-        "start/end",
-    ] = None
-    occurrence: Annotated[
-        int | None,
-        "0-based occurrence; required only for non-unique anchor",
-    ] = None
+class ReplaceTextParams:
+    start_line: Annotated[int, "First current line, 1-based and inclusive"]
+    end_line: Annotated[int, "Last current line, 1-based and inclusive"]
+    old: Annotated[str, "Nonempty, unique substring within the selected lines"]
+    new: Annotated[str, "Literal replacement text"]
+    rationale: Annotated[str, "Explain the decided edit"]
 
 
 @dataclass
@@ -175,270 +55,258 @@ class UndoParams:
 
 
 @dataclass
-class SummaryParams:
+class FinishParams:
+    resolution: Annotated[
+        Literal["commit", "abort", "request_human_review"], "Final disposition"
+    ]
     summary: Annotated[str, "Brief summary of the editing outcome"]
 
 
 @dataclass
 class ComplainParams:
     complaint: Annotated[
-        str,
-        "What editing API functionality is missing or awkward",
+        str, "What editing API functionality is missing or awkward"
     ]
     suggestion: Annotated[
-        str | None,
-        "Suggested better API shape or behavior",
+        str | None, "Suggested better API shape or behavior"
     ] = None
+
+
+@dataclass
+class ReadonlyFile:
+    name: str
+    text: str
+
+
+def _lines(text: str) -> list[str]:
+    return text.splitlines(keepends=True)
+
+
+def _range(text: str, start_line: int, end_line: int) -> tuple[int, int]:
+    lines = _lines(text)
+    if not 1 <= start_line <= end_line <= len(lines):
+        raise ValueError(
+            f"invalid line range {start_line}-{end_line}; use 1-{len(lines)}"
+        )
+    return sum(map(len, lines[: start_line - 1])), sum(
+        map(len, lines[:end_line])
+    )
+
+
+def _terminated(text: str) -> bool:
+    return text.endswith(("\n", "\r"))
+
+
+def _separator(text: str) -> str:
+    return "\r\n" if "\r\n" in text else "\n"
+
+
+def _splice(original: str, start: int, end: int, inserted: str) -> str:
+    before, after = original[:start], original[end:]
+    separator = _separator(original)
+    if inserted:
+        if before and not _terminated(before):
+            before += separator
+        if after and not _terminated(inserted):
+            inserted += separator
+        elif not after and _terminated(original) and not _terminated(inserted):
+            inserted += (
+                original[-2:] if original.endswith("\r\n") else original[-1]
+            )
+    elif not after and before and not _terminated(original):
+        before = before.removesuffix("\r\n").removesuffix("\n")
+    return before + inserted + after
+
+
+def _display(name: str, text: str, *, editable: bool) -> str:
+    header = f"FILE: {name} [{'editable' if editable else 'readonly'}]"
+    return "\n".join([
+        header,
+        *(
+            f"{i}: {line.removesuffix(chr(10)).removesuffix(chr(13))}"
+            for i, line in enumerate(_lines(text), 1)
+        ),
+    ])
 
 
 @register_llm_runner
 class ContentEditorRunner(GameEditStateLlmRunner):
     runner_name = "content_editor"
 
-    def __init__(self, workflow, state, **params):
+    def __init__(self, workflow: Any, state: Any, **params: Any) -> None:
         super().__init__(workflow, state, **params)
-        self._original_text = state.current.description or ""
+        self._original_text: str = state.current.description or ""
         self._finished = False
-        self._clipboard: dict[str, str] = {}
-        self._next_clipboard_id = 1
         self._undo_stack: list[str] = []
         self._successful_mutations = 0
         self._failed_mutations = 0
+        files: list[ReadonlyFile | dict[str, str]] = params.get(
+            "readonly_files", []
+        )
+        self._readonly_files: dict[str, str] = {}
+        for item in files:
+            name, text = (
+                (item.name, item.text)
+                if isinstance(item, ReadonlyFile)
+                else (item["name"], item["text"])
+            )
+            if not name or name == "current" or name in self._readonly_files:
+                raise ValueError(
+                    f"duplicate or reserved readonly file name: {name!r}"
+                )
+            self._readonly_files[name] = text
 
-    def run(self):
+    def context(self) -> dict[str, Any]:
+        context = super().context()
+        current = _display("current", self._current_text(), editable=True)
+        files = [
+            current,
+            *(
+                _display(name, text, editable=False)
+                for name, text in self._readonly_files.items()
+            ),
+        ]
+        context["numbered_files"] = "\n\n".join(files)
+        context["current_file"] = current
+        return context
+
+    def run(self) -> Any:
         served_text = self.state.served.description or ""
-        if not served_text.strip() and len(self.state.sources) <= 1:
-            # self.state.add_note(
-            #     "Fresh import from a single source, unlikely to have "
-            #     "duplicates; skipping content editor"
-            # )
+        if (
+            not served_text.strip()
+            and len(self.state.sources) <= 1
+            and not self._readonly_files
+        ):
             return None
-        if not self._current_text().strip():
-            # self.state.add_note(
-            #     "Content editor skipped empty description body."
-            # )
+        if not self._current_text().strip() and not self._readonly_files:
             return None
         trajectory = self.run_agent_loop(self.context(), require_tool=True)
         self._mark_attention_if_incomplete(trajectory)
         return trajectory
 
     @llm_tool
-    def edit(self, params: EditParams) -> dict:
-        """Replace exact text in the current game description body."""
-        result = self.replace(
-            ReplaceParams(
-                rationale=params.rationale,
-                match=params.match,
-                replacement=ReplacementParams(text=params.edit.replace),
-            )
-        )
-        if result["status"] == "replaced":
-            result["status"] = "edited"
-        elif result.get("error", "").startswith(
-            "replacement produced no change"
-        ):
-            result["error"] = "edit produced no change"
-        return result
-
-    @llm_tool
-    def delete_exact(self, params: DeleteExactParams) -> dict:
-        """Delete an exact substring from the current game description body."""
-        result = self.replace_exact(
-            ReplaceExactParams(
-                rationale=params.rationale,
-                old=params.text,
-                new="",
-                occurrence=params.occurrence,
-            )
-        )
-        if result["status"] == "replaced":
-            result["status"] = "deleted"
-        return result
-
-    @llm_tool
-    def replace_exact(self, params: ReplaceExactParams) -> dict:
-        """Replace an exact substring in the current game description body."""
-        text = self._current_text()
+    def replace_lines(self, params: ReplaceLinesParams) -> dict[str, Any]:
+        """Replace inclusive current lines; empty text deletes them all."""
+        current = self._current_text()
         try:
-            start, end = _exact_span(
-                text, params.old, params.occurrence, label="old"
-            )
-        except ValueError as e:
-            return self._error(e)
-
-        new_text = text[:start] + params.new + text[end:]
-        if new_text == text:
+            start, end = _range(current, params.start_line, params.end_line)
+            replacement = self._content(params.text, params.source)
+        except ValueError as error:
+            return self._error(error)
+        result = _splice(current, start, end, replacement)
+        if result == current:
             return self._error("replacement produced no change")
-        if not new_text.strip():
-            return self._error(
-                "replacement would remove the entire current_text; choose a "
-                "narrower exact text or request human review"
-            )
-        self._apply_text(new_text)
-        return self._success("replaced", start, start + len(params.new))
+        self._apply_text(result)
+        return self._success("replaced")
 
     @llm_tool
-    def replace(self, params: ReplaceParams) -> dict:
-        """Replace exact text in the current game description body."""
-        text = self._current_text()
-        try:
-            replacement = self._replacement_text(params.replacement)
-            start, end = _match_span(text, params.match)
-        except ValueError as e:
-            return self._error(e)
+    def insert_lines(self, params: InsertLinesParams) -> dict[str, Any]:
+        """Insert relative to a line; in an empty file use before line 1.
 
-        new_text = text[:start] + replacement + text[end:]
-        if new_text == text:
-            return self._error("replacement produced no change")
-        if not new_text.strip():
-            return self._error(
-                "replacement would remove the entire current_text; choose a "
-                "narrower span or request human review"
-            )
-        self._apply_text(new_text)
-        return self._success("replaced", start, start + len(replacement))
-
-    @llm_tool
-    def cut(self, params: CutParams) -> dict:
-        """Cut exact text from the current game description into clipboard."""
-        text = self._current_text()
-        try:
-            start, end = _match_span(text, params.match)
-        except ValueError as e:
-            return self._error(e)
-        if start == end:
-            return self._error("cut produced no change")
-
-        clipboard_id = self._new_clipboard_id()
-        clipboard_text = text[start:end]
-        self._clipboard[clipboard_id] = clipboard_text
-        self._apply_text(text[:start] + text[end:])
-        result = self._success("cut", start, start)
-        result.update({
-            "clipboard_id": clipboard_id,
-            "clipboard_text": clipboard_text,
-        })
-        return result
-
-    @llm_tool
-    def remove_duplicate_spans(self, params: DeduplicateParams) -> dict:
-        """Delete all but one occurrence of two or more matching spans.
-
-        Use only when start_text/end_text match at least two spans in
-        current_text.
-        This tool is invalid for reporting that no duplicates exist.
+        Insertion after the last line appends.
         """
-        text = self._current_text()
+        current = self._current_text()
         try:
-            spans = _deduplicate_spans(
-                text, params.start_text, params.end_text
-            )
-            keep = _required_occurrence(
-                len(spans), params.occurrence_to_keep, label="duplicate span"
-            )
-            if len(spans) < 2:
-                return self._error(
-                    "remove_duplicate_spans requires at least two matching "
-                    "spans"
+            count = len(_lines(current))
+            if not count and params.line == 1 and params.position == "before":
+                offset = 0
+            elif 1 <= params.line <= count and params.position in (
+                "before",
+                "after",
+            ):
+                offset = sum(
+                    map(
+                        len,
+                        _lines(current)[
+                            : params.line - (params.position == "before")
+                        ],
+                    )
                 )
-            parts = [text[start:end] for start, end in spans]
-            if not params.allow_nonexact_match:
-                _reject_nonidentical_spans(parts)
-        except ValueError as e:
-            return self._error(e)
-
-        new_text = text
-        removed = 0
-        for index, (start, end) in reversed(list(enumerate(spans))):
-            if index == keep:
-                continue
-            new_text = new_text[:start] + new_text[end:]
-            removed += 1
-        if new_text == text:
-            return self._error("remove_duplicate_spans produced no change")
-        if not new_text.strip():
-            return self._error(
-                "remove_duplicate_spans would remove the entire current_text; "
-                "choose narrower start_text/end_text or request human review"
-            )
-
-        kept_start, kept_end = spans[keep]
-        shift = sum(end - start for start, end in spans[:keep])
-        self._apply_text(new_text)
-        result = self._success(
-            "deduplicated", kept_start - shift, kept_end - shift
-        )
-        result["removed_occurrences"] = removed
-        return result
+            else:
+                raise ValueError(
+                    f"invalid insertion position; use lines 1-{count} "
+                    "or before line 1 for an empty file"
+                )
+            inserted = self._content(params.text, params.source)
+        except ValueError as error:
+            return self._error(error)
+        result = _splice(current, offset, offset, inserted)
+        if result == current:
+            return self._error("insertion produced no change")
+        self._apply_text(result)
+        return self._success("inserted")
 
     @llm_tool
-    def paste(self, params: PasteParams) -> dict:
-        """Paste exact text into the current game description body."""
-        text = self._current_text()
+    def replace_text(self, params: ReplaceTextParams) -> dict[str, Any]:
+        """Replace unique nonempty text within inclusive current lines."""
+        current = self._current_text()
         try:
-            pasted = self._paste_text(params)
-            index = _paste_index(text, params)
-        except ValueError as e:
-            return self._error(e)
-        if not pasted:
-            return self._error("paste text must not be empty")
-
-        new_text = text[:index] + pasted + text[index:]
-        self._apply_text(new_text)
-        return self._success("pasted", index, index + len(pasted))
+            start, end = _range(current, params.start_line, params.end_line)
+            if not params.old:
+                raise ValueError("old must not be empty")
+            bounded = current[start:end]
+            first = bounded.find(params.old)
+            if first < 0 or bounded.find(params.old, first + 1) >= 0:
+                raise ValueError(
+                    "old must occur exactly once within the selected lines; "
+                    "narrow the range or use longer old text"
+                )
+        except ValueError as error:
+            return self._error(error)
+        result = (
+            current[:start]
+            + current[start:end].replace(params.old, params.new, 1)
+            + current[end:]
+        )
+        if result == current:
+            return self._error("replacement produced no change")
+        self._apply_text(result)
+        return self._success("replaced")
 
     @llm_tool
-    def undo(self, params: UndoParams) -> dict:
-        """Undo the most recent successful edit, cut, paste, or replace."""
+    def undo(self, params: UndoParams) -> dict[str, Any]:
+        """Undo the most recent successful mutation."""
         if not self._undo_stack:
             return self._error("nothing to undo")
         self.state.current.description = self._undo_stack.pop()
         self._successful_mutations += 1
-        return self._success("undone", 0, 0)
+        return self._success("undone")
 
     @llm_tool
-    def no_duplicates_found(self, params: SummaryParams) -> dict:
-        """Finish when current_text has no duplicate spans to remove."""
-        return self._finish("no_duplicates_found", params.summary)
-
-    @llm_tool
-    def commit_edited_result(self, params: SummaryParams) -> dict:
-        """Finish editing and commit the current edited description."""
-        if self._failed_mutations and not self._successful_mutations:
+    def finish(self, params: FinishParams) -> dict[str, Any]:
+        """Finish: commit, restore original (abort), or request review."""
+        if params.resolution == "commit":
+            if self._failed_mutations and not self._successful_mutations:
+                self.state.approval = Approval.PROPOSED
+                self.state.needs_attention = True
+                self.state.add_note(
+                    "Content editor had failed edit attempts and made no "
+                    f"changes: {params.summary}"
+                )
+                return self._finish(
+                    "request_human_review",
+                    params.summary,
+                    error=(
+                        "commit rejected after failed edit attempts with no "
+                        "successful mutation"
+                    ),
+                )
+        elif params.resolution == "request_human_review":
             self.state.approval = Approval.PROPOSED
             self.state.needs_attention = True
-            self.state.add_note(
-                "Content editor had failed edit attempts and made no changes: "
-                f"{params.summary}"
+            self.state.add_note(params.summary)
+        elif params.resolution == "abort":
+            self.state.current.description = self._original_text
+            self.state.approval = Approval.REJECTED
+            self.state.add_note(params.summary)
+        else:
+            return self._error(
+                "resolution must be commit, abort, or request_human_review"
             )
-            return self._finish(
-                "request_human_review",
-                params.summary,
-                error=(
-                    "commit rejected after failed edit attempts with no "
-                    "successful mutation"
-                ),
-            )
-        return self._finish("commit", params.summary)
+        return self._finish(params.resolution, params.summary)
 
     @llm_tool
-    def request_human_review(self, params: SummaryParams) -> dict:
-        """Finish editing and flag the description for human review."""
-        self.state.approval = Approval.PROPOSED
-        self.state.needs_attention = True
-        self.state.add_note(params.summary)
-        return self._finish("request_human_review", params.summary)
-
-    @llm_tool
-    def abort(self, params: SummaryParams) -> dict:
-        """Abort editing and restore the original description."""
-        self.state.current.description = self._original_text
-        self.state.approval = Approval.REJECTED
-        self.state.add_note(params.summary)
-        return self._finish("abort", params.summary)
-
-    @llm_tool
-    def complain(self, params: ComplainParams) -> dict:
+    def complain(self, params: ComplainParams) -> dict[str, Any]:
         """Suggest improvements to this editing API."""
         note = f"Content editor complaint: {params.complaint}"
         if params.suggestion:
@@ -447,60 +315,39 @@ class ContentEditorRunner(GameEditStateLlmRunner):
         self.state.add_note(note)
         return {"status": "complaint_recorded"}
 
-    def should_stop(self, message, tool_results, step) -> bool:
+    def should_stop(self, message: Any, tool_results: Any, step: int) -> bool:
         return self._finished
 
     def _current_text(self) -> str:
         return self.state.current.description or ""
 
-    def _replacement_text(self, replacement: ReplacementParams) -> str:
-        return self._one_text_source(
-            replacement.text,
-            replacement.clipboard_id,
-            allow_empty_text=True,
-        )
+    def _content(self, text: str | None, source: SourceRef | None) -> str:
+        if source == SourceRef("", 0, 0):
+            source = None
+        if (text is None) == (source is None):
+            raise ValueError("provide exactly one of text or source")
+        if source is None:
+            assert text is not None
+            return text
+        if source.file not in self._readonly_files:
+            raise ValueError(
+                f"unknown readonly source {source.file!r}; "
+                f"available: {', '.join(self._readonly_files) or '(none)'}"
+            )
+        data = self._readonly_files[source.file]
+        start, end = _range(data, source.start_line, source.end_line)
+        return data[start:end]
 
-    def _paste_text(self, params: PasteParams) -> str:
-        return self._one_text_source(
-            params.text,
-            params.clipboard_id,
-            allow_empty_text=False,
-        )
-
-    def _one_text_source(
-        self,
-        text: str | None,
-        clipboard_id: str | None,
-        *,
-        allow_empty_text: bool,
-    ) -> str:
-        clipboard_id = clipboard_id or None
-        if not allow_empty_text or clipboard_id is not None:
-            text = text or None
-        if (text is None) == (clipboard_id is None):
-            raise ValueError("provide exactly one of text or clipboard_id")
-        if clipboard_id is None:
-            return text or ""
-        try:
-            return self._clipboard[clipboard_id]
-        except KeyError as e:
-            raise ValueError(f"unknown clipboard_id {clipboard_id!r}") from e
-
-    def _apply_text(self, new_text: str) -> None:
+    def _apply_text(self, text: str) -> None:
         self._undo_stack.append(self._current_text())
-        self.state.current.description = new_text
+        self.state.current.description = text
         self._successful_mutations += 1
-
-    def _new_clipboard_id(self) -> str:
-        clipboard_id = f"clip_{self._next_clipboard_id}"
-        self._next_clipboard_id += 1
-        return clipboard_id
 
     def _finish(
         self, resolution: str, summary: str, *, error: str | None = None
-    ) -> dict:
+    ) -> dict[str, Any]:
         self._finished = True
-        result = {
+        result: dict[str, Any] = {
             "status": "finished",
             "resolution": resolution,
             "summary": summary,
@@ -509,209 +356,23 @@ class ContentEditorRunner(GameEditStateLlmRunner):
             result["error"] = error
         return result
 
-    def _success(self, status: str, start: int, end: int) -> dict:
-        text = self._current_text()
+    def _success(self, status: str) -> dict[str, Any]:
         return {
             "status": status,
-            "message": (
-                "Operation applied to current_text. Inspect current_text; "
-                "if it satisfies the task, call commit_edited_result."
+            "message": "Inspect numbered current; call finish when done.",
+            "current_text": self._current_text(),
+            "current_file": _display(
+                "current", self._current_text(), editable=True
             ),
-            "current_text": text,
-            "snippet": _snippet(text, start, end),
         }
 
-    def _error(self, error) -> dict:
+    def _error(self, error: object) -> dict[str, Any]:
         self._failed_mutations += 1
         return {
             "status": "error",
-            "error": f"{error}; text is matched against current_text",
+            "error": str(error),
             "current_text": self._current_text(),
+            "current_file": _display(
+                "current", self._current_text(), editable=True
+            ),
         }
-
-
-def _paste_index(text: str, params: PasteParams) -> int:
-    if params.position == "start":
-        if params.anchor is not None or params.occurrence is not None:
-            raise ValueError("anchor and occurrence are forbidden for start")
-        return 0
-    if params.position == "end":
-        if params.anchor is not None or params.occurrence is not None:
-            raise ValueError("anchor and occurrence are forbidden for end")
-        return len(text)
-    if params.anchor is None:
-        raise ValueError("anchor is required for before/after")
-    start, end = _anchor_span(text, params.anchor, params.occurrence)
-    return start if params.position == "before" else end
-
-
-def _anchor_span(
-    text: str, anchor: str, occurrence: int | None
-) -> tuple[int, int]:
-    starts = _occurrences(text, anchor, label="anchor")
-    if not starts:
-        raise ValueError("anchor was not found")
-    if len(starts) > 1 and occurrence is None:
-        raise ValueError(
-            f"anchor was found {len(starts)} times; set 0-based occurrence"
-        )
-    if occurrence is None:
-        start = starts[0]
-    else:
-        start = starts[
-            _required_occurrence(len(starts), occurrence, label="anchor")
-        ]
-    return start, start + len(anchor)
-
-
-def _match_span(text: str, match: MatchParams) -> tuple[int, int]:
-    starts = _occurrences(text, match.text_start, label="text_start")
-    if not starts:
-        raise ValueError("text_start was not found")
-    if len(starts) > 1 and match.occurrence is None:
-        raise ValueError(
-            f"text_start was found {len(starts)} times; set 0-based occurrence"
-        )
-    if match.occurrence is None:
-        start = starts[0]
-    else:
-        start = starts[
-            _required_occurrence(
-                len(starts), match.occurrence, label="text_start"
-            )
-        ]
-
-    if match.to_end:
-        if match.text_end and not text.rstrip().endswith(
-            match.text_end.rstrip()
-        ):
-            raise ValueError(
-                "text_end must be empty or match the stripped end when "
-                "to_end is true"
-            )
-        end = len(text)
-        _reject_repeated_start_inside_span(text, match, start, end)
-        return start, end
-    if not match.text_end:
-        raise ValueError("text_end is required unless to_end is true")
-
-    end = text.find(match.text_end, start)
-    if end == -1:
-        raise ValueError(
-            "text_end was not found after the selected text_start"
-        )
-    end += len(match.text_end)
-    _reject_repeated_start_inside_span(text, match, start, end)
-    return start, end
-
-
-def _exact_span(
-    text: str, needle: str, occurrence: int | None, *, label: str
-) -> tuple[int, int]:
-    starts = _occurrences(text, needle, label=label)
-    if not starts:
-        raise ValueError(f"{label} was not found")
-    if len(starts) > 1 and occurrence is None:
-        raise ValueError(
-            f"{label} was found {len(starts)} times; set 0-based occurrence"
-        )
-    if occurrence is None:
-        start = starts[0]
-    else:
-        start = starts[
-            _required_occurrence(len(starts), occurrence, label=label)
-        ]
-    return start, start + len(needle)
-
-
-def _required_occurrence(count: int, occurrence: int, *, label: str) -> int:
-    if not 0 <= occurrence < count:
-        raise ValueError(
-            f"occurrence must be between 0 and {count - 1} for this {label}"
-        )
-    return occurrence
-
-
-def _deduplicate_spans(
-    text: str, start_text: str, end_text: str
-) -> list[tuple[int, int]]:
-    starts = _occurrences(text, start_text, label="start_text")
-    if not starts:
-        raise ValueError("start_text was not found")
-    if not end_text:
-        raise ValueError("end_text must not be empty")
-
-    spans = []
-    for start in starts:
-        end = text.find(end_text, start)
-        if end == -1:
-            raise ValueError("end_text was not found after a start_text")
-        end += len(end_text)
-        repeat = text.find(start_text, start + len(start_text), end)
-        if repeat != -1:
-            raise ValueError(
-                "start_text appears again inside a matched span; choose a "
-                "more specific start_text or a narrower span"
-            )
-        spans.append((start, end))
-    return spans
-
-
-def _reject_nonidentical_spans(parts: list[str]) -> None:
-    first = parts[0]
-    differences = [
-        f"occurrence 0: {_short_repr(first)}",
-    ]
-    for index, part in enumerate(parts[1:], start=1):
-        if part != first:
-            differences.append(f"occurrence {index}: {_short_repr(part)}")
-            raise ValueError(
-                "matched spans are not identical; set "
-                "allow_nonexact_match=true to remove spans that only share "
-                "start_text/end_text. " + " ".join(differences)
-            )
-
-
-def _short_repr(text: str) -> str:
-    text = text.replace("\n", "\\n")
-    if len(text) > 160:
-        text = text[:157] + "..."
-    return repr(text)
-
-
-def _reject_repeated_start_inside_span(
-    text: str, match: MatchParams, start: int, end: int
-) -> None:
-    repeat = text.find(match.text_start, start + len(match.text_start), end)
-    if repeat != -1:
-        raise ValueError(
-            "text_start appears again inside the matched span; choose a more "
-            "specific text_start or a narrower span"
-        )
-
-
-def _occurrences(text: str, needle: str, *, label: str) -> list[int]:
-    if not needle:
-        raise ValueError(
-            f"{label} must not be empty; choose existing text in current_text"
-        )
-    starts = []
-    start = 0
-    while True:
-        found = text.find(needle, start)
-        if found == -1:
-            return starts
-        starts.append(found)
-        start = found + len(needle)
-
-
-def _snippet(text: str, start: int, end: int) -> str:
-    before = max(0, start - 200)
-    after = min(len(text), end + 200)
-    line_start = text.rfind("\n", 0, before)
-    line_end = text.find("\n", after)
-    return text[
-        0 if line_start == -1 else line_start + 1 : len(text)
-        if line_end == -1
-        else line_end
-    ]

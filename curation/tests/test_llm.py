@@ -24,16 +24,11 @@ from curation.llm import (
 from curation.llm_runners.base import game_edit_state_context
 from curation.llm_runners.content_editor import (
     ComplainParams,
-    CutParams,
-    DeduplicateParams,
-    DeleteExactParams,
-    EditParams,
-    MatchParams,
-    PasteParams,
-    PatchParams,
-    ReplacementParams,
-    ReplaceParams,
-    SummaryParams,
+    FinishParams,
+    InsertLinesParams,
+    ReplaceLinesParams,
+    ReplaceTextParams,
+    SourceRef,
     UndoParams,
 )
 from curation.llm_runners.status_review import SetStatusParams
@@ -623,12 +618,11 @@ class LlmWorkflowRunnerTests(TestCase):
                                     "id": f"call_{i}",
                                     "type": "function",
                                     "function": {
-                                        "name": "edit",
+                                        "name": "replace_text",
                                         "arguments": (
                                             '{"rationale":"test",'
-                                            '"match":{"text_start":"missing",'
-                                            '"text_end":"missing"},'
-                                            '"edit":{"replace":"New"}}'
+                                            '"start_line":1,"end_line":1,'
+                                            '"old":"missing","new":"New"}'
                                         ),
                                     },
                                 }
@@ -1094,7 +1088,7 @@ class StatusReviewRunnerTests(TestCase):
 class ContentEditorRunnerTests(TestCase):
     def setUp(self):
         self.model = LLMModel.objects.create(
-            name="openai/editor-test",
+            name="editor-test",
             context_length=1000,
             input_cost=Decimal("1"),
             cached_input_cost=Decimal("0"),
@@ -1104,296 +1098,269 @@ class ContentEditorRunnerTests(TestCase):
         self.workflow = LlmWorkflow.objects.create(
             name="content_editor",
             runner="content_editor",
-            prompt_template="Current:\n{{ current_content_text }}",
+            prompt_template="{{ numbered_files }}",
             model=self.model,
         )
         game = Game.objects.create(
             state=Game.State.DRAFT, title="LLM Game", creation_time=now()
         )
-        self.history = GameCuration.objects.create(game=game)
         self.state = GameEditState(
-            curation=self.history,
-            current=GameInfo(
-                name="Title",
-                description="First line\nSecond line\nThird line",
-            ),
-            approval=Approval.APPLIED,
-            served=GameInfo(name="Title", description="First line"),
+            curation=GameCuration.objects.create(game=game),
+            current=GameInfo(name="Title", description="First\nSecond\nThird"),
+            served=GameInfo(name="Title", description="First"),
             last_applied=GameInfo(),
+            approval=Approval.APPLIED,
             sources=[],
         )
 
-    def _runner(self):
+    def runner(self):
         return runner_for_workflow(self.workflow, self.state)
 
-    def test_runner_is_registered_and_resolution_schema_is_enum(self):
-        runner = self._runner()
-
-        names = {tool["function"]["name"] for tool in runner._tools_schema()}
+    def test_schema_and_exclusive_content(self):
+        runner = self.runner()
+        tools = {
+            t["function"]["name"]: t["function"]
+            for t in runner._tools_schema()
+        }
         self.assertEqual(
-            names,
+            set(tools),
             {
-                "complain",
-                "cut",
-                "abort",
-                "commit_edited_result",
-                "delete_exact",
-                "edit",
-                "no_duplicates_found",
-                "paste",
-                "replace",
-                "replace_exact",
-                "remove_duplicate_spans",
-                "request_human_review",
+                "replace_lines",
+                "insert_lines",
+                "replace_text",
                 "undo",
+                "finish",
+                "complain",
             },
         )
-        edit = next(
-            tool
-            for tool in runner._tools_schema()
-            if tool["function"]["name"] == "edit"
+        self.assertEqual(
+            set(
+                tools["replace_lines"]["parameters"]["properties"]["source"][
+                    "properties"
+                ]
+            ),
+            {"file", "start_line", "end_line"},
         )
-        remove_duplicate_spans = next(
-            tool
-            for tool in runner._tools_schema()
-            if tool["function"]["name"] == "remove_duplicate_spans"
+        self.assertEqual(
+            tools["finish"]["parameters"]["properties"]["resolution"]["enum"],
+            ["commit", "abort", "request_human_review"],
+        )
+        for text, source in ((None, None), ("x", SourceRef("notes", 1, 1))):
+            result = runner.replace_lines(
+                ReplaceLinesParams(2, 2, "test", text, source)
+            )
+            self.assertEqual(result["status"], "error")
+            self.assertIn("exactly one", result["error"])
+        self.assertEqual(
+            self.state.current.description, "First\nSecond\nThird"
         )
 
-        edit_params = edit["function"]["parameters"]["properties"]
-        self.assertIn("replace", edit_params["edit"]["required"])
-        self.assertNotIn("insert_before", edit_params["edit"]["properties"])
-        self.assertNotIn("insert_after", edit_params["edit"]["properties"])
-        remove_duplicate_spans_params = remove_duplicate_spans["function"][
-            "parameters"
-        ]["properties"]
+        self.assertEqual(
+            runner.replace_lines(
+                ReplaceLinesParams(2, 2, "delete", "", SourceRef("", 0, 0))
+            )["current_text"],
+            "First\nThird",
+        )
+        self.assertEqual(
+            runner.insert_lines(
+                InsertLinesParams(
+                    1, "after", "insert", "New", SourceRef("", 0, 0)
+                )
+            )["current_text"],
+            "First\nNew\nThird",
+        )
+        self.assertEqual(
+            runner.replace_lines(
+                ReplaceLinesParams(2, 2, "invalid", "x", SourceRef("", 1, 1))
+            )["status"],
+            "error",
+        )
+        self.assertEqual(self.state.current.description, "First\nNew\nThird")
+
+    def test_readonly_copy_numbering_and_undo(self):
+        self.workflow.runner_params = {
+            "readonly_files": [{"name": "notes", "text": "A\r\nB\r\n"}]
+        }
+        runner = self.runner()
         self.assertIn(
-            "0-based",
-            remove_duplicate_spans_params["occurrence_to_keep"]["description"],
+            "FILE: notes [readonly]\n1: A\n2: B",
+            runner.context()["numbered_files"],
         )
+        self.assertIn(
+            "FILE: current [editable]\n1: First",
+            runner.context()["numbered_files"],
+        )
+        self.assertIn(
+            "FILE: current [editable]\n1: First",
+            runner.context()["current_file"],
+        )
+        first = runner.replace_lines(
+            ReplaceLinesParams(2, 2, "copy", source=SourceRef("notes", 1, 2))
+        )
+        self.assertEqual(first["current_text"], "First\nA\r\nB\r\nThird")
+        self.assertIn("4: Third", first["current_file"])
+        second = runner.insert_lines(
+            InsertLinesParams(3, "after", "insert", text="Extra")
+        )
+        self.assertIn("4: Extra\n5: Third", second["current_file"])
         self.assertEqual(
-            runner.no_duplicates_found.__doc__,
-            "Finish when current_text has no duplicate spans to remove.",
+            runner.undo(UndoParams("undo"))["current_file"],
+            first["current_file"],
         )
 
-    def test_complain_records_feedback_and_marks_attention(self):
-        result = self._runner().complain(
-            ComplainParams(
-                complaint="Need structured URL editing",
-                suggestion="Add add_url/remove_url tools",
-            )
-        )
-
-        self.assertEqual(result, {"status": "complaint_recorded"})
-        self.assertEqual(
-            self.state.current.description,
-            "First line\nSecond line\nThird line",
-        )
-        self.assertIs(self.state.needs_attention, True)
-        self.assertEqual(
-            self.state.notes,
-            [
-                "Content editor complaint: Need structured URL editing "
-                "Suggestion: Add add_url/remove_url tools"
-            ],
-        )
-
-    def test_edit_replaces_text_and_returns_post_edit_line_snippet(self):
-        result = self._runner().edit(
-            self._edit_params(
-                "Second line",
-                "Second line",
-                replace="Changed line",
-            )
-        )
-
-        self.assertEqual(result["status"], "edited")
-        self.assertIn("call commit_edited_result", result["message"])
-        self.assertEqual(
-            result["current_text"],
-            "First line\nChanged line\nThird line",
-        )
-        self.assertEqual(
-            self.state.current.description,
-            "First line\nChanged line\nThird line",
-        )
-        self.assertIn("First line", result["snippet"])
-        self.assertIn("Changed line", result["snippet"])
-        self.assertIn("Third line", result["snippet"])
-
-    def test_replace_replaces_text(self):
-        result = self._runner().replace(
-            ReplaceParams(
-                rationale="test",
-                match=MatchParams("Second line", "Second line"),
-                replacement=ReplacementParams(text="Changed line"),
-            )
-        )
-
-        self.assertEqual(result["status"], "replaced")
-        self.assertEqual(
-            result["current_text"],
-            "First line\nChanged line\nThird line",
-        )
-
-    def test_delete_exact_removes_unique_text_with_optional_occurrence(self):
-        result = self._runner().delete_exact(
-            DeleteExactParams(
-                rationale="test",
-                text="Second line\n",
-                occurrence=0,
-            )
-        )
-
-        self.assertEqual(result["status"], "deleted")
-        self.assertEqual(result["current_text"], "First line\nThird line")
-        self.assertEqual(
-            self.state.current.description, result["current_text"]
-        )
-
-    def test_cut_removes_text_and_returns_clipboard(self):
-        result = self._runner().cut(
-            CutParams(
-                rationale="test",
-                match=MatchParams("Second line\n", "Second line\n"),
-            )
-        )
-
-        self.assertEqual(result["status"], "cut")
-        self.assertEqual(result["clipboard_id"], "clip_1")
-        self.assertEqual(result["clipboard_text"], "Second line\n")
-        self.assertEqual(result["current_text"], "First line\nThird line")
-
-    def test_remove_duplicate_spans_removes_all_but_selected_span(self):
-        self.state.current.description = (
-            "Intro\n"
-            "<section>Duplicate block</section>\n"
-            "Middle\n"
-            "<section>Duplicate block</section>\n"
-            "Outro"
-        )
-
-        result = self._runner().remove_duplicate_spans(
-            DeduplicateParams(
-                rationale="test",
-                start_text="<section>",
-                end_text="</section>\n",
-                occurrence_to_keep=1,
-            )
-        )
-
-        self.assertEqual(result["status"], "deduplicated")
-        self.assertEqual(result["removed_occurrences"], 1)
-        self.assertEqual(
-            result["current_text"],
-            "Intro\nMiddle\n<section>Duplicate block</section>\nOutro",
-        )
-
-    def test_paste_inserts_text_at_end(self):
-        result = self._runner().paste(
-            PasteParams(
-                rationale="test",
-                position="end",
-                text="\nFourth line",
-            )
-        )
-
-        self.assertEqual(result["status"], "pasted")
-        self.assertEqual(
-            result["current_text"],
-            "First line\nSecond line\nThird line\nFourth line",
-        )
-
-    def test_undo_restores_previous_successful_mutation(self):
-        runner = self._runner()
-        runner.cut(
-            CutParams(
-                rationale="test",
-                match=MatchParams("Second line\n", "Second line\n"),
-            )
-        )
-
-        result = runner.undo(UndoParams(rationale="test"))
-
-        self.assertEqual(result["status"], "undone")
-        self.assertEqual(
-            result["current_text"],
-            "First line\nSecond line\nThird line",
-        )
-
-    def test_tool_call_coerces_nested_edit_params(self):
-        responses = [
-            {
-                "choices": [
-                    {
-                        "message": {
-                            "role": "assistant",
-                            "content": None,
-                            "tool_calls": [
-                                {
-                                    "id": "call_1",
-                                    "type": "function",
-                                    "function": {
-                                        "name": "edit",
-                                        "arguments": (
-                                            '{"rationale":"test",'
-                                            '"match":{'
-                                            '"text_start":"Second line",'
-                                            '"text_end":"Second line"},'
-                                            '"edit":{'
-                                            '"replace":"Changed line"}}'
-                                        ),
-                                    },
-                                }
-                            ],
-                        }
-                    }
-                ],
-                "usage": {},
-            },
-            {
-                "choices": [
-                    {
-                        "message": {
-                            "role": "assistant",
-                            "content": None,
-                            "tool_calls": [
-                                {
-                                    "id": "call_2",
-                                    "type": "function",
-                                    "function": {
-                                        "name": "commit_edited_result",
-                                        "arguments": (
-                                            '{"summary":"Changed line"}'
-                                        ),
-                                    },
-                                }
-                            ],
-                        }
-                    }
-                ],
-                "usage": {},
-            },
-        ]
-
-        with patch.object(
-            openrouter, "chat_completion", side_effect=responses
+    def test_bad_ranges_sources_and_ambiguity_leave_text_untouched(self):
+        self.workflow.runner_params = {
+            "readonly_files": [{"name": "notes", "text": "A\n"}]
+        }
+        runner = self.runner()
+        old = self.state.current.description
+        for operation in (
+            lambda: runner.replace_lines(
+                ReplaceLinesParams(0, 1, "bad", text="X")
+            ),
+            lambda: runner.replace_lines(
+                ReplaceLinesParams(2, 4, "bad", text="X")
+            ),
+            lambda: runner.insert_lines(
+                InsertLinesParams(4, "after", "bad", text="X")
+            ),
+            lambda: runner.replace_lines(
+                ReplaceLinesParams(
+                    2, 2, "bad", source=SourceRef("current", 1, 1)
+                )
+            ),
+            lambda: runner.replace_lines(
+                ReplaceLinesParams(
+                    2, 2, "bad", source=SourceRef("notes", 1, 2)
+                )
+            ),
+            lambda: runner.replace_text(
+                ReplaceTextParams(1, 3, "", "X", "bad")
+            ),
         ):
-            self._runner().run()
-
+            result = operation()
+            self.assertEqual(result["status"], "error")
+            self.assertIn("FILE: current [editable]", result["current_file"])
+            self.assertEqual(self.state.current.description, old)
+        self.state.current.description = "repeat\nrepeat\nunique"
+        runner = self.runner()
+        for start, end in ((1, 2), (3, 3)):
+            self.assertEqual(
+                runner.replace_text(
+                    ReplaceTextParams(start, end, "repeat", "new", "test")
+                )["status"],
+                "error",
+            )
         self.assertEqual(
-            self.state.current.description,
-            "First line\nChanged line\nThird line",
+            self.state.current.description, "repeat\nrepeat\nunique"
+        )
+        self.assertEqual(
+            runner.replace_text(
+                ReplaceTextParams(2, 2, "repeat", "new", "test")
+            )["current_text"],
+            "repeat\nnew\nunique",
+        )
+        for name in ("notes", "current", ""):
+            self.workflow.runner_params = {
+                "readonly_files": [
+                    {"name": "notes", "text": "a"},
+                    {"name": name, "text": "b"},
+                ]
+            }
+            with self.assertRaises(ValueError):
+                self.runner()
+
+    def test_blank_lines_crlf_terminal_newline_and_empty_file(self):
+        self.state.current.description = "A\r\n\r\nC\r\n"
+        runner = self.runner()
+        self.assertIn("1: A\n2: \n3: C", runner.context()["numbered_files"])
+        self.assertEqual(
+            runner.replace_lines(ReplaceLinesParams(2, 2, "edit", text="B"))[
+                "current_text"
+            ],
+            "A\r\nB\r\nC\r\n",
+        )
+        self.assertEqual(
+            runner.replace_lines(ReplaceLinesParams(1, 3, "delete", text=""))[
+                "current_text"
+            ],
+            "",
+        )
+        self.assertEqual(
+            runner.insert_lines(
+                InsertLinesParams(1, "before", "start", text="New")
+            )["current_text"],
+            "New",
+        )
+        self.assertEqual(
+            runner.insert_lines(
+                InsertLinesParams(1, "after", "append", text="Last")
+            )["current_text"],
+            "New\nLast",
         )
 
-    def test_run_requires_tool_call_and_finish(self):
-        responses = [
-            {
-                "choices": [
-                    {"message": {"role": "assistant", "content": "<finish/>"}}
-                ],
-                "usage": {},
-            },
-            {
+    def test_finish_attention_and_complaint(self):
+        self.assertEqual(
+            self.runner().finish(FinishParams("commit", "No duplicates"))[
+                "resolution"
+            ],
+            "commit",
+        )
+        runner = self.runner()
+        runner.replace_lines(ReplaceLinesParams(0, 1, "bad", text="X"))
+        self.assertEqual(
+            runner.finish(FinishParams("commit", "Done"))["resolution"],
+            "request_human_review",
+        )
+        self.assertEqual(self.state.approval, Approval.PROPOSED)
+        self.assertTrue(self.state.needs_attention)
+        runner = self.runner()
+        runner.replace_lines(ReplaceLinesParams(2, 2, "edit", text="Changed"))
+        self.assertEqual(
+            runner.finish(FinishParams("commit", "Done"))["resolution"],
+            "commit",
+        )
+        runner = self.runner()
+        runner.replace_lines(ReplaceLinesParams(2, 2, "edit", text="Other"))
+        self.assertEqual(
+            runner.finish(FinishParams("abort", "Undo"))["resolution"], "abort"
+        )
+        self.assertEqual(
+            self.state.current.description, "First\nChanged\nThird"
+        )
+        self.assertEqual(self.state.approval, Approval.REJECTED)
+        self.assertEqual(
+            self.runner().finish(
+                FinishParams("request_human_review", "Unsure")
+            )["resolution"],
+            "request_human_review",
+        )
+        self.assertEqual(
+            self.runner().complain(ComplainParams("Need URL tool"))["status"],
+            "complaint_recorded",
+        )
+
+    def test_mocked_prompt_and_tool_trajectory(self):
+        self.workflow.runner_params = {
+            "readonly_files": [{"name": "notes", "text": "Source\n"}]
+        }
+        responses = []
+        for index, (name, args) in enumerate(
+            (
+                (
+                    "replace_lines",
+                    {
+                        "start_line": 2,
+                        "end_line": 2,
+                        "text": "Changed",
+                        "rationale": "edit",
+                    },
+                ),
+                ("finish", {"resolution": "commit", "summary": "Done"}),
+            ),
+            1,
+        ):
+            responses.append({
                 "choices": [
                     {
                         "message": {
@@ -1401,13 +1368,11 @@ class ContentEditorRunnerTests(TestCase):
                             "content": None,
                             "tool_calls": [
                                 {
-                                    "id": "call_1",
+                                    "id": f"call_{index}",
                                     "type": "function",
                                     "function": {
-                                        "name": "commit_edited_result",
-                                        "arguments": (
-                                            '{"summary":"No changes"}'
-                                        ),
+                                        "name": name,
+                                        "arguments": json.dumps(args),
                                     },
                                 }
                             ],
@@ -1415,198 +1380,52 @@ class ContentEditorRunnerTests(TestCase):
                     }
                 ],
                 "usage": {},
-            },
-        ]
-
+            })
         with patch.object(
             openrouter, "chat_completion", side_effect=responses
         ) as chat:
-            self._runner().run()
+            self.assertIsNotNone(self.runner().run())
+        self.assertIn(
+            "FILE: current [editable]\n1: First",
+            chat.call_args_list[0].args[1][0]["content"],
+        )
+        self.assertIn(
+            "FILE: notes [readonly]\n1: Source",
+            chat.call_args_list[0].args[1][0]["content"],
+        )
+        self.assertIn(
+            "2: Changed", chat.call_args_list[1].args[1][2]["content"]
+        )
+        self.assertEqual(
+            self.state.current.description, "First\nChanged\nThird"
+        )
 
+    def test_incomplete_run_marks_attention(self):
+        self.workflow.runner_params = {"max_error_tool_calls": 2}
+        self.workflow.save(update_fields=["runner_params"])
+        response = {
+            "choices": [{"message": {"role": "assistant", "content": "done"}}],
+            "usage": {},
+        }
+        with patch.object(
+            openrouter, "chat_completion", side_effect=[response, response]
+        ) as chat:
+            self.assertIsNotNone(self.runner().run())
         self.assertEqual(chat.call_count, 2)
         self.assertEqual(
             chat.call_args_list[0].kwargs["tool_choice"], "required"
         )
-        self.assertEqual(self.state.notes, [])
-
-    def test_run_skips_llm_for_empty_content_body(self):
-        self.state.current.description = " \n\t "
-
-        with patch.object(openrouter, "chat_completion") as chat:
-            trajectory = self._runner().run()
-
-        chat.assert_not_called()
-        self.assertIsNone(trajectory)
-        self.assertEqual(self.state.approval, Approval.APPLIED)
-        self.assertIs(self.state.needs_attention, False)
-        self.assertEqual(LlmTrajectory.objects.count(), 0)
-
-    def test_run_skips_fresh_single_source_import(self):
-        self.state.served.description = None
-
-        with patch.object(openrouter, "chat_completion") as chat:
-            trajectory = self._runner().run()
-
-        chat.assert_not_called()
-        self.assertIsNone(trajectory)
-        self.assertEqual(LlmTrajectory.objects.count(), 0)
-
-    def test_run_keeps_fresh_multi_source_import_review(self):
-        self.state.served.description = None
-        self.state.sources = [
-            SourceFetchInfo(
-                url=None,
-                type="IFWIKI",
-                raw_content=None,
-                canonical_text=None,
-                previous_raw_content=None,
-                previous_canonical_text=None,
-                status=s,
-                fetch=None,
-            )
-            for s in (SourceStatus.NEW, SourceStatus.NEW)
-        ]
-        responses = [
-            {
-                "choices": [
-                    {
-                        "message": {
-                            "role": "assistant",
-                            "content": None,
-                            "tool_calls": [
-                                {
-                                    "id": "call_1",
-                                    "type": "function",
-                                    "function": {
-                                        "name": "commit_edited_result",
-                                        "arguments": (
-                                            '{"summary":"No changes"}'
-                                        ),
-                                    },
-                                }
-                            ],
-                        }
-                    }
-                ],
-                "usage": {},
-            }
-        ]
-
-        with patch.object(
-            openrouter, "chat_completion", side_effect=responses
-        ) as chat:
-            trajectory = self._runner().run()
-
-        self.assertIsNotNone(trajectory)
-        self.assertEqual(chat.call_count, 1)
-        self.assertEqual(LlmTrajectory.objects.count(), 1)
-
-    def test_run_marks_attention_after_repeated_missing_tool_calls(self):
-        self.workflow.runner_params = {"max_error_tool_calls": 2}
-        self.workflow.save(update_fields=["runner_params"])
-        responses = [
-            {
-                "choices": [
-                    {"message": {"role": "assistant", "content": "<finish/>"}}
-                ],
-                "usage": {},
-            }
-            for _ in range(2)
-        ]
-
-        with patch.object(
-            openrouter, "chat_completion", side_effect=responses
-        ):
-            trajectory = self._runner().run()
-
         self.assertEqual(self.state.approval, Approval.REJECTED)
-        self.assertIs(self.state.needs_attention, True)
-        self.assertEqual(
-            self.state.notes,
-            [
-                'LLM workflow "content_editor" stopped without using tools; '
-                f"review trajectory #{trajectory.pk}."
-            ],
-        )
+        self.assertTrue(self.state.needs_attention)
 
-    def test_abort_restores_original_and_rejects(self):
-        runner = self._runner()
-        runner.edit(
-            self._edit_params("Second line", "Second line", replace="Changed")
-        )
-
-        result = runner.abort(SummaryParams(summary="Bad edit"))
-
-        self.assertEqual(result["status"], "finished")
-        self.assertEqual(self.state.approval, Approval.REJECTED)
-        self.assertIs(self.state.needs_attention, False)
-        self.assertEqual(self.state.notes, ["Bad edit"])
-        self.assertEqual(
-            self.state.current.description,
-            "First line\nSecond line\nThird line",
-        )
-
-    def test_request_human_review_marks_proposed(self):
-        result = self._runner().request_human_review(
-            SummaryParams(summary="Needs review")
-        )
-
-        self.assertEqual(result["resolution"], "request_human_review")
-        self.assertEqual(self.state.approval, Approval.PROPOSED)
-        self.assertIs(self.state.needs_attention, True)
-        self.assertEqual(self.state.notes, ["Needs review"])
-
-    def test_commit_after_failed_mutation_without_success_needs_review(
-        self,
-    ):
-        runner = self._runner()
-        runner.delete_exact(
-            DeleteExactParams(rationale="test", text="Missing line")
-        )
-
-        result = runner.commit_edited_result(SummaryParams(summary="Done"))
-
-        self.assertEqual(result["status"], "finished")
-        self.assertEqual(result["resolution"], "request_human_review")
-        self.assertIn("commit rejected", result["error"])
-        self.assertEqual(self.state.approval, Approval.PROPOSED)
-        self.assertIs(self.state.needs_attention, True)
-        self.assertEqual(
-            self.state.notes,
-            [
-                "Content editor had failed edit attempts and made no changes: "
-                "Done"
-            ],
-        )
-
-    def test_commit_after_failed_then_successful_mutation_is_allowed(
-        self,
-    ):
-        runner = self._runner()
-        runner.delete_exact(
-            DeleteExactParams(rationale="test", text="Missing line")
-        )
-        runner.delete_exact(
-            DeleteExactParams(rationale="test", text="Second line\n")
-        )
-
-        result = runner.commit_edited_result(SummaryParams(summary="Done"))
-
-        self.assertEqual(result["resolution"], "commit")
-        self.assertEqual(self.state.approval, Approval.APPLIED)
-        self.assertIs(self.state.needs_attention, False)
-
-    def _edit_params(
-        self,
-        text_start,
-        text_end,
-        *,
-        replace,
-        occurrence=None,
-        to_end=False,
-    ):
-        return EditParams(
-            rationale="test",
-            match=MatchParams(text_start, text_end, occurrence, to_end),
-            edit=PatchParams(replace),
-        )
+    def test_skips_empty_and_fresh_single_source(self):
+        self.state.current.description = " \n "
+        with patch.object(openrouter, "chat_completion") as chat:
+            self.assertIsNone(self.runner().run())
+        chat.assert_not_called()
+        self.state.current.description = "Some text"
+        self.state.served.description = None
+        with patch.object(openrouter, "chat_completion") as chat:
+            self.assertIsNone(self.runner().run())
+        chat.assert_not_called()
+        self.assertEqual(LlmTrajectory.objects.count(), 0)
