@@ -57,3 +57,25 @@ class TestUrlCategorizer(unittest.TestCase):
 
         self.assertEqual(result["urlcat_slug"], "play_online")
         self.assertEqual(result["description"], "Играть онлайн")
+
+    def test_instead_downloader(self):
+        result = CategorizeUrl(
+            "https://instead-games.ru/downloader.php?file=instead-smetankin-1.1.zip"
+        )
+
+        self.assertEqual(result["urlcat_slug"], "download_direct")
+        self.assertEqual(result["description"], "Скачать с инстеда")
+
+    def test_instead_download_path(self):
+        result = CategorizeUrl(
+            "https://instead-games.ru/download/instead-smetankin-1.1.zip"
+        )
+
+        self.assertEqual(result["urlcat_slug"], "download_direct")
+        self.assertEqual(result["description"], "Скачать с инстеда")
+
+    def test_instead_game_page(self):
+        result = CategorizeUrl("https://instead-games.ru/game.php?ID=140")
+
+        self.assertEqual(result["urlcat_slug"], "game_page")
+        self.assertEqual(result["description"], "Страница на инстеде")

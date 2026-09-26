@@ -67,7 +67,7 @@ URL_CATEGORIZER_RULES = [  # hostname, path, query, slug, desc
     ("rilarhiv.ru", "", "", "download_direct", "Скачать с РилАрхива"),
     (
         "instead-games.ru",
-        ".*/download/.*",
+        ".*/download.*",
         "",
         "download_direct",
         "Скачать с инстеда",
