@@ -147,6 +147,42 @@
 </div>
 
 {% include "curation/_diff.html" %}
+{% if source_review %}
+<div class="card card--brown">
+    <div class="card--header">Изменения описаний источников</div>
+    <div class="source-review-snapshots">
+        <div class="source-review-snapshot">
+            <h3>До</h3>
+            <ol>
+            {% for item in source_review.old %}
+            <li>
+                {% if item.fetch %}
+                <a href="{% url 'curation_source_detail' item.fetch.source_id %}">{{ item.fetch.source.get_type_display }} #{{ item.fetch.source_id }}</a>
+                — <a href="{% url 'curation_source_fetch_content' item.fetch.pk 'canonical' %}">загрузка #{{ item.id }}</a>
+                {% if item.disappeared %}(DISAPPEARED){% endif %}
+                {% else %}Загрузка #{{ item.id }} недоступна{% endif %}
+            </li>
+            {% empty %}<li>Нет изменённых описаний.</li>{% endfor %}
+            </ol>
+        </div>
+        <div class="source-review-snapshot">
+            <h3>После</h3>
+            <ol>
+            {% for item in source_review.new %}
+            <li>
+                {% if item.fetch %}
+                <a href="{% url 'curation_source_detail' item.fetch.source_id %}">{{ item.fetch.source.get_type_display }} #{{ item.fetch.source_id }}</a>
+                — <a href="{% url 'curation_source_fetch_content' item.fetch.pk 'canonical' %}">загрузка #{{ item.id }}</a>
+                {% if item.is_new %}(NEW){% endif %}
+                {% else %}Загрузка #{{ item.id }} недоступна{% endif %}
+            </li>
+            {% empty %}<li>Нет изменённых описаний.</li>{% endfor %}
+            </ol>
+        </div>
+    </div>
+</div>
+{% include "curation/_diff.html" with rows=source_review.rows show_actions=False only %}
+{% endif %}
 {% endblock %}
 
 {% block curation_sidebar %}

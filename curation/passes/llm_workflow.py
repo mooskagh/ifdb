@@ -21,7 +21,9 @@ class LlmWorkflowPass(GameEditPass):
     def apply(self, state: GameEditState, params: dict[str, Any]) -> None:
         if state.approval in {Approval.REJECTED, Approval.CANCELLED}:
             return
-        if is_noop_edit(state.current, state.served):
+        if not params.get("run_on_noop", False) and is_noop_edit(
+            state.current, state.served
+        ):
             return
         workflow = LlmWorkflow.objects.get(name=params["workflow"])
         logger.info(

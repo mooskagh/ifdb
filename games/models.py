@@ -314,6 +314,7 @@ class GameRevision(models.Model):
         "curation.GameSourceFetch", blank=True
     )
     passes = models.JSONField(_("Passes"), default=list)
+    source_snapshots = models.JSONField(default=dict, blank=True)
     previous_canonical_text = models.TextField(
         _("Previous canonical text"), null=True, blank=True
     )

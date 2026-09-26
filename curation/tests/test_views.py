@@ -1935,6 +1935,45 @@ class EditDiffViewTest(TestCase):
         self.assertEqual(curation.include_overrides, {})
         self.assertEqual(curation.exclude_overrides, {})
 
+    def test_accept_preserves_unchanged_terminal_blank_line(self):
+        edit = self._edit()
+        before = GameInfo(
+            name="Old Title", description="Body\n\n"
+        ).to_canonical()
+        proposed = GameInfo(
+            name="New Title", description="Body\n\n"
+        ).to_canonical()
+        baseline = edit.game.published_revision
+        baseline.canonical_text = before
+        baseline.save(update_fields=["canonical_text"])
+        edit.game.description = "Body\n\n"
+        edit.game.save(update_fields=["description"])
+        edit.canonical_text = proposed
+        edit.save(update_fields=["canonical_text"])
+
+        response = self.client.get(f"/curation/edits/{edit.pk}/")
+        rows = response.context["rows"]
+        self.assertEqual((rows[-1].tag, rows[-1].right_text), ("equal", ""))
+        self.assertNotContains(response, f'name="diff_row_{len(rows) - 1}"')
+        choices = {
+            f"diff_row_{i}": "equal" if row.tag == "equal" else "right"
+            for i, row in enumerate(rows[:-1])
+            if row.tag != "delete"
+        }
+        self.client.post(
+            f"/curation/edits/{edit.pk}/",
+            {"action": "accept", "has_diff_checkboxes": "1", **choices},
+        )
+
+        edit.refresh_from_db()
+        self.assertEqual(edit.canonical_text, proposed)
+        self.assertEqual(edit.game.description, "Body\n\n")
+        self.assertFalse(
+            GameRevision.objects.filter(
+                game=edit.game, origin=GameRevision.Origin.CORRECTION
+            ).exists()
+        )
+
     def test_accept_applies_and_settles(self):
         edit = self._edit()
 
@@ -2516,6 +2555,159 @@ class EditDiffViewTest(TestCase):
         resp = self.client.get(f"/curation/edits/{edit.pk}/")
         self.assertContains(
             resp, f'href="/curation/sources/fetches/{fetch_new.pk}/canonical/"'
+        )
+
+    def test_description_review_uses_snapshot_order_not_source_priority(self):
+        edit = self._edit()
+        edit.passes = [
+            {"name": "llm_workflow", "workflow": "update_description"}
+        ]
+        sources = [
+            GameSource.objects.create(game=edit.game, type=source_type)
+            for source_type in (
+                GameSource.SourceType.APERO,
+                GameSource.SourceType.IFWIKI,
+            )
+        ]
+        fetches = [
+            GameSourceFetch.objects.create(
+                source=source,
+                raw_content="",
+                canonical_text=GameInfo(description=text).to_canonical(),
+                canonical_text_hash=f"hash-{index}",
+                first_fetch=self.now,
+                last_fetch=self.now,
+            )
+            for index, (source, text) in enumerate(
+                zip(sources, ("Apero text", "IFWiki text"), strict=True)
+            )
+        ]
+        edit.source_snapshots = {
+            "old": [fetches[0].pk, fetches[1].pk],
+            "new": [],
+        }
+        edit.save(update_fields=["passes", "source_snapshots"])
+
+        response = self.client.get(f"/curation/edits/{edit.pk}/")
+
+        self.assertContains(response, "Изменения описаний источников")
+        self.assertContains(response, 'class="source-review-snapshots"')
+        self.assertContains(
+            response, 'class="source-review-snapshot"', count=2
+        )
+        content = response.content.decode()
+        self.assertLess(
+            content.index('class="diff diff--interactive"'),
+            content.index("Изменения описаний источников"),
+        )
+        review = response.context["source_review"]
+        self.assertEqual(
+            [item["id"] for item in review["old"]],
+            edit.source_snapshots["old"],
+        )
+        self.assertLess(
+            review["diff"].index("Apero text"),
+            review["diff"].index("IFWiki text"),
+        )
+        self.assertTrue(review["rows"])
+        self.assertContains(
+            response, 'class="diff diff--interactive"', count=1
+        )
+        self.assertContains(response, 'class="diff"', count=1)
+        self.assertNotIn(
+            'class="diff-check',
+            content.split("Изменения описаний источников", 1)[1],
+        )
+        self.assertContains(response, "Apero text")
+        self.assertContains(response, "IFWiki text")
+        self.assertContains(response, f"/curation/sources/{sources[0].pk}/")
+        self.assertContains(response, f"/curation/sources/{sources[1].pk}/")
+
+    def test_description_review_missing_fetches_and_source_membership(self):
+        edit = self._edit()
+        edit.passes = [
+            {"name": "llm_workflow", "workflow": "update_description"}
+        ]
+        sources = [
+            GameSource.objects.create(
+                game=edit.game, type=GameSource.SourceType.APERO
+            )
+            for _ in range(3)
+        ]
+        fetches = [
+            GameSourceFetch.objects.create(
+                source=source,
+                raw_content="",
+                canonical_text=GameInfo(
+                    description=f"Description {index}"
+                ).to_canonical(),
+                canonical_text_hash=f"hash-{index}",
+                first_fetch=self.now,
+                last_fetch=self.now,
+            )
+            for index, source in enumerate(sources)
+        ]
+        old_update = GameSourceFetch.objects.create(
+            source=sources[1],
+            raw_content="",
+            canonical_text=GameInfo(
+                description="Earlier description"
+            ).to_canonical(),
+            canonical_text_hash="earlier",
+            first_fetch=self.now,
+            last_fetch=self.now,
+        )
+        missing_id = max(fetch.pk for fetch in (*fetches, old_update)) + 100
+        edit.source_snapshots = {
+            "old": [fetches[0].pk, old_update.pk, missing_id],
+            "new": [missing_id, fetches[1].pk, fetches[2].pk],
+        }
+        edit.save(update_fields=["passes", "source_snapshots"])
+
+        response = self.client.get(f"/curation/edits/{edit.pk}/")
+
+        self.assertContains(
+            response, f"Загрузка #{missing_id} недоступна", count=2
+        )
+        review = response.context["source_review"]
+        self.assertEqual(
+            [item["disappeared"] for item in review["old"]],
+            [True, False, False],
+        )
+        self.assertEqual(
+            [item["is_new"] for item in review["new"]], [False, False, True]
+        )
+        self.assertContains(response, "(DISAPPEARED)", count=1)
+        self.assertContains(response, "(NEW)", count=1)
+        self.assertContains(
+            response, f"/curation/sources/{sources[1].pk}/", count=3
+        )
+
+    def test_description_review_hidden_without_workflow_or_snapshots(self):
+        edit = self._edit()
+        edit.passes = [
+            {"name": "llm_workflow", "workflow": "update_description"}
+        ]
+        edit.source_snapshots = {}
+        edit.save(update_fields=["passes", "source_snapshots"])
+        url = f"/curation/edits/{edit.pk}/"
+
+        self.assertNotContains(
+            self.client.get(url), "Изменения описаний источников"
+        )
+        edit.source_snapshots = {"old": [], "new": []}
+        edit.passes = [{"name": "llm_workflow", "workflow": "other"}]
+        edit.save(update_fields=["passes", "source_snapshots"])
+        self.assertNotContains(
+            self.client.get(url), "Изменения описаний источников"
+        )
+        edit.passes = [
+            {"name": "llm_workflow", "workflow": "update_description"}
+        ]
+        edit.origin = GameRevision.Origin.MANUAL_EDIT
+        edit.save(update_fields=["passes", "origin"])
+        self.assertNotContains(
+            self.client.get(url), "Изменения описаний источников"
         )
 
 
@@ -5786,6 +5978,7 @@ class EditRunnerTest(TestCase):
         apero = self._source(
             history, GameSource.SourceType.APERO, "Apero Title", "Apero desc"
         )
+        self._set_pipeline([{"name": "merge_sources", "keep_existing": False}])
 
         stats = run_edit(pipeline_id=self.pipeline.pk)
 
@@ -5802,7 +5995,9 @@ class EditRunnerTest(TestCase):
 
         edit = GameRevision.objects.get(game=history.game)
         self.assertEqual(edit.status, GameRevision.Status.ACCEPTED)
-        self.assertEqual(edit.passes, [{"name": "merge_sources"}])
+        self.assertEqual(
+            edit.passes, [{"name": "merge_sources", "keep_existing": False}]
+        )
         self.assertEqual(set(edit.used_sources.all()), {wiki, apero})
 
     def test_rerun_is_idempotent(self):
@@ -5813,6 +6008,7 @@ class EditRunnerTest(TestCase):
         self._source(
             history, GameSource.SourceType.APERO, "Apero Title", "Apero desc"
         )
+        self._set_pipeline([{"name": "merge_sources", "keep_existing": False}])
         run_edit(pipeline_id=self.pipeline.pk)
 
         history.refresh_from_db()
@@ -5917,7 +6113,7 @@ Source desc"""
         game.refresh_from_db()
         self.assertEqual(game.title, "Source Title")
         self.assertEqual(game.release_date.isoformat(), "2001-02-03")
-        self.assertEqual(game.description, "Source desc")
+        self.assertEqual(game.description, "Old desc")
         self.assertEqual(
             set(game.gameauthor_set.values_list("author__name", flat=True)),
             {"Source Author"},
@@ -6098,7 +6294,7 @@ Old desc""",
 
     def test_cleanup_text_normalizes_description(self):
         self._set_pipeline([
-            {"name": "merge_sources"},
+            {"name": "merge_sources", "keep_existing": False},
             {"name": "cleanup_text"},
         ])
         history = self._history()
@@ -6127,12 +6323,16 @@ Second    paragraph
         )
         edit = GameRevision.objects.get(game=history.game)
         self.assertEqual(
-            edit.passes, [{"name": "merge_sources"}, {"name": "cleanup_text"}]
+            edit.passes,
+            [
+                {"name": "merge_sources", "keep_existing": False},
+                {"name": "cleanup_text"},
+            ],
         )
 
     def test_cleanup_text_removes_empty_sections(self):
         self._set_pipeline([
-            {"name": "merge_sources"},
+            {"name": "merge_sources", "keep_existing": False},
             {"name": "cleanup_text"},
         ])
         history = self._history()
@@ -6173,7 +6373,7 @@ Text
 
     def test_cleanup_text_treats_separator_as_section_end(self):
         self._set_pipeline([
-            {"name": "merge_sources"},
+            {"name": "merge_sources", "keep_existing": False},
             {"name": "cleanup_text"},
         ])
         history = self._history()

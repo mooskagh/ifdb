@@ -1,5 +1,6 @@
 <div class="diff{% if show_actions %} diff--interactive{% endif %}">
     {% for row in rows %}
+    {% if row.tag != "equal" or not forloop.last or row.right_text %}
     <div class="diff-row diff-row--{{ row.tag }}{% if show_actions %}{% if row.tag == 'delete' %} diff-row--excluded{% else %} diff-row--included{% endif %}{% endif %}">
         <div class="diff-cell diff-cell--left{% if show_actions and row.tag != 'equal' %} diff-cell--excluded{% endif %}">
             <span class="diff-line-no">{{ row.left_no|default_if_none:"" }}</span>
@@ -24,6 +25,7 @@
             <span class="diff-line-text">{% for seg in row.right %}<span class="diff-seg diff-seg--{{ seg.kind }}">{{ seg.text }}</span>{% endfor %}</span>
         </div>
     </div>
+    {% endif %}
     {% empty %}
     <div class="diff-empty">Изменений нет.</div>
     {% endfor %}

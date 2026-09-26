@@ -24,9 +24,6 @@ curation/apps.py
 curation/discovery.py
 curation/edit.py
 curation/fetch.py
-curation/llm.py
-curation/llm_runners/base.py
-curation/llm_runners/content_editor.py
 curation/llm_runners/human_review.py
 curation/llm_runners/status_review.py
 curation/management/commands/initenrichment.py

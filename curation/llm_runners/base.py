@@ -4,16 +4,17 @@ from typing import Any
 
 from curation.edit import Approval, GameEditState, SourceFetchInfo
 from curation.llm import LlmWorkflowRunner
+from curation.models import LlmTrajectory
 from games.gameinfo import GameInfo
 
 
 class GameEditStateLlmRunner(LlmWorkflowRunner):
-    def run(self):
+    def run(self) -> LlmTrajectory:
         trajectory = self.run_agent_loop(self.context())
         self._mark_attention_if_incomplete(trajectory)
         return trajectory
 
-    def _mark_attention_if_incomplete(self, trajectory):
+    def _mark_attention_if_incomplete(self, trajectory: LlmTrajectory) -> None:
         if self.stop_reason == "max_error_tool_calls":
             self.state.approval = Approval.REJECTED
             self.state.needs_attention = True
