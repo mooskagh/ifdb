@@ -81,22 +81,22 @@
         {% endif %}
         
         {% if links %}
-                <div class="card card--green">
+                <div class="card card--green card--links">
                     <div class="card--header">Ссылки</div>
                     <div class="card--listbody">
                             {% for link in links %}
                                 {% for x in link.items %}
                                     {% if x.remote_url %}
-                                        <a {% if x.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.remote_url }}">
+                                        <a {% if x.is_broken %}title="Битая ссылка!"{% else %}title="{{ x.description }}"{% endif %} href="{{ x.remote_url }}">
                                             {% if x.is_broken %}
                                                 <svg><use href="{% static 'iconset.svg' %}#broken-link"></use></svg>
                                             {% else %}
                                                 <svg><use href="{% static 'iconset.svg' %}#link-{{ link.category.symbolic_id }}"></use></svg>
                                             {% endif %}
-                                            {{ x.description }}
+                                            <span>{{ x.description }}</span>
                                         </a>
                                     {% else %}
-                                        <span>{{ x.description }}</span>
+                                        <span title="{{ x.description }}">{{ x.description }}</span>
                                     {% endif %}
                                 {% endfor %}
                             {% endfor %}

@@ -816,10 +816,27 @@ a svg {
     padding: 6px 0;
     border-bottom: 1px solid #eee;
     font-size: 13px;
+    min-width: 0;
 }
 
 .card--listbody>*:last-child {
     border-bottom: none;
+}
+
+.card--listbody svg {
+    flex-shrink: 0;
+}
+
+.card--listbody>a>span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card--listbody>span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .card--async {
