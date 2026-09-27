@@ -40,7 +40,7 @@ from games.tools import CreateUrl
 from play.models import Playable
 
 _T = TypeVar("_T")
-_SortKey = int | tuple[int, str]
+_SortKey = int | str | tuple[Any, ...]
 
 
 @dataclass
@@ -847,11 +847,22 @@ class _References:
         for cat in sorted(
             by_cat, key=lambda c: (self.urlcat_order.get(c, 0), c)
         ):
-            for u in self._sorted(
-                by_cat[cat], lambda x: x.url_id, lambda x: x.url or ""
-            ):
+
+            def url_db_key(u: GameUrl) -> tuple[int, str, str] | None:
+                if u.url_id is None:
+                    return None
+                url_str = self.url.get(u.url_id, u.url or "")
+                desc = u.proposed_description or u.description or ""
+                return (u.url_id, url_str, desc)
+
+            def url_new_key(u: GameUrl) -> tuple[str, str]:
+                url_str = u.url or ""
+                desc = u.proposed_description or u.description or ""
+                return (url_str, desc)
+
+            for u in self._sorted(by_cat[cat], url_db_key, url_new_key):
                 if u.url_id is not None:
-                    original = self.url[u.url_id]
+                    original = self.url.get(u.url_id, u.url or "")
                     comment_description = (
                         u.proposed_description or u.description
                     )
@@ -885,7 +896,7 @@ class _References:
     def _sorted(
         items: Iterable[_T],
         db_key: Callable[[_T], _SortKey | None],
-        new_key: Callable[[_T], str],
+        new_key: Callable[[_T], _SortKey],
     ) -> list[_T]:
         """DB entries (id present) first by id, then new entries by name."""
 
