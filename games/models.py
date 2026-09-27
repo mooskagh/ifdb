@@ -540,7 +540,7 @@ class URL(models.Model):
             self.save(update_fields=fields)
         return True
 
-    local_url = models.CharField(null=True, blank=True, max_length=255)
+    local_url = models.CharField(null=True, blank=True, max_length=2048)
     local_filename = models.CharField(null=True, blank=True, max_length=255)
     original_url = models.CharField(
         null=True, blank=True, max_length=2048, db_index=True
