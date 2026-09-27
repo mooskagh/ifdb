@@ -3111,6 +3111,9 @@ h6 {
 .curation-game-url-table .curation-source-table-type {
     width: 140px;
 }
+.curation-game-url-versions {
+    width: 36px;
+}
 .curation-source-table-state {
     width: 58px;
 }
