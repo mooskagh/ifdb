@@ -187,8 +187,7 @@ def _build_playable_files(
     playable_files: list[PlayableFile] = []
     for game_url in direct_downloads:
         url = game_url.url
-        if not url.local_filename:
-            url.resolve_local_file(save=True)
+        has_local_copy = url.has_stored_copy()
         file_playables = tuple(playables_by_url.get(game_url.pk, []))
         items = tuple(
             PlayableItem(
@@ -203,7 +202,7 @@ def _build_playable_files(
         playable_files.append(
             PlayableFile(
                 game_url=game_url,
-                has_local_copy=bool(url.local_filename),
+                has_local_copy=has_local_copy,
                 compatibility=None,
                 playables=file_playables,
                 items=items,
@@ -223,14 +222,12 @@ def _build_playable_files(
     checked_files: list[PlayableFile] = []
     for playable_file in playable_files:
         url = playable_file.game_url.url
-        local_filename = url.local_filename
-        if not local_filename:
+        if not url.has_stored_copy():
             checked_files.append(playable_file)
             continue
 
-        storage = url.GetFs()
-        path = Path(storage.path(local_filename))
-        if not storage.exists(local_filename):
+        path = url.get_local_file_path(must_exist=True)
+        if not path:
             checked_files.append(
                 PlayableFile(
                     game_url=playable_file.game_url,
@@ -786,20 +783,20 @@ def blueprint_list(request):
             if not game_url:
                 candidate_game = Game.objects.filter(pk=key).first()
                 if candidate_game:
-                    for gu in GameURL.objects.filter(
-                        game=candidate_game,
-                        category__symbolic_id="download_direct",
-                        url__local_filename__isnull=False,
-                    ).select_related("url"):
-                        local_filename = gu.url.local_filename
-                        if not local_filename:
-                            continue
-                        storage = gu.url.GetFs()
-                        if not storage.exists(local_filename):
-                            continue
-                        try:
-                            path = Path(storage.path(local_filename))
-                        except Exception:
+                    for gu in (
+                        GameURL.objects
+                        .filter(
+                            game=candidate_game,
+                            category__symbolic_id="download_direct",
+                        )
+                        .filter(
+                            Q(url__local_filename__isnull=False)
+                            | Q(url__fetches__isnull=False)
+                        )
+                        .select_related("url")
+                    ):
+                        path = gu.url.get_local_file_path(must_exist=True)
+                        if not path:
                             continue
                         candidate_platforms = [
                             t.name
@@ -853,31 +850,26 @@ def blueprint_list(request):
                 continue
 
             if not blueprint_slug or blueprint_slug not in blueprint_map:
-                if not game_url.url.local_filename:
-                    game_url.url.resolve_local_file(save=True)
-                local_filename = game_url.url.local_filename
-                if local_filename:
-                    storage = game_url.url.GetFs()
-                    if storage.exists(local_filename):
-                        try:
-                            path = Path(storage.path(local_filename))
-                            game_platforms = [
-                                t.name
-                                for t in game.tags.filter(
-                                    category__symbolic_id="platform"
-                                )
-                            ]
-                            for slug, bp in blueprint_map.items():
-                                try:
-                                    if check_compatibility(
-                                        bp, path, tags=game_platforms
-                                    ):
-                                        blueprint_slug = slug
-                                        break
-                                except (OSError, Exception):
-                                    continue
-                        except Exception:
-                            pass
+                path = game_url.url.get_local_file_path(must_exist=True)
+                if path:
+                    try:
+                        game_platforms = [
+                            t.name
+                            for t in game.tags.filter(
+                                category__symbolic_id="platform"
+                            )
+                        ]
+                        for slug, bp in blueprint_map.items():
+                            try:
+                                if check_compatibility(
+                                    bp, path, tags=game_platforms
+                                ):
+                                    blueprint_slug = slug
+                                    break
+                            except (OSError, Exception):
+                                continue
+                    except Exception:
+                        pass
                 if not blueprint_slug or blueprint_slug not in blueprint_map:
                     msg = (
                         "Не найден совместимый проигрыватель для игры "
@@ -1080,7 +1072,10 @@ def blueprint_list(request):
             category__symbolic_id="platform",
             game__playable__isnull=True,
             game__gameurl__category__symbolic_id="download_direct",
-            game__gameurl__url__local_filename__isnull=False,
+        )
+        .filter(
+            Q(game__gameurl__url__local_filename__isnull=False)
+            | Q(game__gameurl__url__fetches__isnull=False)
         )
         .values_list("name", flat=True)
         .distinct()
@@ -1112,7 +1107,10 @@ def blueprint_list(request):
             .filter(playable__isnull=True)
             .filter(
                 gameurl__category__symbolic_id="download_direct",
-                gameurl__url__local_filename__isnull=False,
+            )
+            .filter(
+                Q(gameurl__url__local_filename__isnull=False)
+                | Q(gameurl__url__fetches__isnull=False)
             )
             .exclude(state=Game.State.REDIRECT)
             .distinct()
@@ -1160,7 +1158,10 @@ def blueprint_list(request):
                     queryset=GameURL.objects
                     .filter(
                         category__symbolic_id="download_direct",
-                        url__local_filename__isnull=False,
+                    )
+                    .filter(
+                        Q(url__local_filename__isnull=False)
+                        | Q(url__fetches__isnull=False)
                     )
                     .select_related("url", "category")
                     .order_by("pk"),
@@ -1172,16 +1173,8 @@ def blueprint_list(request):
         for game in page_games:
             pairs = []
             for gu in game.gameurl_set.all():
-                url = gu.url
-                local_filename = url.local_filename
-                if not local_filename:
-                    continue
-                storage = url.GetFs()
-                if not storage.exists(local_filename):
-                    continue
-                try:
-                    path = Path(storage.path(local_filename))
-                except (OSError, Exception):
+                path = gu.url.get_local_file_path(must_exist=True)
+                if not path:
                     continue
                 game_platforms = [
                     t.name for t in getattr(game, "platform_tags", [])
@@ -1245,7 +1238,10 @@ def blueprint_candidate_ids(request):
         .filter(playable__isnull=True)
         .filter(
             gameurl__category__symbolic_id="download_direct",
-            gameurl__url__local_filename__isnull=False,
+        )
+        .filter(
+            Q(gameurl__url__local_filename__isnull=False)
+            | Q(gameurl__url__fetches__isnull=False)
         )
         .exclude(state=Game.State.REDIRECT)
         .distinct()
@@ -1281,7 +1277,10 @@ def blueprint_candidate_check(request, game_pk: int):
                 queryset=GameURL.objects
                 .filter(
                     category__symbolic_id="download_direct",
-                    url__local_filename__isnull=False,
+                )
+                .filter(
+                    Q(url__local_filename__isnull=False)
+                    | Q(url__fetches__isnull=False)
                 )
                 .select_related("url", "category")
                 .order_by("pk"),
@@ -1321,16 +1320,8 @@ def blueprint_candidate_check(request, game_pk: int):
 
     pairs: list[dict[str, object]] = []
     for gu in game.gameurl_set.all():
-        url = gu.url
-        local_filename = url.local_filename
-        if not local_filename:
-            continue
-        storage = url.GetFs()
-        if not storage.exists(local_filename):
-            continue
-        try:
-            path = Path(storage.path(local_filename))
-        except (OSError, Exception):
+        path = gu.url.get_local_file_path(must_exist=True)
+        if not path:
             continue
         game_platforms = [
             t.name for t in getattr(game, "platform_tags", [])
@@ -2396,14 +2387,10 @@ def history_playable_create(request, game_id: int):
     blueprints = {b.name: b.blueprint for b in discover_blueprints()}
 
     if not blueprint_slug or blueprint_slug not in blueprints:
-        if not game_url.url.local_filename:
-            game_url.url.resolve_local_file(save=True)
-        local_filename = game_url.url.local_filename
-        if not local_filename:
+        path = game_url.url.get_local_file_path(must_exist=True)
+        if not path:
             messages.error(request, "Локальная копия файла отсутствует.")
             return redirect(redirect_url)
-        storage = game_url.url.GetFs()
-        path = Path(storage.path(local_filename))
         game_platforms = [
             t.name
             for t in game_url.game.tags.filter(

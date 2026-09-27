@@ -60,14 +60,9 @@ def generate_playable(playable_id: int) -> None:
             raise ValueError("Playable has no associated game_url")
 
         url = playable.game_url.url
-        if not url.local_filename:
-            url.resolve_local_file(save=True)
-        storage = url.GetFs()
-        local_filename = url.local_filename
-        if not local_filename or not storage.exists(local_filename):
+        game_file = url.get_local_file_path(must_exist=True)
+        if not game_file:
             raise FileNotFoundError(f"Local file not found for URL {url.pk}")
-
-        game_file = Path(storage.path(local_filename))
         destination = Path(settings.PLAYABLE_DIR) / str(playable.pk)
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.exists():

@@ -338,14 +338,100 @@ class URL(models.Model):
     def __str__(self):
         return "%s" % (self.original_url)
 
-    def GetLocalUrl(self):
-        return self.local_url or self.original_url
+    def GetLocalUrl(self) -> str | None:
+        return self.get_local_url() or self.original_url
 
-    def HasLocalCopy(self):
-        return not self.is_uploaded and self.local_url is not None
+    def HasLocalCopy(self) -> bool:
+        return not self.is_uploaded and (
+            self.get_stored_file() is not None or self.local_url is not None
+        )
 
     def GetFs(self):
         return settings.UPLOADS_FS if self.is_uploaded else settings.BACKUPS_FS
+
+    def get_latest_fetch(self) -> "URLFetch | None":
+        if self._state.adding or not self.pk:
+            return None
+        if (
+            hasattr(self, "_prefetched_objects_cache")
+            and "fetches" in self._prefetched_objects_cache
+        ):
+            fetches = list(self.fetches.all())
+            if not fetches:
+                return None
+            return max(fetches, key=lambda f: (f.last_fetch, f.id or 0))
+        return (
+            self.fetches
+            .select_related("stored_file")
+            .order_by("-last_fetch", "-id")
+            .first()
+        )
+
+    @property
+    def latest_fetch(self) -> "URLFetch | None":
+        return self.get_latest_fetch()
+
+    def get_stored_file(self) -> "StoredFile | None":
+        fetch = self.get_latest_fetch()
+        return fetch.stored_file if fetch is not None else None
+
+    @property
+    def stored_file(self) -> "StoredFile | None":
+        return self.get_stored_file()
+
+    def get_local_url(self) -> str | None:
+        if (stored := self.get_stored_file()) is not None:
+            return stored.public_url
+        return self.local_url
+
+    def has_stored_copy(self, check_disk: bool = False) -> bool:
+        if (stored := self.get_stored_file()) is not None:
+            return stored.exists() if check_disk else True
+
+        if not self.local_filename:
+            self.resolve_local_file(save=bool(self.pk))
+
+        if self.local_filename:
+            return (
+                self.GetFs().exists(self.local_filename)
+                if check_disk
+                else True
+            )
+
+        return False
+
+    def get_local_file_path(self, must_exist: bool = False) -> Path | None:
+        if (stored := self.get_stored_file()) is not None:
+            path = stored.path
+            if must_exist and not path.exists():
+                return None
+            return path
+
+        if not self.local_filename:
+            self.resolve_local_file(save=bool(self.pk))
+
+        if self.local_filename:
+            fs = self.GetFs()
+            if must_exist and not fs.exists(self.local_filename):
+                return None
+            try:
+                return Path(fs.path(self.local_filename))
+            except (NotImplementedError, AttributeError, ValueError):
+                return None
+
+        return None
+
+    def open_local_file(self, mode: str = "rb") -> Any:
+        if (stored := self.get_stored_file()) is not None:
+            return stored.open(mode)
+
+        if not self.local_filename:
+            self.resolve_local_file(save=bool(self.pk))
+
+        if self.local_filename:
+            return self.GetFs().open(self.local_filename, mode)
+
+        raise FileNotFoundError(f"No stored file for URL {self.pk}")
 
     def resolve_local_file(self, save: bool = True) -> bool:
         if self.local_filename:
@@ -431,6 +517,16 @@ class StoredFile(models.Model):
     def public_url(self) -> str:
         return str(settings.FILES_FS.url(self.storage_path))
 
+    @property
+    def path(self) -> Path:
+        return Path(settings.FILES_FS.path(self.storage_path))
+
+    def exists(self) -> bool:
+        return settings.FILES_FS.exists(self.storage_path)
+
+    def open(self, mode: str = "rb") -> Any:
+        return settings.FILES_FS.open(self.storage_path, mode)
+
     content_hash = models.CharField(max_length=64, unique=True, db_index=True)
     storage_path = models.CharField(max_length=512, unique=True)
     file_size = models.PositiveBigIntegerField()
@@ -503,6 +599,24 @@ class GameURL(models.Model):
 
     def GetRemoteUrl(self):
         return self.url.original_url
+
+    def get_latest_fetch(self) -> "URLFetch | None":
+        return self.url.get_latest_fetch()
+
+    def get_stored_file(self) -> "StoredFile | None":
+        return self.url.get_stored_file()
+
+    def get_local_url(self) -> str | None:
+        return self.url.get_local_url()
+
+    def has_stored_copy(self, check_disk: bool = False) -> bool:
+        return self.url.has_stored_copy(check_disk=check_disk)
+
+    def get_local_file_path(self, must_exist: bool = False) -> Path | None:
+        return self.url.get_local_file_path(must_exist=must_exist)
+
+    def open_local_file(self, mode: str = "rb") -> Any:
+        return self.url.open_local_file(mode)
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     url = models.ForeignKey(URL, on_delete=models.CASCADE)
