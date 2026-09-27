@@ -20,6 +20,7 @@ from games.models import (
     GameURLCategory,
 )
 from games.permissions import can_manage_internal_tags
+from games.uploads import finalize_provisional_uploads
 from play.services import PinnedURLError, format_pinned_url_error
 
 from .models import GameCuration, GameHistoryAuditLog
@@ -75,6 +76,7 @@ def store_manual_edit(
     previous_edit = _latest_applied_edit(game)
     before = previous_edit.canonical_text if previous_edit else ""
     info = editor_payload_to_gameinfo(data)
+    finalize_provisional_uploads(game, info)
     _validate_pinned_urls(game, info)
     if not can_manage_internal_tags(user):
         internal_tags = [
@@ -139,7 +141,6 @@ def store_manual_edit(
 @transaction.atomic
 def store_manual_add(data: dict, user, *, apply: bool) -> GameRevision:
     info = editor_payload_to_gameinfo(data)
-    canonical = info.to_canonical()
     game, after = info.save(
         None, state=Game.State.PUBLISHED if apply else Game.State.DRAFT
     )
@@ -174,7 +175,7 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameRevision:
         published_at=now() if apply else None,
         published_by=user if apply else None,
         previous_canonical_text="" if apply else None,
-        canonical_text=after if apply else canonical,
+        canonical_text=after,
     )
     if not apply:
         GameHistoryAuditLog.record_note_change(game, user, None, curation.note)

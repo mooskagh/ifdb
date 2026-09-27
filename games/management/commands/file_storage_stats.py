@@ -163,23 +163,28 @@ class Command(BaseCommand):
         missing = []
         by_path = {}
         for url in local_urls:
-            key = (storage_kind(url), url.local_filename)
+            path = url.get_local_file_path(must_exist=True)
+            if not path:
+                missing.append(url)
+                continue
+
+            key = str(path)
             if key in by_path:
                 hashes[url.id] = by_path[key]
                 continue
 
-            storage = url.GetFs()
             try:
-                if not storage.exists(url.local_filename):
-                    missing.append(url)
-                    continue
-                digest = hash_file(storage, url.local_filename)
-            except OSError:
+                with url.open_local_file("rb") as f:
+                    digest = sha256()
+                    for chunk in iter(lambda: f.read(CHUNK_SIZE), b""):
+                        digest.update(chunk)
+                    hex_digest = digest.hexdigest()
+            except (OSError, FileNotFoundError):
                 missing.append(url)
                 continue
 
-            by_path[key] = digest
-            hashes[url.id] = digest
+            by_path[key] = hex_digest
+            hashes[url.id] = hex_digest
         return hashes, missing
 
     def print_hash_stats(self, hashes, missing):

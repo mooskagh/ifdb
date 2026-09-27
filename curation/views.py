@@ -48,9 +48,19 @@ from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
 from core.models import BlogFeed, FeedCache
 from core.tasks import fetch_feeds
+from games.fetcher import FetchOutcome, fetch_url
 from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
-from games.models import Game, GameRevision, GameTag, GameURL
+from games.models import (
+    URL,
+    Game,
+    GameRevision,
+    GameTag,
+    GameURL,
+    GameURLCategory,
+    URLFetch,
+)
+from games.tasks import fetch_urls
 from play.blueprint import (
     BlueprintModule,
     Compatibility,
@@ -187,8 +197,7 @@ def _build_playable_files(
     playable_files: list[PlayableFile] = []
     for game_url in direct_downloads:
         url = game_url.url
-        if not url.local_filename:
-            url.resolve_local_file(save=True)
+        has_local_copy = url.has_stored_copy()
         file_playables = tuple(playables_by_url.get(game_url.pk, []))
         items = tuple(
             PlayableItem(
@@ -203,7 +212,7 @@ def _build_playable_files(
         playable_files.append(
             PlayableFile(
                 game_url=game_url,
-                has_local_copy=bool(url.local_filename),
+                has_local_copy=has_local_copy,
                 compatibility=None,
                 playables=file_playables,
                 items=items,
@@ -223,14 +232,12 @@ def _build_playable_files(
     checked_files: list[PlayableFile] = []
     for playable_file in playable_files:
         url = playable_file.game_url.url
-        local_filename = url.local_filename
-        if not local_filename:
+        if not url.has_stored_copy():
             checked_files.append(playable_file)
             continue
 
-        storage = url.GetFs()
-        path = Path(storage.path(local_filename))
-        if not storage.exists(local_filename):
+        path = url.get_local_file_path(must_exist=True)
+        if not path:
             checked_files.append(
                 PlayableFile(
                     game_url=playable_file.game_url,
@@ -338,6 +345,8 @@ FETCH_FEEDS_TASK_NAME = "Fetch feeds"
 FETCH_FEEDS_TASK = "core.tasks.fetch_feeds"
 EDIT_SOURCES_TASK_NAME = "Edit sources"
 EDIT_SOURCES_TASK = "curation.tasks.edit_sources"
+FETCH_URLS_TASK_NAME = "Fetch URLs"
+FETCH_URLS_TASK = "games.tasks.fetch_urls"
 INTERVAL_PERIODS = [
     (IntervalSchedule.MINUTES, "минут"),
     (IntervalSchedule.HOURS, "часов"),
@@ -786,20 +795,20 @@ def blueprint_list(request):
             if not game_url:
                 candidate_game = Game.objects.filter(pk=key).first()
                 if candidate_game:
-                    for gu in GameURL.objects.filter(
-                        game=candidate_game,
-                        category__symbolic_id="download_direct",
-                        url__local_filename__isnull=False,
-                    ).select_related("url"):
-                        local_filename = gu.url.local_filename
-                        if not local_filename:
-                            continue
-                        storage = gu.url.GetFs()
-                        if not storage.exists(local_filename):
-                            continue
-                        try:
-                            path = Path(storage.path(local_filename))
-                        except Exception:
+                    for gu in (
+                        GameURL.objects
+                        .filter(
+                            game=candidate_game,
+                            category__symbolic_id="download_direct",
+                        )
+                        .filter(
+                            Q(url__local_filename__isnull=False)
+                            | Q(url__fetches__isnull=False)
+                        )
+                        .select_related("url")
+                    ):
+                        path = gu.url.get_local_file_path(must_exist=True)
+                        if not path:
                             continue
                         candidate_platforms = [
                             t.name
@@ -853,31 +862,26 @@ def blueprint_list(request):
                 continue
 
             if not blueprint_slug or blueprint_slug not in blueprint_map:
-                if not game_url.url.local_filename:
-                    game_url.url.resolve_local_file(save=True)
-                local_filename = game_url.url.local_filename
-                if local_filename:
-                    storage = game_url.url.GetFs()
-                    if storage.exists(local_filename):
-                        try:
-                            path = Path(storage.path(local_filename))
-                            game_platforms = [
-                                t.name
-                                for t in game.tags.filter(
-                                    category__symbolic_id="platform"
-                                )
-                            ]
-                            for slug, bp in blueprint_map.items():
-                                try:
-                                    if check_compatibility(
-                                        bp, path, tags=game_platforms
-                                    ):
-                                        blueprint_slug = slug
-                                        break
-                                except (OSError, Exception):
-                                    continue
-                        except Exception:
-                            pass
+                path = game_url.url.get_local_file_path(must_exist=True)
+                if path:
+                    try:
+                        game_platforms = [
+                            t.name
+                            for t in game.tags.filter(
+                                category__symbolic_id="platform"
+                            )
+                        ]
+                        for slug, bp in blueprint_map.items():
+                            try:
+                                if check_compatibility(
+                                    bp, path, tags=game_platforms
+                                ):
+                                    blueprint_slug = slug
+                                    break
+                            except (OSError, Exception):
+                                continue
+                    except Exception:
+                        pass
                 if not blueprint_slug or blueprint_slug not in blueprint_map:
                     msg = (
                         "Не найден совместимый проигрыватель для игры "
@@ -1080,7 +1084,10 @@ def blueprint_list(request):
             category__symbolic_id="platform",
             game__playable__isnull=True,
             game__gameurl__category__symbolic_id="download_direct",
-            game__gameurl__url__local_filename__isnull=False,
+        )
+        .filter(
+            Q(game__gameurl__url__local_filename__isnull=False)
+            | Q(game__gameurl__url__fetches__isnull=False)
         )
         .values_list("name", flat=True)
         .distinct()
@@ -1112,7 +1119,10 @@ def blueprint_list(request):
             .filter(playable__isnull=True)
             .filter(
                 gameurl__category__symbolic_id="download_direct",
-                gameurl__url__local_filename__isnull=False,
+            )
+            .filter(
+                Q(gameurl__url__local_filename__isnull=False)
+                | Q(gameurl__url__fetches__isnull=False)
             )
             .exclude(state=Game.State.REDIRECT)
             .distinct()
@@ -1160,7 +1170,10 @@ def blueprint_list(request):
                     queryset=GameURL.objects
                     .filter(
                         category__symbolic_id="download_direct",
-                        url__local_filename__isnull=False,
+                    )
+                    .filter(
+                        Q(url__local_filename__isnull=False)
+                        | Q(url__fetches__isnull=False)
                     )
                     .select_related("url", "category")
                     .order_by("pk"),
@@ -1172,16 +1185,8 @@ def blueprint_list(request):
         for game in page_games:
             pairs = []
             for gu in game.gameurl_set.all():
-                url = gu.url
-                local_filename = url.local_filename
-                if not local_filename:
-                    continue
-                storage = url.GetFs()
-                if not storage.exists(local_filename):
-                    continue
-                try:
-                    path = Path(storage.path(local_filename))
-                except (OSError, Exception):
+                path = gu.url.get_local_file_path(must_exist=True)
+                if not path:
                     continue
                 game_platforms = [
                     t.name for t in getattr(game, "platform_tags", [])
@@ -1245,7 +1250,10 @@ def blueprint_candidate_ids(request):
         .filter(playable__isnull=True)
         .filter(
             gameurl__category__symbolic_id="download_direct",
-            gameurl__url__local_filename__isnull=False,
+        )
+        .filter(
+            Q(gameurl__url__local_filename__isnull=False)
+            | Q(gameurl__url__fetches__isnull=False)
         )
         .exclude(state=Game.State.REDIRECT)
         .distinct()
@@ -1281,7 +1289,10 @@ def blueprint_candidate_check(request, game_pk: int):
                 queryset=GameURL.objects
                 .filter(
                     category__symbolic_id="download_direct",
-                    url__local_filename__isnull=False,
+                )
+                .filter(
+                    Q(url__local_filename__isnull=False)
+                    | Q(url__fetches__isnull=False)
                 )
                 .select_related("url", "category")
                 .order_by("pk"),
@@ -1321,16 +1332,8 @@ def blueprint_candidate_check(request, game_pk: int):
 
     pairs: list[dict[str, object]] = []
     for gu in game.gameurl_set.all():
-        url = gu.url
-        local_filename = url.local_filename
-        if not local_filename:
-            continue
-        storage = url.GetFs()
-        if not storage.exists(local_filename):
-            continue
-        try:
-            path = Path(storage.path(local_filename))
-        except (OSError, Exception):
+        path = gu.url.get_local_file_path(must_exist=True)
+        if not path:
             continue
         game_platforms = [
             t.name for t in getattr(game, "platform_tags", [])
@@ -1474,6 +1477,12 @@ def _tasks_post(request):
             kwargs={"limit": limit},
         )
         messages.success(request, "Расписание выкачивания форумов сохранено.")
+    elif action == "run_fetch_urls":
+        limit = _positive_int(request.POST.get("run_limit"), default=10)
+        fetch_urls.delay(limit=limit)
+        messages.success(
+            request, "Задание на выкачивание файлов игр запущено."
+        )
     elif action == "save_edit_sources":
         limit = _positive_int(request.POST.get("periodic_limit"), default=5)
         pipeline = _pipeline_from_post(request.POST)
@@ -1484,6 +1493,17 @@ def _tasks_post(request):
             kwargs={"limit": limit, "pipeline_id": pipeline.pk},
         )
         messages.success(request, "Расписание обработки очереди сохранено.")
+    elif action == "save_fetch_urls":
+        limit = _positive_int(request.POST.get("periodic_limit"), default=10)
+        _save_periodic_task(
+            FETCH_URLS_TASK_NAME,
+            FETCH_URLS_TASK,
+            request.POST,
+            kwargs={"limit": limit},
+        )
+        messages.success(
+            request, "Расписание выкачивания файлов игр сохранено."
+        )
     else:
         return HttpResponseBadRequest("Unknown action.")
     return redirect("curation_tasks")
@@ -1506,6 +1526,19 @@ def _render_tasks(request):
     scheduled_histories = GameCuration.objects.filter(
         state=GameCuration.State.SCHEDULED_FOR_UPDATE
     ).count()
+    unattempted_urls = (
+        URL.objects
+        .filter(
+            is_uploaded=False,
+            ok_to_clone=True,
+            last_attempt__isnull=True,
+            gameurl__isnull=False,
+        )
+        .exclude(original_url__isnull=True)
+        .exclude(original_url="")
+        .distinct()
+        .count()
+    )
     return render(
         request,
         "curation/tasks.html",
@@ -1514,6 +1547,7 @@ def _render_tasks(request):
             "orphan_ready": orphan_ready,
             "orphan_total": orphan_total,
             "scheduled_histories": scheduled_histories,
+            "unattempted_urls": unattempted_urls,
             "periods": INTERVAL_PERIODS,
             "discover_sources": _periodic_task_config(
                 DISCOVER_SOURCES_TASK_NAME,
@@ -1545,6 +1579,13 @@ def _render_tasks(request):
                 default_period=IntervalSchedule.MINUTES,
                 default_periodic_limit=5,
                 default_run_limit=5,
+            ),
+            "fetch_urls": _periodic_task_config(
+                FETCH_URLS_TASK_NAME,
+                default_every=1,
+                default_period=IntervalSchedule.HOURS,
+                default_periodic_limit=10,
+                default_run_limit=10,
             ),
             "edit_pipelines": EditPipeline.objects.order_by("id"),
         },
@@ -1825,6 +1866,179 @@ def source_list(request):
             "sort": sort,
             "source_type_choices": GameSource.SourceType.choices,
         },
+    )
+
+
+def game_file_list(request):
+    q = request.GET.get("q", "").strip()
+    category_id = request.GET.get("category", "")
+    state = request.GET.get("state", "")
+    sort = request.GET.get("sort") or "last_attempt"
+
+    latest_fetch = URLFetch.objects.filter(url=OuterRef("url")).order_by(
+        "-last_fetch", "-pk"
+    )
+
+    game_urls = (
+        GameURL.objects
+        .select_related("game", "category", "url")
+        .annotate(
+            latest_fetch_id=Subquery(latest_fetch.values("pk")[:1]),
+            latest_fetch_at=Subquery(latest_fetch.values("last_fetch")[:1]),
+            latest_fetch_first_at=Subquery(
+                latest_fetch.values("first_fetch")[:1]
+            ),
+            latest_stored_file_path=Subquery(
+                latest_fetch.values("stored_file__storage_path")[:1]
+            ),
+        )
+        .annotate(
+            latest_fetch_is_new=Case(
+                When(url__last_attempt=F("latest_fetch_first_at"), then=True),
+                default=False,
+                output_field=BooleanField(),
+            )
+        )
+    )
+
+    if q:
+        game_urls = game_urls.filter(
+            Q(url__original_url__icontains=q)
+            | Q(game__title__icontains=q)
+            | Q(description__icontains=q)
+        )
+    if category_id:
+        try:
+            game_urls = game_urls.filter(category_id=int(category_id))
+        except (ValueError, TypeError):
+            category_id = ""
+
+    if state == "failed":
+        game_urls = game_urls.filter(
+            Q(url__failing_since__isnull=False)
+            | Q(url__last_error__gt="")
+            | Q(url__is_broken=True)
+        )
+    elif state == "ok":
+        game_urls = game_urls.filter(
+            url__failing_since__isnull=True,
+            url__is_broken=False,
+        ).filter(Q(url__last_error__isnull=True) | Q(url__last_error=""))
+    elif state == "uploaded":
+        game_urls = game_urls.filter(url__is_uploaded=True)
+    elif state == "has_fetch":
+        game_urls = game_urls.filter(latest_fetch_id__isnull=False)
+    elif state == "no_attempt":
+        game_urls = game_urls.filter(url__last_attempt__isnull=True)
+    else:
+        state = ""
+
+    match sort:
+        case "last_fetch":
+            game_urls = game_urls.order_by(
+                F("latest_fetch_at").desc(nulls_last=True), "-pk"
+            )
+        case "last_new_fetch":
+            game_urls = game_urls.order_by(
+                F("latest_fetch_first_at").desc(nulls_last=True), "-pk"
+            )
+        case "created":
+            game_urls = game_urls.order_by(
+                F("url__creation_date").desc(nulls_last=True), "-pk"
+            )
+        case "url":
+            game_urls = game_urls.order_by(
+                "category__order", "url__original_url", "pk"
+            )
+        case "game":
+            game_urls = game_urls.order_by("game__title", "-pk")
+        case _:
+            sort = "last_attempt"
+            game_urls = game_urls.order_by(
+                F("url__last_attempt").desc(nulls_last=True), "-pk"
+            )
+
+    page = Paginator(game_urls, 100).get_page(request.GET.get("page"))
+    categories = GameURLCategory.objects.order_by("order", "title")
+
+    return render(
+        request,
+        "curation/game_url_list.html",
+        {
+            "page": page,
+            "game_urls": page.object_list,
+            "q": q,
+            "category_id": int(category_id) if category_id else "",
+            "state": state,
+            "sort": sort,
+            "categories": categories,
+        },
+    )
+
+
+def game_file_detail(request, game_url_id):
+    game_url = get_object_or_404(
+        GameURL.objects.select_related("game", "category", "url"),
+        pk=game_url_id,
+    )
+    fetches = game_url.url.fetches.select_related("stored_file").order_by(
+        "-last_fetch", "-pk"
+    )
+    other_game_urls = (
+        GameURL.objects
+        .filter(url=game_url.url)
+        .exclude(pk=game_url.pk)
+        .select_related("game", "category")
+    )
+
+    return render(
+        request,
+        "curation/game_url_detail.html",
+        {
+            "game_url": game_url,
+            "fetches": fetches,
+            "other_game_urls": other_game_urls,
+        },
+    )
+
+
+def game_file_fetch_now(request, game_url_id):
+    if request.method != "POST":
+        return HttpResponseBadRequest("Only POST is supported.")
+
+    game_url = get_object_or_404(
+        GameURL.objects.select_related("url"), pk=game_url_id
+    )
+    if game_url.url.is_uploaded:
+        messages.warning(
+            request,
+            "Файл загружен локально, загрузка по сети не требуется.",
+        )
+        return redirect("curation_game_file_detail", game_url_id=game_url.pk)
+
+    result = fetch_url(game_url.url, timeout=30)
+    if result.outcome == FetchOutcome.FAILED:
+        messages.error(request, f"Ошибка загрузки: {result.error}")
+    elif result.outcome == FetchOutcome.SKIPPED:
+        messages.warning(request, f"Загрузка пропущена: {result.error}")
+    elif result.outcome == FetchOutcome.UNCHANGED:
+        messages.info(request, "Файл не изменился.")
+    elif result.outcome == FetchOutcome.REUSED:
+        sf_pk = result.stored_file.pk if result.stored_file else ""
+        messages.success(
+            request,
+            f"Файл загружен (совпадает с существующим #{sf_pk}).",
+        )
+    elif result.outcome == FetchOutcome.CREATED:
+        sf_path = result.stored_file.storage_path if result.stored_file else ""
+        messages.success(
+            request,
+            f"Файл успешно сохранён: {sf_path}",
+        )
+
+    return redirect(
+        request.POST.get("next") or "curation_game_file_detail",
+        game_url_id=game_url.pk,
     )
 
 
@@ -2396,14 +2610,10 @@ def history_playable_create(request, game_id: int):
     blueprints = {b.name: b.blueprint for b in discover_blueprints()}
 
     if not blueprint_slug or blueprint_slug not in blueprints:
-        if not game_url.url.local_filename:
-            game_url.url.resolve_local_file(save=True)
-        local_filename = game_url.url.local_filename
-        if not local_filename:
+        path = game_url.url.get_local_file_path(must_exist=True)
+        if not path:
             messages.error(request, "Локальная копия файла отсутствует.")
             return redirect(redirect_url)
-        storage = game_url.url.GetFs()
-        path = Path(storage.path(local_filename))
         game_platforms = [
             t.name
             for t in game_url.game.tags.filter(

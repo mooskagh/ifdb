@@ -26,6 +26,8 @@ from .models import (
     PersonalityAlias,
     PersonalityAliasRedirect,
     PersonalityUrl,
+    StoredFile,
+    URLFetch,
 )
 
 
@@ -183,9 +185,45 @@ class GameTagAdmin(admin.ModelAdmin):
     list_filter = ["category"]
 
 
+class InlineURLFetchAdmin(admin.TabularInline):
+    model = URLFetch
+    extra = 0
+    raw_id_fields = ["stored_file"]
+    readonly_fields = ["first_fetch", "last_fetch"]
+
+
+@admin.register(StoredFile)
+class StoredFileAdmin(admin.ModelAdmin):
+    list_display = ["storage_path", "content_hash", "file_size", "created_at"]
+    search_fields = ["storage_path", "content_hash"]
+    readonly_fields = ["created_at"]
+
+
+@admin.register(URLFetch)
+class URLFetchAdmin(admin.ModelAdmin):
+    list_display = [
+        "url",
+        "stored_file",
+        "original_filename",
+        "content_type",
+        "first_fetch",
+        "last_fetch",
+    ]
+    search_fields = [
+        "url__original_url",
+        "stored_file__storage_path",
+        "stored_file__content_hash",
+        "original_filename",
+    ]
+    raw_id_fields = ["url", "stored_file"]
+    list_filter = ["content_type", "first_fetch", "last_fetch"]
+
+
 @admin.register(URL)
 class URLAdmin(admin.ModelAdmin):
-    def _original_url(self, obj):
+    def _original_url(self, obj: URL) -> str:
+        if not obj.original_url:
+            return ""
         if len(obj.original_url) < 80:
             return obj.original_url
         return obj.original_url[:80] + "…"
@@ -196,18 +234,26 @@ class URLAdmin(admin.ModelAdmin):
         "ok_to_clone",
         "is_uploaded",
         "is_broken",
+        "last_attempt",
+        "failing_since",
         "creation_date",
     ]
-    search_fields = ["pk", "original_url", "local_url"]
+    search_fields = ["pk", "original_url", "local_url", "last_error"]
     list_filter = [
         "ok_to_clone",
         "is_uploaded",
         "is_broken",
+        "last_attempt",
+        "failing_since",
         "creation_date",
         "creator",
     ]
 
-    inlines = [InlineGameURLAdmin, InlinePersonalityUrlAdmin]
+    inlines = [
+        InlineURLFetchAdmin,
+        InlineGameURLAdmin,
+        InlinePersonalityUrlAdmin,
+    ]
 
 
 @admin.register(GameURLCategory)

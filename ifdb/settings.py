@@ -437,12 +437,14 @@ FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
 STATIC_URL = "/static/"
 MEDIA_URL = "/f/"
 
+FILES_FS = FileSystemStorage(MEDIA_ROOT, MEDIA_URL)
 UPLOADS_FS = FileSystemStorage(
     os.path.join(MEDIA_ROOT, "uploads"), os.path.join(MEDIA_URL, "uploads")
 )
 BACKUPS_FS = FileSystemStorage(
     os.path.join(MEDIA_ROOT, "backups"), os.path.join(MEDIA_URL, "backups")
 )
+USE_STORED_FILE_READS = True
 
 REQUIRE_ACCOUNT_ACTIVATION = True
 ACCOUNT_ACTIVATION_DAYS = 7
@@ -479,5 +481,12 @@ STORAGES = {
             if not DEBUG
             else "django.contrib.staticfiles.storage.StaticFilesStorage"
         ),
+    },
+    "files": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {
+            "location": MEDIA_ROOT,
+            "base_url": MEDIA_URL,
+        },
     },
 }

@@ -94,6 +94,16 @@ class GameUrlValue:
     local_url: str | None
     is_broken: bool
     has_local_copy: bool
+    url: URL | None = None
+
+    def GetRemoteUrl(self) -> str | None:
+        return self.remote_url
+
+    def GetLocalUrl(self) -> str | None:
+        return self.local_url
+
+    def HasLocalCopy(self) -> bool:
+        return self.has_local_copy
 
 
 @dataclass
@@ -427,7 +437,12 @@ class GameDetailsBuilder:
             for entry in self.info.urls
             if entry.url_id is not None
         }
-        stored = {url.id: url for url in URL.objects.filter(id__in=url_ids)}
+        stored = {
+            url.id: url
+            for url in URL.objects.filter(id__in=url_ids).prefetch_related(
+                "fetches__stored_file"
+            )
+        }
         categories: dict[str | None, UrlCategory] = {
             category.symbolic_id: category
             for category in GameURLCategory.objects.filter(
@@ -447,15 +462,15 @@ class GameDetailsBuilder:
             )
             if url is not None:
                 local_url = (
-                    url.local_url or remote_url
+                    url.get_local_url() or remote_url
                     if category.allow_cloning
                     else remote_url
                 )
-                is_broken = url.is_broken
+                is_broken = url.is_link_broken()
                 has_local_copy = bool(
                     category.allow_cloning
                     and not url.is_uploaded
-                    and url.local_url
+                    and url.has_stored_copy()
                 )
             else:
                 local_url = remote_url
@@ -469,6 +484,7 @@ class GameDetailsBuilder:
                     local_url=local_url,
                     is_broken=is_broken,
                     has_local_copy=has_local_copy,
+                    url=url,
                 )
             )
         return result

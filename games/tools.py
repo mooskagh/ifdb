@@ -11,8 +11,6 @@ from markdown.blockprocessors import BlockProcessor
 from markdown.extensions import Extension
 from markdown.util import AtomicString
 
-from games.tasks import clone_file
-
 from .models import URL, Game, GameURL, GameVote
 
 
@@ -22,12 +20,14 @@ def SnippetFromList(games, populate_authors=True):
         .filter(category__symbolic_id="poster")
         .filter(game__in=games)
         .select_related("url", "category")
+        .prefetch_related("url__fetches__stored_file")
     )
     screenshots = (
         GameURL.objects
         .filter(category__symbolic_id="screenshot")
         .filter(game__in=games)
-        .select_related("url")
+        .select_related("url", "category")
+        .prefetch_related("url__fetches__stored_file")
     )
 
     g2p = {}
@@ -331,10 +331,13 @@ def CreateUrl(url, *, ok_to_clone, creator=None):
         u.creation_date = timezone.now()
         u.creator = creator
         u.resolve_local_file(save=False)
+        if ok_to_clone and not u.is_uploaded and not u.local_filename:
+            u.ok_to_clone = True
         u.save()
-    else:
-        if not u.local_filename:
-            u.resolve_local_file(save=True)
+        return u
+
+    if not u.local_filename:
+        u.resolve_local_file(save=True)
 
     if (
         ok_to_clone
@@ -344,7 +347,6 @@ def CreateUrl(url, *, ok_to_clone, creator=None):
     ):
         u.ok_to_clone = ok_to_clone
         u.save()
-        clone_file.delay(u.id)
     return u
 
 

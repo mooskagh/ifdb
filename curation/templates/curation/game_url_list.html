@@ -1,0 +1,92 @@
+{% extends "curation/base.html" %}
+{% load tags %}
+
+{% block titlesection %}Файлы игр - Модерация - {% endblock %}
+
+{% block curation_main %}
+<div class="card card--brown">
+    <div class="card--header">Файлы игр</div>
+    <div class="card--body">
+        <form class="curation-filter curation-filter--history" method="get">
+            <div class="curation-filter-field">
+                <label for="curation-game-url-q">Поиск</label>
+                <input id="curation-game-url-q" type="search" name="q" value="{{ q }}" placeholder="URL или игра">
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-game-url-type">Тип</label>
+                <select id="curation-game-url-type" name="category">
+                    <option value="">— все —</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.pk }}" {% if cat.pk == category_id %}selected{% endif %}>{{ cat.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-game-url-state">Состояние</label>
+                <select id="curation-game-url-state" name="state">
+                    <option value="">— все —</option>
+                    <option value="ok" {% if state == "ok" %}selected{% endif %}>Без ошибок</option>
+                    <option value="failed" {% if state == "failed" %}selected{% endif %}>С ошибкой</option>
+                    <option value="uploaded" {% if state == "uploaded" %}selected{% endif %}>Загруженные</option>
+                    <option value="has_fetch" {% if state == "has_fetch" %}selected{% endif %}>Есть загрузка</option>
+                    <option value="no_attempt" {% if state == "no_attempt" %}selected{% endif %}>Не проверялись</option>
+                </select>
+            </div>
+            <div class="curation-filter-field">
+                <label for="curation-game-url-sort">Сортировка</label>
+                <select id="curation-game-url-sort" name="sort">
+                    <option value="last_attempt" {% if sort == "last_attempt" %}selected{% endif %}>По последней попытке</option>
+                    <option value="last_fetch" {% if sort == "last_fetch" %}selected{% endif %}>По успешной загрузке</option>
+                    <option value="last_new_fetch" {% if sort == "last_new_fetch" %}selected{% endif %}>По новой загрузке</option>
+                    <option value="created" {% if sort == "created" %}selected{% endif %}>По добавлению</option>
+                    <option value="url" {% if sort == "url" %}selected{% endif %}>По URL</option>
+                    <option value="game" {% if sort == "game" %}selected{% endif %}>По игре</option>
+                </select>
+            </div>
+            <button type="submit">Показать</button>
+        </form>
+    </div>
+    <table class="curation-table curation-table--compact curation-source-table curation-game-url-table">
+        <thead>
+            <tr>
+                <th class="curation-source-table-type">Тип</th>
+                <th class="curation-source-table-state">Сост.</th>
+                <th>URL</th>
+                <th>Игра</th>
+                <th class="curation-source-table-attempt">Попытка</th>
+                <th class="curation-source-table-fetch">Загрузка</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in game_urls %}
+            <tr class="{% if item.url.failing_since or item.url.last_error or item.url.is_broken %}error{% elif item.latest_fetch_is_new %}success{% endif %}"
+                data-href="{% url 'curation_game_file_detail' item.pk %}">
+                <td class="curation-truncate"><a href="{% url 'curation_game_file_detail' item.pk %}">{{ item.category.title }}</a></td>
+                <td>
+                    {% if item.url.failing_since or item.url.last_error or item.url.is_broken %}ошибка{% elif item.url.is_uploaded %}upload{% elif item.latest_fetch_id %}ok{% else %}—{% endif %}
+                </td>
+                <td class="curation-truncate">{% if item.url.original_url %}<a href="{{ item.url.original_url }}" title="{{ item.url.original_url }}" target="_blank" rel="noopener">{{ item.url.original_url }}</a>{% else %}—{% endif %}</td>
+                <td class="curation-truncate">
+                    {% if item.game %}{% if item.game.state == "PUBLISHED" %}<a href="{% url 'show_game' item.game.pk %}">{{ item.game.title }}</a>{% else %}{{ item.game.title }} ({{ item.game.get_state_display }}){% endif %} (<a href="{% url 'curation_history_detail' item.game.pk %}">админка</a>){% else %}—{% endif %}
+                </td>
+                <td class="curation-nowrap">{{ item.url.last_attempt|date:"Y-m-d H:i"|default:"—" }}</td>
+                <td class="curation-nowrap">
+                    {% if item.latest_fetch_id %}
+                    {{ item.latest_fetch_at|date:"Y-m-d H:i" }}{% if item.latest_stored_file_path %}: <a href="/f/{{ item.latest_stored_file_path }}" target="_blank" rel="noopener">файл</a>{% endif %}
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6">Файлов нет.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if page.has_other_pages %}
+    <div class="curation-pagination">
+        {% if page.has_previous %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&page={{ page.previous_page_number }}">← Назад</a>{% endif %}
+        <span>Страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

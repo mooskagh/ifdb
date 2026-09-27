@@ -1,7 +1,10 @@
+from pathlib import Path
+from typing import Any
+
 from django.conf import settings
 from django.db import models
 
-from games.models import URL, Game
+from games.models import URL, Game, StoredFile, URLFetch
 
 
 # Create your models here.
@@ -56,6 +59,40 @@ class CompetitionURL(models.Model):
 
     def GetRemoteUrl(self):
         return self.url.original_url
+
+    def get_latest_fetch(self) -> URLFetch | None:
+        return self.url.get_latest_fetch()
+
+    def get_stored_file(self) -> StoredFile | None:
+        return self.url.get_stored_file()
+
+    def get_local_url(self) -> str | None:
+        return self.url.get_local_url()
+
+    def has_stored_copy(self, check_disk: bool = False) -> bool:
+        return self.url.has_stored_copy(check_disk=check_disk)
+
+    def get_local_file_path(self, must_exist: bool = False) -> Path | None:
+        return self.url.get_local_file_path(must_exist=must_exist)
+
+    def open_local_file(self, mode: str = "rb") -> Any:
+        return self.url.open_local_file(mode)
+
+    def get_original_filename(self) -> str | None:
+        return self.url.get_original_filename()
+
+    def get_content_type(self) -> str | None:
+        return self.url.get_content_type()
+
+    def get_file_size(self) -> int | None:
+        return self.url.get_file_size()
+
+    def is_link_broken(self) -> bool:
+        return self.url.is_link_broken()
+
+    @property
+    def is_broken(self) -> bool:
+        return self.url.is_link_broken()
 
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE)
     url = models.ForeignKey(URL, on_delete=models.CASCADE)

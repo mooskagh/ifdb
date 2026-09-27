@@ -3084,6 +3084,9 @@ h6 {
 .curation-source-table-type {
     width: 70px;
 }
+.curation-game-url-table .curation-source-table-type {
+    width: 140px;
+}
 .curation-source-table-state {
     width: 58px;
 }

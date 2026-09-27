@@ -68,6 +68,21 @@ urlpatterns = [
         name="curation_source_list",
     ),
     path(
+        "files/",
+        superuser_required(views.game_file_list),
+        name="curation_game_file_list",
+    ),
+    path(
+        "files/<int:game_url_id>/",
+        superuser_required(views.game_file_detail),
+        name="curation_game_file_detail",
+    ),
+    path(
+        "files/<int:game_url_id>/fetch/",
+        superuser_required(views.game_file_fetch_now),
+        name="curation_game_file_fetch_now",
+    ),
+    path(
         "feeds/",
         superuser_required(views.feed_list),
         name="curation_feed_list",

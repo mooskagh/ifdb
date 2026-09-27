@@ -338,14 +338,158 @@ class URL(models.Model):
     def __str__(self):
         return "%s" % (self.original_url)
 
-    def GetLocalUrl(self):
-        return self.local_url or self.original_url
+    def GetLocalUrl(self) -> str | None:
+        return self.get_local_url() or self.original_url
 
-    def HasLocalCopy(self):
-        return not self.is_uploaded and self.local_url is not None
+    def HasLocalCopy(self) -> bool:
+        return not self.is_uploaded and (
+            self.get_stored_file() is not None or self.local_url is not None
+        )
 
     def GetFs(self):
         return settings.UPLOADS_FS if self.is_uploaded else settings.BACKUPS_FS
+
+    def get_latest_fetch(self) -> "URLFetch | None":
+        if self._state.adding or not self.pk:
+            return None
+        if (
+            hasattr(self, "_prefetched_objects_cache")
+            and "fetches" in self._prefetched_objects_cache
+        ):
+            fetches = list(self.fetches.all())
+            if not fetches:
+                return None
+            return max(fetches, key=lambda f: (f.last_fetch, f.id or 0))
+        return (
+            self.fetches
+            .select_related("stored_file")
+            .order_by("-last_fetch", "-id")
+            .first()
+        )
+
+    @property
+    def latest_fetch(self) -> "URLFetch | None":
+        return self.get_latest_fetch()
+
+    def get_stored_file(self) -> "StoredFile | None":
+        if not getattr(settings, "USE_STORED_FILE_READS", True):
+            return None
+        fetch = self.get_latest_fetch()
+        return fetch.stored_file if fetch is not None else None
+
+    @property
+    def stored_file(self) -> "StoredFile | None":
+        return self.get_stored_file()
+
+    def get_local_url(self) -> str | None:
+        if (stored := self.get_stored_file()) is not None:
+            return stored.public_url
+        return self.local_url
+
+    def get_original_filename(self) -> str | None:
+        if not getattr(settings, "USE_STORED_FILE_READS", True):
+            return self.original_filename
+        fetch = self.get_latest_fetch()
+        if fetch is not None and fetch.original_filename:
+            return fetch.original_filename
+        return self.original_filename
+
+    def get_content_type(self) -> str | None:
+        if not getattr(settings, "USE_STORED_FILE_READS", True):
+            return self.content_type
+        fetch = self.get_latest_fetch()
+        if fetch is not None and fetch.content_type:
+            return fetch.content_type
+        return self.content_type
+
+    def get_file_size(self) -> int | None:
+        if not getattr(settings, "USE_STORED_FILE_READS", True):
+            return self.file_size
+        stored = self.get_stored_file()
+        if stored is not None:
+            return stored.file_size
+        return self.file_size
+
+    def is_link_broken(self) -> bool:
+        if not getattr(settings, "USE_STORED_FILE_READS", True):
+            return self.is_broken
+        if self.failing_since is not None or self.last_error:
+            return True
+        return self.is_broken
+
+    @property
+    def is_broken_link(self) -> bool:
+        return self.is_link_broken()
+
+    def get_duplicate_urls(
+        self, include_self: bool = False
+    ) -> models.QuerySet["URL"]:
+        stored = self.get_stored_file()
+        if stored is None:
+            return URL.objects.none()
+        from django.db.models import OuterRef, Subquery
+
+        latest_fetch_subquery = (
+            URLFetch.objects
+            .filter(url_id=OuterRef("id"))
+            .order_by("-last_fetch", "-id")
+            .values("stored_file_id")[:1]
+        )
+        qs = URL.objects.annotate(
+            current_stored_file_id=Subquery(latest_fetch_subquery)
+        ).filter(current_stored_file_id=stored.id)
+        if not include_self and self.pk:
+            qs = qs.exclude(pk=self.pk)
+        return qs
+
+    def has_stored_copy(self, check_disk: bool = False) -> bool:
+        if (stored := self.get_stored_file()) is not None:
+            return stored.exists() if check_disk else True
+
+        if not self.local_filename:
+            self.resolve_local_file(save=bool(self.pk))
+
+        if self.local_filename:
+            return (
+                self.GetFs().exists(self.local_filename)
+                if check_disk
+                else True
+            )
+
+        return False
+
+    def get_local_file_path(self, must_exist: bool = False) -> Path | None:
+        if (stored := self.get_stored_file()) is not None:
+            path = stored.path
+            if must_exist and not path.exists():
+                return None
+            return path
+
+        if not self.local_filename:
+            self.resolve_local_file(save=bool(self.pk))
+
+        if self.local_filename:
+            fs = self.GetFs()
+            if must_exist and not fs.exists(self.local_filename):
+                return None
+            try:
+                return Path(fs.path(self.local_filename))
+            except (NotImplementedError, AttributeError, ValueError):
+                return None
+
+        return None
+
+    def open_local_file(self, mode: str = "rb") -> Any:
+        if (stored := self.get_stored_file()) is not None:
+            return stored.open(mode)
+
+        if not self.local_filename:
+            self.resolve_local_file(save=bool(self.pk))
+
+        if self.local_filename:
+            return self.GetFs().open(self.local_filename, mode)
+
+        raise FileNotFoundError(f"No stored file for URL {self.pk}")
 
     def resolve_local_file(self, save: bool = True) -> bool:
         if self.local_filename:
@@ -415,6 +559,65 @@ class URL(models.Model):
         null=True,
         blank=True,
     )
+    last_attempt = models.DateTimeField(null=True, blank=True, db_index=True)
+    failing_since = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(null=True, blank=True)
+
+
+class StoredFile(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    def __str__(self) -> str:
+        return self.storage_path
+
+    @property
+    def public_url(self) -> str:
+        return str(settings.FILES_FS.url(self.storage_path))
+
+    @property
+    def path(self) -> Path:
+        return Path(settings.FILES_FS.path(self.storage_path))
+
+    def exists(self) -> bool:
+        return settings.FILES_FS.exists(self.storage_path)
+
+    def open(self, mode: str = "rb") -> Any:
+        return settings.FILES_FS.open(self.storage_path, mode)
+
+    content_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    storage_path = models.CharField(max_length=512, unique=True)
+    file_size = models.PositiveBigIntegerField()
+    created_at = models.DateTimeField(default=now)
+
+
+class URLFetch(models.Model):
+    class Meta:
+        default_permissions = ()
+        indexes = [
+            models.Index(fields=["url", "-last_fetch"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"{self.url_id} -> {self.stored_file.storage_path} "
+            f"({self.last_fetch})"
+        )
+
+    url = models.ForeignKey(
+        URL,
+        on_delete=models.CASCADE,
+        related_name="fetches",
+    )
+    stored_file = models.ForeignKey(
+        StoredFile,
+        on_delete=models.PROTECT,
+        related_name="fetches",
+    )
+    original_filename = models.CharField(null=True, blank=True, max_length=255)
+    content_type = models.CharField(null=True, blank=True, max_length=255)
+    first_fetch = models.DateTimeField(default=now)
+    last_fetch = models.DateTimeField(default=now)
 
 
 class GameURLCategory(models.Model):
@@ -454,6 +657,54 @@ class GameURL(models.Model):
 
     def GetRemoteUrl(self):
         return self.url.original_url
+
+    def get_latest_fetch(self) -> "URLFetch | None":
+        return self.url.get_latest_fetch()
+
+    def get_stored_file(self) -> "StoredFile | None":
+        return self.url.get_stored_file()
+
+    def get_local_url(self) -> str | None:
+        return self.url.get_local_url()
+
+    def has_stored_copy(self, check_disk: bool = False) -> bool:
+        return self.url.has_stored_copy(check_disk=check_disk)
+
+    def get_local_file_path(self, must_exist: bool = False) -> Path | None:
+        return self.url.get_local_file_path(must_exist=must_exist)
+
+    def open_local_file(self, mode: str = "rb") -> Any:
+        return self.url.open_local_file(mode)
+
+    def get_original_filename(self) -> str | None:
+        return self.url.get_original_filename()
+
+    def get_content_type(self) -> str | None:
+        return self.url.get_content_type()
+
+    def get_file_size(self) -> int | None:
+        return self.url.get_file_size()
+
+    def is_link_broken(self) -> bool:
+        return self.url.is_link_broken()
+
+    @property
+    def is_broken(self) -> bool:
+        return self.url.is_link_broken()
+
+    def get_duplicate_urls(
+        self, include_self: bool = False
+    ) -> models.QuerySet["URL"]:
+        return self.url.get_duplicate_urls(include_self=include_self)
+
+    def get_duplicate_game_urls(
+        self, include_self: bool = False
+    ) -> models.QuerySet["GameURL"]:
+        dup_urls = self.get_duplicate_urls(include_self=True)
+        qs = GameURL.objects.filter(url__in=dup_urls)
+        if not include_self and self.pk:
+            qs = qs.exclude(pk=self.pk)
+        return qs
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     url = models.ForeignKey(URL, on_delete=models.CASCADE)

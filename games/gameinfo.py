@@ -37,6 +37,7 @@ from games.models import (
     PersonalityAliasRedirect,
 )
 from games.tools import CreateUrl
+from games.uploads import finalize_provisional_uploads
 from play.models import Playable
 
 _T = TypeVar("_T")
@@ -227,6 +228,8 @@ class GameInfo:
         game.description = self.description
         game.release_date = parse_date(self.date).date() if self.date else None
         game.save()
+
+        finalize_provisional_uploads(game, self)
 
         self._save_tags(game)
         self._save_authors(game)

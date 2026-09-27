@@ -73,7 +73,6 @@ games/management/commands/initifdb.py
 games/management/commands/splitauthors.py
 games/models.py
 games/search.py
-games/tasks.py
 games/templatetags/tags.py
 games/tests/test_apero_importer.py
 games/tests/test_edit_curation.py
