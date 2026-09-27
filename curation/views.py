@@ -1920,7 +1920,7 @@ def game_file_list(request):
         except (ValueError, TypeError):
             category_id = ""
     if downloadable:
-        urls = urls.filter(Q(is_uploaded=True) | Q(ok_to_clone=True))
+        urls = urls.filter(is_uploaded=False, ok_to_clone=True)
 
     if state == "failed":
         urls = urls.filter(
