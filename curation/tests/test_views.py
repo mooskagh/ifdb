@@ -40,6 +40,7 @@ from curation.models import (
     SourceDiscoveryStatus,
 )
 from curation.views import _accept_edit
+from games.fetcher import FetchOutcome, FetchResult
 from games.gameinfo import GameInfo, GameUrl, Person, Tag
 from games.models import (
     URL,
@@ -53,6 +54,8 @@ from games.models import (
     GameURL,
     GameURLCategory,
     PersonalityAlias,
+    StoredFile,
+    URLFetch,
 )
 from play.blueprint import (
     BlueprintInfo,
@@ -5739,6 +5742,278 @@ class SourceViewsTest(TestCase):
             ],
         )
         self.assertContains(response, "Источники поставлены в очередь: 2.")
+
+
+class GameFileViewsTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(
+            username="admin", email="admin@example.com", is_superuser=True
+        )
+        self.client.force_login(self.user)
+
+    def test_navigation_menu_includes_game_files_before_django_admin(self):
+        response = self.client.get("/curation/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        files_idx = content.find('href="/curation/files/">Файлы игр</a>')
+        admin_idx = content.find('href="/adminz/">Django Admin</a>')
+        self.assertNotEqual(files_idx, -1, "Файлы игр not found in menu")
+        self.assertNotEqual(admin_idx, -1, "Django Admin not found in menu")
+        self.assertLess(
+            files_idx,
+            admin_idx,
+            "Файлы игр should appear before Django Admin",
+        )
+
+    def test_game_file_list_renders_game_urls_and_status(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="File Game",
+            creation_time=ts,
+        )
+        cat = GameURLCategory.objects.create(
+            symbolic_id="download_direct",
+            title="Скачать (прямая ссылка)",
+            order=1,
+        )
+        url = URL.objects.create(
+            original_url="https://example.com/file_game.zip",
+            creation_date=ts,
+            last_attempt=ts,
+        )
+        sf = StoredFile.objects.create(
+            content_hash="abc1234567890abcdef1234567890abcdef",
+            storage_path="backups/file_game.zip",
+            file_size=2048,
+            created_at=ts,
+        )
+        URLFetch.objects.create(
+            url=url,
+            stored_file=sf,
+            original_filename="file_game.zip",
+            content_type="application/zip",
+            first_fetch=ts,
+            last_fetch=ts,
+        )
+        game_url = GameURL.objects.create(
+            game=game,
+            url=url,
+            category=cat,
+        )
+
+        response = self.client.get("/curation/files/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "curation-game-url-table")
+        self.assertContains(
+            response, f'data-href="/curation/files/{game_url.pk}/"'
+        )
+        self.assertContains(response, f'href="/curation/files/{game_url.pk}/"')
+        self.assertContains(response, "Скачать (прямая ссылка)")
+        self.assertContains(response, "https://example.com/file_game.zip")
+        self.assertContains(response, "File Game")
+        self.assertContains(response, "/f/backups/file_game.zip")
+
+    def test_game_file_list_filtering_and_sorting(self):
+        ts = timezone.now()
+        game_a = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Alpha Game",
+            creation_time=ts,
+        )
+        game_b = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Beta Game",
+            creation_time=ts,
+        )
+        cat_download = GameURLCategory.objects.create(
+            symbolic_id="cat_dl",
+            title="Скачать",
+            order=1,
+        )
+        cat_poster = GameURLCategory.objects.create(
+            symbolic_id="cat_post",
+            title="Постер",
+            order=2,
+        )
+        url_ok = URL.objects.create(
+            original_url="https://example.com/alpha.zip",
+            creation_date=ts,
+            last_attempt=ts,
+        )
+        url_failed = URL.objects.create(
+            original_url="https://example.com/beta.zip",
+            creation_date=ts,
+            last_attempt=ts,
+            last_error="404 Not Found",
+            is_broken=True,
+        )
+        url_upload = URL.objects.create(
+            original_url="https://example.com/upload.zip",
+            creation_date=ts,
+            is_uploaded=True,
+        )
+
+        gu_ok = GameURL.objects.create(
+            game=game_a, url=url_ok, category=cat_download
+        )
+        gu_failed = GameURL.objects.create(
+            game=game_b, url=url_failed, category=cat_poster
+        )
+        gu_upload = GameURL.objects.create(
+            game=game_a, url=url_upload, category=cat_download
+        )
+
+        # Filter by search q
+        resp_q = self.client.get("/curation/files/", {"q": "Alpha"})
+        self.assertContains(resp_q, f"/curation/files/{gu_ok.pk}/")
+        self.assertNotContains(resp_q, f"/curation/files/{gu_failed.pk}/")
+
+        # Filter by category
+        resp_cat = self.client.get(
+            "/curation/files/", {"category": cat_poster.pk}
+        )
+        self.assertContains(resp_cat, f"/curation/files/{gu_failed.pk}/")
+        self.assertNotContains(resp_cat, f"/curation/files/{gu_ok.pk}/")
+
+        # Filter by state: failed
+        resp_failed = self.client.get("/curation/files/", {"state": "failed"})
+        self.assertContains(resp_failed, f"/curation/files/{gu_failed.pk}/")
+        self.assertNotContains(resp_failed, f"/curation/files/{gu_ok.pk}/")
+
+        # Filter by state: ok
+        resp_ok = self.client.get("/curation/files/", {"state": "ok"})
+        self.assertContains(resp_ok, f"/curation/files/{gu_ok.pk}/")
+        self.assertNotContains(resp_ok, f"/curation/files/{gu_failed.pk}/")
+
+        # Filter by state: uploaded
+        resp_upload = self.client.get(
+            "/curation/files/", {"state": "uploaded"}
+        )
+        self.assertContains(resp_upload, f"/curation/files/{gu_upload.pk}/")
+        self.assertNotContains(resp_upload, f"/curation/files/{gu_ok.pk}/")
+
+        # Sort by game
+        resp_sort = self.client.get("/curation/files/", {"sort": "game"})
+        self.assertEqual(resp_sort.status_code, 200)
+
+    def test_game_file_detail_and_fetch_history(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Detail Game",
+            creation_time=ts,
+        )
+        game_other = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Other Game",
+            creation_time=ts,
+        )
+        cat = GameURLCategory.objects.create(
+            symbolic_id="dl",
+            title="Скачать игру",
+            order=1,
+        )
+        url = URL.objects.create(
+            original_url="https://example.com/detail.zip",
+            creation_date=ts,
+            last_attempt=ts,
+        )
+        sf1 = StoredFile.objects.create(
+            content_hash="1111111111111111111111111111111111111111",
+            storage_path="backups/detail_old.zip",
+            file_size=1024,
+            created_at=ts - timedelta(days=1),
+        )
+        sf2 = StoredFile.objects.create(
+            content_hash="2222222222222222222222222222222222222222",
+            storage_path="g/123/detail_new.zip",
+            file_size=2048,
+            created_at=ts,
+        )
+        URLFetch.objects.create(
+            url=url,
+            stored_file=sf1,
+            original_filename="detail_old.zip",
+            content_type="application/zip",
+            first_fetch=ts - timedelta(days=1),
+            last_fetch=ts - timedelta(days=1),
+        )
+        URLFetch.objects.create(
+            url=url,
+            stored_file=sf2,
+            original_filename="detail_new.zip",
+            content_type="application/zip",
+            first_fetch=ts,
+            last_fetch=ts,
+        )
+        game_url = GameURL.objects.create(
+            game=game,
+            url=url,
+            category=cat,
+            description="Official download",
+        )
+        GameURL.objects.create(
+            game=game_other,
+            url=url,
+            category=cat,
+        )
+
+        response = self.client.get(f"/curation/files/{game_url.pk}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Скачать игру")
+        self.assertContains(response, "Detail Game")
+        self.assertContains(response, "https://example.com/detail.zip")
+        self.assertContains(response, "Official download")
+        self.assertContains(response, "Other Game")
+        self.assertContains(response, "скачать сейчас")
+        self.assertContains(response, "backups/detail_old.zip")
+        self.assertContains(response, "g/123/detail_new.zip")
+        self.assertContains(response, "/f/backups/detail_old.zip")
+        self.assertContains(response, "/f/g/123/detail_new.zip")
+
+    @patch("curation.views.fetch_url")
+    def test_game_file_fetch_now(self, mock_fetch):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Fetch Game",
+            creation_time=ts,
+        )
+        cat = GameURLCategory.objects.create(
+            symbolic_id="dl_now",
+            title="Скачать",
+            order=1,
+        )
+        url = URL.objects.create(
+            original_url="https://example.com/download.zip",
+            creation_date=ts,
+        )
+        game_url = GameURL.objects.create(
+            game=game,
+            url=url,
+            category=cat,
+        )
+        sf = StoredFile.objects.create(
+            content_hash="abcabcabcabcabcabcabcabc",
+            storage_path="g/1/download.zip",
+            file_size=500,
+            created_at=ts,
+        )
+        mock_fetch.return_value = FetchResult(
+            outcome=FetchOutcome.CREATED,
+            url=url,
+            stored_file=sf,
+        )
+
+        response = self.client.post(
+            f"/curation/files/{game_url.pk}/fetch/", follow=True
+        )
+        self.assertRedirects(response, f"/curation/files/{game_url.pk}/")
+        mock_fetch.assert_called_once_with(url, timeout=30)
+        self.assertContains(
+            response, "Файл успешно сохранён: g/1/download.zip"
+        )
 
 
 class FeedViewsTest(TestCase):
