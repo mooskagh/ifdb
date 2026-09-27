@@ -1,76 +1,58 @@
 {% extends "curation/base.html" %}
 {% load tags %}
 
-{% block titlesection %}Файл: {{ game_url.category.title }} - {{ game_url.game.title }} - Модерация - {% endblock %}
+{% block titlesection %}Файл: {{ url.original_url }} - Модерация - {% endblock %}
 
 {% block curation_main %}
 <div class="card card--brown">
-    <div class="card--header">{{ game_url.category.title }} &mdash; {{ game_url.game.title }}</div>
-    {% if game_url.url.last_error %}
-    <div class="curation-source-error">{{ game_url.url.last_error }}</div>
+    <div class="card--header">{{ url.original_url }}</div>
+    {% if url.last_error %}
+    <div class="curation-source-error">{{ url.last_error }}</div>
     {% endif %}
     <div class="curation-source-detail">
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">URL</div>
             <div class="curation-source-detail-value curation-break-url">
-                {% if game_url.url.original_url %}<a href="{{ game_url.url.original_url }}" target="_blank" rel="noopener">{{ game_url.url.original_url }}</a>{% else %}—{% endif %}
+                {% if url.original_url %}<a href="{{ url.original_url }}" target="_blank" rel="noopener">{{ url.original_url }}</a>{% else %}—{% endif %}
             </div>
         </div>
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Игра</div>
             <div class="curation-source-detail-value">
+                {% for game_url in game_urls %}
                 {% if game_url.game.state == "PUBLISHED" %}<a href="{% url 'show_game' game_url.game.pk %}">{{ game_url.game.title }}</a>{% else %}{{ game_url.game.title }} ({{ game_url.game.get_state_display }}){% endif %}
-                (<a href="{% url 'curation_history_detail' game_url.game.pk %}">админка</a>)
+                (<a href="{% url 'curation_history_detail' game_url.game.pk %}">админка</a>), {{ game_url.category.title }}{% if game_url.description %} — {{ game_url.description }}{% endif %}{% if not forloop.last %}<br>{% endif %}
+                {% endfor %}
             </div>
         </div>
-        <div class="curation-source-detail-row">
-            <div class="curation-source-detail-label">Тип</div>
-            <div class="curation-source-detail-value">{{ game_url.category.title }}</div>
-        </div>
-        {% if game_url.description %}
-        <div class="curation-source-detail-row">
-            <div class="curation-source-detail-label">Описание</div>
-            <div class="curation-source-detail-value">{{ game_url.description }}</div>
-        </div>
-        {% endif %}
-        {% if game_url.url.creation_date %}
+        {% if url.creation_date %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Добавлен</div>
-            <div class="curation-source-detail-value">{{ game_url.url.creation_date|date:"d.m.Y H:i" }}</div>
+            <div class="curation-source-detail-value">{{ url.creation_date|date:"d.m.Y H:i" }}</div>
         </div>
         {% endif %}
-        {% if game_url.url.last_attempt %}
+        {% if url.last_attempt %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Попытка</div>
-            <div class="curation-source-detail-value">{{ game_url.url.last_attempt|date:"d.m.Y H:i" }}</div>
+            <div class="curation-source-detail-value">{{ url.last_attempt|date:"d.m.Y H:i" }}</div>
         </div>
         {% endif %}
-        {% if game_url.url.failing_since %}
+        {% if url.failing_since %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Сбоит с</div>
-            <div class="curation-source-detail-value">{{ game_url.url.failing_since|date:"d.m.Y H:i" }}</div>
+            <div class="curation-source-detail-value">{{ url.failing_since|date:"d.m.Y H:i" }}</div>
         </div>
         {% endif %}
         <div class="curation-source-detail-row">
             <div class="curation-source-detail-label">Свойства</div>
             <div class="curation-source-detail-value">
-                {% if game_url.url.is_uploaded %}Загружен пользователем{% else %}Внешняя ссылка{% endif %}{% if game_url.url.ok_to_clone %}, разрешено клонирование{% endif %}{% if game_url.url.is_broken %}, битая ссылка{% endif %}
+                {% if url.is_uploaded %}Загружен пользователем{% else %}Внешняя ссылка{% endif %}{% if url.ok_to_clone %}, разрешено клонирование{% endif %}{% if url.is_broken %}, битая ссылка{% endif %}
             </div>
         </div>
-        {% if other_game_urls %}
-        <div class="curation-source-detail-row">
-            <div class="curation-source-detail-label">Другие игры</div>
-            <div class="curation-source-detail-value">
-                {% for other in other_game_urls %}
-                <a href="{% url 'curation_game_file_detail' other.pk %}">{{ other.game.title }} ({{ other.category.title }})</a>{% if not forloop.last %}, {% endif %}
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
     </div>
-    {% if not game_url.url.is_uploaded %}
+    {% if not url.is_uploaded %}
     <div class="curation-save">
-        <form method="post" action="{% url 'curation_game_file_fetch_now' game_url.pk %}">
+        <form method="post" action="{% url 'curation_game_file_fetch_now' url.pk %}">
             {% csrf_token %}
             <button type="submit">скачать сейчас</button>
         </form>

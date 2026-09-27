@@ -73,12 +73,12 @@ urlpatterns = [
         name="curation_game_file_list",
     ),
     path(
-        "files/<int:game_url_id>/",
+        "files/<int:url_id>/",
         superuser_required(views.game_file_detail),
         name="curation_game_file_detail",
     ),
     path(
-        "files/<int:game_url_id>/fetch/",
+        "files/<int:url_id>/fetch/",
         superuser_required(views.game_file_fetch_now),
         name="curation_game_file_fetch_now",
     ),

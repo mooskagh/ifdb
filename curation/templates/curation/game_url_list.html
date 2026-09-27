@@ -33,8 +33,13 @@
                 </select>
             </div>
             <div class="curation-filter-field">
+                <input type="hidden" name="downloadable" value="0">
+                <label><input type="checkbox" name="downloadable" value="1" {% if downloadable %}checked{% endif %}> Только скачиваемые</label>
+            </div>
+            <div class="curation-filter-field">
                 <label for="curation-game-url-sort">Сортировка</label>
                 <select id="curation-game-url-sort" name="sort">
+                    <option value="queue" {% if sort == "queue" %}selected{% endif %}>По очереди на обновление</option>
                     <option value="last_attempt" {% if sort == "last_attempt" %}selected{% endif %}>По последней попытке</option>
                     <option value="last_fetch" {% if sort == "last_fetch" %}selected{% endif %}>По успешной загрузке</option>
                     <option value="last_new_fetch" {% if sort == "last_new_fetch" %}selected{% endif %}>По новой загрузке</option>
@@ -49,7 +54,6 @@
     <table class="curation-table curation-table--compact curation-source-table curation-game-url-table">
         <thead>
             <tr>
-                <th class="curation-source-table-type">Тип</th>
                 <th class="curation-source-table-state">Сост.</th>
                 <th>URL</th>
                 <th>Игра</th>
@@ -58,18 +62,19 @@
             </tr>
         </thead>
         <tbody>
-            {% for item in game_urls %}
-            <tr class="{% if item.url.failing_since or item.url.last_error or item.url.is_broken %}error{% elif item.latest_fetch_is_new %}success{% endif %}"
+            {% for item in urls %}
+            <tr class="{% if item.failing_since or item.last_error or item.is_broken %}error{% elif item.latest_fetch_is_new %}success{% endif %}"
                 data-href="{% url 'curation_game_file_detail' item.pk %}">
-                <td class="curation-truncate"><a href="{% url 'curation_game_file_detail' item.pk %}">{{ item.category.title }}</a></td>
                 <td>
-                    {% if item.url.failing_since or item.url.last_error or item.url.is_broken %}ошибка{% elif item.url.is_uploaded %}upload{% elif item.latest_fetch_id %}ok{% else %}—{% endif %}
+                    {% if item.failing_since or item.last_error or item.is_broken %}ошибка{% elif item.is_uploaded %}upload{% elif item.latest_fetch_id %}ok{% else %}—{% endif %}
                 </td>
-                <td class="curation-truncate">{% if item.url.original_url %}<a href="{{ item.url.original_url }}" title="{{ item.url.original_url }}" target="_blank" rel="noopener">{{ item.url.original_url }}</a>{% else %}—{% endif %}</td>
+                <td class="curation-truncate">{% if item.original_url %}<a href="{{ item.original_url }}" title="{{ item.original_url }}" target="_blank" rel="noopener">{{ item.original_url }}</a>{% else %}—{% endif %} (<a href="{% url 'curation_game_file_detail' item.pk %}">детали</a>)</td>
                 <td class="curation-truncate">
-                    {% if item.game %}{% if item.game.state == "PUBLISHED" %}<a href="{% url 'show_game' item.game.pk %}">{{ item.game.title }}</a>{% else %}{{ item.game.title }} ({{ item.game.get_state_display }}){% endif %} (<a href="{% url 'curation_history_detail' item.game.pk %}">админка</a>){% else %}—{% endif %}
+                    {% for game_url in item.gameurl_set.all %}
+                    {% if game_url.game.state == "PUBLISHED" %}<a href="{% url 'show_game' game_url.game.pk %}">{{ game_url.game.title }}</a>{% else %}{{ game_url.game.title }} ({{ game_url.game.get_state_display }}){% endif %} (<a href="{% url 'curation_history_detail' game_url.game.pk %}">админка</a>), {{ game_url.category.title }}{% if not forloop.last %}<br>{% endif %}
+                    {% endfor %}
                 </td>
-                <td class="curation-nowrap">{{ item.url.last_attempt|date:"Y-m-d H:i"|default:"—" }}</td>
+                <td class="curation-nowrap">{{ item.last_attempt|date:"Y-m-d H:i"|default:"—" }}</td>
                 <td class="curation-nowrap">
                     {% if item.latest_fetch_id %}
                     {{ item.latest_fetch_at|date:"Y-m-d H:i" }}{% if item.latest_stored_file_path %}: <a href="/f/{{ item.latest_stored_file_path }}" target="_blank" rel="noopener">файл</a>{% endif %}
@@ -77,15 +82,15 @@
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="6">Файлов нет.</td></tr>
+            <tr><td colspan="5">Файлов нет.</td></tr>
             {% endfor %}
         </tbody>
     </table>
     {% if page.has_other_pages %}
     <div class="curation-pagination">
-        {% if page.has_previous %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&page={{ page.previous_page_number }}">← Назад</a>{% endif %}
+        {% if page.has_previous %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&downloadable={% if downloadable %}1{% else %}0{% endif %}&page={{ page.previous_page_number }}">← Назад</a>{% endif %}
         <span>Страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
-        {% if page.has_next %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
+        {% if page.has_next %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&downloadable={% if downloadable %}1{% else %}0{% endif %}&page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
     </div>
     {% endif %}
 </div>

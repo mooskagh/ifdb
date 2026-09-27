@@ -1874,14 +1874,20 @@ def game_file_list(request):
     category_id = request.GET.get("category", "")
     state = request.GET.get("state", "")
     sort = request.GET.get("sort") or "last_attempt"
+    downloadable = request.GET.get("downloadable", "1") == "1"
 
-    latest_fetch = URLFetch.objects.filter(url=OuterRef("url")).order_by(
+    latest_fetch = URLFetch.objects.filter(url=OuterRef("pk")).order_by(
         "-last_fetch", "-pk"
     )
+    associations = GameURL.objects.select_related("game", "category").order_by(
+        "category__order", "game__title", "pk"
+    )
 
-    game_urls = (
-        GameURL.objects
-        .select_related("game", "category", "url")
+    urls = (
+        URL.objects
+        .filter(gameurl__isnull=False)
+        .distinct()
+        .prefetch_related(Prefetch("gameurl_set", queryset=associations))
         .annotate(
             latest_fetch_id=Subquery(latest_fetch.values("pk")[:1]),
             latest_fetch_at=Subquery(latest_fetch.values("last_fetch")[:1]),
@@ -1894,7 +1900,7 @@ def game_file_list(request):
         )
         .annotate(
             latest_fetch_is_new=Case(
-                When(url__last_attempt=F("latest_fetch_first_at"), then=True),
+                When(last_attempt=F("latest_fetch_first_at"), then=True),
                 default=False,
                 output_field=BooleanField(),
             )
@@ -1902,63 +1908,82 @@ def game_file_list(request):
     )
 
     if q:
-        game_urls = game_urls.filter(
-            Q(url__original_url__icontains=q)
-            | Q(game__title__icontains=q)
-            | Q(description__icontains=q)
+        matching_games = GameURL.objects.filter(url=OuterRef("pk")).filter(
+            Q(game__title__icontains=q) | Q(description__icontains=q)
+        )
+        urls = urls.filter(
+            Q(original_url__icontains=q) | Exists(matching_games)
         )
     if category_id:
         try:
-            game_urls = game_urls.filter(category_id=int(category_id))
+            urls = urls.filter(gameurl__category_id=int(category_id))
         except (ValueError, TypeError):
             category_id = ""
+    if downloadable:
+        urls = urls.filter(Q(is_uploaded=True) | Q(ok_to_clone=True))
 
     if state == "failed":
-        game_urls = game_urls.filter(
-            Q(url__failing_since__isnull=False)
-            | Q(url__last_error__gt="")
-            | Q(url__is_broken=True)
+        urls = urls.filter(
+            Q(failing_since__isnull=False)
+            | Q(last_error__gt="")
+            | Q(is_broken=True)
         )
     elif state == "ok":
-        game_urls = game_urls.filter(
-            url__failing_since__isnull=True,
-            url__is_broken=False,
-        ).filter(Q(url__last_error__isnull=True) | Q(url__last_error=""))
+        urls = urls.filter(failing_since__isnull=True, is_broken=False).filter(
+            Q(last_error__isnull=True) | Q(last_error="")
+        )
     elif state == "uploaded":
-        game_urls = game_urls.filter(url__is_uploaded=True)
+        urls = urls.filter(is_uploaded=True)
     elif state == "has_fetch":
-        game_urls = game_urls.filter(latest_fetch_id__isnull=False)
+        urls = urls.filter(latest_fetch_id__isnull=False)
     elif state == "no_attempt":
-        game_urls = game_urls.filter(url__last_attempt__isnull=True)
+        urls = urls.filter(last_attempt__isnull=True)
     else:
         state = ""
 
     match sort:
         case "last_fetch":
-            game_urls = game_urls.order_by(
+            urls = urls.order_by(
                 F("latest_fetch_at").desc(nulls_last=True), "-pk"
             )
         case "last_new_fetch":
-            game_urls = game_urls.order_by(
+            urls = urls.order_by(
                 F("latest_fetch_first_at").desc(nulls_last=True), "-pk"
             )
         case "created":
-            game_urls = game_urls.order_by(
-                F("url__creation_date").desc(nulls_last=True), "-pk"
-            )
+            urls = urls.order_by("-creation_date", "-pk")
         case "url":
-            game_urls = game_urls.order_by(
-                "category__order", "url__original_url", "pk"
-            )
+            category_order = GameURL.objects.filter(
+                url=OuterRef("pk")
+            ).order_by("category__order", "pk")
+            urls = urls.annotate(
+                first_category_order=Subquery(
+                    category_order.values("category__order")[:1]
+                )
+            ).order_by("first_category_order", "original_url", "pk")
         case "game":
-            game_urls = game_urls.order_by("game__title", "-pk")
+            first_game = GameURL.objects.filter(url=OuterRef("pk")).order_by(
+                "game__title", "pk"
+            )
+            urls = urls.annotate(
+                first_game_title=Subquery(first_game.values("game__title")[:1])
+            ).order_by("first_game_title", "-pk")
+        case "queue":
+            urls = urls.order_by(
+                F("last_attempt").asc(nulls_first=True),
+                Case(
+                    When(last_attempt__isnull=True, then=F("creation_date"))
+                ).desc(),
+                Case(When(last_attempt__isnull=True, then=F("pk"))).desc(),
+                "pk",
+            )
         case _:
             sort = "last_attempt"
-            game_urls = game_urls.order_by(
-                F("url__last_attempt").desc(nulls_last=True), "-pk"
+            urls = urls.order_by(
+                F("last_attempt").desc(nulls_last=True), "-pk"
             )
 
-    page = Paginator(game_urls, 100).get_page(request.GET.get("page"))
+    page = Paginator(urls, 100).get_page(request.GET.get("page"))
     categories = GameURLCategory.objects.order_by("order", "title")
 
     return render(
@@ -1966,57 +1991,53 @@ def game_file_list(request):
         "curation/game_url_list.html",
         {
             "page": page,
-            "game_urls": page.object_list,
+            "urls": page.object_list,
             "q": q,
             "category_id": int(category_id) if category_id else "",
             "state": state,
             "sort": sort,
+            "downloadable": downloadable,
             "categories": categories,
         },
     )
 
 
-def game_file_detail(request, game_url_id):
-    game_url = get_object_or_404(
-        GameURL.objects.select_related("game", "category", "url"),
-        pk=game_url_id,
-    )
-    fetches = game_url.url.fetches.select_related("stored_file").order_by(
+def game_file_detail(request, url_id):
+    url = get_object_or_404(URL, pk=url_id)
+    fetches = url.fetches.select_related("stored_file").order_by(
         "-last_fetch", "-pk"
     )
-    other_game_urls = (
+    game_urls = (
         GameURL.objects
-        .filter(url=game_url.url)
-        .exclude(pk=game_url.pk)
+        .filter(url=url)
         .select_related("game", "category")
+        .order_by("category__order", "game__title", "pk")
     )
 
     return render(
         request,
         "curation/game_url_detail.html",
         {
-            "game_url": game_url,
+            "url": url,
             "fetches": fetches,
-            "other_game_urls": other_game_urls,
+            "game_urls": game_urls,
         },
     )
 
 
-def game_file_fetch_now(request, game_url_id):
+def game_file_fetch_now(request, url_id):
     if request.method != "POST":
         return HttpResponseBadRequest("Only POST is supported.")
 
-    game_url = get_object_or_404(
-        GameURL.objects.select_related("url"), pk=game_url_id
-    )
-    if game_url.url.is_uploaded:
+    url = get_object_or_404(URL, pk=url_id)
+    if url.is_uploaded:
         messages.warning(
             request,
             "Файл загружен локально, загрузка по сети не требуется.",
         )
-        return redirect("curation_game_file_detail", game_url_id=game_url.pk)
+        return redirect("curation_game_file_detail", url_id=url.pk)
 
-    result = fetch_url(game_url.url, timeout=30)
+    result = fetch_url(url, timeout=30)
     if result.outcome == FetchOutcome.FAILED:
         messages.error(request, f"Ошибка загрузки: {result.error}")
     elif result.outcome == FetchOutcome.SKIPPED:
@@ -2036,10 +2057,7 @@ def game_file_fetch_now(request, game_url_id):
             f"Файл успешно сохранён: {sf_path}",
         )
 
-    return redirect(
-        request.POST.get("next") or "curation_game_file_detail",
-        game_url_id=game_url.pk,
-    )
+    return redirect("curation_game_file_detail", url_id=url.pk)
 
 
 def feed_list(request):
