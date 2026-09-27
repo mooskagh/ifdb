@@ -20,6 +20,11 @@ URL_REWRITES: list[RewriteRule] = [
         ),
         r"https://instead-games.ru/download/\1",
     ),
+    # rilarhiv.ru only serves HTTP
+    (
+        re.compile(r"^https://((?:www\.)?rilarc?hiv\.ru)"),
+        r"http://\1",
+    ),
 ]
 
 
