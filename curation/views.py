@@ -1874,7 +1874,13 @@ def game_file_list(request):
     category_id = request.GET.get("category", "")
     state = request.GET.get("state", "")
     sort = request.GET.get("sort") or "last_attempt"
-    downloadable = request.GET.get("downloadable", "1") == "1"
+    attached = request.GET.get("attached", "yes")
+    if attached not in ("yes", "no", "all"):
+        attached = "yes"
+    downloadable = (
+        attached != "no" and request.GET.get("downloadable", "1") == "1"
+    )
+    multiple_versions = request.GET.get("multiple_versions") == "1"
 
     latest_fetch = URLFetch.objects.filter(url=OuterRef("pk")).order_by(
         "-last_fetch", "-pk"
@@ -1885,10 +1891,9 @@ def game_file_list(request):
 
     urls = (
         URL.objects
-        .filter(gameurl__isnull=False)
-        .distinct()
         .prefetch_related(Prefetch("gameurl_set", queryset=associations))
         .annotate(
+            version_count=Count("fetches", distinct=True),
             latest_fetch_id=Subquery(latest_fetch.values("pk")[:1]),
             latest_fetch_at=Subquery(latest_fetch.values("last_fetch")[:1]),
             latest_fetch_first_at=Subquery(
@@ -1907,6 +1912,13 @@ def game_file_list(request):
         )
     )
 
+    if attached == "yes":
+        urls = urls.filter(gameurl__isnull=False)
+    elif attached == "no":
+        urls = urls.filter(gameurl__isnull=True)
+    if multiple_versions:
+        urls = urls.filter(version_count__gt=1)
+
     if q:
         matching_games = GameURL.objects.filter(url=OuterRef("pk")).filter(
             Q(game__title__icontains=q) | Q(description__icontains=q)
@@ -1921,6 +1933,8 @@ def game_file_list(request):
             category_id = ""
     if downloadable:
         urls = urls.filter(is_uploaded=False, ok_to_clone=True)
+
+    urls = urls.distinct()
 
     if state == "failed":
         urls = urls.filter(
@@ -1997,6 +2011,8 @@ def game_file_list(request):
             "state": state,
             "sort": sort,
             "downloadable": downloadable,
+            "attached": attached,
+            "multiple_versions": multiple_versions,
             "categories": categories,
         },
     )
