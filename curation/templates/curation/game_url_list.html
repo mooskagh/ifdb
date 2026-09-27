@@ -7,7 +7,7 @@
 <div class="card card--brown">
     <div class="card--header">Файлы игр</div>
     <div class="card--body">
-        <form class="curation-filter curation-filter--history" method="get">
+        <form class="curation-filter curation-filter--history curation-filter--files" method="get">
             <div class="curation-filter-field">
                 <label for="curation-game-url-q">Поиск</label>
                 <input id="curation-game-url-q" type="search" name="q" value="{{ q }}" placeholder="URL или игра">
@@ -33,10 +33,6 @@
                 </select>
             </div>
             <div class="curation-filter-field">
-                <input type="hidden" name="downloadable" value="0">
-                <label><input type="checkbox" name="downloadable" value="1" {% if downloadable %}checked{% endif %}> Только скачиваемые</label>
-            </div>
-            <div class="curation-filter-field">
                 <label for="curation-game-url-sort">Сортировка</label>
                 <select id="curation-game-url-sort" name="sort">
                     <option value="queue" {% if sort == "queue" %}selected{% endif %}>По очереди на обновление</option>
@@ -47,6 +43,10 @@
                     <option value="url" {% if sort == "url" %}selected{% endif %}>По URL</option>
                     <option value="game" {% if sort == "game" %}selected{% endif %}>По игре</option>
                 </select>
+            </div>
+            <div class="curation-filter-field">
+                <input type="hidden" name="downloadable" value="0">
+                <label class="curation-filter-checkbox"><input type="checkbox" name="downloadable" value="1" {% if downloadable %}checked{% endif %}> Только скачиваемые</label>
             </div>
             <button type="submit">Показать</button>
         </form>

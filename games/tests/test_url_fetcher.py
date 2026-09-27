@@ -105,6 +105,31 @@ class BaseFetcherTestCase(TestCase):
 
 
 class TestFetchUrlHistory(BaseFetcherTestCase):
+    def test_overlapping_fetch_cannot_move_timestamps_backwards(self) -> None:
+        game = self.create_game(199)
+        url = self.create_url(game=game)
+        earlier = now()
+        later = earlier + timedelta(minutes=1)
+
+        def download(_original_url: str, *, timeout: int) -> MockResponse:
+            inner_url = URL.objects.get(pk=url.pk)
+            inner = fetch_url(
+                inner_url,
+                downloader=lambda _url, *, timeout: MockResponse(b"content"),
+            )
+            self.assertEqual(inner.outcome, FetchOutcome.CREATED)
+            return MockResponse(b"content")
+
+        with patch("games.fetcher.now", side_effect=[earlier, later]):
+            outer = fetch_url(url, downloader=download)
+
+        self.assertEqual(outer.outcome, FetchOutcome.UNCHANGED)
+        url.refresh_from_db()
+        fetch = URLFetch.objects.get(url=url)
+        self.assertEqual(url.last_attempt, later)
+        self.assertEqual(fetch.first_fetch, later)
+        self.assertEqual(fetch.last_fetch, later)
+
     def test_first_fetch_creates_stored_file_and_url_fetch(self) -> None:
         game = self.create_game(101)
         url = self.create_url("https://example.com/games/quest.zip", game=game)
