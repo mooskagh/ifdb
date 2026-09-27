@@ -77,9 +77,9 @@ In addition to existing identity/creation fields, `URL` should eventually own fe
 
 `ok_to_clone` can initially remain the eligibility flag so this project does not also have to redesign backup policy.
 
-A remote URL is eligible for periodic fetching when current rules say it is backupable and it is not an upload.
+A remote URL is eligible for periodic fetching when current rules say it is backupable, it is not an upload, and it is referenced by at least one game.
 
-An uploaded URL is never periodically fetched.
+An uploaded URL is never periodically fetched. URLs not referenced by any game are skipped.
 
 ### `StoredFile`
 
@@ -194,9 +194,9 @@ If the filename is unavailable or unsafe, fall back to a safe generated filename
 
 ### New files without a game
 
-Do not let this requirement block non-game URL types.
+Automated URL fetching skips URLs which are not referenced by any game.
 
-For the first implementation, if a newly fetched backupable URL has no `GameURL` reference, keep using an existing non-game/legacy namespace such as `backups/...`. Game-scoped storage can be added to competitions or personalities separately if desired.
+If a URL is ever manually fetched without a `GameURL` reference, fallback storage continues using an existing non-game/legacy namespace such as `backups/...`. Game-scoped storage can be added to competitions or personalities separately if desired.
 
 If a URL is referenced both by a game and by another object, prefer the game-scoped path for newly stored unique bytes.
 
@@ -223,7 +223,7 @@ A useful implementation pattern is to finish hashing before deciding the final p
 
 Do not add a queue table initially. `URL` already contains enough information to behave as the queue.
 
-Select eligible remote URLs in this order:
+Select eligible remote URLs referenced by at least one game in this order:
 
 1. `last_attempt IS NULL`, ordered by `creation_date DESC`.
 2. Then attempted URLs ordered by `last_attempt ASC`.

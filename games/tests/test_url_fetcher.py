@@ -13,6 +13,7 @@ from django.utils.timezone import now
 
 from games.fetcher import (
     FetchOutcome,
+    determine_storage_path,
     fetch_url,
     sanitize_filename,
 )
@@ -384,15 +385,22 @@ class TestStoragePathsAndCollisions(BaseFetcherTestCase):
         assert res.stored_file is not None
         self.assertEqual(res.stored_file.storage_path, "g/310/multi.zip")
 
-    def test_no_game_uses_backups_namespace(self) -> None:
+    def test_no_game_skips_fetch(self) -> None:
         url = self.create_url("https://example.com/alone.zip", game=None)
 
         resp = MockResponse(b"alone-bytes", filename="alone.zip")
         with patch("games.fetcher.FetchUrlToFileLike", return_value=resp):
             res = fetch_url(url)
 
-        assert res.stored_file is not None
-        self.assertEqual(res.stored_file.storage_path, "backups/alone.zip")
+        self.assertEqual(res.outcome, FetchOutcome.SKIPPED)
+        self.assertIsNone(res.stored_file)
+        self.assertEqual(res.error, "URL is not referenced by any game")
+
+    def test_determine_storage_path_without_game_uses_backups(self) -> None:
+        path = determine_storage_path(
+            candidate_filename="alone.zip", content_hash="hash123"
+        )
+        self.assertEqual(path, "backups/alone.zip")
 
     def test_collision_with_different_bytes_uses_short_hash(self) -> None:
         game = self.create_game(302)

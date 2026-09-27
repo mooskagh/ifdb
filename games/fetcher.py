@@ -182,6 +182,12 @@ def fetch_url(
             url=url,
             error="URL has no original_url",
         )
+    if not url.pk or not url.gameurl_set.exists():
+        return FetchResult(
+            outcome=FetchOutcome.SKIPPED,
+            url=url,
+            error="URL is not referenced by any game",
+        )
 
     attempt_time = now()
     url.last_attempt = attempt_time
@@ -344,16 +350,21 @@ def get_eligible_urls(
     force: bool = False,
     limit: int | None = None,
 ) -> Iterator[URL]:
-    base_qs = URL.objects.exclude(original_url__isnull=True).exclude(
-        original_url=""
+    base_qs = (
+        URL.objects
+        .exclude(original_url__isnull=True)
+        .exclude(original_url="")
+        .filter(is_uploaded=False)
+        .filter(gameurl__isnull=False)
+        .distinct()
     )
     if not force:
-        base_qs = base_qs.filter(is_uploaded=False, ok_to_clone=True)
+        base_qs = base_qs.filter(ok_to_clone=True)
 
     if url_id is not None:
         base_qs = base_qs.filter(id=url_id)
     if game_id is not None:
-        base_qs = base_qs.filter(gameurl__game_id=game_id).distinct()
+        base_qs = base_qs.filter(gameurl__game_id=game_id)
 
     never_attempted_qs = base_qs.filter(last_attempt__isnull=True).order_by(
         "-creation_date", "-id"

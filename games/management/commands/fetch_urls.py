@@ -43,9 +43,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--force",
             action="store_true",
-            help=(
-                "Fetch URLs even if ok_to_clone is False or already uploaded."
-            ),
+            help="Fetch URLs even if ok_to_clone is False.",
         )
         parser.add_argument(
             "--timeout",

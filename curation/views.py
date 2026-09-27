@@ -1532,9 +1532,11 @@ def _render_tasks(request):
             is_uploaded=False,
             ok_to_clone=True,
             last_attempt__isnull=True,
+            gameurl__isnull=False,
         )
         .exclude(original_url__isnull=True)
         .exclude(original_url="")
+        .distinct()
         .count()
     )
     return render(

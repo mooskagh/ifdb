@@ -9,6 +9,8 @@ from django.test import TestCase, override_settings
 from django.utils.timezone import now
 
 from games.fetcher import (
+    FetchOutcome,
+    fetch_url,
     get_eligible_urls,
     run_fetch_urls,
 )
@@ -71,6 +73,7 @@ class PeriodicUrlFetcherTestCase(TestCase):
             symbolic_id="download",
             defaults={"title": "Download", "allow_cloning": True},
         )
+        self.default_game = self.create_game(500, "Default Game")
 
     def tearDown(self) -> None:
         self.settings_override.disable()
@@ -91,6 +94,7 @@ class PeriodicUrlFetcherTestCase(TestCase):
         is_uploaded: bool = False,
         ok_to_clone: bool = True,
         game: Game | None = None,
+        attach_game: bool = True,
     ) -> URL:
         created = creation_date or now()
         url = URL.objects.create(
@@ -100,8 +104,11 @@ class PeriodicUrlFetcherTestCase(TestCase):
             is_uploaded=is_uploaded,
             ok_to_clone=ok_to_clone,
         )
-        if game is not None:
-            GameURL.objects.create(game=game, url=url, category=self.category)
+        if attach_game:
+            target_game = game or self.default_game
+            GameURL.objects.create(
+                game=target_game, url=url, category=self.category
+            )
         return url
 
     def test_eligible_urls_ordering_never_attempted_then_attempted(
@@ -159,9 +166,33 @@ class PeriodicUrlFetcherTestCase(TestCase):
         eligible = list(get_eligible_urls())
         self.assertEqual(eligible, [valid])
 
-        # If forced, uploaded and non-cloneable URLs are included
+        # If forced, non-cloneable URLs are included,
+        # but uploaded URLs are still excluded.
         forced = list(get_eligible_urls(force=True))
-        self.assertEqual(len(forced), 3)
+        self.assertEqual(len(forced), 2)
+
+    def test_eligible_urls_skips_urls_not_referenced_by_any_game(self) -> None:
+        u_with_game = self.create_url(
+            "https://example.com/with-game.zip",
+            attach_game=True,
+        )
+        u_without_game = self.create_url(
+            "https://example.com/without-game.zip",
+            attach_game=False,
+        )
+
+        eligible = list(get_eligible_urls())
+        self.assertIn(u_with_game, eligible)
+        self.assertNotIn(u_without_game, eligible)
+
+        # Even with force=True or explicit url_id, unreferenced URLs are out
+        self.assertNotIn(u_without_game, list(get_eligible_urls(force=True)))
+        self.assertEqual(list(get_eligible_urls(url_id=u_without_game.pk)), [])
+
+        # Direct fetch_url skips it as well
+        direct_res = fetch_url(u_without_game)
+        self.assertEqual(direct_res.outcome, FetchOutcome.SKIPPED)
+        self.assertEqual(direct_res.error, "URL is not referenced by any game")
 
     def test_eligible_urls_respects_limit(self) -> None:
         base_time = now()
