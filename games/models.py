@@ -415,6 +415,55 @@ class URL(models.Model):
         null=True,
         blank=True,
     )
+    last_attempt = models.DateTimeField(null=True, blank=True, db_index=True)
+    failing_since = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(null=True, blank=True)
+
+
+class StoredFile(models.Model):
+    class Meta:
+        default_permissions = ()
+
+    def __str__(self) -> str:
+        return self.storage_path
+
+    @property
+    def public_url(self) -> str:
+        return str(settings.FILES_FS.url(self.storage_path))
+
+    content_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    storage_path = models.CharField(max_length=512, unique=True)
+    file_size = models.PositiveBigIntegerField()
+    created_at = models.DateTimeField(default=now)
+
+
+class URLFetch(models.Model):
+    class Meta:
+        default_permissions = ()
+        indexes = [
+            models.Index(fields=["url", "-last_fetch"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"{self.url_id} -> {self.stored_file.storage_path} "
+            f"({self.last_fetch})"
+        )
+
+    url = models.ForeignKey(
+        URL,
+        on_delete=models.CASCADE,
+        related_name="fetches",
+    )
+    stored_file = models.ForeignKey(
+        StoredFile,
+        on_delete=models.PROTECT,
+        related_name="fetches",
+    )
+    original_filename = models.CharField(null=True, blank=True, max_length=255)
+    content_type = models.CharField(null=True, blank=True, max_length=255)
+    first_fetch = models.DateTimeField(default=now)
+    last_fetch = models.DateTimeField(default=now)
 
 
 class GameURLCategory(models.Model):
