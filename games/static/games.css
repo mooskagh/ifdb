@@ -2960,6 +2960,20 @@ h6 {
 .curation-filter--history {
     grid-template-columns: minmax(180px, 1.4fr) repeat(3, minmax(130px, 1fr)) max-content;
 }
+.curation-filter--files {
+    grid-template-columns: minmax(180px, 1.4fr) repeat(2, minmax(130px, 1fr)) minmax(170px, 1fr) max-content max-content;
+}
+.curation-filter .curation-filter-checkbox {
+    flex-direction: row;
+    align-items: center;
+    white-space: nowrap;
+    gap: 4px;
+    min-height: 32px;
+}
+.curation-filter .curation-filter-checkbox input {
+    width: auto;
+    margin: 0;
+}
 .curation-filter--source {
     grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(115px, 1fr)) max-content;
 }
@@ -4485,5 +4499,4 @@ progress.curation-scan-progress-bar {
     background: #fee2e2;
     color: #b91c1c;
 }
-
 

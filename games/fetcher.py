@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils.text import get_valid_filename
 from django.utils.timezone import now
 
@@ -232,13 +233,13 @@ def fetch_url(
         url.failing_since = url.failing_since or attempt_time
         url.last_error = error_msg
         url.is_broken = True
-        url.save(
-            update_fields=[
-                "last_attempt",
-                "failing_since",
-                "last_error",
-                "is_broken",
-            ]
+        URL.objects.filter(pk=url.pk).filter(
+            Q(last_attempt__isnull=True) | Q(last_attempt__lte=attempt_time)
+        ).update(
+            last_attempt=attempt_time,
+            failing_since=url.failing_since,
+            last_error=error_msg,
+            is_broken=True,
         )
         tmp_path.unlink(missing_ok=True)
         return FetchResult(
@@ -259,8 +260,11 @@ def fetch_url(
             and latest_fetch.stored_file_id == stored_file.id
         ):
             outcome = FetchOutcome.UNCHANGED
-            latest_fetch.last_fetch = attempt_time
-            latest_fetch.save(update_fields=["last_fetch"])
+            URLFetch.objects.filter(
+                pk=latest_fetch.pk,
+                first_fetch__lte=attempt_time,
+                last_fetch__lt=attempt_time,
+            ).update(last_fetch=attempt_time)
             fetch_row = latest_fetch
         elif stored_file is not None:
             outcome = FetchOutcome.REUSED
@@ -320,7 +324,9 @@ def fetch_url(
             url.content_type = content_type[:255]
             update_fields.append("content_type")
 
-        url.save(update_fields=update_fields)
+        URL.objects.filter(pk=url.pk).filter(
+            Q(last_attempt__isnull=True) | Q(last_attempt__lte=attempt_time)
+        ).update(**{field: getattr(url, field) for field in update_fields})
 
         return FetchResult(
             outcome=outcome,
