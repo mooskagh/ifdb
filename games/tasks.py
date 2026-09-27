@@ -1,50 +1,53 @@
-import re
 from logging import getLogger
+from typing import Any
 from urllib.parse import unquote
 
-from celery import shared_task
-from django.conf import settings
+from celery import Task, shared_task
 
-from core.crawler import FetchUrlToFileLike
+from games.fetcher import (
+    FILENAME_RE,
+    FetchOutcome,
+    FetchResult,
+    fetch_url,
+)
 from games.models import URL
 
 logger = getLogger("crawler")
 
-FILENAME_RE = re.compile(
-    r"^.*?\b((?:%[0-9a-f]{2}|[$:+()_\w\d\.])+\.[\w\d]{2,4})\b[^/]*$"
-)
 
-
-def come_up_with_filename(metadata):
-    if metadata["filename"]:
-        return metadata["filename"]
-    if m := FILENAME_RE.match(metadata["url"]):
+def come_up_with_filename(metadata: dict[str, Any]) -> str:
+    if metadata.get("filename"):
+        return str(metadata["filename"])
+    if m := FILENAME_RE.match(str(metadata.get("url", ""))):
         return unquote(m.group(1))
     return "unknown"
 
 
-@shared_task(bind=True, max_retries=3, retry_backoff=True)
-def clone_file(self, url_id):
-    url = URL.objects.get(id=url_id)
-    if url.is_uploaded or url.local_filename:
-        return
+@shared_task(bind=True, max_retries=3, retry_backoff=True)  # type: ignore[untyped-decorator]
+def clone_file(self: Task, url_id: int) -> FetchResult | None:
     try:
-        logger.info("Url is id %d, URL %s", url.id, url.original_url)
-        f = FetchUrlToFileLike(url.original_url)
-        fs = settings.BACKUPS_FS
-        filename = fs.save(come_up_with_filename(f.metadata), f, max_length=64)
-        logger.info("Stored as %s", filename)
+        url = URL.objects.get(id=url_id)
+    except URL.DoesNotExist:
+        logger.warning("URL id %s does not exist", url_id)
+        return None
 
-        url.local_url = fs.url(filename)
-        url.local_filename = filename
-        url.original_filename = f.metadata["filename"]
-        url.content_type = f.metadata["content-type"]
-        url.file_size = fs.size(filename)
-        url.save()
-    except Exception as exc:
-        if self.request.retries >= self.max_retries:
-            logger.warning("Found broken link at url: %s", url.original_url)
-            url.is_broken = True
-            url.save(update_fields=["is_broken"])
-            raise
-        raise self.retry(exc=exc)
+    if url.is_uploaded:
+        return None
+
+    logger.info("Url is id %d, URL %s", url.pk, url.original_url)
+    res = fetch_url(url)
+    if res.outcome == FetchOutcome.FAILED:
+        logger.warning(
+            "Found broken link or fetch failed at url %s (id %s): %s",
+            url.original_url,
+            url.pk,
+            res.error,
+        )
+        if (
+            hasattr(self, "request")
+            and self.request.retries < self.max_retries
+        ):
+            raise self.retry(exc=RuntimeError(res.error or "Fetch failed"))
+        raise RuntimeError(res.error or "Fetch failed")
+
+    return res
