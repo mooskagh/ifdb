@@ -5969,7 +5969,7 @@ class GameFileViewsTest(TestCase):
         default_response = self.client.get("/curation/files/")
         self.assertEqual(
             [url.pk for url in default_response.context["page"]],
-            [urls[1].pk, urls[2].pk],
+            [urls[1].pk],
         )
         self.assertContains(
             default_response, 'name="downloadable" value="1" checked'
@@ -5993,7 +5993,7 @@ class GameFileViewsTest(TestCase):
         )
         self.assertEqual(
             [url.pk for url in response.context["page"]],
-            [urls[2].pk, urls[1].pk],
+            [urls[1].pk],
         )
         self.assertContains(response, 'name="downloadable" value="1" checked')
 
