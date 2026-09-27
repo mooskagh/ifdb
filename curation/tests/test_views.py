@@ -2880,6 +2880,7 @@ class TasksViewTest(TestCase):
         self.assertContains(response, "выкачивать источники")
         self.assertContains(response, "выкачивать всякие там форумы")
         self.assertContains(response, "автоматическая обработка очереди (1)")
+        self.assertContains(response, "выкачивать файлы по ссылкам")
         self.assertContains(response, "Импорт")
 
     @patch("curation.views.discover_sources.delay")
@@ -2920,6 +2921,16 @@ class TasksViewTest(TestCase):
 
         self.assertRedirects(response, "/curation/tasks/")
         delay.assert_called_once_with(limit=9)
+
+    @patch("curation.views.fetch_urls.delay")
+    def test_fetch_urls_button_starts_task(self, delay):
+        response = self.client.post(
+            "/curation/tasks/",
+            {"action": "run_fetch_urls", "run_limit": "8"},
+        )
+
+        self.assertRedirects(response, "/curation/tasks/")
+        delay.assert_called_once_with(limit=8)
 
     @patch("curation.views.edit_sources.delay")
     def test_edit_sources_button_starts_task_with_pipeline_and_limit(
@@ -3081,6 +3092,26 @@ class TasksViewTest(TestCase):
         )
         self.assertEqual(task.interval.every, 10)
         self.assertEqual(task.interval.period, IntervalSchedule.MINUTES)
+
+    def test_save_fetch_urls_periodic_task(self):
+        response = self.client.post(
+            "/curation/tasks/",
+            {
+                "action": "save_fetch_urls",
+                "enabled": "on",
+                "periodic_limit": "15",
+                "every": "2",
+                "period": IntervalSchedule.HOURS,
+            },
+        )
+
+        self.assertRedirects(response, "/curation/tasks/")
+        task = PeriodicTask.objects.get(name="Fetch URLs")
+        self.assertTrue(task.enabled)
+        self.assertEqual(task.task, "games.tasks.fetch_urls")
+        self.assertEqual(loads(task.kwargs), {"limit": 15})
+        self.assertEqual(task.interval.every, 2)
+        self.assertEqual(task.interval.period, IntervalSchedule.HOURS)
 
 
 class SourceViewsTest(TestCase):

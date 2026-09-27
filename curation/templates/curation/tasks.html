@@ -130,4 +130,26 @@
         </div>
     </div>
 </div>
+
+<div class="card card--blue">
+    <div class="card--header">выкачивать файлы по ссылкам (очередь новых: {{ unattempted_urls }})</div>
+    <div class="card--body">
+        <div style="display: flex; gap: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+            <form class="curation-filter" method="post" style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save_fetch_urls">
+                <label><input type="checkbox" name="enabled" {% if fetch_urls.enabled %}checked{% endif %}> включено</label>
+                <label>количество <input type="number" name="periodic_limit" min="1" value="{{ fetch_urls.periodic_limit }}" style="width: 4rem;"></label>
+                {% include "curation/_periodic_interval_fields.html" with config=fetch_urls periods=periods %}
+                <button type="submit">Сохранить</button>
+            </form>
+            <form class="curation-filter" method="post" style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-left: auto;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="run_fetch_urls">
+                <label>количество <input type="number" name="run_limit" min="1" value="{{ fetch_urls.run_limit }}" style="width: 4rem;"></label>
+                <button type="submit">Запустить сейчас</button>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}

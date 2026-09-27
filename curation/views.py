@@ -52,6 +52,7 @@ from games.fetcher import FetchOutcome, fetch_url
 from games.gameinfo import GameInfo, parse
 from games.importer.discord import PostNewGameToDiscord
 from games.models import (
+    URL,
     Game,
     GameRevision,
     GameTag,
@@ -59,6 +60,7 @@ from games.models import (
     GameURLCategory,
     URLFetch,
 )
+from games.tasks import fetch_urls
 from play.blueprint import (
     BlueprintModule,
     Compatibility,
@@ -343,6 +345,8 @@ FETCH_FEEDS_TASK_NAME = "Fetch feeds"
 FETCH_FEEDS_TASK = "core.tasks.fetch_feeds"
 EDIT_SOURCES_TASK_NAME = "Edit sources"
 EDIT_SOURCES_TASK = "curation.tasks.edit_sources"
+FETCH_URLS_TASK_NAME = "Fetch URLs"
+FETCH_URLS_TASK = "games.tasks.fetch_urls"
 INTERVAL_PERIODS = [
     (IntervalSchedule.MINUTES, "минут"),
     (IntervalSchedule.HOURS, "часов"),
@@ -1473,6 +1477,12 @@ def _tasks_post(request):
             kwargs={"limit": limit},
         )
         messages.success(request, "Расписание выкачивания форумов сохранено.")
+    elif action == "run_fetch_urls":
+        limit = _positive_int(request.POST.get("run_limit"), default=10)
+        fetch_urls.delay(limit=limit)
+        messages.success(
+            request, "Задание на выкачивание файлов игр запущено."
+        )
     elif action == "save_edit_sources":
         limit = _positive_int(request.POST.get("periodic_limit"), default=5)
         pipeline = _pipeline_from_post(request.POST)
@@ -1483,6 +1493,17 @@ def _tasks_post(request):
             kwargs={"limit": limit, "pipeline_id": pipeline.pk},
         )
         messages.success(request, "Расписание обработки очереди сохранено.")
+    elif action == "save_fetch_urls":
+        limit = _positive_int(request.POST.get("periodic_limit"), default=10)
+        _save_periodic_task(
+            FETCH_URLS_TASK_NAME,
+            FETCH_URLS_TASK,
+            request.POST,
+            kwargs={"limit": limit},
+        )
+        messages.success(
+            request, "Расписание выкачивания файлов игр сохранено."
+        )
     else:
         return HttpResponseBadRequest("Unknown action.")
     return redirect("curation_tasks")
@@ -1505,6 +1526,17 @@ def _render_tasks(request):
     scheduled_histories = GameCuration.objects.filter(
         state=GameCuration.State.SCHEDULED_FOR_UPDATE
     ).count()
+    unattempted_urls = (
+        URL.objects
+        .filter(
+            is_uploaded=False,
+            ok_to_clone=True,
+            last_attempt__isnull=True,
+        )
+        .exclude(original_url__isnull=True)
+        .exclude(original_url="")
+        .count()
+    )
     return render(
         request,
         "curation/tasks.html",
@@ -1513,6 +1545,7 @@ def _render_tasks(request):
             "orphan_ready": orphan_ready,
             "orphan_total": orphan_total,
             "scheduled_histories": scheduled_histories,
+            "unattempted_urls": unattempted_urls,
             "periods": INTERVAL_PERIODS,
             "discover_sources": _periodic_task_config(
                 DISCOVER_SOURCES_TASK_NAME,
@@ -1544,6 +1577,13 @@ def _render_tasks(request):
                 default_period=IntervalSchedule.MINUTES,
                 default_periodic_limit=5,
                 default_run_limit=5,
+            ),
+            "fetch_urls": _periodic_task_config(
+                FETCH_URLS_TASK_NAME,
+                default_every=1,
+                default_period=IntervalSchedule.HOURS,
+                default_periodic_limit=10,
+                default_run_limit=10,
             ),
             "edit_pipelines": EditPipeline.objects.order_by("id"),
         },

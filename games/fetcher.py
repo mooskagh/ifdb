@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import tempfile
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha256
@@ -323,3 +324,103 @@ def fetch_url(
         )
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+@dataclass
+class FetchStats:
+    urls_examined: int = 0
+    files_created: int = 0
+    files_reused: int = 0
+    fetches_unchanged: int = 0
+    fetches_failed: int = 0
+    urls_skipped: int = 0
+    bytes_total: int = 0
+
+
+def get_eligible_urls(
+    url_id: int | None = None,
+    game_id: int | None = None,
+    force: bool = False,
+    limit: int | None = None,
+) -> Iterator[URL]:
+    base_qs = URL.objects.exclude(original_url__isnull=True).exclude(
+        original_url=""
+    )
+    if not force:
+        base_qs = base_qs.filter(is_uploaded=False, ok_to_clone=True)
+
+    if url_id is not None:
+        base_qs = base_qs.filter(id=url_id)
+    if game_id is not None:
+        base_qs = base_qs.filter(gameurl__game_id=game_id).distinct()
+
+    never_attempted_qs = base_qs.filter(last_attempt__isnull=True).order_by(
+        "-creation_date", "-id"
+    )
+    if limit is not None:
+        never_attempted_qs = never_attempted_qs[:limit]
+    never_attempted_ids = list(never_attempted_qs.values_list("id", flat=True))
+
+    for pk in never_attempted_ids:
+        try:
+            yield URL.objects.get(id=pk)
+        except URL.DoesNotExist:
+            continue
+
+    count = len(never_attempted_ids)
+    if limit is not None and count >= limit:
+        return
+
+    remaining_limit = (limit - count) if limit is not None else None
+    attempted_qs = (
+        base_qs
+        .filter(last_attempt__isnull=False)
+        .exclude(id__in=never_attempted_ids)
+        .order_by("last_attempt", "id")
+    )
+    if remaining_limit is not None:
+        attempted_qs = attempted_qs[:remaining_limit]
+
+    attempted_ids = list(attempted_qs.values_list("id", flat=True))
+    for pk in attempted_ids:
+        try:
+            yield URL.objects.get(id=pk)
+        except URL.DoesNotExist:
+            continue
+
+
+def run_fetch_urls(
+    *,
+    limit: int | None = None,
+    url_id: int | None = None,
+    game_id: int | None = None,
+    force: bool = False,
+    timeout: int = 300,
+    downloader: Callable[..., Any] | None = None,
+    on_progress: Callable[[FetchResult, FetchStats], None] | None = None,
+) -> FetchStats:
+    stats = FetchStats()
+    for url in get_eligible_urls(
+        url_id=url_id,
+        game_id=game_id,
+        force=force,
+        limit=limit,
+    ):
+        stats.urls_examined += 1
+        result = fetch_url(url, timeout=timeout, downloader=downloader)
+        stats.bytes_total += result.bytes_fetched
+        if result.outcome == FetchOutcome.CREATED:
+            stats.files_created += 1
+        elif result.outcome == FetchOutcome.REUSED:
+            stats.files_reused += 1
+        elif result.outcome == FetchOutcome.UNCHANGED:
+            stats.fetches_unchanged += 1
+        elif result.outcome == FetchOutcome.FAILED:
+            stats.fetches_failed += 1
+        elif result.outcome == FetchOutcome.SKIPPED:
+            stats.urls_skipped += 1
+
+        if on_progress:
+            on_progress(result, stats)
+
+    return stats
