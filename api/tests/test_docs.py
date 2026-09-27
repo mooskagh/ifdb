@@ -14,6 +14,10 @@ class APIDocsTests(TestCase):
         self.assertEqual(data["info"]["title"], "IFDB REST API")
         self.assertIn("/api/v1/games/", data["paths"])
         self.assertIn("/api/v1/files/", data["paths"])
+        files_schema = data["paths"]["/api/v1/files/"]["post"]["requestBody"][
+            "content"
+        ]["multipart/form-data"]["schema"]
+        self.assertIn("game_id", files_schema["required"])
 
     def test_api_docs_html(self) -> None:
         response = self.client.get(reverse("api_docs"))

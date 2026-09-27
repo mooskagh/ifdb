@@ -105,10 +105,9 @@ The worker runs as a long-lived daemon process, continuously polling for and exe
 
 ### File Operations (`games/tasks.py`)
 
-**`clone_file(url_id)`**
-- Downloads remote files referenced by GameURL records
-- Stores files locally in the upload directory
-- Updates URL status and file metadata; marks URLs as broken after final retry
+**`clone_file(url_id)`** *(retired in Stage 9 of URL fetch/storage redesign in favor of state-based queue and `fetch_urls`)*
+- Previously downloaded remote files referenced by GameURL records
+- Replaced by periodic and state-based worker `fetch_urls` using `last_attempt = NULL` as enqueue state
 
 ### Game Import (`games/tasks/game_importer.py`)
 
@@ -268,7 +267,7 @@ Since the task queue will be empty at migration time, this is a straightforward 
 
 The migration involves only 3 tasks total:
 - **Periodic**: `ImportGames`, `FetchFeeds` (cron-based)
-- **Queue-based**: `clone_file` (event-driven)
+- **Queue-based**: `clone_file` (event-driven, retired in Stage 9 in favor of `fetch_urls`)
 
 Note: `ForceReimport` and `ImportForceUpdateUrls` are CLI-only and don't use the task queue.
 

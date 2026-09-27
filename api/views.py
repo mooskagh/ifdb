@@ -1,7 +1,6 @@
 import json
 from typing import TYPE_CHECKING, Any, cast
 
-from django.conf import settings
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone
@@ -18,12 +17,12 @@ from curation.overrides import (
 )
 from games import gameinfo
 from games.models import (
-    URL,
     Game,
     GameRevision,
     GameURL,
     GameURLCategory,
 )
+from games.uploads import handle_existing_game_upload
 
 from .auth import api_auth
 from .openapi import get_openapi_spec
@@ -368,39 +367,34 @@ def file_upload(
         )
 
     target_game_id = game_id or request.POST.get("game_id")
-    game: Game | None = None
-    if target_game_id is not None:
-        try:
-            game = Game.objects.get(pk=int(target_game_id))
-        except (ValueError, Game.DoesNotExist):
-            return JsonResponse(
-                {
-                    "error": "Not Found",
-                    "detail": f"Game {target_game_id} does not exist",
-                },
-                status=404,
-            )
+    if target_game_id is None:
+        return JsonResponse(
+            {
+                "error": "Bad Request",
+                "detail": "game_id is required",
+            },
+            status=400,
+        )
+
+    try:
+        game = Game.objects.get(pk=int(target_game_id))
+    except (ValueError, Game.DoesNotExist):
+        return JsonResponse(
+            {
+                "error": "Not Found",
+                "detail": f"Game {target_game_id} does not exist",
+            },
+            status=404,
+        )
 
     uploaded = cast("UploadedFile[Any]", request.FILES["file"])
-    fs = settings.UPLOADS_FS
-
-    save_path = f"games/{game.id}/{uploaded.name}" if game else uploaded.name
-    filename = fs.save(save_path, uploaded, max_length=128)
-    file_url = fs.url(filename)
-    url_full = request.build_absolute_uri(file_url)
-
-    url = URL.objects.create(
-        local_url=file_url,
-        original_url=url_full,
-        original_filename=uploaded.name,
-        local_filename=filename,
-        content_type=uploaded.content_type or "",
-        ok_to_clone=True,
-        is_uploaded=True,
-        creation_date=timezone.now(),
-        file_size=fs.size(filename),
-        creator=request.user,
+    url, stored_file, fetch = handle_existing_game_upload(
+        game=game,
+        uploaded_file=uploaded,
+        user=request.user,
+        build_absolute_uri=request.build_absolute_uri,
     )
+    url_full = url.original_url
 
     category_slug = request.POST.get("category", "download_direct")
     description = request.POST.get("description", "").strip()
@@ -409,17 +403,6 @@ def file_upload(
         symbolic_id=category_slug,
         defaults={"title": category_slug, "allow_cloning": True},
     )
-
-    if game is None:
-        return JsonResponse(
-            {
-                "url_id": url.id,
-                "url": url_full,
-                "filename": uploaded.name,
-                "canonical_snippet": [cat.symbolic_id, description, url.id],
-            },
-            status=201,
-        )
 
     with transaction.atomic():
         GameURL.objects.update_or_create(

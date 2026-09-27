@@ -1,5 +1,4 @@
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
 
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
@@ -54,11 +53,10 @@ class UrlLocalFileResolutionTests(TestCase):
             fs = FileSystemStorage(location=tmp_dir, base_url="/f/uploads/")
             fs.save("uploaded.zip", ContentFile(b"ZIP DATA"))
             with override_settings(UPLOADS_FS=fs):
-                with patch("games.tools.clone_file.delay") as mock_clone:
-                    url = CreateUrl(
-                        "https://zok.cx/f/uploads/uploaded.zip",
-                        ok_to_clone=True,
-                    )
-                    self.assertEqual(url.local_filename, "uploaded.zip")
-                    self.assertTrue(url.is_uploaded)
-                    mock_clone.assert_not_called()
+                url = CreateUrl(
+                    "https://zok.cx/f/uploads/uploaded.zip",
+                    ok_to_clone=True,
+                )
+                self.assertEqual(url.local_filename, "uploaded.zip")
+                self.assertTrue(url.is_uploaded)
+                self.assertFalse(url.ok_to_clone)

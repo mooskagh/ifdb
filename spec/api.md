@@ -26,7 +26,7 @@ The **canonical format** is the YAML front matter + Markdown representation of a
   - ["control", "Парсерная"]
   - ["state", "Готовая"]
 - urls:
-  - ["download_direct", "Windows archive", "https://db.crem.xyz/f/uploads/games/42/game.zip"]
+  - ["download_direct", "Windows archive", "https://db.crem.xyz/f/g/42/game.zip"]
   - ["play_online", "Play in browser", "https://example.com/play/"]
 - attributions:
   - "ifwiki.ru"
@@ -239,51 +239,58 @@ Transition a published game to draft.
 
 ### 2. File Uploads
 
+All file uploads are attached directly to an existing game and require a valid game ID.
+
 #### `POST /api/v1/files/`
-Upload a standalone game file to obtain a download link.
+Upload a game file attached to an existing game (specifying `game_id` in form data).
 
 - **Scope Required**: `files:upload`.
 - **Content-Type**: `multipart/form-data`.
 - **Form Fields**:
-  - `file`: binary file.
+  - `file`: binary file (required).
+  - `game_id`: ID of the game to attach the file to (required).
   - `category` *(optional)*: default `"download_direct"`.
   - `description` *(optional)*: label for download link.
 
 **Response (`201 Created`)**:
 ```json
 {
+  "game_id": 42,
   "url_id": 350,
-  "url": "https://db.crem.xyz/f/uploads/cavern.zip",
+  "url": "https://db.crem.xyz/f/g/42/cavern.zip",
   "filename": "cavern.zip",
-  "canonical_snippet": ["download_direct", "", 350]
+  "category": "download_direct",
+  "description": "",
+  "canonical_snippet": ["download_direct", "", 350],
+  "canonical_text": "---\n- name: \"The Lost Cavern\"\n- urls:\n  - [\"download_direct\", \"\", 350]\n---\n..."
 }
 ```
-The returned `canonical_snippet` can be pasted directly under `- urls:` in your canonical text document when creating or updating a game.
 
 ---
 
 #### `POST /api/v1/games/<int:game_id>/files/`
-Upload a file directly connected to an existing game.
+Upload a file directly connected to an existing game (specifying `game_id` in URL path).
 
 - **Scope Required**: `files:upload`.
 - **Content-Type**: `multipart/form-data`.
 - **Form Fields**:
-  - `file`: binary file.
+  - `file`: binary file (required).
   - `category` *(optional)*: default `"download_direct"`.
   - `description` *(optional)*: label (e.g. "Release 1.2 zip").
 
 **Behavior**:
-1. Saves the file under `games/<game_id>/<filename>`.
-2. Creates a `URL` record (`creator=token.user`, `is_uploaded=True`).
-3. Attaches `GameURL` under category `download_direct`.
-4. Appends to the game's canonical text and records a new revision with `origin=API`.
+1. Checks for global deduplication: if the identical file bytes already exist anywhere in storage, reuses the existing stored file.
+2. Otherwise saves the unique file under `g/<game_id>/<filename>` (using collision naming if needed).
+3. Creates/reuses a `URL` record (`creator=token.user`, `is_uploaded=True`, `ok_to_clone=False`) and `URLFetch` record.
+4. Attaches `GameURL` under the specified category.
+5. Appends to the game's canonical text and records a new revision with `origin=API`.
 
 **Response (`201 Created`)**:
 ```json
 {
   "game_id": 42,
   "url_id": 351,
-  "url": "https://db.crem.xyz/f/uploads/games/42/cavern_v1.zip",
+  "url": "https://db.crem.xyz/f/g/42/cavern_v1.zip",
   "filename": "cavern_v1.zip",
   "category": "download_direct",
   "description": "Release 1.2 zip",

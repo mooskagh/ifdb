@@ -95,22 +95,23 @@ def is_path_occupied_by_other_content(
 
 
 def determine_storage_path(
-    url: URL,
-    candidate_filename: str | None,
-    content_hash: str,
+    url: URL | None = None,
+    candidate_filename: str | None = None,
+    content_hash: str = "",
     content_type: str | None = None,
+    game_id: int | None = None,
 ) -> str:
-    game_id: int | None = None
-    if url.pk:
-        game_id = (
+    target_game_id: int | None = game_id
+    if target_game_id is None and url is not None and url.pk:
+        target_game_id = (
             url.gameurl_set
             .order_by("game_id")
             .values_list("game_id", flat=True)
             .first()
         )
 
-    if game_id is not None:
-        namespace = f"g/{game_id}"
+    if target_game_id is not None:
+        namespace = f"g/{target_game_id}"
     else:
         namespace = "backups"
 

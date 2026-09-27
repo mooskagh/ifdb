@@ -349,9 +349,10 @@ def get_openapi_spec() -> dict[str, Any]:
             },
             "/api/v1/files/": {
                 "post": {
-                    "summary": "Upload a standalone file",
+                    "summary": "Upload a file attached to a game",
                     "description": (
-                        "Uploads a file to generate a download link."
+                        "Uploads a file and links it as a download link on "
+                        "the specified game (game_id passed in form data)."
                     ),
                     "requestBody": {
                         "required": True,
@@ -363,19 +364,32 @@ def get_openapi_spec() -> dict[str, Any]:
                                         "file": {
                                             "type": "string",
                                             "format": "binary",
-                                        }
+                                        },
+                                        "game_id": {
+                                            "type": "integer",
+                                        },
+                                        "category": {
+                                            "type": "string",
+                                            "default": "download_direct",
+                                        },
+                                        "description": {
+                                            "type": "string",
+                                            "default": "",
+                                        },
                                     },
-                                    "required": ["file"],
+                                    "required": ["file", "game_id"],
                                 }
                             }
                         },
                     },
                     "responses": {
                         "201": {
-                            "description": "File uploaded",
+                            "description": (
+                                "File uploaded and attached to game"
+                            ),
                             "content": {
                                 "application/json": {
-                                    "schema": {"$ref": _FILE_UPLOAD_REF}
+                                    "schema": {"$ref": _GAME_FILE_UPLOAD_REF}
                                 }
                             },
                         }

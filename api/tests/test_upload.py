@@ -31,7 +31,7 @@ class APIUploadTests(TestCase):
         )
         self.headers = {"Authorization": f"Bearer {self.token.key}"}
 
-    def test_standalone_file_upload(self) -> None:
+    def test_upload_missing_game_id_returns_400(self) -> None:
         file = SimpleUploadedFile(
             "game_archive.zip",
             b"PK\x03\x04filecontent",
@@ -42,18 +42,52 @@ class APIUploadTests(TestCase):
             data={"file": file},
             headers=self.headers,
         )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(),
+            {"error": "Bad Request", "detail": "game_id is required"},
+        )
+
+    def test_file_upload_with_game_id_in_form_data(self) -> None:
+        game = Game.objects.create(
+            title="Form Upload Game",
+            state=Game.State.DRAFT,
+            added_by=self.user,
+            creation_time=timezone.now(),
+        )
+        file = SimpleUploadedFile(
+            "game_archive.zip",
+            b"PK\x03\x04filecontent",
+            content_type="application/zip",
+        )
+        response = self.client.post(
+            reverse("api_file_upload"),
+            data={"file": file, "game_id": game.id},
+            headers=self.headers,
+        )
         self.assertEqual(response.status_code, 201)
         data = response.json()
+        self.assertEqual(data["game_id"], game.id)
         self.assertIn("url_id", data)
-        self.assertIn("url", data)
+        self.assertTrue(
+            data["url"].endswith(f"/f/g/{game.id}/game_archive.zip")
+        )
         self.assertEqual(data["filename"], "game_archive.zip")
         self.assertEqual(data["canonical_snippet"][0], "download_direct")
         self.assertEqual(data["canonical_snippet"][2], data["url_id"])
 
         url_obj = URL.objects.get(pk=data["url_id"])
         self.assertTrue(url_obj.is_uploaded)
+        self.assertFalse(url_obj.ok_to_clone)
         self.assertEqual(url_obj.creator, self.user)
         self.assertEqual(url_obj.original_filename, "game_archive.zip")
+        stored = url_obj.get_stored_file()
+        self.assertIsNotNone(stored)
+        self.assertEqual(stored.storage_path, f"g/{game.id}/game_archive.zip")
+        self.assertTrue(url_obj.fetches.filter(stored_file=stored).exists())
+        self.assertTrue(
+            GameURL.objects.filter(game=game, url=url_obj).exists()
+        )
 
     def test_game_connected_file_upload(self) -> None:
         game = Game.objects.create(
@@ -80,10 +114,17 @@ class APIUploadTests(TestCase):
         self.assertEqual(data["game_id"], game.id)
         self.assertEqual(data["filename"], "release.tar.gz")
         self.assertEqual(data["description"], "Version 1.0")
+        self.assertTrue(data["url"].endswith(f"/f/g/{game.id}/release.tar.gz"))
         self.assertIn("urls:", data["canonical_text"])
 
         url_obj = URL.objects.get(pk=data["url_id"])
-        self.assertTrue(url_obj.local_filename.startswith(f"games/{game.id}/"))
+        self.assertTrue(url_obj.is_uploaded)
+        self.assertFalse(url_obj.ok_to_clone)
+        stored = url_obj.get_stored_file()
+        self.assertIsNotNone(stored)
+        self.assertEqual(stored.storage_path, f"g/{game.id}/release.tar.gz")
+        self.assertEqual(url_obj.local_url, f"/f/g/{game.id}/release.tar.gz")
+        self.assertTrue(url_obj.fetches.filter(stored_file=stored).exists())
 
         game_url = GameURL.objects.get(game=game, url=url_obj)
         self.assertEqual(game_url.category.symbolic_id, "download_direct")
