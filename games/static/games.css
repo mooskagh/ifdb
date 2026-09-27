@@ -2963,6 +2963,16 @@ h6 {
 .curation-filter--files {
     grid-template-columns: minmax(180px, 1.4fr) repeat(2, minmax(130px, 1fr)) minmax(170px, 1fr) max-content max-content;
 }
+.curation-filter--files .curation-filter-extra {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+}
+.curation-filter--files button {
+    grid-column: 6;
+    grid-row: 1;
+}
 .curation-filter .curation-filter-checkbox {
     flex-direction: row;
     align-items: center;
@@ -4499,4 +4509,3 @@ progress.curation-scan-progress-bar {
     background: #fee2e2;
     color: #b91c1c;
 }
-

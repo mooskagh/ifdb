@@ -6004,6 +6004,61 @@ class GameFileViewsTest(TestCase):
             [url.pk for url in response.context["page"]], [urls[1].pk]
         )
 
+    def test_game_file_list_versions_and_unattached_urls(self):
+        ts = timezone.now()
+        game = Game.objects.create(title="Versioned Game", creation_time=ts)
+        category = GameURLCategory.objects.create(
+            symbolic_id="versions", title="Download"
+        )
+        versioned = URL.objects.create(
+            original_url="https://example.com/versioned.zip",
+            creation_date=ts,
+            ok_to_clone=True,
+        )
+        GameURL.objects.create(game=game, url=versioned, category=category)
+        unattached = URL.objects.create(
+            original_url="https://example.com/unattached.zip",
+            creation_date=ts,
+        )
+        for index in range(2):
+            stored = StoredFile.objects.create(
+                content_hash=str(index) * 64,
+                storage_path=f"g/1/version-{index}.zip",
+                file_size=1,
+            )
+            URLFetch.objects.create(url=versioned, stored_file=stored)
+
+        response = self.client.get("/curation/files/")
+        self.assertEqual(
+            [item.pk for item in response.context["page"]], [versioned.pk]
+        )
+        self.assertContains(response, 'title="Количество версий"')
+        self.assertEqual(response.context["page"][0].version_count, 2)
+
+        response = self.client.get(
+            "/curation/files/", {"multiple_versions": "1"}
+        )
+        self.assertEqual(
+            [item.pk for item in response.context["page"]], [versioned.pk]
+        )
+
+        response = self.client.get(
+            "/curation/files/", {"attached": "no", "downloadable": "1"}
+        )
+        self.assertEqual(
+            [item.pk for item in response.context["page"]], [unattached.pk]
+        )
+        self.assertFalse(response.context["downloadable"])
+        self.assertContains(response, f"/curation/files/{unattached.pk}/")
+
+        response = self.client.get(
+            "/curation/files/", {"attached": "all", "downloadable": "0"}
+        )
+        self.assertCountEqual(
+            [item.pk for item in response.context["page"]],
+            [versioned.pk, unattached.pk],
+        )
+
     def test_game_file_detail_and_fetch_history(self):
         ts = timezone.now()
         game = Game.objects.create(

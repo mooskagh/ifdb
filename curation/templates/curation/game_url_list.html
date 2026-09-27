@@ -48,6 +48,20 @@
                 <input type="hidden" name="downloadable" value="0">
                 <label class="curation-filter-checkbox"><input type="checkbox" name="downloadable" value="1" {% if downloadable %}checked{% endif %}> Только скачиваемые</label>
             </div>
+            <div class="curation-filter-extra">
+                <div class="curation-filter-field">
+                    <label for="curation-game-url-attached">Привязка</label>
+                    <select id="curation-game-url-attached" name="attached">
+                        <option value="yes" {% if attached == "yes" %}selected{% endif %}>С играми</option>
+                        <option value="no" {% if attached == "no" %}selected{% endif %}>Без игр</option>
+                        <option value="all" {% if attached == "all" %}selected{% endif %}>Все</option>
+                    </select>
+                </div>
+                <div class="curation-filter-field">
+                    <input type="hidden" name="multiple_versions" value="0">
+                    <label class="curation-filter-checkbox"><input type="checkbox" name="multiple_versions" value="1" {% if multiple_versions %}checked{% endif %}> Больше одной версии</label>
+                </div>
+            </div>
             <button type="submit">Показать</button>
         </form>
     </div>
@@ -57,6 +71,7 @@
                 <th class="curation-source-table-state">Сост.</th>
                 <th>URL</th>
                 <th>Игра</th>
+                <th title="Количество версий">Вер.</th>
                 <th class="curation-source-table-attempt">Попытка</th>
                 <th class="curation-source-table-fetch">Загрузка</th>
             </tr>
@@ -72,8 +87,10 @@
                 <td class="curation-truncate">
                     {% for game_url in item.gameurl_set.all %}
                     {% if game_url.game.state == "PUBLISHED" %}<a href="{% url 'show_game' game_url.game.pk %}">{{ game_url.game.title }}</a>{% else %}{{ game_url.game.title }} ({{ game_url.game.get_state_display }}){% endif %} (<a href="{% url 'curation_history_detail' game_url.game.pk %}">админка</a>), {{ game_url.category.title }}{% if not forloop.last %}<br>{% endif %}
+                    {% empty %}—
                     {% endfor %}
                 </td>
+                <td class="curation-nowrap">{{ item.version_count }}</td>
                 <td class="curation-nowrap">{{ item.last_attempt|date:"Y-m-d H:i"|default:"—" }}</td>
                 <td class="curation-nowrap">
                     {% if item.latest_fetch_id %}
@@ -82,15 +99,15 @@
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="5">Файлов нет.</td></tr>
+            <tr><td colspan="6">Файлов нет.</td></tr>
             {% endfor %}
         </tbody>
     </table>
     {% if page.has_other_pages %}
     <div class="curation-pagination">
-        {% if page.has_previous %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&downloadable={% if downloadable %}1{% else %}0{% endif %}&page={{ page.previous_page_number }}">← Назад</a>{% endif %}
+        {% if page.has_previous %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&attached={{ attached }}&multiple_versions={% if multiple_versions %}1{% else %}0{% endif %}&downloadable={% if downloadable %}1{% else %}0{% endif %}&page={{ page.previous_page_number }}">← Назад</a>{% endif %}
         <span>Страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
-        {% if page.has_next %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&downloadable={% if downloadable %}1{% else %}0{% endif %}&page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
+        {% if page.has_next %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&attached={{ attached }}&multiple_versions={% if multiple_versions %}1{% else %}0{% endif %}&downloadable={% if downloadable %}1{% else %}0{% endif %}&page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
     </div>
     {% endif %}
 </div>
