@@ -105,6 +105,24 @@ class BaseFetcherTestCase(TestCase):
 
 
 class TestFetchUrlHistory(BaseFetcherTestCase):
+    def test_long_encoded_public_url_is_saved(self) -> None:
+        game = self.create_game(198)
+        url = self.create_url(game=game)
+        filename = "игра" * 14 + ".jpg"
+
+        result = fetch_url(
+            url,
+            downloader=lambda _url, *, timeout: MockResponse(
+                b"image", filename=filename
+            ),
+        )
+
+        self.assertEqual(result.outcome, FetchOutcome.CREATED)
+        assert result.stored_file is not None
+        url.refresh_from_db()
+        self.assertGreater(len(url.local_url or ""), 255)
+        self.assertEqual(url.local_url, result.stored_file.public_url)
+
     def test_overlapping_fetch_cannot_move_timestamps_backwards(self) -> None:
         game = self.create_game(199)
         url = self.create_url(game=game)
