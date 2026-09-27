@@ -102,6 +102,42 @@ class CanonicalRoundTripTest(GameInfoTestBase):
             reparsed.urls, [GameUrl("video", url.id, "Proposed", None)]
         )
 
+    def test_urls_sorted_stably_by_id_then_url_then_rest(self) -> None:
+        u1 = URL.objects.create(
+            original_url="http://example.com/url_b",
+            creation_date=timezone.now(),
+        )
+        u2 = URL.objects.create(
+            original_url="http://example.com/url_a",
+            creation_date=timezone.now(),
+        )
+        # u1.id and u2.id are distinct.
+        # Add urls in arbitrary order.
+        info = GameInfo(
+            urls=[
+                GameUrl(
+                    "game_page", None, "desc_b", "http://example.com/new_b"
+                ),
+                GameUrl(
+                    "game_page", None, "desc_a", "http://example.com/new_a"
+                ),
+                GameUrl("game_page", u2.id, "desc_u2", None),
+                GameUrl("game_page", u1.id, "desc_u1", None),
+            ]
+        )
+        canonical = info.to_canonical()
+        # Expect order:
+        # DB URLs first by ID: min(u1.id, u2.id) then max(u1.id, u2.id)
+        # New URLs next by URL: new_a then new_b
+        first_id, second_id = sorted([u1.id, u2.id])
+        pos_first_id = canonical.index(str(first_id))
+        pos_second_id = canonical.index(str(second_id))
+        pos_new_a = canonical.index("http://example.com/new_a")
+        pos_new_b = canonical.index("http://example.com/new_b")
+        self.assertLess(pos_first_id, pos_second_id)
+        self.assertLess(pos_second_id, pos_new_a)
+        self.assertLess(pos_new_a, pos_new_b)
+
     def test_merge_keeps_current_url_description_when_present(self) -> None:
         url = URL.objects.create(
             original_url="http://example.com/video",

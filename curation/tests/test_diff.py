@@ -79,3 +79,87 @@ class BuildDiffTest(SimpleTestCase):
         self.assertEqual(
             [r.line_text for r in insert_rows], ["line2_modified", "line4"]
         )
+
+    def test_database_id_matching_pairs_same_id_and_splits_different_id(self):
+        before = (
+            "---\n"
+            "- urls:\n"
+            '  - ["forum", "Обсуждение", 14576]  # "Old" "http://a"\n'
+            '  - ["game_page", "IfWiki", 2438]  # "IfWiki" "http://b"\n'
+            "---\n"
+            "Desc\n"
+        )
+        after = (
+            "---\n"
+            "- urls:\n"
+            '  - ["forum", "Обсуждение", 14576]  # "New" "http://a"\n'
+            '  - ["game_page", "Instead", 21792]  # "Instead" "http://c"\n'
+            "---\n"
+            "Desc\n"
+        )
+        rows = build_diff(before, after)
+        tags = [r.tag for r in rows]
+        # Equal: ---, - urls:
+        # Replace: 14576 (same ID)
+        # Delete: 2438 (different ID)
+        # Insert: 21792 (different ID)
+        # Equal: ---, Desc
+        self.assertEqual(
+            tags,
+            [
+                "equal",
+                "equal",
+                "replace",
+                "delete",
+                "insert",
+                "equal",
+                "equal",
+            ],
+        )
+        replace_row = rows[2]
+        self.assertEqual(replace_row.tag, "replace")
+        self.assertIn("14576", replace_row.left_text)
+        self.assertIn("14576", replace_row.right_text)
+
+        delete_row = rows[3]
+        self.assertEqual(delete_row.tag, "delete")
+        self.assertIn("2438", delete_row.left_text)
+
+        insert_row = rows[4]
+        self.assertEqual(insert_row.tag, "insert")
+        self.assertIn("21792", insert_row.right_text)
+
+    def test_database_id_matching_for_tags_and_attributions(self):
+        before = (
+            "---\n"
+            "- tags:\n"
+            '  - ["genre", 10]  # "Old Name"\n'
+            '  - ["genre", 20]  # "Keep"\n'
+            "- attributions:\n"
+            '  - 30  # "Old Attr"\n'
+            "---\n"
+        )
+        after = (
+            "---\n"
+            "- tags:\n"
+            '  - ["genre", 10]  # "New Name"\n'
+            '  - ["genre", 40]  # "New Tag"\n'
+            "- attributions:\n"
+            '  - 50  # "New Attr"\n'
+            "---\n"
+        )
+        rows = build_diff(before, after)
+        tag_10 = next(r for r in rows if "10" in r.line_text)
+        self.assertEqual(tag_10.tag, "replace")
+
+        tag_20 = next(r for r in rows if "20" in r.line_text)
+        self.assertEqual(tag_20.tag, "delete")
+
+        tag_40 = next(r for r in rows if "40" in r.line_text)
+        self.assertEqual(tag_40.tag, "insert")
+
+        attr_30 = next(r for r in rows if "30" in r.line_text)
+        self.assertEqual(attr_30.tag, "delete")
+
+        attr_50 = next(r for r in rows if "50" in r.line_text)
+        self.assertEqual(attr_50.tag, "insert")
