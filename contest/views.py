@@ -120,13 +120,15 @@ class CompetitionGameFetcher:
             GameURL.objects
             .filter(category__symbolic_id="poster")
             .filter(game__in=games)
-            .select_related("url")
+            .select_related("url", "category")
+            .prefetch_related("url__fetches__stored_file")
         )
         screenshots = (
             GameURL.objects
             .filter(category__symbolic_id="screenshot")
             .filter(game__in=games)
-            .select_related("url")
+            .select_related("url", "category")
+            .prefetch_related("url__fetches__stored_file")
         )
         author_objs = GameAuthor.objects.filter(
             game__in=games, role__symbolic_id="author"
@@ -219,8 +221,11 @@ def show_competition(request, slug, doc=""):
         raise PermissionDenied
     LogAction(request, "comp-view", is_mutation=False, obj=comp, obj2=docobj)
 
-    logos = CompetitionURL.objects.filter(
-        category__symbolic_id="logo", competition=comp
+    logos = (
+        CompetitionURL.objects
+        .filter(category__symbolic_id="logo", competition=comp)
+        .select_related("url", "category")
+        .prefetch_related("url__fetches__stored_file")
     )
     logo = logos[0].GetLocalUrl() if logos else None
 
@@ -425,9 +430,12 @@ def get_competitions_data():
         })
 
     logos = {}
-    for x in CompetitionURL.objects.filter(
-        category__symbolic_id="logo"
-    ).select_related():
+    for x in (
+        CompetitionURL.objects
+        .filter(category__symbolic_id="logo")
+        .select_related("url", "category")
+        .prefetch_related("url__fetches__stored_file")
+    ):
         logos[x.competition_id] = x.GetLocalUrl()
 
     competition_games = {

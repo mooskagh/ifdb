@@ -372,6 +372,8 @@ class URL(models.Model):
         return self.get_latest_fetch()
 
     def get_stored_file(self) -> "StoredFile | None":
+        if not getattr(settings, "USE_STORED_FILE_READS", True):
+            return None
         fetch = self.get_latest_fetch()
         return fetch.stored_file if fetch is not None else None
 
@@ -383,6 +385,62 @@ class URL(models.Model):
         if (stored := self.get_stored_file()) is not None:
             return stored.public_url
         return self.local_url
+
+    def get_original_filename(self) -> str | None:
+        if not getattr(settings, "USE_STORED_FILE_READS", True):
+            return self.original_filename
+        fetch = self.get_latest_fetch()
+        if fetch is not None and fetch.original_filename:
+            return fetch.original_filename
+        return self.original_filename
+
+    def get_content_type(self) -> str | None:
+        if not getattr(settings, "USE_STORED_FILE_READS", True):
+            return self.content_type
+        fetch = self.get_latest_fetch()
+        if fetch is not None and fetch.content_type:
+            return fetch.content_type
+        return self.content_type
+
+    def get_file_size(self) -> int | None:
+        if not getattr(settings, "USE_STORED_FILE_READS", True):
+            return self.file_size
+        stored = self.get_stored_file()
+        if stored is not None:
+            return stored.file_size
+        return self.file_size
+
+    def is_link_broken(self) -> bool:
+        if not getattr(settings, "USE_STORED_FILE_READS", True):
+            return self.is_broken
+        if self.failing_since is not None or self.last_error:
+            return True
+        return self.is_broken
+
+    @property
+    def is_broken_link(self) -> bool:
+        return self.is_link_broken()
+
+    def get_duplicate_urls(
+        self, include_self: bool = False
+    ) -> models.QuerySet["URL"]:
+        stored = self.get_stored_file()
+        if stored is None:
+            return URL.objects.none()
+        from django.db.models import OuterRef, Subquery
+
+        latest_fetch_subquery = (
+            URLFetch.objects
+            .filter(url_id=OuterRef("id"))
+            .order_by("-last_fetch", "-id")
+            .values("stored_file_id")[:1]
+        )
+        qs = URL.objects.annotate(
+            current_stored_file_id=Subquery(latest_fetch_subquery)
+        ).filter(current_stored_file_id=stored.id)
+        if not include_self and self.pk:
+            qs = qs.exclude(pk=self.pk)
+        return qs
 
     def has_stored_copy(self, check_disk: bool = False) -> bool:
         if (stored := self.get_stored_file()) is not None:
@@ -617,6 +675,36 @@ class GameURL(models.Model):
 
     def open_local_file(self, mode: str = "rb") -> Any:
         return self.url.open_local_file(mode)
+
+    def get_original_filename(self) -> str | None:
+        return self.url.get_original_filename()
+
+    def get_content_type(self) -> str | None:
+        return self.url.get_content_type()
+
+    def get_file_size(self) -> int | None:
+        return self.url.get_file_size()
+
+    def is_link_broken(self) -> bool:
+        return self.url.is_link_broken()
+
+    @property
+    def is_broken(self) -> bool:
+        return self.url.is_link_broken()
+
+    def get_duplicate_urls(
+        self, include_self: bool = False
+    ) -> models.QuerySet["URL"]:
+        return self.url.get_duplicate_urls(include_self=include_self)
+
+    def get_duplicate_game_urls(
+        self, include_self: bool = False
+    ) -> models.QuerySet["GameURL"]:
+        dup_urls = self.get_duplicate_urls(include_self=True)
+        qs = GameURL.objects.filter(url__in=dup_urls)
+        if not include_self and self.pk:
+            qs = qs.exclude(pk=self.pk)
+        return qs
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     url = models.ForeignKey(URL, on_delete=models.CASCADE)

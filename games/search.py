@@ -613,7 +613,10 @@ class SB_AuxFlags(SB_Flags):
                 Count("gameurl__game", distinct=True)
             ).filter(gameurl__game__count__gt=1)
         ),
-        6: Q(gameurl__url__is_broken=True),
+        6: (
+            Q(gameurl__url__failing_since__isnull=False)
+            | Q(gameurl__url__is_broken=True)
+        ),
         7: Q(gameauthor__count__gt=1),
     }
 

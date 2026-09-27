@@ -20,12 +20,14 @@ def SnippetFromList(games, populate_authors=True):
         .filter(category__symbolic_id="poster")
         .filter(game__in=games)
         .select_related("url", "category")
+        .prefetch_related("url__fetches__stored_file")
     )
     screenshots = (
         GameURL.objects
         .filter(category__symbolic_id="screenshot")
         .filter(game__in=games)
-        .select_related("url")
+        .select_related("url", "category")
+        .prefetch_related("url__fetches__stored_file")
     )
 
     g2p = {}

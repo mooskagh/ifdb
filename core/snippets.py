@@ -255,6 +255,7 @@ def LastUrlCat(request, cat, max_secs, min_count, max_count):
     urls = (
         GameURL.objects
         .select_related()
+        .prefetch_related("url__fetches__stored_file")
         .filter(
             category__symbolic_id=cat,
             game__in=Game.objects.published(),
