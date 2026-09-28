@@ -3592,6 +3592,21 @@ h6 {
     font-size: 12px;
     margin-right: 2px;
 }
+.curation-playable-action-group {
+    align-items: center;
+    display: inline-flex;
+    flex-shrink: 0;
+    gap: 4px;
+    white-space: nowrap;
+}
+.curation-playable-version-select {
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    box-sizing: border-box;
+    font-size: 12px;
+    height: 26px;
+    padding: 2px 4px;
+}
 
 /* Blueprint playables table layout */
 .curation-blueprint-playables-table {
@@ -3638,7 +3653,7 @@ h6 {
     line-height: 1.35;
 }
 .curation-blueprint-table-actions {
-    width: 78px;
+    width: 145px;
     white-space: nowrap;
 }
 .curation-blueprint-actions-col {
@@ -3709,7 +3724,7 @@ h6 {
     white-space: nowrap;
 }
 .curation-blueprint-candidates-table-actions {
-    width: 75px;
+    width: 140px;
     text-align: center;
     white-space: nowrap;
 }

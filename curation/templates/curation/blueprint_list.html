@@ -13,6 +13,7 @@
                 <th>Идентификатор</th>
                 <th>Доступные версии</th>
                 <th>Используемые версии</th>
+                <th>Действия</th>
             </tr>
         </thead>
         <tbody>
@@ -36,9 +37,26 @@
                         <span class="curation-meta">—</span>
                     {% endfor %}
                 </td>
+                <td>
+                    {% if blueprint.available_versions %}
+                    <form method="post" action="{% url 'curation_blueprint_list' %}" onsubmit="return confirm('Пересоздать все сайты для шаблона «{{ blueprint.display_name }}»?');" style="display: inline-flex; align-items: center; gap: 4px; margin: 0;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="recreate_blueprint">
+                        <input type="hidden" name="template" value="{{ blueprint.slug }}">
+                        <select name="version" class="curation-blueprint-version-select" style="font-size: 11px; padding: 1px 4px; height: 22px;">
+                            {% for v in blueprint.available_versions %}
+                            <option value="{{ v.version }}"{% if v.is_latest %} selected{% endif %}>{{ v.version }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="curation-blueprint-action-btn curation-blueprint-action-btn--recreate" style="width: auto; padding: 2px 6px;" title="Пересоздать все сайты для этого шаблона">пересоздать всё</button>
+                    </form>
+                    {% else %}
+                    <span class="curation-meta">—</span>
+                    {% endif %}
+                </td>
             </tr>
             {% empty %}
-            <tr><td colspan="4">Проигрывателей нет.</td></tr>
+            <tr><td colspan="5">Проигрывателей нет.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -68,6 +86,10 @@
             </select>
         </div>
         <div class="curation-blueprint-filter-item">
+            <label for="filter-site-search">Поиск:</label>
+            <input type="text" name="search" id="filter-site-search" value="{{ site_search }}" placeholder="Название игры или сайт...">
+        </div>
+        <div class="curation-blueprint-filter-item">
             <label for="filter-site-sort">Сортировка:</label>
             <select name="sort" id="filter-site-sort">
                 <option value="-updated"{% if sort == "-updated" %} selected{% endif %}>По обновлению (новые)</option>
@@ -83,8 +105,18 @@
                 <option value="id"{% if sort == "id" %} selected{% endif %}>По ID (возрастание)</option>
             </select>
         </div>
+        <div class="curation-blueprint-filter-item">
+            <label for="filter-site-per-page">На странице:</label>
+            <select name="per_page" id="filter-site-per-page">
+                <option value="50"{% if per_page == 50 %} selected{% endif %}>50</option>
+                <option value="100"{% if per_page == 100 %} selected{% endif %}>100</option>
+                <option value="250"{% if per_page == 250 %} selected{% endif %}>250</option>
+                <option value="500"{% if per_page == 500 %} selected{% endif %}>500</option>
+                <option value="all"{% if per_page == "all" %} selected{% endif %}>Все</option>
+            </select>
+        </div>
         <button type="submit">Фильтровать</button>
-        {% if selected_template or selected_version or sort != "-updated" %}
+        {% if selected_template or selected_version or site_search or sort != "-updated" or per_page != 100 %}
         <a href="{% url 'curation_blueprint_list' %}#playables-section" class="curation-meta" style="margin-left: 4px;">Сбросить</a>
         {% endif %}
     </form>
@@ -138,7 +170,7 @@
             line-height: 1.35;
         }
         .curation-blueprint-table-actions {
-            width: 78px;
+            width: 145px;
             white-space: nowrap;
         }
         .curation-blueprint-actions-col {
@@ -186,27 +218,27 @@
             <thead>
                 <tr>
                     <th class="curation-blueprint-table-id">
-                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.id.next_sort }}#playables-section" title="Сортировать по ID">ID{% if columns_sort.id.indicator %} {{ columns_sort.id.indicator }}{% endif %}</a>
+                        <a href="?{% if playables_base_query %}{{ playables_base_query }}&{% endif %}sort={{ columns_sort.id.next_sort }}#playables-section" title="Сортировать по ID">ID{% if columns_sort.id.indicator %} {{ columns_sort.id.indicator }}{% endif %}</a>
                     </th>
                     <th class="curation-blueprint-table-game">
-                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.game.next_sort }}#playables-section" title="Сортировать по названию игры">Игра{% if columns_sort.game.indicator %} {{ columns_sort.game.indicator }}{% endif %}</a>
+                        <a href="?{% if playables_base_query %}{{ playables_base_query }}&{% endif %}sort={{ columns_sort.game.next_sort }}#playables-section" title="Сортировать по названию игры">Игра{% if columns_sort.game.indicator %} {{ columns_sort.game.indicator }}{% endif %}</a>
                         <span class="curation-meta"> / </span>
-                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.site.next_sort }}#playables-section" title="Сортировать по сайту">Сайт{% if columns_sort.site.indicator %} {{ columns_sort.site.indicator }}{% endif %}</a>
+                        <a href="?{% if playables_base_query %}{{ playables_base_query }}&{% endif %}sort={{ columns_sort.site.next_sort }}#playables-section" title="Сортировать по сайту">Сайт{% if columns_sort.site.indicator %} {{ columns_sort.site.indicator }}{% endif %}</a>
                     </th>
                     <th class="curation-blueprint-table-template">
-                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.template.next_sort }}#playables-section" title="Сортировать по шаблону">Шаблон{% if columns_sort.template.indicator %} {{ columns_sort.template.indicator }}{% endif %}</a>
+                        <a href="?{% if playables_base_query %}{{ playables_base_query }}&{% endif %}sort={{ columns_sort.template.next_sort }}#playables-section" title="Сортировать по шаблону">Шаблон{% if columns_sort.template.indicator %} {{ columns_sort.template.indicator }}{% endif %}</a>
                     </th>
                     <th class="curation-blueprint-table-state">
-                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.state.next_sort }}#playables-section" title="Сортировать по статусу">Статус{% if columns_sort.state.indicator %} {{ columns_sort.state.indicator }}{% endif %}</a>
+                        <a href="?{% if playables_base_query %}{{ playables_base_query }}&{% endif %}sort={{ columns_sort.state.next_sort }}#playables-section" title="Сортировать по статусу">Статус{% if columns_sort.state.indicator %} {{ columns_sort.state.indicator }}{% endif %}</a>
                     </th>
                     <th class="curation-blueprint-table-visible">
                         <input type="checkbox" id="select-all-playables-visible" title="Выбрать все">
-                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.visible.next_sort }}#playables-section" title="Сортировать по видимости">Виден{% if columns_sort.visible.indicator %} {{ columns_sort.visible.indicator }}{% endif %}</a>
+                        <a href="?{% if playables_base_query %}{{ playables_base_query }}&{% endif %}sort={{ columns_sort.visible.next_sort }}#playables-section" title="Сортировать по видимости">Виден{% if columns_sort.visible.indicator %} {{ columns_sort.visible.indicator }}{% endif %}</a>
                     </th>
                     <th class="curation-blueprint-table-dates">
-                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.updated.next_sort }}#playables-section" title="Сортировать по дате обновления">Обновлён{% if columns_sort.updated.indicator %} {{ columns_sort.updated.indicator }}{% endif %}</a>
+                        <a href="?{% if playables_base_query %}{{ playables_base_query }}&{% endif %}sort={{ columns_sort.updated.next_sort }}#playables-section" title="Сортировать по дате обновления">Обновлён{% if columns_sort.updated.indicator %} {{ columns_sort.updated.indicator }}{% endif %}</a>
                         <span class="curation-meta"> / </span>
-                        <a href="?{% if selected_template %}template={{ selected_template|urlencode }}&{% endif %}{% if selected_version %}version={{ selected_version|urlencode }}&{% endif %}sort={{ columns_sort.created.next_sort }}#playables-section" title="Сортировать по дате создания" class="curation-meta">создан{% if columns_sort.created.indicator %} {{ columns_sort.created.indicator }}{% endif %}</a>
+                        <a href="?{% if playables_base_query %}{{ playables_base_query }}&{% endif %}sort={{ columns_sort.created.next_sort }}#playables-section" title="Сортировать по дате создания" class="curation-meta">создан{% if columns_sort.created.indicator %} {{ columns_sort.created.indicator }}{% endif %}</a>
                     </th>
                     <th class="curation-blueprint-table-actions">Действия</th>
                 </tr>
@@ -261,7 +293,16 @@
                             <form method="post" action="{% url 'curation_history_playable_regenerate' playable.game.pk playable.pk %}">
                                 {% csrf_token %}
                                 <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                                <button type="submit" class="curation-blueprint-action-btn curation-blueprint-action-btn--recreate" title="Пересоздать сайт">пересоздать</button>
+                                <div style="display: flex; gap: 3px; align-items: center;">
+                                    {% if playable.available_versions %}
+                                    <select name="version" class="curation-blueprint-version-select" style="font-size: 11px; padding: 1px 2px; height: 21px; max-width: 65px;">
+                                        {% for v in playable.available_versions %}
+                                        <option value="{{ v }}"{% if forloop.last %} selected{% endif %}>{{ v }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% endif %}
+                                    <button type="submit" class="curation-blueprint-action-btn curation-blueprint-action-btn--recreate" title="Пересоздать сайт">пересоздать</button>
+                                </div>
                             </form>
                             {% endif %}
                             <form method="post" action="{% url 'curation_history_playable_delete' playable.game.pk playable.pk %}" onsubmit="return confirm('Удалить проигрыватель #{{ playable.pk }}?');">
@@ -273,7 +314,7 @@
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="7">{% if selected_template or selected_version %}По заданным фильтрам сайтов не найдено.{% else %}Созданных сайтов нет.{% endif %}</td></tr>
+                <tr><td colspan="7">{% if selected_template or selected_version or site_search %}По заданным фильтрам сайтов не найдено.{% else %}Созданных сайтов нет.{% endif %}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -282,6 +323,19 @@
     <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
         <button type="submit" form="bulk-visibility-form">Сохранить видимость</button>
     </div>
+    {% endif %}
+    {% if playables.has_other_pages %}
+    <div class="curation-pagination" style="margin-top: 12px; display: flex; justify-content: center; align-items: center; gap: 12px;">
+        {% if playables.has_previous %}
+        <a href="?{% if playables_base_query %}{{ playables_base_query }}&{% endif %}sort={{ sort }}&page={{ playables.previous_page_number }}#playables-section">← Назад</a>
+        {% endif %}
+        <span>Страница {{ playables.number }} из {{ playables.paginator.num_pages }} (всего: {{ playables.paginator.count }})</span>
+        {% if playables.has_next %}
+        <a href="?{% if playables_base_query %}{{ playables_base_query }}&{% endif %}sort={{ sort }}&page={{ playables.next_page_number }}#playables-section">Вперёд →</a>
+        {% endif %}
+    </div>
+    {% elif playables %}
+    <div class="curation-meta" style="margin-top: 8px; text-align: right;">Всего сайтов: {{ playables.paginator.count }}</div>
     {% endif %}
 </div>
 
@@ -374,11 +428,11 @@
     {% if candidate_page.has_other_pages %}
     <div class="curation-pagination">
         {% if candidate_page.has_previous %}
-        <a href="?scan=1&platform={{ platform|urlencode }}&blueprint={{ blueprint_filter|urlencode }}&q={{ q|urlencode }}&page={{ candidate_page.previous_page_number }}#candidates-section">← Назад</a>
+        <a href="?scan=1&platform={{ platform|urlencode }}&blueprint={{ blueprint_filter|urlencode }}&q={{ q|urlencode }}&candidate_page={{ candidate_page.previous_page_number }}#candidates-section">← Назад</a>
         {% endif %}
         <span>Страница {{ candidate_page.number }} из {{ candidate_page.paginator.num_pages }}</span>
         {% if candidate_page.has_next %}
-        <a href="?scan=1&platform={{ platform|urlencode }}&blueprint={{ blueprint_filter|urlencode }}&q={{ q|urlencode }}&page={{ candidate_page.next_page_number }}#candidates-section">Вперёд →</a>
+        <a href="?scan=1&platform={{ platform|urlencode }}&blueprint={{ blueprint_filter|urlencode }}&q={{ q|urlencode }}&candidate_page={{ candidate_page.next_page_number }}#candidates-section">Вперёд →</a>
         {% endif %}
     </div>
     {% endif %}
@@ -569,6 +623,29 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (formWrap) {
+        // Change blueprint pair versions on radio change
+        formWrap.addEventListener('change', function(e) {
+            if (e.target && e.target.matches('input[type="radio"][name^="pair_"]')) {
+                var radio = e.target;
+                var row = radio.closest('tr');
+                if (!row) return;
+                var versionSelect = row.querySelector('.candidate-version-select');
+                if (!versionSelect) return;
+                var versionsStr = radio.dataset.versions || '';
+                var versions = versionsStr ? versionsStr.split(',') : [];
+                versionSelect.innerHTML = '';
+                for (var i = 0; i < versions.length; i++) {
+                    var opt = document.createElement('option');
+                    opt.value = versions[i];
+                    opt.textContent = versions[i];
+                    if (i === versions.length - 1) {
+                        opt.selected = true;
+                    }
+                    versionSelect.appendChild(opt);
+                }
+            }
+        });
+
         // Single create in row
         formWrap.addEventListener('click', async function(e) {
             var btn = e.target.closest('.candidate-create-btn');
@@ -594,6 +671,9 @@ document.addEventListener('DOMContentLoaded', function() {
             var domainInput = row.querySelector('input[name="domain_' + gameId + '"]');
             var domainVal = domainInput ? domainInput.value.trim() : '';
 
+            var versionSelect = row.querySelector('.candidate-version-select');
+            var versionVal = versionSelect ? versionSelect.value : '';
+
             var visibleCheckbox = document.getElementById('bulk-create-visible');
             var isVisible = visibleCheckbox ? visibleCheckbox.checked : true;
 
@@ -604,6 +684,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 single_create: parseInt(gameId, 10),
                 pair: pairVal,
                 domain: domainVal,
+                version: versionVal,
                 visible: isVisible
             };
 
@@ -674,10 +755,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 var domainInput = row.querySelector('input[name="domain_' + gameId + '"]');
                 var domainVal = domainInput ? domainInput.value.trim() : '';
 
+                var versionSelect = row.querySelector('.candidate-version-select');
+                var versionVal = versionSelect ? versionSelect.value : '';
+
                 itemsToCreate.push({
                     game_id: parseInt(gameId, 10),
                     pair: pairVal,
-                    domain: domainVal
+                    domain: domainVal,
+                    version: versionVal
                 });
             }
 

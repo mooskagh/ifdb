@@ -175,14 +175,21 @@
                                     </label>
                                     <button type="submit">сохранить</button>
                                 </form>
-                                <div style="display: flex; gap: 6px; align-items: center;">
+                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
                                     {% if item.playable.state != "BUILDING" and item.playable.state != "PENDING" %}
-                                    <form method="post" action="{% url 'curation_history_playable_regenerate' game.pk item.playable.pk %}" style="display: inline;">
+                                    <form method="post" action="{% url 'curation_history_playable_regenerate' game.pk item.playable.pk %}" class="curation-playable-action-group">
                                         {% csrf_token %}
-                                        <button type="submit">пересоздать</button>
+                                        {% if item.available_versions %}
+                                        <select name="version" class="curation-playable-version-select">
+                                            {% for v in item.available_versions %}
+                                            <option value="{{ v }}"{% if forloop.last %} selected{% endif %}>{{ v }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        {% endif %}
+                                        <button type="submit" style="white-space: nowrap;">пересоздать</button>
                                     </form>
                                     {% endif %}
-                                    <form method="post" action="{% url 'curation_history_playable_delete' game.pk item.playable.pk %}" style="display: inline;" onsubmit="return confirm('Удалить проигрыватель?');">
+                                    <form method="post" action="{% url 'curation_history_playable_delete' game.pk item.playable.pk %}" style="display: inline; white-space: nowrap;" onsubmit="return confirm('Удалить проигрыватель?');">
                                         {% csrf_token %}
                                         <button type="submit" style="color: #c5221f;">удалить</button>
                                     </form>
@@ -195,12 +202,23 @@
                             <input type="hidden" name="blueprint_slug" value="{{ item.slug }}">
                             <input type="hidden" name="has_visible_field" value="1">
                             <div class="curation-playable-form-group">
-                                <input type="text" name="domain_name" placeholder="✨" class="curation-playable-domain-input" autocomplete="off" spellcheck="false">
-                                <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
-                                <label style="display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; cursor: pointer;">
+                                <span style="display: inline-flex; align-items: center; white-space: nowrap;">
+                                    <input type="text" name="domain_name" placeholder="✨" class="curation-playable-domain-input" autocomplete="off" spellcheck="false">
+                                    <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
+                                </span>
+                                <label style="display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; cursor: pointer; white-space: nowrap;">
                                     <input type="checkbox" name="visible" value="1" checked> виден
                                 </label>
-                                <button type="submit">создать сайт</button>
+                                <span class="curation-playable-action-group">
+                                    {% if item.available_versions %}
+                                    <select name="version" class="curation-playable-version-select">
+                                        {% for v in item.available_versions %}
+                                        <option value="{{ v }}"{% if forloop.last %} selected{% endif %}>{{ v }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% endif %}
+                                    <button type="submit" style="white-space: nowrap;">создать</button>
+                                </span>
                             </div>
                         </form>
                         {% else %}
