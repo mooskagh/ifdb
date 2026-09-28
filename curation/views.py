@@ -532,24 +532,36 @@ def history_list(request):
 def blueprint_list(request):
     discovered = discover_blueprints()
     blueprint_map = {info.name: info.blueprint for info in discovered}
-    in_use_counts = (
+    in_use_counts = list(
         Playable.objects
         .values("template", "template_version")
         .annotate(game_count=Count("game", distinct=True))
         .order_by("template", "template_version")
     )
     in_use_by_template: dict[str, list[dict[str, object]]] = defaultdict(list)
+    distinct_templates_in_use: set[str] = set()
+    distinct_versions_in_use: set[str] = set()
+    template_versions_map: dict[str, list[str]] = defaultdict(list)
     for row in in_use_counts:
-        in_use_by_template[str(row["template"])].append({
-            "version": str(row["template_version"]),
+        t_str = str(row["template"])
+        v_str = str(row["template_version"])
+        in_use_by_template[t_str].append({
+            "version": v_str,
             "count": int(row["game_count"]),
         })
+        if t_str:
+            distinct_templates_in_use.add(t_str)
+        if v_str:
+            distinct_versions_in_use.add(v_str)
+            template_versions_map[t_str].append(v_str)
 
     blueprints: list[dict[str, object]] = []
+    bp_spec_versions: dict[str, list[str]] = {}
     seen_slugs: set[str] = set()
     for info in discovered:
         spec = info.blueprint.get_spec()
         versions = list(spec.versions)
+        bp_spec_versions[info.name] = versions
         latest_version = versions[-1] if versions else None
         available_versions = [
             {"version": v, "is_latest": (v == latest_version)}
@@ -1118,7 +1130,7 @@ def blueprint_list(request):
         sort = "-updated"
     order_fields = sort_mapping[sort]
 
-    playables_qs = Playable.objects.select_related("game", "game_url__url")
+    playables_qs = Playable.objects.select_related("game")
     if selected_template:
         playables_qs = playables_qs.filter(template=selected_template)
     if selected_version:
@@ -1153,10 +1165,6 @@ def blueprint_list(request):
     )
     playables_page = playables_paginator.get_page(request.GET.get("page", "1"))
 
-    bp_spec_versions = {
-        info.name: list(info.blueprint.get_spec().versions)
-        for info in discovered
-    }
     for p in playables_page:
         p_versions = bp_spec_versions.get(p.template, [])
         if not p_versions and p.template_version:
@@ -1184,47 +1192,26 @@ def blueprint_list(request):
         })
         seen_template_slugs.add(slug_str)
 
-    for tmpl in (
-        Playable.objects
-        .order_by("template")
-        .values_list("template", flat=True)
-        .distinct()
-    ):
-        if tmpl and tmpl not in seen_template_slugs:
+    for tmpl in sorted(distinct_templates_in_use):
+        if tmpl not in seen_template_slugs:
             filter_templates.append({
                 "slug": tmpl,
                 "display_name": tmpl,
             })
             seen_template_slugs.add(tmpl)
 
-    playable_versions = (
-        Playable.objects
-        .exclude(template_version="")
-        .values_list("template_version", flat=True)
-        .distinct()
-    )
     blueprint_versions: set[str] = set()
     for info in discovered:
-        for v in info.blueprint.get_spec().versions:
+        for v in bp_spec_versions.get(info.name, []):
             blueprint_versions.add(v)
+            if v not in template_versions_map[info.name]:
+                template_versions_map[info.name].append(v)
 
     filter_versions = sorted(
-        set(playable_versions) | blueprint_versions,
+        distinct_versions_in_use | blueprint_versions,
         key=_version_sort_key,
     )
 
-    template_versions_map: dict[str, list[str]] = defaultdict(list)
-    for row in (
-        Playable.objects
-        .exclude(template_version="")
-        .values("template", "template_version")
-        .distinct()
-    ):
-        template_versions_map[row["template"]].append(row["template_version"])
-    for info in discovered:
-        for v in info.blueprint.get_spec().versions:
-            if v not in template_versions_map[info.name]:
-                template_versions_map[info.name].append(v)
     for tmpl in template_versions_map:
         template_versions_map[tmpl].sort(key=_version_sort_key)
 
@@ -1251,21 +1238,27 @@ def blueprint_list(request):
         "updated": _make_col_sort("updated", default_desc=True),
     }
 
-    available_platforms = list(
-        GameTag.objects
-        .filter(
-            category__symbolic_id="platform",
-            game__playable__isnull=True,
-            game__gameurl__category__symbolic_id="download_direct",
-        )
-        .filter(
-            Q(game__gameurl__url__local_filename__isnull=False)
-            | Q(game__gameurl__url__fetches__isnull=False)
-        )
-        .values_list("name", flat=True)
-        .distinct()
-        .order_by("name")
+    candidate_games = Game.objects.filter(
+        playable__isnull=True,
+        gameurl__category__symbolic_id="download_direct",
+    ).filter(
+        Q(gameurl__url__local_filename__isnull=False)
+        | Q(gameurl__url__fetches__isnull=False)
     )
+    available_platforms = [
+        p
+        for p in (
+            GameTag.objects
+            .filter(
+                category__symbolic_id="platform",
+                game__in=candidate_games,
+            )
+            .values_list("name", flat=True)
+            .distinct()
+            .order_by("name")
+        )
+        if p
+    ]
 
     scan = request.GET.get("scan") == "1"
     platform = request.GET.get("platform", "").strip()
