@@ -190,3 +190,68 @@ class InsteadEmTests(SimpleTestCase):
 
             index = (destination / "index.html").read_bytes()
             self.assertIn(b'<meta name="gamefile" content="game.zip">', index)
+
+    def test_generates_launchable_game_without_optional_readme(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            assets = root / "assets"
+            assets.mkdir()
+            (assets / "viewport.css").write_text("canvas { max-width: 100%; }")
+            (assets / "viewport.js").write_text("fitCanvas();")
+            runtime = assets / "runtime"
+            runtime.mkdir()
+            data = BytesIO()
+            with ZipFile(data, "w") as archive:
+                for name, content in _runtime_entries():
+                    if name.endswith("README"):
+                        continue
+                    archive.writestr(name, content)
+            (runtime / "instead-em-2.0.zip").write_bytes(data.getvalue())
+
+            game_file = root / "game.zip"
+            _write_game(game_file)
+            destination = root / "generated"
+
+            with patch("play.blueprints.instead_em.ASSETS_DIR", assets):
+                generate(GenerateSpec("2.0", {}, destination, game_file))
+
+            expected = {
+                "index.html",
+                "game.zip",
+                "viewport.css",
+                "viewport.js",
+            }
+            expected.update(
+                Path(name).name
+                for name in _RUNTIME_MEMBER_NAMES
+                if not name.endswith("instead-em.html")
+                and not name.endswith("README")
+            )
+            self.assertEqual(
+                {path.name for path in destination.iterdir()}, expected
+            )
+            self.assertFalse((destination / "README").exists())
+
+    def test_bundled_runtime_assets(self) -> None:
+        spec = get_spec()
+        self.assertIn("3.5.2", spec.versions)
+        self.assertIn("3.6.0", spec.versions)
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            game_file = root / "game.zip"
+            _write_game(game_file)
+
+            # Test 3.5.2 includes README
+            dest_352 = root / "gen_352"
+            generate(GenerateSpec("3.5.2", {}, dest_352, game_file))
+            self.assertTrue((dest_352 / "README").exists())
+            self.assertTrue((dest_352 / "index.html").exists())
+            self.assertTrue((dest_352 / "instead-em.wasm").exists())
+
+            # Test 3.6.0 succeeds without README
+            dest_360 = root / "gen_360"
+            generate(GenerateSpec("3.6.0", {}, dest_360, game_file))
+            self.assertFalse((dest_360 / "README").exists())
+            self.assertTrue((dest_360 / "index.html").exists())
+            self.assertTrue((dest_360 / "instead-em.wasm").exists())

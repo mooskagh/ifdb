@@ -38,6 +38,7 @@ _RUNTIME_MEMBERS = (
     "instead-em/sdl_instead.svg",
     "instead-em/README",
 )
+_OPTIONAL_MEMBERS = frozenset(("instead-em/README",))
 _LAUNCHER_MEMBER = "instead-em/instead-em.html"
 _GAMEFILE_NAMES = frozenset(("main.lua", "main3.lua"))
 
@@ -98,7 +99,13 @@ def _activate_gamefile_marker(html: bytes) -> bytes:
 
 
 def _write_runtime(runtime: ZipFile, stage: Path) -> None:
+    available_members = set(runtime.namelist())
     for member_name in _RUNTIME_MEMBERS:
+        if member_name not in available_members:
+            if member_name in _OPTIONAL_MEMBERS:
+                continue
+            raise KeyError(f"Missing required runtime member: {member_name}")
+
         if member_name == _LAUNCHER_MEMBER:
             html = _activate_gamefile_marker(runtime.read(member_name))
             (stage / "index.html").write_bytes(insert_telemetry(html))
