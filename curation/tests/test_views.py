@@ -3563,7 +3563,7 @@ class SourceViewsTest(TestCase):
                     )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "создать сайт")
+        self.assertContains(response, ">создать</button>")
         self.assertContains(response, f'value="{game_url.pk}"')
 
     def test_history_playable_site_column_shows_status_when_playable_exists(
@@ -3592,7 +3592,7 @@ class SourceViewsTest(TestCase):
         response = self.client.get(f"/curation/{history.pk}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Сайт создан")
-        self.assertNotContains(response, "создать сайт")
+        self.assertNotContains(response, ">создать</button>")
 
         playable.state = Playable.State.BUILDING
         playable.save(update_fields=["state"])
@@ -3648,7 +3648,7 @@ class SourceViewsTest(TestCase):
         self.assertContains(response, "Сайт создан")
         self.assertContains(response, "cool-instead")
         self.assertContains(response, 'value="quixe"')
-        self.assertContains(response, "создать сайт")
+        self.assertContains(response, ">создать</button>")
 
     @patch("curation.views.generate_playable.delay")
     @patch("curation.views.discover_blueprints")
@@ -3687,6 +3687,58 @@ class SourceViewsTest(TestCase):
         self.assertEqual(playable.state, Playable.State.PENDING)
         self.assertTrue(playable.visible)
         delay_mock.assert_called_once_with(playable.pk)
+
+    @patch("curation.views.generate_playable.delay")
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_create_post_with_version(
+        self, discover_mock, delay_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Create playable version post",
+            creation_time=ts,
+        )
+        game_url = self._download_link(
+            game,
+            "https://example.com/game.zip",
+            local_filename="game.zip",
+        )
+        spec = BlueprintSpec(
+            name="INSTEAD Emscripten", versions=["3.4.0", "3.5.2"]
+        )
+        blueprint = MagicMock()
+        blueprint.get_spec.return_value = spec
+        discover_mock.return_value = [BlueprintInfo("instead_em", blueprint)]
+
+        # Specific valid version
+        response = self.client.post(
+            f"/curation/{game.pk}/playables/create/",
+            {
+                "game_url_id": str(game_url.pk),
+                "blueprint_slug": "instead_em",
+                "version": "3.4.0",
+            },
+        )
+        self.assertRedirects(
+            response,
+            f"/curation/{game.pk}/?check_compatibility=1",
+        )
+        playable = Playable.objects.get(game=game, game_url=game_url)
+        self.assertEqual(playable.template_version, "3.4.0")
+
+        # Invalid version falls back to latest version
+        playable.delete()
+        response = self.client.post(
+            f"/curation/{game.pk}/playables/create/",
+            {
+                "game_url_id": str(game_url.pk),
+                "blueprint_slug": "instead_em",
+                "version": "non-existent",
+            },
+        )
+        playable = Playable.objects.get(game=game, game_url=game_url)
+        self.assertEqual(playable.template_version, "3.5.2")
 
     @patch("curation.views.generate_playable.delay")
     @patch("curation.views.discover_blueprints")
@@ -4103,6 +4155,78 @@ class SourceViewsTest(TestCase):
     @patch("curation.views.generate_playable.delay")
     @patch.object(FileSystemStorage, "exists", return_value=True)
     @patch("curation.views.discover_blueprints")
+    def test_blueprint_list_candidate_creation_with_version(
+        self, discover_mock, exists_mock, delay_mock
+    ):
+        ts = timezone.now()
+        game1 = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Candidate Game 1",
+            creation_time=ts,
+        )
+        gu1 = self._download_link(
+            game1, "https://example.com/cg1.zip", local_filename="cg1.zip"
+        )
+        game2 = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Candidate Game 2",
+            creation_time=ts,
+        )
+        gu2 = self._download_link(
+            game2, "https://example.com/cg2.zip", local_filename="cg2.zip"
+        )
+
+        blueprint = ModuleType("play.blueprints.instead_em")
+        setattr(
+            blueprint,
+            "get_spec",
+            lambda: BlueprintSpec(
+                name="INSTEAD Emscripten", versions=["3.4.0", "3.5.2"]
+            ),
+        )
+        setattr(blueprint, "accepts", lambda p: True)
+        discover_mock.return_value = [
+            BlueprintInfo("instead_em", cast(BlueprintModule, blueprint))
+        ]
+
+        # 1. AJAX single create with version
+        post_data = {
+            "single_create": str(game1.pk),
+            f"pair_{game1.pk}": f"{gu1.pk}:instead_em",
+            f"domain_{game1.pk}": "cand-one",
+            f"version_{game1.pk}": "3.4.0",
+            "has_visible_field": "1",
+            "visible": "1",
+        }
+        resp = self.client.post(
+            "/curation/blueprints/",
+            post_data,
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resp.status_code, 200)
+        p1 = Playable.objects.get(game=game1, game_url=gu1)
+        self.assertEqual(p1.template_version, "3.4.0")
+
+        # 2. JSON single create with version
+        payload = {
+            "single_create": game2.pk,
+            "pair": f"{gu2.pk}:instead_em",
+            "domain": "cand-two",
+            "version": "3.4.0",
+            "visible": True,
+        }
+        resp_json = self.client.post(
+            "/curation/blueprints/",
+            payload,
+            content_type="application/json",
+        )
+        self.assertEqual(resp_json.status_code, 200)
+        p2 = Playable.objects.get(game=game2, game_url=gu2)
+        self.assertEqual(p2.template_version, "3.4.0")
+
+    @patch("curation.views.generate_playable.delay")
+    @patch.object(FileSystemStorage, "exists", return_value=True)
+    @patch("curation.views.discover_blueprints")
     def test_blueprint_list_json_single_create(
         self, discover_mock, exists_mock, delay_mock
     ):
@@ -4369,6 +4493,7 @@ class SourceViewsTest(TestCase):
                 self.assertContains(
                     response, f".{settings.PLAYABLE_BASE_DOMAIN}"
                 )
+                self.assertContains(response, '<select name="version"')
 
         # Test link rendering when READY with slug
         Playable.objects.create(
@@ -4490,6 +4615,11 @@ class SourceViewsTest(TestCase):
             self.assertContains(response, "<strong>3.5.2</strong>")
             self.assertContains(response, "3.4.0 (1)")
             self.assertContains(response, "3.5.2 (1)")
+            self.assertContains(response, "пересоздать всё")
+            self.assertContains(
+                response, 'name="action" value="recreate_blueprint"'
+            )
+            self.assertContains(response, 'name="version"')
 
     def test_blueprint_list_filter_and_sort_playables(self):
         ts = timezone.now()
@@ -4568,6 +4698,183 @@ class SourceViewsTest(TestCase):
                 [p.pk for p in r_sort_id.context["playables"]],
                 sorted([p_a.pk, p_b.pk]),
             )
+
+    def test_blueprint_list_search_and_pagination(self):
+        ts = timezone.now()
+        game_apple = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Apple Quest",
+            creation_time=ts,
+        )
+        gu_apple = self._download_link(
+            game_apple,
+            "https://example.com/apple.zip",
+            local_filename="apple.zip",
+        )
+        p_apple = Playable.objects.create(
+            game=game_apple,
+            game_url=gu_apple,
+            template="instead_em",
+            template_version="3.5.2",
+            slug="apple-site",
+            state=Playable.State.READY,
+        )
+
+        game_banana = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Banana Adventure",
+            creation_time=ts,
+        )
+        gu_banana = self._download_link(
+            game_banana,
+            "https://example.com/banana.zip",
+            local_filename="banana.zip",
+        )
+        p_banana = Playable.objects.create(
+            game=game_banana,
+            game_url=gu_banana,
+            template="instead_em",
+            template_version="3.5.2",
+            slug="banana-site",
+            state=Playable.State.READY,
+        )
+
+        with patch("curation.views.discover_blueprints") as discover_mock:
+            discover_mock.return_value = []
+
+            # Search by title
+            r_title = self.client.get("/curation/blueprints/?search=apple")
+            self.assertEqual(r_title.status_code, 200)
+            self.assertEqual(
+                [p.pk for p in r_title.context["playables"]], [p_apple.pk]
+            )
+            self.assertIn(
+                "search=apple", r_title.context["playables_base_query"]
+            )
+
+            # Search by slug
+            r_slug = self.client.get(
+                "/curation/blueprints/?search=banana-site"
+            )
+            self.assertEqual(r_slug.status_code, 200)
+            self.assertEqual(
+                [p.pk for p in r_slug.context["playables"]], [p_banana.pk]
+            )
+
+            # Search by full domain slug.domain
+            r_domain = self.client.get(
+                f"/curation/blueprints/?search=apple-site.{settings.PLAYABLE_BASE_DOMAIN}"
+            )
+            self.assertEqual(r_domain.status_code, 200)
+            self.assertEqual(
+                [p.pk for p in r_domain.context["playables"]], [p_apple.pk]
+            )
+
+            # Search by numeric playable ID
+            r_id = self.client.get(
+                f"/curation/blueprints/?search={p_banana.pk}"
+            )
+            self.assertEqual(r_id.status_code, 200)
+            self.assertEqual(
+                [p.pk for p in r_id.context["playables"]], [p_banana.pk]
+            )
+
+            # Per-page selection
+            r_per_page = self.client.get("/curation/blueprints/?per_page=50")
+            self.assertEqual(r_per_page.status_code, 200)
+            self.assertEqual(r_per_page.context["per_page"], 50)
+            self.assertIn(
+                "per_page=50", r_per_page.context["playables_base_query"]
+            )
+
+            # Per-page all
+            r_all = self.client.get("/curation/blueprints/?per_page=all")
+            self.assertEqual(r_all.status_code, 200)
+            self.assertEqual(r_all.context["per_page"], "all")
+            self.assertIn(
+                "per_page=all", r_all.context["playables_base_query"]
+            )
+
+    @patch("curation.views.generate_playable.delay")
+    @patch("curation.views.discover_blueprints")
+    def test_blueprint_list_recreate_blueprint(
+        self, discover_mock, delay_mock
+    ):
+        ts = timezone.now()
+        game1 = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Recreate Game 1",
+            creation_time=ts,
+        )
+        gu1 = self._download_link(
+            game1, "https://example.com/r1.zip", local_filename="r1.zip"
+        )
+        p1 = Playable.objects.create(
+            game=game1,
+            game_url=gu1,
+            template="instead_em",
+            template_version="3.4.0",
+            state=Playable.State.READY,
+        )
+
+        game2 = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Recreate Game 2",
+            creation_time=ts,
+        )
+        gu2 = self._download_link(
+            game2, "https://example.com/r2.zip", local_filename="r2.zip"
+        )
+        p2 = Playable.objects.create(
+            game=game2,
+            game_url=gu2,
+            template="instead_em",
+            template_version="3.4.0",
+            state=Playable.State.READY,
+        )
+
+        other_game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Other Template Game",
+            creation_time=ts,
+        )
+        gu3 = self._download_link(
+            other_game, "https://example.com/r3.zip", local_filename="r3.zip"
+        )
+        p3 = Playable.objects.create(
+            game=other_game,
+            game_url=gu3,
+            template="other_bp",
+            template_version="1.0.0",
+            state=Playable.State.READY,
+        )
+
+        spec = BlueprintSpec(
+            name="INSTEAD Emscripten", versions=["3.4.0", "3.5.2"]
+        )
+        blueprint = MagicMock()
+        blueprint.get_spec.return_value = spec
+        discover_mock.return_value = [BlueprintInfo("instead_em", blueprint)]
+
+        resp = self.client.post(
+            "/curation/blueprints/",
+            {
+                "action": "recreate_blueprint",
+                "blueprint_slug": "instead_em",
+                "version": "3.5.2",
+            },
+        )
+        self.assertRedirects(resp, "/curation/blueprints/")
+        p1.refresh_from_db()
+        p2.refresh_from_db()
+        p3.refresh_from_db()
+        self.assertEqual(p1.template_version, "3.5.2")
+        self.assertEqual(p1.state, Playable.State.PENDING)
+        self.assertEqual(p2.template_version, "3.5.2")
+        self.assertEqual(p2.state, Playable.State.PENDING)
+        self.assertEqual(p3.template_version, "1.0.0")
+        self.assertEqual(p3.state, Playable.State.READY)
+        self.assertEqual(delay_mock.call_count, 2)
 
     def test_blueprint_list_candidate_section_unscanned_by_default(self):
         with patch("curation.views.discover_blueprints") as discover_mock:
@@ -5004,6 +5311,60 @@ class SourceViewsTest(TestCase):
                 resp, f"/curation/{game.pk}/?check_compatibility=1"
             )
             mock_delay.assert_not_called()
+
+    @patch("curation.views.generate_playable.delay")
+    @patch("curation.views.discover_blueprints")
+    def test_history_playable_regenerate_with_version(
+        self, discover_mock, delay_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Regen Playable Game",
+            creation_time=ts,
+        )
+        GameCuration.objects.create(game=game)
+        game_url = self._download_link(
+            game,
+            "https://example.com/regen.zip",
+            local_filename="regen.zip",
+        )
+        playable = Playable.objects.create(
+            game=game,
+            game_url=game_url,
+            template="instead_em",
+            template_version="3.5.2",
+            slug="retry-slug",
+            state=Playable.State.READY,
+        )
+        spec = BlueprintSpec(
+            name="INSTEAD Emscripten", versions=["3.4.0", "3.5.2"]
+        )
+        blueprint = MagicMock()
+        blueprint.get_spec.return_value = spec
+        discover_mock.return_value = [BlueprintInfo("instead_em", blueprint)]
+
+        # Specific version
+        resp = self.client.post(
+            f"/curation/{game.pk}/playables/{playable.pk}/regenerate/",
+            {"version": "3.4.0"},
+        )
+        self.assertRedirects(
+            resp, f"/curation/{game.pk}/?check_compatibility=1"
+        )
+        playable.refresh_from_db()
+        self.assertEqual(playable.template_version, "3.4.0")
+        self.assertEqual(playable.state, Playable.State.PENDING)
+
+        # Regenerate with latest when omitted
+        playable.state = Playable.State.READY
+        playable.save(update_fields=["state"])
+        resp = self.client.post(
+            f"/curation/{game.pk}/playables/{playable.pk}/regenerate/",
+            {"version": ""},
+        )
+        playable.refresh_from_db()
+        self.assertEqual(playable.template_version, "3.5.2")
 
     def test_history_playable_delete_and_regen_with_next_redirect(self):
         ts = timezone.now()

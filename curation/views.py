@@ -62,7 +62,9 @@ from games.models import (
 )
 from games.tasks import fetch_urls
 from play.blueprint import (
+    BlueprintInfo,
     BlueprintModule,
+    BlueprintSpec,
     Compatibility,
     check_compatibility,
     discover_blueprints,
@@ -137,6 +139,7 @@ class PlayableItem:
     display_name: str
     compatibility: Compatibility | bool | None
     playable: Playable | None = None
+    available_versions: tuple[str, ...] = ()
 
     @property
     def has_compatibility(self) -> bool:
@@ -173,6 +176,7 @@ class CandidateCreateItem:
     key: int
     pair_val: str
     domain_name: str
+    version: str = ""
 
 
 def _build_playable_files(
@@ -180,6 +184,17 @@ def _build_playable_files(
 ) -> list[PlayableFile]:
     if game_id is None:
         return []
+
+    discovered: list[BlueprintInfo] = (
+        discover_blueprints() if should_check_compatibility else []
+    )
+    blueprint_specs_with_info: list[tuple[BlueprintInfo, BlueprintSpec]] = [
+        (info, info.blueprint.get_spec()) for info in discovered
+    ]
+    blueprint_versions_map: dict[str, tuple[str, ...]] = {
+        info.name: tuple(spec.versions)
+        for info, spec in blueprint_specs_with_info
+    }
 
     direct_downloads = list(
         GameURL.objects
@@ -205,6 +220,8 @@ def _build_playable_files(
                 display_name=p.template,
                 compatibility=None,
                 playable=p,
+                available_versions=blueprint_versions_map.get(p.template)
+                or ((p.template_version,) if p.template_version else ()),
             )
             for p in file_playables
         )
@@ -226,8 +243,8 @@ def _build_playable_files(
         return playable_files
 
     blueprint_specs: list[tuple[str, BlueprintModule, str]] = [
-        (info.name, info.blueprint, info.blueprint.get_spec().name)
-        for info in discover_blueprints()
+        (info.name, info.blueprint, spec.name)
+        for info, spec in blueprint_specs_with_info
     ]
     checked_files: list[PlayableFile] = []
     for playable_file in playable_files:
@@ -298,6 +315,9 @@ def _build_playable_files(
                                 display_name=res.display_name,
                                 compatibility=res.accepted,
                                 playable=p,
+                                available_versions=blueprint_versions_map.get(
+                                    res.slug, ()
+                                ),
                             )
                         )
                         used_playables.add(p.pk)
@@ -308,6 +328,9 @@ def _build_playable_files(
                             display_name=res.display_name,
                             compatibility=res.accepted,
                             playable=None,
+                            available_versions=blueprint_versions_map.get(
+                                res.slug, ()
+                            ),
                         )
                     )
 
@@ -319,6 +342,14 @@ def _build_playable_files(
                             display_name=p.template,
                             compatibility=None,
                             playable=p,
+                            available_versions=blueprint_versions_map.get(
+                                p.template
+                            )
+                            or (
+                                (p.template_version,)
+                                if p.template_version
+                                else ()
+                            ),
                         )
                     )
 
@@ -612,6 +643,68 @@ def blueprint_list(request):
             )
             return redirect(request.get_full_path())
 
+        if action in ("recreate_blueprint", "recreate_all"):
+            template_slug = (
+                request.POST.get("template")
+                or request.POST.get("blueprint_slug")
+                or ""
+            ).strip()
+            selected_version = request.POST.get("version", "").strip()
+            if not template_slug:
+                messages.error(request, "Не указан шаблон для пересоздания.")
+                return redirect(request.get_full_path())
+
+            bp = blueprint_map.get(template_slug)
+            if not bp:
+                messages.error(request, f"Шаблон '{template_slug}' не найден.")
+                return redirect(request.get_full_path())
+
+            spec = bp.get_spec()
+            if selected_version:
+                if selected_version not in spec.versions:
+                    messages.error(
+                        request,
+                        f"Версия '{selected_version}' недопустима для "
+                        f"шаблона '{template_slug}'.",
+                    )
+                    return redirect(request.get_full_path())
+                target_version = selected_version
+            else:
+                target_version = spec.versions[-1] if spec.versions else ""
+
+            playables_to_recreate = list(
+                Playable.objects.filter(template=template_slug)
+            )
+            if not playables_to_recreate:
+                messages.info(
+                    request,
+                    f"Нет созданных сайтов для шаблона «{spec.name}».",
+                )
+                return redirect(request.get_full_path())
+
+            recreated_count = 0
+            for p in playables_to_recreate:
+                if p.state in (
+                    Playable.State.PENDING,
+                    Playable.State.BUILDING,
+                ):
+                    continue
+                destination = Path(settings.PLAYABLE_DIR) / str(p.pk)
+                if destination.exists():
+                    shutil.rmtree(destination, ignore_errors=True)
+                p.template_version = target_version
+                p.state = Playable.State.PENDING
+                p.save(update_fields=["template_version", "state", "updated"])
+                generate_playable.delay(p.pk)
+                recreated_count += 1
+
+            messages.success(
+                request,
+                f"Запущено пересоздание всех сайтов для «{spec.name}» "
+                f"(версия {target_version}): {recreated_count}.",
+            )
+            return redirect(request.get_full_path())
+
         items_to_create: list[CandidateCreateItem] = []
         is_single = False
 
@@ -635,9 +728,17 @@ def blueprint_list(request):
                     .strip()
                     .lower()
                 )
+                version_val = str(
+                    json_payload.get("version")
+                    or json_payload.get(f"version_{key}")
+                    or ""
+                ).strip()
                 items_to_create.append(
                     CandidateCreateItem(
-                        key=key, pair_val=pair_val, domain_name=domain_name
+                        key=key,
+                        pair_val=pair_val,
+                        domain_name=domain_name,
+                        version=version_val,
                     )
                 )
             elif action == "bulk_create":
@@ -653,11 +754,13 @@ def blueprint_list(request):
                             domain_name = (
                                 str(raw.get("domain", "")).strip().lower()
                             )
+                            version_val = str(raw.get("version", "")).strip()
                             items_to_create.append(
                                 CandidateCreateItem(
                                     key=key,
                                     pair_val=pair_val,
                                     domain_name=domain_name,
+                                    version=version_val,
                                 )
                             )
                 else:
@@ -675,11 +778,15 @@ def blueprint_list(request):
                             .strip()
                             .lower()
                         )
+                        version_val = str(
+                            json_payload.get(f"version_{key}", "")
+                        ).strip()
                         items_to_create.append(
                             CandidateCreateItem(
                                 key=key,
                                 pair_val=pair_val,
                                 domain_name=domain_name,
+                                version=version_val,
                             )
                         )
         else:
@@ -704,9 +811,16 @@ def blueprint_list(request):
                     .strip()
                     .lower()
                 )
+                version_val = (
+                    request.POST.get(f"version_{key}")
+                    or request.POST.get("version", "")
+                ).strip()
                 items_to_create.append(
                     CandidateCreateItem(
-                        key=key, pair_val=pair_val, domain_name=domain_name
+                        key=key,
+                        pair_val=pair_val,
+                        domain_name=domain_name,
+                        version=version_val,
                     )
                 )
             elif action == "bulk_create":
@@ -731,9 +845,15 @@ def blueprint_list(request):
                         .strip()
                         .lower()
                     )
+                    version_val = request.POST.get(
+                        f"version_{key}", ""
+                    ).strip()
                     items_to_create.append(
                         CandidateCreateItem(
-                            key=key, pair_val=pair_val, domain_name=domain_name
+                            key=key,
+                            pair_val=pair_val,
+                            domain_name=domain_name,
+                            version=version_val,
                         )
                     )
 
@@ -894,7 +1014,9 @@ def blueprint_list(request):
 
             bp = blueprint_map[blueprint_slug]
             spec = bp.get_spec()
-            version = spec.versions[-1] if spec.versions else ""
+            version = item.version
+            if not (version and version in spec.versions):
+                version = spec.versions[-1] if spec.versions else ""
 
             domain_name = item.domain_name
             if not domain_name and json_payload is None:
@@ -970,7 +1092,9 @@ def blueprint_list(request):
 
     selected_template = request.GET.get("template", "").strip()
     selected_version = request.GET.get("version", "").strip()
+    site_search = request.GET.get("search", "").strip()
     sort = request.GET.get("sort", "-updated").strip()
+    per_page_param = request.GET.get("per_page", "100").strip().lower()
 
     sort_mapping: dict[str, list[str]] = {
         "-updated": ["-updated", "-created", "-pk"],
@@ -999,7 +1123,56 @@ def blueprint_list(request):
         playables_qs = playables_qs.filter(template=selected_template)
     if selected_version:
         playables_qs = playables_qs.filter(template_version=selected_version)
-    playables = playables_qs.order_by(*order_fields)
+    if site_search:
+        clean_search = site_search
+        base_domain_suffix = f".{settings.PLAYABLE_BASE_DOMAIN}"
+        if clean_search.lower().endswith(base_domain_suffix.lower()):
+            clean_search = clean_search[: -len(base_domain_suffix)].strip()
+        search_filter = Q(game__title__icontains=clean_search) | Q(
+            slug__icontains=clean_search
+        )
+        if clean_search.isdigit():
+            pk_val = int(clean_search)
+            search_filter |= Q(pk=pk_val) | Q(game__pk=pk_val)
+        playables_qs = playables_qs.filter(search_filter)
+
+    allowed_per_page = (50, 100, 250, 500)
+    per_page: int | str
+    if per_page_param == "all":
+        per_page = "all"
+        effective_page_size = 100000
+    elif per_page_param.isdigit() and int(per_page_param) in allowed_per_page:
+        per_page = int(per_page_param)
+        effective_page_size = per_page
+    else:
+        per_page = 100
+        effective_page_size = 100
+
+    playables_paginator = Paginator(
+        playables_qs.order_by(*order_fields), effective_page_size
+    )
+    playables_page = playables_paginator.get_page(request.GET.get("page", "1"))
+
+    bp_spec_versions = {
+        info.name: list(info.blueprint.get_spec().versions)
+        for info in discovered
+    }
+    for p in playables_page:
+        p_versions = bp_spec_versions.get(p.template, [])
+        if not p_versions and p.template_version:
+            p_versions = [p.template_version]
+        p.available_versions = p_versions  # type: ignore[attr-defined]
+
+    base_params: dict[str, str] = {}
+    if selected_template:
+        base_params["template"] = selected_template
+    if selected_version:
+        base_params["version"] = selected_version
+    if site_search:
+        base_params["search"] = site_search
+    if per_page != 100:
+        base_params["per_page"] = str(per_page)
+    playables_base_query = urlencode(base_params)
 
     filter_templates: list[dict[str, str]] = []
     seen_template_slugs: set[str] = set()
@@ -1098,18 +1271,6 @@ def blueprint_list(request):
     platform = request.GET.get("platform", "").strip()
     blueprint_filter = request.GET.get("blueprint", "").strip()
     q = request.GET.get("q", "").strip()
-    per_page_str = request.GET.get("per_page", "100").strip().lower()
-    per_page: int | str
-    if per_page_str == "all":
-        per_page = "all"
-        effective_page_size = 100000
-    elif per_page_str.isdigit() and int(per_page_str) in (50, 100, 250, 500):
-        per_page = int(per_page_str)
-        effective_page_size = per_page
-    else:
-        per_page = 100
-        effective_page_size = 100
-
     candidate_page = None
     candidate_matches: list[dict[str, object]] = []
 
@@ -1136,9 +1297,16 @@ def blueprint_list(request):
         if q:
             candidate_qs = candidate_qs.filter(title__icontains=q)
 
-        paginator = Paginator(candidate_qs, effective_page_size)
-        page_num = request.GET.get("page", "1")
-        candidate_page = paginator.get_page(page_num)
+        candidate_paginator = Paginator(candidate_qs, 100)
+        candidate_page_num = request.GET.get("candidate_page") or (
+            request.GET.get("page", "1")
+            if scan
+            and not selected_template
+            and not selected_version
+            and not site_search
+            else "1"
+        )
+        candidate_page = candidate_paginator.get_page(candidate_page_num)
 
         if blueprint_filter and blueprint_filter in blueprint_map:
             active_blueprints = [
@@ -1202,6 +1370,9 @@ def blueprint_list(request):
                                 "blueprint_slug": b_slug,
                                 "blueprint_name": b_name,
                                 "compatibility": compat,
+                                "available_versions": list(
+                                    bp.get_spec().versions
+                                ),
                             })
                     except (OSError, Exception):
                         continue
@@ -1220,9 +1391,12 @@ def blueprint_list(request):
         "curation/blueprint_list.html",
         {
             "blueprints": blueprints,
-            "playables": playables,
+            "playables": playables_page,
             "selected_template": selected_template,
             "selected_version": selected_version,
+            "site_search": site_search,
+            "per_page": per_page,
+            "playables_base_query": playables_base_query,
             "filter_templates": filter_templates,
             "filter_versions": filter_versions,
             "template_versions_dict": dict(template_versions_map),
@@ -1234,7 +1408,6 @@ def blueprint_list(request):
             "platform": platform,
             "blueprint_filter": blueprint_filter,
             "q": q,
-            "per_page": per_page,
             "candidate_page": candidate_page,
             "candidate_matches": candidate_matches,
         },
@@ -1349,6 +1522,7 @@ def blueprint_candidate_check(request, game_pk: int):
                         "blueprint_slug": b_slug,
                         "blueprint_name": b_name,
                         "compatibility": compat,
+                        "available_versions": list(bp.get_spec().versions),
                     })
             except (OSError, Exception):
                 continue
@@ -2666,7 +2840,9 @@ def history_playable_create(request, game_id: int):
 
     blueprint = blueprints[blueprint_slug]
     spec = blueprint.get_spec()
-    version = spec.versions[-1]
+    version = request.POST.get("version", "").strip()
+    if not (version and version in spec.versions):
+        version = spec.versions[-1] if spec.versions else ""
 
     domain_name = request.POST.get("domain_name", "").strip().lower()
     slug: str | None = None
@@ -2836,7 +3012,10 @@ def history_playable_regenerate(request, game_id, playable_id):
     blueprints = {b.name: b.blueprint for b in discover_blueprints()}
     if playable.template in blueprints:
         spec = blueprints[playable.template].get_spec()
-        if spec.versions:
+        version = request.POST.get("version", "").strip()
+        if version and version in spec.versions:
+            playable.template_version = version
+        elif spec.versions:
             playable.template_version = spec.versions[-1]
 
     destination = Path(settings.PLAYABLE_DIR) / str(playable.pk)

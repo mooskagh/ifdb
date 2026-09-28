@@ -55,7 +55,7 @@ class RegeneratePlayablesCommandTests(TestCase):
         p1 = Playable.objects.create(
             game=self.game,
             template="instead_em",
-            template_version="3.5.2",
+            template_version="3.6.0",
             state=Playable.State.READY,
         )
         p2 = Playable.objects.create(
@@ -70,7 +70,7 @@ class RegeneratePlayablesCommandTests(TestCase):
         output = out.getvalue()
 
         self.assertIn("[DRY RUN] Found 2 playable(s) to regenerate:", output)
-        self.assertIn(f"#{p1.pk}: Test Adventure [instead_em 3.5.2]", output)
+        self.assertIn(f"#{p1.pk}: Test Adventure [instead_em 3.6.0]", output)
         self.assertIn(f"#{p2.pk}: Test Adventure [qspider 1.3.1]", output)
         self.assertIn(
             "Dry run complete: 2 playable(s) would be regenerated.", output
@@ -84,7 +84,7 @@ class RegeneratePlayablesCommandTests(TestCase):
         p_instead = Playable.objects.create(
             game=self.game,
             template="instead_em",
-            template_version="3.5.2",
+            template_version="3.6.0",
             state=Playable.State.READY,
         )
         p_qsp = Playable.objects.create(
@@ -116,7 +116,7 @@ class RegeneratePlayablesCommandTests(TestCase):
         )
         output = out.getvalue()
         self.assertIn(
-            f"#{p_instead.pk}: Test Adventure [instead_em 3.5.2]", output
+            f"#{p_instead.pk}: Test Adventure [instead_em 3.6.0]", output
         )
         self.assertNotIn(f"#{p_qsp.pk}", output)
 
@@ -151,7 +151,7 @@ class RegeneratePlayablesCommandTests(TestCase):
         self.assertNotIn(f"#{p2.pk}", output)
 
     def test_update_outdated_mode(self) -> None:
-        # Latest instead_em in assets is 3.5.2
+        # Latest instead_em in assets is 3.6.0
         outdated = Playable.objects.create(
             game=self.game,
             template="instead_em",
@@ -161,7 +161,7 @@ class RegeneratePlayablesCommandTests(TestCase):
         up_to_date = Playable.objects.create(
             game=self.game,
             template="instead_em",
-            template_version="3.5.2",
+            template_version="3.6.0",
             state=Playable.State.READY,
         )
 
@@ -174,7 +174,7 @@ class RegeneratePlayablesCommandTests(TestCase):
         )
         output = out.getvalue()
         self.assertIn(
-            f"#{outdated.pk}: Test Adventure [instead_em 3.4.0 -> 3.5.2]",
+            f"#{outdated.pk}: Test Adventure [instead_em 3.4.0 -> 3.6.0]",
             output,
         )
         self.assertNotIn(f"#{up_to_date.pk}", output)
@@ -222,13 +222,13 @@ class RegeneratePlayablesCommandTests(TestCase):
 
         self.assertIn(
             f"Regenerating #{playable.pk} "
-            "(Test Adventure, instead_em v3.5.2)... OK",
+            "(Test Adventure, instead_em v3.6.0)... OK",
             output,
         )
         self.assertIn("Regeneration complete: 1 succeeded, 0 failed.", output)
 
         playable.refresh_from_db()
-        self.assertEqual(playable.template_version, "3.5.2")
+        self.assertEqual(playable.template_version, "3.6.0")
         mock_generate.assert_called_once_with(playable.pk)
 
     @patch(
@@ -247,13 +247,13 @@ class RegeneratePlayablesCommandTests(TestCase):
         output = out.getvalue()
 
         self.assertIn(
-            f"Queued #{playable.pk} (Test Adventure, instead_em v3.5.2)",
+            f"Queued #{playable.pk} (Test Adventure, instead_em v3.6.0)",
             output,
         )
         self.assertIn("Regeneration complete: 1 succeeded, 0 failed.", output)
 
         playable.refresh_from_db()
-        self.assertEqual(playable.template_version, "3.5.2")
+        self.assertEqual(playable.template_version, "3.6.0")
         self.assertEqual(playable.state, Playable.State.PENDING)
         mock_delay.assert_called_once_with(playable.pk)
 
