@@ -341,15 +341,31 @@ class URL(models.Model):
     def GetLocalUrl(self) -> str | None:
         return self.get_local_url() or self.original_url
 
+    def _has_fetches(self) -> bool:
+        if (
+            hasattr(self, "_prefetched_objects_cache")
+            and "fetches" in self._prefetched_objects_cache
+        ):
+            return bool(self._prefetched_objects_cache["fetches"])
+        return self.fetches.exists() if self.pk else False
+
     def HasLocalCopy(self) -> bool:
-        return not self.is_uploaded and (
-            self.get_stored_file() is not None or self.local_url is not None
-        )
+        if self.is_uploaded:
+            return False
+        if self.get_stored_file() is not None:
+            return True
+        if not getattr(settings, "USE_STORED_FILE_READS", True):
+            return self.local_url is not None
+        if self._has_fetches():
+            return False
+        return self.local_url is not None
 
     def GetFs(self):
         return settings.UPLOADS_FS if self.is_uploaded else settings.BACKUPS_FS
 
-    def get_latest_fetch(self) -> "URLFetch | None":
+    def get_latest_fetch(
+        self, successful_only: bool = False
+    ) -> "URLFetch | None":
         if self._state.adding or not self.pk:
             return None
         if (
@@ -357,15 +373,23 @@ class URL(models.Model):
             and "fetches" in self._prefetched_objects_cache
         ):
             fetches = list(self.fetches.all())
+            if successful_only:
+                fetches = [f for f in fetches if not f.bad_fetch]
             if not fetches:
                 return None
             return max(fetches, key=lambda f: (f.last_fetch, f.id or 0))
+        qs = self.fetches
+        if successful_only:
+            qs = qs.filter(bad_fetch=False)
         return (
-            self.fetches
+            qs
             .select_related("stored_file")
             .order_by("-last_fetch", "-id")
             .first()
         )
+
+    def get_latest_successful_fetch(self) -> "URLFetch | None":
+        return self.get_latest_fetch(successful_only=True)
 
     @property
     def latest_fetch(self) -> "URLFetch | None":
@@ -374,7 +398,7 @@ class URL(models.Model):
     def get_stored_file(self) -> "StoredFile | None":
         if not getattr(settings, "USE_STORED_FILE_READS", True):
             return None
-        fetch = self.get_latest_fetch()
+        fetch = self.get_latest_successful_fetch()
         return fetch.stored_file if fetch is not None else None
 
     @property
@@ -384,6 +408,14 @@ class URL(models.Model):
     def get_local_url(self) -> str | None:
         if (stored := self.get_stored_file()) is not None:
             return stored.public_url
+        if not getattr(settings, "USE_STORED_FILE_READS", True):
+            if self.local_url:
+                return self.local_url
+            if self.local_filename:
+                return self.GetFs().url(self.local_filename)
+            return None
+        if self._has_fetches():
+            return None
         if self.local_url:
             return self.local_url
         if self.local_filename:
@@ -393,7 +425,7 @@ class URL(models.Model):
     def get_original_filename(self) -> str | None:
         if not getattr(settings, "USE_STORED_FILE_READS", True):
             return self.original_filename
-        fetch = self.get_latest_fetch()
+        fetch = self.get_latest_successful_fetch()
         if fetch is not None and fetch.original_filename:
             return fetch.original_filename
         return self.original_filename
@@ -401,7 +433,7 @@ class URL(models.Model):
     def get_content_type(self) -> str | None:
         if not getattr(settings, "USE_STORED_FILE_READS", True):
             return self.content_type
-        fetch = self.get_latest_fetch()
+        fetch = self.get_latest_successful_fetch()
         if fetch is not None and fetch.content_type:
             return fetch.content_type
         return self.content_type
@@ -435,7 +467,7 @@ class URL(models.Model):
 
         latest_fetch_subquery = (
             URLFetch.objects
-            .filter(url_id=OuterRef("id"))
+            .filter(url_id=OuterRef("id"), bad_fetch=False)
             .order_by("-last_fetch", "-id")
             .values("stored_file_id")[:1]
         )
@@ -600,11 +632,13 @@ class URLFetch(models.Model):
         default_permissions = ()
         indexes = [
             models.Index(fields=["url", "-last_fetch"]),
+            models.Index(fields=["url", "bad_fetch", "-last_fetch"]),
         ]
 
     def __str__(self) -> str:
+        bad = " [BAD]" if self.bad_fetch else ""
         return (
-            f"{self.url_id} -> {self.stored_file.storage_path} "
+            f"{self.url_id} -> {self.stored_file.storage_path}{bad} "
             f"({self.last_fetch})"
         )
 
@@ -620,6 +654,7 @@ class URLFetch(models.Model):
     )
     original_filename = models.CharField(null=True, blank=True, max_length=255)
     content_type = models.CharField(null=True, blank=True, max_length=255)
+    bad_fetch = models.BooleanField(default=False)
     first_fetch = models.DateTimeField(default=now)
     last_fetch = models.DateTimeField(default=now)
 
@@ -662,8 +697,13 @@ class GameURL(models.Model):
     def GetRemoteUrl(self):
         return self.url.original_url
 
-    def get_latest_fetch(self) -> "URLFetch | None":
-        return self.url.get_latest_fetch()
+    def get_latest_fetch(
+        self, successful_only: bool = False
+    ) -> "URLFetch | None":
+        return self.url.get_latest_fetch(successful_only=successful_only)
+
+    def get_latest_successful_fetch(self) -> "URLFetch | None":
+        return self.url.get_latest_successful_fetch()
 
     def get_stored_file(self) -> "StoredFile | None":
         return self.url.get_stored_file()

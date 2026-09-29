@@ -60,8 +60,13 @@ class CompetitionURL(models.Model):
     def GetRemoteUrl(self):
         return self.url.original_url
 
-    def get_latest_fetch(self) -> URLFetch | None:
-        return self.url.get_latest_fetch()
+    def get_latest_fetch(
+        self, successful_only: bool = False
+    ) -> URLFetch | None:
+        return self.url.get_latest_fetch(successful_only=successful_only)
+
+    def get_latest_successful_fetch(self) -> URLFetch | None:
+        return self.url.get_latest_successful_fetch()
 
     def get_stored_file(self) -> StoredFile | None:
         return self.url.get_stored_file()

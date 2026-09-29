@@ -4049,6 +4049,40 @@ class SourceViewsTest(TestCase):
 
     @patch.object(FileSystemStorage, "exists", return_value=True)
     @patch("curation.views.discover_blueprints")
+    def test_blueprint_candidate_check_skips_game_with_only_bad_fetch(
+        self, discover_mock, exists_mock
+    ):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Bad Fetch Game",
+            creation_time=ts,
+        )
+        url = URL.objects.create(
+            original_url="https://example.com/badfetch.zip",
+            creation_date=ts,
+        )
+        cat, _ = GameURLCategory.objects.get_or_create(
+            symbolic_id="download_direct",
+            defaults={"title": "Download", "allow_cloning": True},
+        )
+        GameURL.objects.create(game=game, url=url, category=cat)
+        sf = StoredFile.objects.create(
+            content_hash="badfetch" + "0" * 56,
+            storage_path="g/99/badfetch.zip",
+            file_size=100,
+            created_at=ts,
+        )
+        URLFetch.objects.create(url=url, stored_file=sf, bad_fetch=True)
+
+        resp = self.client.get(
+            f"/curation/blueprints/candidates/check/{game.pk}/"
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.json()["compatible"])
+
+    @patch.object(FileSystemStorage, "exists", return_value=True)
+    @patch("curation.views.discover_blueprints")
     def test_blueprint_candidate_check_partial_compatibility(
         self, discover_mock, exists_mock
     ):
@@ -6610,6 +6644,140 @@ class GameFileViewsTest(TestCase):
         mock_fetch.assert_called_once_with(url, timeout=30)
         self.assertContains(
             response, "Файл успешно сохранён: g/1/download.zip"
+        )
+
+    def test_game_file_detail_shows_mark_bad_and_good_buttons(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Toggle Bad Game",
+            creation_time=ts,
+        )
+        cat = GameURLCategory.objects.create(
+            symbolic_id="dl_toggle",
+            title="Скачать",
+            order=1,
+        )
+        url = URL.objects.create(
+            original_url="https://example.com/toggle.zip",
+            creation_date=ts,
+        )
+        GameURL.objects.create(game=game, url=url, category=cat)
+        sf1 = StoredFile.objects.create(
+            content_hash="1" * 64,
+            storage_path="g/1/good.zip",
+            file_size=100,
+            created_at=ts,
+        )
+        sf2 = StoredFile.objects.create(
+            content_hash="2" * 64,
+            storage_path="g/1/bad.zip",
+            file_size=200,
+            created_at=ts,
+        )
+        fetch1 = URLFetch.objects.create(
+            url=url,
+            stored_file=sf1,
+            bad_fetch=False,
+            first_fetch=ts,
+            last_fetch=ts,
+        )
+        fetch2 = URLFetch.objects.create(
+            url=url,
+            stored_file=sf2,
+            bad_fetch=True,
+            first_fetch=ts,
+            last_fetch=ts,
+        )
+
+        response = self.client.get(f"/curation/files/{url.pk}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            f'action="/curation/files/{url.pk}/fetches/{fetch1.pk}/toggle-bad/"',
+        )
+        self.assertContains(
+            response,
+            f'action="/curation/files/{url.pk}/fetches/{fetch2.pk}/toggle-bad/"',
+        )
+        self.assertContains(response, 'name="set_bad" value="1"')
+        self.assertContains(response, 'name="set_bad" value="0"')
+        self.assertContains(
+            response,
+            'checked title="Плохой файл (нажмите, чтобы снять отметку)"',
+        )
+        self.assertContains(response, 'title="Пометить как плохой файл"')
+
+    def test_game_file_toggle_bad_fetch(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Toggle Action Game",
+            creation_time=ts,
+        )
+        cat = GameURLCategory.objects.create(
+            symbolic_id="dl_action",
+            title="Скачать",
+            order=1,
+        )
+        url = URL.objects.create(
+            original_url="https://example.com/action.zip",
+            creation_date=ts,
+        )
+        GameURL.objects.create(game=game, url=url, category=cat)
+        sf = StoredFile.objects.create(
+            content_hash="3" * 64,
+            storage_path="g/1/action.zip",
+            file_size=300,
+            created_at=ts,
+        )
+        fetch = URLFetch.objects.create(
+            url=url,
+            stored_file=sf,
+            bad_fetch=False,
+            first_fetch=ts,
+            last_fetch=ts,
+        )
+        url.local_url = sf.public_url
+        url.file_size = sf.file_size
+        url.save()
+
+        # Reject GET
+        resp_get = self.client.get(
+            f"/curation/files/{url.pk}/fetches/{fetch.pk}/toggle-bad/"
+        )
+        self.assertEqual(resp_get.status_code, 400)
+
+        # Toggle to bad (with set_bad=1)
+        resp_toggle = self.client.post(
+            f"/curation/files/{url.pk}/fetches/{fetch.pk}/toggle-bad/",
+            {"set_bad": "1"},
+            follow=True,
+        )
+        self.assertRedirects(resp_toggle, f"/curation/files/{url.pk}/")
+        fetch.refresh_from_db()
+        self.assertTrue(fetch.bad_fetch)
+        url.refresh_from_db()
+        self.assertIsNone(url.local_url)
+        self.assertIsNone(url.file_size)
+        self.assertContains(
+            resp_toggle, f"Загрузка #{fetch.pk} помечена как плохая."
+        )
+
+        # Toggle back to good (with set_bad=0)
+        resp_toggle2 = self.client.post(
+            f"/curation/files/{url.pk}/fetches/{fetch.pk}/toggle-bad/",
+            {"set_bad": "0"},
+            follow=True,
+        )
+        self.assertRedirects(resp_toggle2, f"/curation/files/{url.pk}/")
+        fetch.refresh_from_db()
+        self.assertFalse(fetch.bad_fetch)
+        url.refresh_from_db()
+        self.assertEqual(url.local_url, sf.public_url)
+        self.assertEqual(url.file_size, sf.file_size)
+        self.assertContains(
+            resp_toggle2, f"Загрузка #{fetch.pk} помечена как хорошая."
         )
 
 

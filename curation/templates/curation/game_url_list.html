@@ -81,7 +81,7 @@
             <tr class="{% if item.failing_since or item.last_error or item.is_broken %}error{% elif item.latest_fetch_is_new %}success{% endif %}"
                 data-href="{% url 'curation_game_file_detail' item.pk %}">
                 <td>
-                    {% if item.failing_since or item.last_error or item.is_broken %}ошибка{% elif item.is_uploaded %}upload{% elif item.latest_fetch_id %}ok{% else %}—{% endif %}
+                    {% if item.failing_since or item.last_error or item.is_broken %}ошибка{% elif item.latest_fetch_bad %}<span style="color: #c5221f;">bad</span>{% elif item.is_uploaded %}upload{% elif item.latest_fetch_id %}ok{% else %}—{% endif %}
                 </td>
                 <td class="curation-truncate">{% if item.original_url %}<a href="{{ item.original_url }}" title="{{ item.original_url }}" target="_blank" rel="noopener">{{ item.original_url }}</a>{% else %}—{% endif %} (<a href="{% url 'curation_game_file_detail' item.pk %}">детали</a>)</td>
                 <td class="curation-truncate">
@@ -94,7 +94,7 @@
                 <td class="curation-nowrap">{{ item.last_attempt|date:"Y-m-d H:i"|default:"—" }}</td>
                 <td class="curation-nowrap">
                     {% if item.latest_fetch_id %}
-                    {{ item.latest_fetch_at|date:"Y-m-d H:i" }}{% if item.latest_stored_file_path %}: <a href="/f/{{ item.latest_stored_file_path }}" target="_blank" rel="noopener">файл</a>{% endif %}
+                    {{ item.latest_fetch_at|date:"Y-m-d H:i" }}{% if item.latest_stored_file_path %}: <a href="/f/{{ item.latest_stored_file_path }}" target="_blank" rel="noopener">файл</a>{% endif %}{% if item.latest_fetch_bad %} <span style="color: #c5221f; font-weight: bold;">(bad)</span>{% endif %}
                     {% else %}—{% endif %}
                 </td>
             </tr>

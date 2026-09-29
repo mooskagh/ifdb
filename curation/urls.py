@@ -83,6 +83,11 @@ urlpatterns = [
         name="curation_game_file_fetch_now",
     ),
     path(
+        "files/<int:url_id>/fetches/<int:fetch_id>/toggle-bad/",
+        superuser_required(views.game_file_toggle_bad_fetch),
+        name="curation_game_file_toggle_bad_fetch",
+    ),
+    path(
         "feeds/",
         superuser_required(views.feed_list),
         name="curation_feed_list",
