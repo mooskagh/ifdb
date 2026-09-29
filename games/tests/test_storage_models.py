@@ -132,59 +132,6 @@ class URLFetchModelTests(TestCase):
         # StoredFile remains untouched
         self.assertTrue(StoredFile.objects.filter(pk=self.file_a.pk).exists())
 
-    def test_bad_fetch_flag_and_successful_fetch(self) -> None:
-        t1 = datetime(2026, 1, 1, tzinfo=timezone.utc)
-        t2 = datetime(2026, 1, 2, tzinfo=timezone.utc)
-
-        fetch_good = URLFetch.objects.create(
-            url=self.url,
-            stored_file=self.file_a,
-            first_fetch=t1,
-            last_fetch=t1,
-        )
-        self.assertFalse(fetch_good.bad_fetch)
-        self.assertNotIn("[BAD]", str(fetch_good))
-
-        fetch_bad = URLFetch.objects.create(
-            url=self.url,
-            stored_file=self.file_b,
-            first_fetch=t2,
-            last_fetch=t2,
-            bad_fetch=True,
-        )
-        self.assertTrue(fetch_bad.bad_fetch)
-        self.assertIn("[BAD]", str(fetch_bad))
-
-        # Unfiltered latest fetch returns the true latest (even if bad)
-        self.assertEqual(self.url.get_latest_fetch(), fetch_bad)
-        self.assertEqual(
-            self.url.get_latest_fetch(successful_only=False), fetch_bad
-        )
-        self.assertEqual(self.url.latest_fetch, fetch_bad)
-
-        # Successful-only fetch returns fetch_good
-        self.assertEqual(
-            self.url.get_latest_fetch(successful_only=True), fetch_good
-        )
-        self.assertEqual(self.url.get_latest_successful_fetch(), fetch_good)
-
-        # Prefetched cache behavior
-        url_with_prefetch = (
-            URL.objects
-            .filter(pk=self.url.pk)
-            .prefetch_related("fetches__stored_file")
-            .first()
-        )
-        assert url_with_prefetch is not None
-        self.assertEqual(url_with_prefetch.get_latest_fetch(), fetch_bad)
-        self.assertEqual(
-            url_with_prefetch.get_latest_fetch(successful_only=True),
-            fetch_good,
-        )
-        self.assertEqual(
-            url_with_prefetch.get_latest_successful_fetch(), fetch_good
-        )
-
 
 class URLHealthFieldsTests(TestCase):
     def test_health_fields_default_to_none(self) -> None:

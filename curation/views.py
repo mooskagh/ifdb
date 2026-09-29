@@ -940,7 +940,7 @@ def blueprint_list(request):
                         )
                         .filter(
                             Q(url__local_filename__isnull=False)
-                            | Q(url__fetches__bad_fetch=False)
+                            | Q(url__fetches__isnull=False)
                         )
                         .select_related("url")
                     ):
@@ -1248,7 +1248,7 @@ def blueprint_list(request):
         gameurl__category__symbolic_id="download_direct",
     ).filter(
         Q(gameurl__url__local_filename__isnull=False)
-        | Q(gameurl__url__fetches__bad_fetch=False)
+        | Q(gameurl__url__fetches__isnull=False)
     )
     available_platforms = [
         p
@@ -1281,7 +1281,7 @@ def blueprint_list(request):
             )
             .filter(
                 Q(gameurl__url__local_filename__isnull=False)
-                | Q(gameurl__url__fetches__bad_fetch=False)
+                | Q(gameurl__url__fetches__isnull=False)
             )
             .exclude(state=Game.State.REDIRECT)
             .distinct()
@@ -1339,7 +1339,7 @@ def blueprint_list(request):
                     )
                     .filter(
                         Q(url__local_filename__isnull=False)
-                        | Q(url__fetches__bad_fetch=False)
+                        | Q(url__fetches__isnull=False)
                     )
                     .select_related("url", "category")
                     .order_by("pk"),
@@ -1424,7 +1424,7 @@ def blueprint_candidate_ids(request):
         )
         .filter(
             Q(gameurl__url__local_filename__isnull=False)
-            | Q(gameurl__url__fetches__bad_fetch=False)
+            | Q(gameurl__url__fetches__isnull=False)
         )
         .exclude(state=Game.State.REDIRECT)
         .distinct()
@@ -1463,7 +1463,7 @@ def blueprint_candidate_check(request, game_pk: int):
                 )
                 .filter(
                     Q(url__local_filename__isnull=False)
-                    | Q(url__fetches__bad_fetch=False)
+                    | Q(url__fetches__isnull=False)
                 )
                 .select_related("url", "category")
                 .order_by("pk"),
@@ -2074,7 +2074,6 @@ def game_file_list(request):
             latest_stored_file_path=Subquery(
                 latest_fetch.values("stored_file__storage_path")[:1]
             ),
-            latest_fetch_bad=Subquery(latest_fetch.values("bad_fetch")[:1]),
         )
         .annotate(
             latest_fetch_is_new=Case(
@@ -2244,38 +2243,6 @@ def game_file_fetch_now(request, url_id):
         messages.success(
             request,
             f"Файл успешно сохранён: {sf_path}",
-        )
-
-    return redirect("curation_game_file_detail", url_id=url.pk)
-
-
-def game_file_toggle_bad_fetch(request, url_id: int, fetch_id: int):
-    if request.method != "POST":
-        return HttpResponseBadRequest("Only POST is supported.")
-
-    url = get_object_or_404(URL, pk=url_id)
-    fetch = get_object_or_404(URLFetch, pk=fetch_id, url=url)
-
-    if "set_bad" in request.POST:
-        fetch.bad_fetch = request.POST["set_bad"] == "1"
-    else:
-        fetch.bad_fetch = not fetch.bad_fetch
-    fetch.save(update_fields=["bad_fetch"])
-
-    latest_good = url.get_latest_successful_fetch()
-    if latest_good is not None:
-        url.local_url = latest_good.stored_file.public_url
-        url.file_size = latest_good.stored_file.file_size
-    else:
-        url.local_url = None
-        url.file_size = None
-    url.save(update_fields=["local_url", "file_size"])
-
-    if fetch.bad_fetch:
-        messages.success(request, f"Загрузка #{fetch.pk} помечена как плохая.")
-    else:
-        messages.success(
-            request, f"Загрузка #{fetch.pk} помечена как хорошая."
         )
 
     return redirect("curation_game_file_detail", url_id=url.pk)

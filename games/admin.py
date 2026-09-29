@@ -206,7 +206,6 @@ class URLFetchAdmin(admin.ModelAdmin):
         "stored_file",
         "original_filename",
         "content_type",
-        "bad_fetch",
         "first_fetch",
         "last_fetch",
     ]
@@ -217,7 +216,7 @@ class URLFetchAdmin(admin.ModelAdmin):
         "original_filename",
     ]
     raw_id_fields = ["url", "stored_file"]
-    list_filter = ["bad_fetch", "content_type", "first_fetch", "last_fetch"]
+    list_filter = ["content_type", "first_fetch", "last_fetch"]
 
 
 @admin.register(URL)

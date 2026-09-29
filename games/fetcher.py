@@ -306,18 +306,8 @@ def fetch_url(
         url.failing_since = None
         url.last_error = None
         url.is_broken = False
-
-        if fetch_row.bad_fetch:
-            latest_good = url.get_latest_successful_fetch()
-            if latest_good is not None:
-                url.local_url = latest_good.stored_file.public_url
-                url.file_size = latest_good.stored_file.file_size
-            else:
-                url.local_url = None
-                url.file_size = None
-        else:
-            url.local_url = stored_file.public_url
-            url.file_size = stored_file.file_size
+        url.local_url = stored_file.public_url
+        url.file_size = stored_file.file_size
 
         update_fields = [
             "last_attempt",
@@ -327,13 +317,12 @@ def fetch_url(
             "local_url",
             "file_size",
         ]
-        if not fetch_row.bad_fetch:
-            if orig_filename:
-                url.original_filename = orig_filename[:255]
-                update_fields.append("original_filename")
-            if content_type:
-                url.content_type = content_type[:255]
-                update_fields.append("content_type")
+        if orig_filename:
+            url.original_filename = orig_filename[:255]
+            update_fields.append("original_filename")
+        if content_type:
+            url.content_type = content_type[:255]
+            update_fields.append("content_type")
 
         URL.objects.filter(pk=url.pk).filter(
             Q(last_attempt__isnull=True) | Q(last_attempt__lte=attempt_time)

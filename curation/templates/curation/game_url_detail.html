@@ -72,12 +72,11 @@
                 <th>SHA-256</th>
                 <th>Имя при скачивании</th>
                 <th>MIME-тип</th>
-                <th style="text-align: center;">Плохой</th>
             </tr>
         </thead>
         <tbody>
             {% for fetch in fetches %}
-            <tr class="{% if fetch.bad_fetch %}error{% endif %}">
+            <tr>
                 <td class="curation-nowrap">{{ fetch.first_fetch|date:"d.m.Y H:i" }}</td>
                 <td class="curation-nowrap">{{ fetch.last_fetch|date:"d.m.Y H:i" }}</td>
                 <td class="curation-truncate">
@@ -87,19 +86,9 @@
                 <td><code title="{{ fetch.stored_file.content_hash }}">{{ fetch.stored_file.content_hash|slice:":12" }}&hellip;</code></td>
                 <td>{{ fetch.original_filename|default:"—" }}</td>
                 <td>{{ fetch.content_type|default:"—" }}</td>
-                <td class="curation-nowrap" style="text-align: center;">
-                    <form method="post" action="{% url 'curation_game_file_toggle_bad_fetch' url.pk fetch.pk %}" style="display: inline; margin: 0;">
-                        {% csrf_token %}
-                        <input type="hidden" name="set_bad" value="{% if fetch.bad_fetch %}0{% else %}1{% endif %}">
-                        <input type="checkbox"
-                               {% if fetch.bad_fetch %}checked title="Плохой файл (нажмите, чтобы снять отметку)"{% else %}title="Пометить как плохой файл"{% endif %}
-                               style="cursor: pointer;"
-                               onchange="if (confirm(this.checked ? 'Пометить эту загрузку как плохую? (Файл перестанет использоваться в плеере и раздаче)' : 'Снять пометку плохого файла с этой загрузки?')) { this.form.submit(); } else { this.checked = !this.checked; }">
-                    </form>
-                </td>
             </tr>
             {% empty %}
-            <tr><td colspan="8">Загрузок нет.</td></tr>
+            <tr><td colspan="7">Загрузок нет.</td></tr>
             {% endfor %}
         </tbody>
     </table>
