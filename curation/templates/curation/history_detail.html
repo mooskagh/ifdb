@@ -85,9 +85,13 @@
                                 <a href="{{ playable_file.game_url.url.original_url }}" title="{{ playable_file.game_url.url.original_url }}">{{ playable_file.game_url.url.original_filename|default:playable_file.game_url.url.original_url }}</a>
                             </div>
                             <div class="curation-playable-file-local">
-                                <span>Локальная копия:</span>
+                                <a href="{% url 'curation_game_file_detail' playable_file.game_url.url.pk %}">Локальная копия:</a>
                                 {% if playable_file.has_local_copy %}
-                                    <span class="curation-playable-local-badge curation-playable-local-badge--yes">Есть</span>
+                                    {% if playable_file.local_url %}
+                                        <a href="{{ playable_file.local_url }}" class="curation-playable-local-badge curation-playable-local-badge--yes">Есть</a>
+                                    {% else %}
+                                        <span class="curation-playable-local-badge curation-playable-local-badge--yes">Есть</span>
+                                    {% endif %}
                                 {% else %}
                                     <span class="curation-playable-local-badge curation-playable-local-badge--no">Нет</span>
                                 {% endif %}

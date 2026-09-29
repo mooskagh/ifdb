@@ -384,7 +384,11 @@ class URL(models.Model):
     def get_local_url(self) -> str | None:
         if (stored := self.get_stored_file()) is not None:
             return stored.public_url
-        return self.local_url
+        if self.local_url:
+            return self.local_url
+        if self.local_filename:
+            return self.GetFs().url(self.local_filename)
+        return None
 
     def get_original_filename(self) -> str | None:
         if not getattr(settings, "USE_STORED_FILE_READS", True):
