@@ -170,6 +170,10 @@ class PlayableFile:
             (result for result in self.compatibility if result.accepted), None
         )
 
+    @property
+    def local_url(self) -> str | None:
+        return self.game_url.get_local_url()
+
 
 @dataclass(frozen=True, slots=True)
 class CandidateCreateItem:
@@ -200,6 +204,7 @@ def _build_playable_files(
         GameURL.objects
         .filter(game_id=game_id, category__symbolic_id="download_direct")
         .select_related("url", "category")
+        .prefetch_related("url__fetches__stored_file")
         .order_by("pk")
     )
     playables_by_url: dict[int, list[Playable]] = defaultdict(list)

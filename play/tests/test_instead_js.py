@@ -51,6 +51,14 @@ def _write_game_zip(path: Path, member_name: str, content: str = "") -> None:
         zf.writestr(member_name, content)
 
 
+def _setup_assets(assets: Path, version: str = "2.5.0") -> None:
+    assets.mkdir(parents=True, exist_ok=True)
+    (assets / "viewport.css").write_text("body { overflow: hidden; }")
+    (assets / "viewport.js").write_text("console.log('viewport');")
+    release_zip = assets / "runtime" / f"instead-js-{version}.zip"
+    _write_release_archive(release_zip)
+
+
 class InsteadJsTests(SimpleTestCase):
     def test_discovered_by_discover_blueprints(self) -> None:
         blueprints = {b.name: b.blueprint for b in discover_blueprints()}
@@ -96,8 +104,7 @@ class InsteadJsTests(SimpleTestCase):
         with TemporaryDirectory() as directory:
             root = Path(directory)
             assets = root / "assets"
-            release_zip = assets / "runtime" / "instead-js-2.5.0.zip"
-            _write_release_archive(release_zip)
+            _setup_assets(assets)
 
             game_file = root / "game.zip"
             with ZipFile(game_file, "w") as zf:
@@ -135,6 +142,15 @@ class InsteadJsTests(SimpleTestCase):
             )
             self.assertIn(TELEMETRY_SCRIPT, index_html)
             self.assertIn(
+                '<link rel="stylesheet" type="text/css" href="viewport.css">',
+                index_html,
+            )
+            self.assertIn(
+                '<script type="text/javascript" src="viewport.js" defer>'
+                "</script>",
+                index_html,
+            )
+            self.assertIn(
                 "<title>Space Odyssey Deluxe - INSTEAD.js</title>", index_html
             )
             self.assertIn("mute: false", index_html)
@@ -142,6 +158,8 @@ class InsteadJsTests(SimpleTestCase):
             # Runtime files present, tutorial3 excluded
             self.assertTrue((destination / "instead.js").is_file())
             self.assertTrue((destination / "style.css").is_file())
+            self.assertTrue((destination / "viewport.css").is_file())
+            self.assertTrue((destination / "viewport.js").is_file())
             self.assertTrue((destination / "stead3.json").is_file())
             self.assertTrue(
                 (destination / "themes" / "default" / "theme.ini").is_file()
@@ -172,8 +190,7 @@ class InsteadJsTests(SimpleTestCase):
         with TemporaryDirectory() as directory:
             root = Path(directory)
             assets = root / "assets"
-            release_zip = assets / "runtime" / "instead-js-2.5.0.zip"
-            _write_release_archive(release_zip)
+            _setup_assets(assets)
 
             game_file = root / "game.zip"
             with ZipFile(game_file, "w") as zf:
@@ -204,8 +221,7 @@ class InsteadJsTests(SimpleTestCase):
         with TemporaryDirectory() as directory:
             root = Path(directory)
             assets = root / "assets"
-            release_zip = assets / "runtime" / "instead-js-2.5.0.zip"
-            _write_release_archive(release_zip)
+            _setup_assets(assets)
 
             game_file = root / "game.zip"
             _write_game_zip(game_file, "main.lua", "return true")
@@ -247,6 +263,17 @@ class InsteadJsTests(SimpleTestCase):
                 encoding="utf-8"
             )
             self.assertIn(TELEMETRY_SCRIPT, index_html)
+            self.assertIn(
+                '<link rel="stylesheet" type="text/css" href="viewport.css">',
+                index_html,
+            )
+            self.assertIn(
+                '<script type="text/javascript" src="viewport.js" defer>'
+                "</script>",
+                index_html,
+            )
+            self.assertTrue((destination / "viewport.css").is_file())
+            self.assertTrue((destination / "viewport.js").is_file())
             self.assertTrue(
                 (destination / "games" / "games_list.json").is_file()
             )

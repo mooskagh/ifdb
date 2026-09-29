@@ -3290,6 +3290,41 @@ class SourceViewsTest(TestCase):
         )
         self.assertContains(response, "Есть", count=2)
         self.assertContains(response, "Нет")
+        self.assertContains(
+            response,
+            f'<a href="/curation/files/{backup.url.pk}/">Локальная копия:</a>',
+        )
+        self.assertContains(
+            response,
+            f'<a href="/curation/files/{upload.url.pk}/">Локальная копия:</a>',
+        )
+        self.assertContains(
+            response,
+            f'<a href="/curation/files/{remote.url.pk}/">Локальная копия:</a>',
+        )
+        self.assertContains(
+            response,
+            (
+                '<a href="/f/backups/backup.zip" class="'
+                "curation-playable-local-badge "
+                'curation-playable-local-badge--yes">Есть</a>'
+            ),
+        )
+        self.assertContains(
+            response,
+            (
+                '<a href="/f/uploads/upload.zip" class="'
+                "curation-playable-local-badge "
+                'curation-playable-local-badge--yes">Есть</a>'
+            ),
+        )
+        self.assertContains(
+            response,
+            (
+                '<span class="curation-playable-local-badge '
+                'curation-playable-local-badge--no">Нет</span>'
+            ),
+        )
         discover_mock.assert_not_called()
         exists_mock.assert_not_called()
 
@@ -3320,6 +3355,45 @@ class SourceViewsTest(TestCase):
                 link.url.refresh_from_db()
                 self.assertEqual(link.url.local_filename, "game.zip")
                 self.assertTrue(link.url.is_uploaded)
+
+    def test_history_playable_links_with_stored_file(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Stored file game",
+            creation_time=ts,
+        )
+        history = GameCuration.objects.create(game=game)
+        link = self._download_link(
+            game,
+            "https://example.com/game.zip",
+            original_filename="game.zip",
+        )
+        stored_file = StoredFile.objects.create(
+            content_hash="a" * 64,
+            storage_path="g/123/game.zip",
+            file_size=1024,
+        )
+        URLFetch.objects.create(
+            url=link.url,
+            stored_file=stored_file,
+            first_fetch=ts,
+            last_fetch=ts,
+        )
+
+        response = self.client.get(f"/curation/{history.pk}/")
+        self.assertContains(
+            response,
+            f'<a href="/curation/files/{link.url.pk}/">Локальная копия:</a>',
+        )
+        self.assertContains(
+            response,
+            (
+                f'<a href="{stored_file.public_url}" class="'
+                "curation-playable-local-badge "
+                'curation-playable-local-badge--yes">Есть</a>'
+            ),
+        )
 
     @patch("curation.views.discover_blueprints")
     def test_history_playable_compatibility_checks_all_local_files(

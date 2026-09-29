@@ -27,6 +27,15 @@ _IMAGE_EXTENSIONS = frozenset((
     ".tiff",
     ".tif",
 ))
+_VIEWPORT_FILE = "viewport.css"
+_VIEWPORT_SCRIPT_FILE = "viewport.js"
+_VIEWPORT_LINK = (
+    '<link rel="stylesheet" type="text/css" href="viewport.css">\n'
+)
+_VIEWPORT_SCRIPT = (
+    '<script type="text/javascript" src="viewport.js" defer></script>\n'
+)
+_HEAD_TAG = re.compile(r"</head>", re.IGNORECASE)
 _TITLE_TAG = re.compile(r"<title>[^<]*</title>", re.IGNORECASE)
 _MUTE_SETTING = re.compile(r"mute\s*:\s*(?:true|false)")
 
@@ -119,6 +128,11 @@ def _extract_runtime(
                 )
             if not mute:
                 raw_html = _MUTE_SETTING.sub("mute: false", raw_html, count=1)
+            raw_html = _HEAD_TAG.sub(
+                f"    {_VIEWPORT_LINK}    {_VIEWPORT_SCRIPT}</head>",
+                raw_html,
+                count=1,
+            )
             html_with_telemetry = insert_telemetry(raw_html)
             (stage / "index.html").write_text(
                 html_with_telemetry, encoding="utf-8"
@@ -129,6 +143,11 @@ def _extract_runtime(
         target_file.parent.mkdir(parents=True, exist_ok=True)
         with runtime.open(member) as src, target_file.open("wb") as dst:
             shutil.copyfileobj(src, dst)
+
+    shutil.copyfile(ASSETS_DIR / _VIEWPORT_FILE, stage / _VIEWPORT_FILE)
+    shutil.copyfile(
+        ASSETS_DIR / _VIEWPORT_SCRIPT_FILE, stage / _VIEWPORT_SCRIPT_FILE
+    )
 
 
 def _read_lua_text(path: Path) -> str:
