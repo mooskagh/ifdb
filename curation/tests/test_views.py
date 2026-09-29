@@ -6528,7 +6528,7 @@ class GameFileViewsTest(TestCase):
             file_size=2048,
             created_at=ts,
         )
-        URLFetch.objects.create(
+        fetch1 = URLFetch.objects.create(
             url=url,
             stored_file=sf1,
             original_filename="detail_old.zip",
@@ -6536,7 +6536,7 @@ class GameFileViewsTest(TestCase):
             first_fetch=ts - timedelta(days=1),
             last_fetch=ts - timedelta(days=1),
         )
-        URLFetch.objects.create(
+        fetch2 = URLFetch.objects.create(
             url=url,
             stored_file=sf2,
             original_filename="detail_new.zip",
@@ -6568,6 +6568,85 @@ class GameFileViewsTest(TestCase):
         self.assertContains(response, "g/123/detail_new.zip")
         self.assertContains(response, "/f/backups/detail_old.zip")
         self.assertContains(response, "/f/g/123/detail_new.zip")
+        self.assertContains(
+            response,
+            f'action="/curation/files/{url.pk}/fetches/{fetch1.pk}/delete/"',
+        )
+        self.assertContains(
+            response,
+            f'action="/curation/files/{url.pk}/fetches/{fetch2.pk}/delete/"',
+        )
+        self.assertContains(response, "удалить")
+
+    def test_game_file_delete_fetch(self):
+        ts = timezone.now()
+        game = Game.objects.create(title="Delete Fetch Game", creation_time=ts)
+        cat = GameURLCategory.objects.create(
+            symbolic_id="dl_del", title="Скачать", order=1
+        )
+        url = URL.objects.create(
+            original_url="https://example.com/delete_test.zip",
+            creation_date=ts,
+        )
+        GameURL.objects.create(game=game, url=url, category=cat)
+        sf1 = StoredFile.objects.create(
+            content_hash="1" * 64,
+            storage_path="backups/old.zip",
+            file_size=100,
+            created_at=ts - timedelta(days=1),
+        )
+        sf2 = StoredFile.objects.create(
+            content_hash="2" * 64,
+            storage_path="g/1/new.zip",
+            file_size=200,
+            created_at=ts,
+        )
+        fetch1 = URLFetch.objects.create(
+            url=url,
+            stored_file=sf1,
+            first_fetch=ts - timedelta(days=1),
+            last_fetch=ts - timedelta(days=1),
+        )
+        fetch2 = URLFetch.objects.create(
+            url=url,
+            stored_file=sf2,
+            first_fetch=ts,
+            last_fetch=ts,
+        )
+        url.local_url = sf2.public_url
+        url.file_size = sf2.file_size
+        url.save()
+
+        # Reject GET
+        resp_get = self.client.get(
+            f"/curation/files/{url.pk}/fetches/{fetch2.pk}/delete/"
+        )
+        self.assertEqual(resp_get.status_code, 400)
+
+        # POST delete newest fetch
+        resp_post = self.client.post(
+            f"/curation/files/{url.pk}/fetches/{fetch2.pk}/delete/",
+            follow=True,
+        )
+        self.assertRedirects(resp_post, f"/curation/files/{url.pk}/")
+        self.assertFalse(URLFetch.objects.filter(pk=fetch2.pk).exists())
+        self.assertTrue(URLFetch.objects.filter(pk=fetch1.pk).exists())
+
+        url.refresh_from_db()
+        self.assertEqual(url.local_url, sf1.public_url)
+        self.assertEqual(url.file_size, sf1.file_size)
+
+        # POST delete remaining fetch
+        resp_post2 = self.client.post(
+            f"/curation/files/{url.pk}/fetches/{fetch1.pk}/delete/",
+            follow=True,
+        )
+        self.assertRedirects(resp_post2, f"/curation/files/{url.pk}/")
+        self.assertFalse(URLFetch.objects.filter(pk=fetch1.pk).exists())
+
+        url.refresh_from_db()
+        self.assertIsNone(url.local_url)
+        self.assertIsNone(url.file_size)
 
     @patch("curation.views.fetch_url")
     def test_game_file_fetch_now(self, mock_fetch):

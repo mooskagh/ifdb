@@ -2248,6 +2248,29 @@ def game_file_fetch_now(request, url_id):
     return redirect("curation_game_file_detail", url_id=url.pk)
 
 
+def game_file_delete_fetch(
+    request: HttpRequest, url_id: int, fetch_id: int
+) -> HttpResponse:
+    if request.method != "POST":
+        return HttpResponseBadRequest("Only POST is supported.")
+
+    url = get_object_or_404(URL, pk=url_id)
+    fetch = get_object_or_404(URLFetch, pk=fetch_id, url=url)
+    fetch.delete()
+
+    new_latest = url.get_latest_fetch()
+    if new_latest is not None:
+        url.local_url = new_latest.stored_file.public_url
+        url.file_size = new_latest.stored_file.file_size
+    else:
+        url.local_url = None
+        url.file_size = None
+    url.save(update_fields=["local_url", "file_size"])
+
+    messages.success(request, f"Запись о загрузке #{fetch_id} удалена.")
+    return redirect("curation_game_file_detail", url_id=url.pk)
+
+
 def feed_list(request):
     q = request.GET.get("q", "").strip()
     state = request.GET.get("state", "")
