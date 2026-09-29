@@ -58,8 +58,13 @@
                     </select>
                 </div>
                 <div class="curation-filter-field">
-                    <input type="hidden" name="multiple_versions" value="0">
-                    <label class="curation-filter-checkbox"><input type="checkbox" name="multiple_versions" value="1" {% if multiple_versions %}checked{% endif %}> Больше одной версии</label>
+                    <label for="curation-game-url-versions">Количество версий</label>
+                    <select id="curation-game-url-versions" name="versions">
+                        <option value="" {% if not versions %}selected{% endif %}>любое</option>
+                        <option value="0" {% if versions == "0" %}selected{% endif %}>0</option>
+                        <option value=">=2" {% if versions == ">=2" %}selected{% endif %}>⩾2</option>
+                        <option value=">=3" {% if versions == ">=3" %}selected{% endif %}>⩾3</option>
+                    </select>
                 </div>
             </div>
             <button type="submit">Показать</button>
@@ -105,9 +110,9 @@
     </table>
     {% if page.has_other_pages %}
     <div class="curation-pagination">
-        {% if page.has_previous %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&attached={{ attached }}&multiple_versions={% if multiple_versions %}1{% else %}0{% endif %}&downloadable={% if downloadable %}1{% else %}0{% endif %}&page={{ page.previous_page_number }}">← Назад</a>{% endif %}
+        {% if page.has_previous %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&attached={{ attached }}&versions={{ versions|urlencode }}&downloadable={% if downloadable %}1{% else %}0{% endif %}&page={{ page.previous_page_number }}">← Назад</a>{% endif %}
         <span>Страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
-        {% if page.has_next %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&attached={{ attached }}&multiple_versions={% if multiple_versions %}1{% else %}0{% endif %}&downloadable={% if downloadable %}1{% else %}0{% endif %}&page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
+        {% if page.has_next %}<a href="?q={{ q|urlencode }}&category={{ category_id }}&state={{ state }}&sort={{ sort }}&attached={{ attached }}&versions={{ versions|urlencode }}&downloadable={% if downloadable %}1{% else %}0{% endif %}&page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
     </div>
     {% endif %}
 </div>

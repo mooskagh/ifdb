@@ -72,6 +72,7 @@
                 <th>SHA-256</th>
                 <th>Имя при скачивании</th>
                 <th>MIME-тип</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -86,9 +87,15 @@
                 <td><code title="{{ fetch.stored_file.content_hash }}">{{ fetch.stored_file.content_hash|slice:":12" }}&hellip;</code></td>
                 <td>{{ fetch.original_filename|default:"—" }}</td>
                 <td>{{ fetch.content_type|default:"—" }}</td>
+                <td class="curation-nowrap">
+                    <form method="post" action="{% url 'curation_game_file_delete_fetch' url.pk fetch.pk %}" style="display: inline; margin: 0;" data-confirm="Удалить запись о загрузке #{{ fetch.pk }}?" onsubmit="return confirm('Удалить запись о загрузке #{{ fetch.pk }}?');">
+                        {% csrf_token %}
+                        <button type="submit" style="color: #c5221f;">удалить</button>
+                    </form>
+                </td>
             </tr>
             {% empty %}
-            <tr><td colspan="7">Загрузок нет.</td></tr>
+            <tr><td colspan="8">Загрузок нет.</td></tr>
             {% endfor %}
         </tbody>
     </table>

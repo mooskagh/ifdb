@@ -9,7 +9,7 @@ from enum import Enum
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 from uuid import uuid4
 
 from django.conf import settings
@@ -24,6 +24,54 @@ from games.models import URL, StoredFile, URLFetch
 FILENAME_RE = re.compile(
     r"^.*?\b((?:%[0-9a-f]{2}|[$:+()_\w\d\.])+\.[\w\d]{2,4})\b[^/]*$"
 )
+INSTEAD_NOT_FOUND_RE = re.compile(rb"File not found: [^\r\n]+\r?\n?")
+QUESTBOOK_ERROR_RE = re.compile(
+    r'<div class="card-header">\s*<h4[^>]*>Общая ошибка</h4>\s*</div>'
+    r'\s*<div class="card-body">\s*<div class="text-center">'
+    r"\s*Ошибка запроса\s*</div>",
+    re.IGNORECASE,
+)
+ERROR_RESPONSE_LIMIT = 128 * 1024
+
+
+def _instead_not_found(content_type: str | None, body: bytes) -> bool:
+    return bool(
+        len(body) <= 256
+        and (not content_type or content_type.startswith("text/"))
+        and INSTEAD_NOT_FOUND_RE.fullmatch(body)
+    )
+
+
+def _questbook_request_error(content_type: str | None, body: bytes) -> bool:
+    if content_type and not content_type.startswith("text/html"):
+        return False
+    charset = re.search(rb'<meta\s+charset=["\']?([\w-]+)', body, re.I)
+    encoding = charset.group(1).decode("ascii") if charset else "utf-8"
+    try:
+        html = body.decode(encoding)
+    except (LookupError, UnicodeError):
+        return False
+    return bool(QUESTBOOK_ERROR_RE.search(html))
+
+
+ERROR_RESPONSE_RULES: tuple[
+    tuple[str, str, Callable[[str | None, bytes], bool]], ...
+] = (
+    ("instead-games.ru", "File not found", _instead_not_found),
+    ("quest-book.ru", "Request error", _questbook_request_error),
+)
+
+
+def error_response_reason(
+    url: str, content_type: str | None, body: bytes, size: int
+) -> str | None:
+    if size > ERROR_RESPONSE_LIMIT:
+        return None
+    host = (urlsplit(url).hostname or "").lower()
+    for domain, reason, matches in ERROR_RESPONSE_RULES:
+        if host in (domain, f"www.{domain}") and matches(content_type, body):
+            return f"{domain}: {reason}"
+    return None
 
 
 class FetchOutcome(Enum):
@@ -199,6 +247,7 @@ def fetch_url(
     try:
         digest = sha256()
         bytes_fetched = 0
+        response_prefix = bytearray()
         orig_filename: str | None = None
         content_type: str | None = None
 
@@ -219,12 +268,24 @@ def fetch_url(
             while chunk := resp.read(64 * 1024):
                 digest.update(chunk)
                 bytes_fetched += len(chunk)
+                if len(response_prefix) < ERROR_RESPONSE_LIMIT:
+                    response_prefix.extend(
+                        chunk[: ERROR_RESPONSE_LIMIT - len(response_prefix)]
+                    )
                 tmp_file.write(chunk)
             tmp_file.flush()
         finally:
             tmp_file.close()
             if hasattr(resp, "close"):
                 resp.close()
+
+        if reason := error_response_reason(
+            url.original_url,
+            content_type,
+            bytes(response_prefix),
+            bytes_fetched,
+        ):
+            raise ValueError(reason)
 
         content_hash = digest.hexdigest()
 

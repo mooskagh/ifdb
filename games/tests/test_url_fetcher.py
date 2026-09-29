@@ -105,6 +105,94 @@ class BaseFetcherTestCase(TestCase):
 
 
 class TestFetchUrlHistory(BaseFetcherTestCase):
+    def test_instead_error_body_is_a_failed_fetch_for_any_file_category(
+        self,
+    ) -> None:
+        game = self.create_game(197)
+        url = self.create_url(
+            "https://instead-games.ru/downloader.php?id=42", game=game
+        )
+        poster = GameURLCategory.objects.create(
+            title="Poster", allow_cloning=True
+        )
+        GameURL.objects.filter(url=url).update(category=poster)
+
+        good = fetch_url(
+            url,
+            downloader=lambda _url, *, timeout: MockResponse(b"image bytes"),
+        )
+        result = fetch_url(
+            url,
+            downloader=lambda _url, *, timeout: MockResponse(
+                b"File not found: poster.jpg", content_type="text/html"
+            ),
+        )
+
+        self.assertEqual(result.outcome, FetchOutcome.FAILED)
+        self.assertIn("File not found", result.error or "")
+        self.assertEqual(URLFetch.objects.count(), 1)
+        self.assertEqual(StoredFile.objects.count(), 1)
+        url.refresh_from_db()
+        self.assertTrue(url.is_broken)
+        self.assertEqual(url.get_stored_file(), good.stored_file)
+
+    def test_questbook_error_card_is_a_failed_fetch(self) -> None:
+        game = self.create_game(196)
+        url = self.create_url(
+            "https://quest-book.ru/online/other/download/9/txt/", game=game
+        )
+        page = (
+            '<!DOCTYPE html><meta charset="windows-1251">'
+            + "<nav>КвестБук</nav>" * 100
+            + (
+                '<div class="card-header"><h4 class="mt-0">'
+                "Общая ошибка</h4></div>"
+                '<div class="card-body"><div class="text-center">'
+                "Ошибка запроса</div></div>"
+            )
+        ).encode("cp1251")
+
+        result = fetch_url(
+            url,
+            downloader=lambda _url, *, timeout: MockResponse(
+                page, content_type="text/html"
+            ),
+        )
+
+        self.assertEqual(result.outcome, FetchOutcome.FAILED)
+        self.assertIn("Request error", result.error or "")
+        self.assertFalse(URLFetch.objects.exists())
+        self.assertFalse(StoredFile.objects.exists())
+        url.refresh_from_db()
+        self.assertTrue(url.is_broken)
+
+    def test_error_words_inside_valid_content_are_not_rejected(self) -> None:
+        game = self.create_game(195)
+        instead = self.create_url(
+            "https://instead-games.ru/download/game.html", game=game
+        )
+        questbook = self.create_url(
+            "https://quest-book.ru/online/game", game=game
+        )
+        other = self.create_url("https://example.com/game.txt", game=game)
+        bodies = (
+            (instead, b"<html>File not found: a character's line</html>"),
+            (
+                questbook,
+                "<html><p>Общая ошибка: Ошибка запроса</p></html>".encode(),
+            ),
+            (other, b"File not found: a line of dialogue"),
+        )
+        for url, body in bodies:
+            with self.subTest(url=url.original_url):
+                result = fetch_url(
+                    url,
+                    downloader=lambda _url, *, timeout: MockResponse(
+                        body, content_type="text/html"
+                    ),
+                )
+                self.assertEqual(result.outcome, FetchOutcome.CREATED)
+
     def test_long_encoded_public_url_is_saved(self) -> None:
         game = self.create_game(198)
         url = self.create_url(game=game)

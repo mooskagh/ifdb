@@ -2052,7 +2052,11 @@ def game_file_list(request):
     downloadable = (
         attached != "no" and request.GET.get("downloadable", "1") == "1"
     )
-    multiple_versions = request.GET.get("multiple_versions") == "1"
+    versions = (
+        request.GET.get("versions") or request.GET.get("version_count") or ""
+    ).strip()
+    if not versions and request.GET.get("multiple_versions") == "1":
+        versions = ">=2"
 
     latest_fetch = URLFetch.objects.filter(url=OuterRef("pk")).order_by(
         "-last_fetch", "-pk"
@@ -2088,8 +2092,16 @@ def game_file_list(request):
         urls = urls.filter(gameurl__isnull=False)
     elif attached == "no":
         urls = urls.filter(gameurl__isnull=True)
-    if multiple_versions:
-        urls = urls.filter(version_count__gt=1)
+    if versions == "0":
+        urls = urls.filter(version_count=0)
+    elif versions in (">=2", "gte2", "2+", "≥2", "⩾2"):
+        versions = ">=2"
+        urls = urls.filter(version_count__gte=2)
+    elif versions in (">=3", "gte3", "3+", "≥3", "⩾3"):
+        versions = ">=3"
+        urls = urls.filter(version_count__gte=3)
+    else:
+        versions = ""
 
     if q:
         matching_games = GameURL.objects.filter(url=OuterRef("pk")).filter(
@@ -2184,7 +2196,7 @@ def game_file_list(request):
             "sort": sort,
             "downloadable": downloadable,
             "attached": attached,
-            "multiple_versions": multiple_versions,
+            "versions": versions,
             "categories": categories,
         },
     )
@@ -2245,6 +2257,29 @@ def game_file_fetch_now(request, url_id):
             f"Файл успешно сохранён: {sf_path}",
         )
 
+    return redirect("curation_game_file_detail", url_id=url.pk)
+
+
+def game_file_delete_fetch(
+    request: HttpRequest, url_id: int, fetch_id: int
+) -> HttpResponse:
+    if request.method != "POST":
+        return HttpResponseBadRequest("Only POST is supported.")
+
+    url = get_object_or_404(URL, pk=url_id)
+    fetch = get_object_or_404(URLFetch, pk=fetch_id, url=url)
+    fetch.delete()
+
+    new_latest = url.get_latest_fetch()
+    if new_latest is not None:
+        url.local_url = new_latest.stored_file.public_url
+        url.file_size = new_latest.stored_file.file_size
+    else:
+        url.local_url = None
+        url.file_size = None
+    url.save(update_fields=["local_url", "file_size"])
+
+    messages.success(request, f"Запись о загрузке #{fetch_id} удалена.")
     return redirect("curation_game_file_detail", url_id=url.pk)
 
 

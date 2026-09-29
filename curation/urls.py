@@ -83,6 +83,11 @@ urlpatterns = [
         name="curation_game_file_fetch_now",
     ),
     path(
+        "files/<int:url_id>/fetches/<int:fetch_id>/delete/",
+        superuser_required(views.game_file_delete_fetch),
+        name="curation_game_file_delete_fetch",
+    ),
+    path(
         "feeds/",
         superuser_required(views.feed_list),
         name="curation_feed_list",

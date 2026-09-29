@@ -6451,6 +6451,14 @@ class GameFileViewsTest(TestCase):
             ok_to_clone=True,
         )
         GameURL.objects.create(game=game, url=versioned, category=category)
+        three_versions = URL.objects.create(
+            original_url="https://example.com/three_versions.zip",
+            creation_date=ts,
+            ok_to_clone=True,
+        )
+        GameURL.objects.create(
+            game=game, url=three_versions, category=category
+        )
         unattached = URL.objects.create(
             original_url="https://example.com/unattached.zip",
             creation_date=ts,
@@ -6462,20 +6470,75 @@ class GameFileViewsTest(TestCase):
                 file_size=1,
             )
             URLFetch.objects.create(url=versioned, stored_file=stored)
+        for index in range(3):
+            stored = StoredFile.objects.create(
+                content_hash=f"a{index}" * 32,
+                storage_path=f"g/1/three-{index}.zip",
+                file_size=1,
+            )
+            URLFetch.objects.create(url=three_versions, stored_file=stored)
 
         response = self.client.get("/curation/files/")
-        self.assertEqual(
-            [item.pk for item in response.context["page"]], [versioned.pk]
+        self.assertCountEqual(
+            [item.pk for item in response.context["page"]],
+            [versioned.pk, three_versions.pk],
         )
         self.assertContains(response, 'title="Количество версий"')
-        self.assertEqual(response.context["page"][0].version_count, 2)
+        self.assertContains(
+            response,
+            '<label for="curation-game-url-versions">'
+            "Количество версий</label>",
+        )
+        self.assertContains(
+            response,
+            '<select id="curation-game-url-versions" name="versions">',
+        )
+        self.assertContains(
+            response, '<option value="" selected>любое</option>'
+        )
+        self.assertContains(response, '<option value="0" >0</option>')
+        self.assertContains(response, '<option value=">=2" >⩾2</option>')
+        self.assertContains(response, '<option value=">=3" >⩾3</option>')
 
-        response = self.client.get(
+        # Filter >=2
+        resp_gte2 = self.client.get("/curation/files/", {"versions": ">=2"})
+        self.assertCountEqual(
+            [item.pk for item in resp_gte2.context["page"]],
+            [versioned.pk, three_versions.pk],
+        )
+        self.assertContains(
+            resp_gte2, '<option value=">=2" selected>⩾2</option>'
+        )
+
+        # Backward compatibility with multiple_versions=1
+        resp_legacy = self.client.get(
             "/curation/files/", {"multiple_versions": "1"}
         )
-        self.assertEqual(
-            [item.pk for item in response.context["page"]], [versioned.pk]
+        self.assertCountEqual(
+            [item.pk for item in resp_legacy.context["page"]],
+            [versioned.pk, three_versions.pk],
         )
+
+        # Filter >=3
+        resp_gte3 = self.client.get("/curation/files/", {"versions": ">=3"})
+        self.assertEqual(
+            [item.pk for item in resp_gte3.context["page"]],
+            [three_versions.pk],
+        )
+        self.assertContains(
+            resp_gte3, '<option value=">=3" selected>⩾3</option>'
+        )
+
+        # Filter 0
+        resp_zero = self.client.get(
+            "/curation/files/",
+            {"attached": "all", "versions": "0", "downloadable": "0"},
+        )
+        self.assertEqual(
+            [item.pk for item in resp_zero.context["page"]],
+            [unattached.pk],
+        )
+        self.assertContains(resp_zero, '<option value="0" selected>0</option>')
 
         response = self.client.get(
             "/curation/files/", {"attached": "no", "downloadable": "1"}
@@ -6491,7 +6554,7 @@ class GameFileViewsTest(TestCase):
         )
         self.assertCountEqual(
             [item.pk for item in response.context["page"]],
-            [versioned.pk, unattached.pk],
+            [versioned.pk, three_versions.pk, unattached.pk],
         )
 
     def test_game_file_detail_and_fetch_history(self):
@@ -6528,7 +6591,7 @@ class GameFileViewsTest(TestCase):
             file_size=2048,
             created_at=ts,
         )
-        URLFetch.objects.create(
+        fetch1 = URLFetch.objects.create(
             url=url,
             stored_file=sf1,
             original_filename="detail_old.zip",
@@ -6536,7 +6599,7 @@ class GameFileViewsTest(TestCase):
             first_fetch=ts - timedelta(days=1),
             last_fetch=ts - timedelta(days=1),
         )
-        URLFetch.objects.create(
+        fetch2 = URLFetch.objects.create(
             url=url,
             stored_file=sf2,
             original_filename="detail_new.zip",
@@ -6568,6 +6631,85 @@ class GameFileViewsTest(TestCase):
         self.assertContains(response, "g/123/detail_new.zip")
         self.assertContains(response, "/f/backups/detail_old.zip")
         self.assertContains(response, "/f/g/123/detail_new.zip")
+        self.assertContains(
+            response,
+            f'action="/curation/files/{url.pk}/fetches/{fetch1.pk}/delete/"',
+        )
+        self.assertContains(
+            response,
+            f'action="/curation/files/{url.pk}/fetches/{fetch2.pk}/delete/"',
+        )
+        self.assertContains(response, "удалить")
+
+    def test_game_file_delete_fetch(self):
+        ts = timezone.now()
+        game = Game.objects.create(title="Delete Fetch Game", creation_time=ts)
+        cat = GameURLCategory.objects.create(
+            symbolic_id="dl_del", title="Скачать", order=1
+        )
+        url = URL.objects.create(
+            original_url="https://example.com/delete_test.zip",
+            creation_date=ts,
+        )
+        GameURL.objects.create(game=game, url=url, category=cat)
+        sf1 = StoredFile.objects.create(
+            content_hash="1" * 64,
+            storage_path="backups/old.zip",
+            file_size=100,
+            created_at=ts - timedelta(days=1),
+        )
+        sf2 = StoredFile.objects.create(
+            content_hash="2" * 64,
+            storage_path="g/1/new.zip",
+            file_size=200,
+            created_at=ts,
+        )
+        fetch1 = URLFetch.objects.create(
+            url=url,
+            stored_file=sf1,
+            first_fetch=ts - timedelta(days=1),
+            last_fetch=ts - timedelta(days=1),
+        )
+        fetch2 = URLFetch.objects.create(
+            url=url,
+            stored_file=sf2,
+            first_fetch=ts,
+            last_fetch=ts,
+        )
+        url.local_url = sf2.public_url
+        url.file_size = sf2.file_size
+        url.save()
+
+        # Reject GET
+        resp_get = self.client.get(
+            f"/curation/files/{url.pk}/fetches/{fetch2.pk}/delete/"
+        )
+        self.assertEqual(resp_get.status_code, 400)
+
+        # POST delete newest fetch
+        resp_post = self.client.post(
+            f"/curation/files/{url.pk}/fetches/{fetch2.pk}/delete/",
+            follow=True,
+        )
+        self.assertRedirects(resp_post, f"/curation/files/{url.pk}/")
+        self.assertFalse(URLFetch.objects.filter(pk=fetch2.pk).exists())
+        self.assertTrue(URLFetch.objects.filter(pk=fetch1.pk).exists())
+
+        url.refresh_from_db()
+        self.assertEqual(url.local_url, sf1.public_url)
+        self.assertEqual(url.file_size, sf1.file_size)
+
+        # POST delete remaining fetch
+        resp_post2 = self.client.post(
+            f"/curation/files/{url.pk}/fetches/{fetch1.pk}/delete/",
+            follow=True,
+        )
+        self.assertRedirects(resp_post2, f"/curation/files/{url.pk}/")
+        self.assertFalse(URLFetch.objects.filter(pk=fetch1.pk).exists())
+
+        url.refresh_from_db()
+        self.assertIsNone(url.local_url)
+        self.assertIsNone(url.file_size)
 
     @patch("curation.views.fetch_url")
     def test_game_file_fetch_now(self, mock_fetch):
