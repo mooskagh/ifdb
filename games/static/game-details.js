@@ -64,6 +64,36 @@ $(function () {
   $('.comment-box .likes').each(function () {
     setUpLikes(this);
   });
+
+  $('.button-split-arrow').click(function (e) {
+    e.stopPropagation();
+    e.preventDefault();
+    var parent = $(this).closest('.button-split');
+    var menu = parent.find('.download-dropdown-menu');
+    var isOpen = menu.hasClass('is-active');
+
+    $('.download-dropdown-menu').removeClass('is-active');
+    $('.button-split-arrow').attr('aria-expanded', 'false');
+
+    if (!isOpen) {
+      menu.addClass('is-active');
+      $(this).attr('aria-expanded', 'true');
+    }
+  });
+
+  $(document).click(function (e) {
+    if (!$(e.target).closest('.button-split').length) {
+      $('.download-dropdown-menu').removeClass('is-active');
+      $('.button-split-arrow').attr('aria-expanded', 'false');
+    }
+  });
+
+  $(document).keydown(function (e) {
+    if (e.key === 'Escape' || e.keyCode === 27) {
+      $('.download-dropdown-menu').removeClass('is-active');
+      $('.button-split-arrow').attr('aria-expanded', 'false');
+    }
+  });
 });
 
 // The rest is vanilla js rather than jQuery
