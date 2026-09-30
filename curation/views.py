@@ -1702,7 +1702,7 @@ def _render_tasks(request):
         URL.objects
         .filter(
             is_uploaded=False,
-            ok_to_clone=True,
+            gameurl__category__allow_cloning=True,
             last_attempt__isnull=True,
             gameurl__isnull=False,
         )
@@ -2116,7 +2116,9 @@ def game_file_list(request):
         except (ValueError, TypeError):
             category_id = ""
     if downloadable:
-        urls = urls.filter(is_uploaded=False, ok_to_clone=True)
+        urls = urls.filter(
+            is_uploaded=False, gameurl__category__allow_cloning=True
+        )
 
     urls = urls.distinct()
 

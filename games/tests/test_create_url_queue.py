@@ -84,8 +84,7 @@ class CreateUrlQueueTestCase(TestCase):
         )
 
     def test_create_url_queues_by_state(self) -> None:
-        url = CreateUrl("https://example.com/game.zip", ok_to_clone=True)
-        self.assertTrue(url.ok_to_clone)
+        url = CreateUrl("https://example.com/game.zip")
         self.assertFalse(url.is_uploaded)
         self.assertIsNone(url.last_attempt)
 
@@ -99,19 +98,18 @@ class CreateUrlQueueTestCase(TestCase):
         self.assertEqual(eligible[0], url)
 
     def test_newer_created_urls_appear_first_in_queue(self) -> None:
-        older = CreateUrl("https://example.com/older.zip", ok_to_clone=True)
+        older = CreateUrl("https://example.com/older.zip")
         older.creation_date = now() - timedelta(hours=1)
         older.save(update_fields=["creation_date"])
         self.attach_game(older)
 
-        newer = CreateUrl("https://example.com/newer.zip", ok_to_clone=True)
+        newer = CreateUrl("https://example.com/newer.zip")
         self.attach_game(newer)
 
         attempted = URL.objects.create(
             original_url="https://example.com/attempted.zip",
             creation_date=now() - timedelta(days=1),
             last_attempt=now() - timedelta(days=1),
-            ok_to_clone=True,
         )
         self.attach_game(attempted)
 
@@ -119,30 +117,31 @@ class CreateUrlQueueTestCase(TestCase):
         self.assertEqual(eligible[:3], [newer, older, attempted])
 
     def test_existing_url_becomes_eligible_when_cloning_enabled(self) -> None:
-        url = CreateUrl("https://example.com/no-clone.zip", ok_to_clone=False)
+        self.category.allow_cloning = False
+        self.category.save(update_fields=["allow_cloning"])
+        url = CreateUrl("https://example.com/no-clone.zip")
         self.attach_game(url)
-        self.assertFalse(url.ok_to_clone)
         self.assertNotIn(url, list(get_eligible_urls()))
 
-        updated = CreateUrl(
-            "https://example.com/no-clone.zip", ok_to_clone=True
-        )
+        self.category.allow_cloning = True
+        self.category.save(update_fields=["allow_cloning"])
+        updated = CreateUrl("https://example.com/no-clone.zip")
         self.assertEqual(url.pk, updated.pk)
-        self.assertTrue(updated.ok_to_clone)
         self.assertIn(updated, list(get_eligible_urls()))
+
+        self.category.allow_cloning = False
+        self.category.save(update_fields=["allow_cloning"])
+        self.assertNotIn(url, list(get_eligible_urls()))
 
     def test_create_url_for_upload_not_eligible(self) -> None:
         self.uploads_fs.save("uploaded.zip", ContentFile(b"ZIP DATA"))
-        url = CreateUrl(
-            "https://zok.cx/f/uploads/uploaded.zip", ok_to_clone=True
-        )
+        url = CreateUrl("https://zok.cx/f/uploads/uploaded.zip")
         self.attach_game(url)
         self.assertTrue(url.is_uploaded)
-        self.assertFalse(url.ok_to_clone)
         self.assertNotIn(url, list(get_eligible_urls()))
 
     def test_created_url_processed_by_fetch_urls_task(self) -> None:
-        url = CreateUrl("https://example.com/playable.zip", ok_to_clone=True)
+        url = CreateUrl("https://example.com/playable.zip")
         self.attach_game(url)
         resp = MockResponse(b"playable-bytes", filename="playable.zip")
 

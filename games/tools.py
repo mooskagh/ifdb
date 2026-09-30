@@ -5,6 +5,7 @@ from xml.etree import ElementTree as etree
 
 import markdown
 from django import template
+from django.contrib.auth.models import AbstractBaseUser
 from django.db.models import F
 from django.utils import timezone
 from markdown.blockprocessors import BlockProcessor
@@ -322,7 +323,7 @@ def RenderMarkdown(content, snippet_provider=None):
     return markdown.markdown(content, extensions=extensions)
 
 
-def CreateUrl(url, *, ok_to_clone, creator=None):
+def CreateUrl(url: str, *, creator: AbstractBaseUser | None = None) -> URL:
     try:
         u = URL.objects.get(original_url=url)
     except URL.DoesNotExist:
@@ -331,22 +332,12 @@ def CreateUrl(url, *, ok_to_clone, creator=None):
         u.creation_date = timezone.now()
         u.creator = creator
         u.resolve_local_file(save=False)
-        if ok_to_clone and not u.is_uploaded and not u.local_filename:
-            u.ok_to_clone = True
         u.save()
         return u
 
     if not u.local_filename:
         u.resolve_local_file(save=True)
 
-    if (
-        ok_to_clone
-        and not u.ok_to_clone
-        and not u.is_uploaded
-        and not u.local_filename
-    ):
-        u.ok_to_clone = ok_to_clone
-        u.save()
     return u
 
 

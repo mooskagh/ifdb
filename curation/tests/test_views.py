@@ -6247,7 +6247,6 @@ class GameFileViewsTest(TestCase):
             original_url="https://example.com/file_game.zip",
             creation_date=ts,
             last_attempt=ts,
-            ok_to_clone=True,
         )
         sf = StoredFile.objects.create(
             content_hash="abc1234567890abcdef1234567890abcdef",
@@ -6379,7 +6378,10 @@ class GameFileViewsTest(TestCase):
         ]
         categories = [
             GameURLCategory.objects.create(
-                symbolic_id=f"shared_{index}", title=title, order=index
+                symbolic_id=f"shared_{index}",
+                title=title,
+                order=index,
+                allow_cloning=index == 1,
             )
             for index, title in enumerate(("Скачать", "Постер"))
         ]
@@ -6388,7 +6390,6 @@ class GameFileViewsTest(TestCase):
                 original_url=f"https://example.com/{index}.zip",
                 creation_date=ts + timedelta(minutes=index),
                 last_attempt=ts + timedelta(days=index) if index < 2 else None,
-                ok_to_clone=index == 1,
                 is_uploaded=index == 2,
             )
             for index in range(3)
@@ -6448,13 +6449,11 @@ class GameFileViewsTest(TestCase):
         versioned = URL.objects.create(
             original_url="https://example.com/versioned.zip",
             creation_date=ts,
-            ok_to_clone=True,
         )
         GameURL.objects.create(game=game, url=versioned, category=category)
         three_versions = URL.objects.create(
             original_url="https://example.com/three_versions.zip",
             creation_date=ts,
-            ok_to_clone=True,
         )
         GameURL.objects.create(
             game=game, url=three_versions, category=category

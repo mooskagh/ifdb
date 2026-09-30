@@ -43,7 +43,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--force",
             action="store_true",
-            help="Fetch URLs even if ok_to_clone is False.",
+            help="Fetch URLs even if no game URL category allows cloning.",
         )
         parser.add_argument(
             "--timeout",

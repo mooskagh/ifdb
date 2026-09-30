@@ -17,7 +17,7 @@ backups should know their competition.
 - Remote identity: `original_url`
 - One local file pointer: `local_url`, `local_filename`
 - File metadata: `original_filename`, `content_type`, `file_size`
-- Backup/upload flags: `ok_to_clone`, `is_uploaded`
+- Upload flag: `is_uploaded`. Automatic backup eligibility is derived from game URL categories: at least one associated `GameURLCategory` must have `allow_cloning=True`. Uploaded URLs and URLs without game associations are excluded; `--force` bypasses only the category restriction.
 - Link health: `is_broken`
 - Creation/creator metadata
 
@@ -142,7 +142,7 @@ The generic backup flow:
 
 ## Backup Policy
 
-Replace overloaded `allow_cloning` / `ok_to_clone` behavior with explicit policy.
+Consider replacing overloaded `allow_cloning` behavior with explicit policy.
 
 Suggested values:
 

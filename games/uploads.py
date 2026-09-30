@@ -79,7 +79,6 @@ def handle_existing_game_upload(
                 original_url=url_full,
                 original_filename=orig_filename,
                 content_type=content_type,
-                ok_to_clone=False,
                 is_uploaded=True,
                 creation_date=now(),
                 file_size=stored_file.file_size,
@@ -89,13 +88,11 @@ def handle_existing_game_upload(
             url.local_url = file_url
             url.file_size = stored_file.file_size
             url.is_uploaded = True
-            url.ok_to_clone = False
             url.save(
                 update_fields=[
                     "local_url",
                     "file_size",
                     "is_uploaded",
-                    "ok_to_clone",
                 ]
             )
 
@@ -254,7 +251,6 @@ def finalize_provisional_uploads(game: Game, info: Any) -> None:
                 original_url=final_url,
                 original_filename=orig_filename[:255],
                 content_type=(content_type or "")[:255],
-                ok_to_clone=False,
                 is_uploaded=True,
                 creation_date=now(),
                 file_size=stored_file.file_size,
@@ -264,13 +260,11 @@ def finalize_provisional_uploads(game: Game, info: Any) -> None:
             final_url_obj.local_url = stored_file.public_url
             final_url_obj.file_size = stored_file.file_size
             final_url_obj.is_uploaded = True
-            final_url_obj.ok_to_clone = False
             final_url_obj.save(
                 update_fields=[
                     "local_url",
                     "file_size",
                     "is_uploaded",
-                    "ok_to_clone",
                 ]
             )
 

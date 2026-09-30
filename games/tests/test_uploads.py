@@ -81,7 +81,6 @@ class UploadMigrationTestCase(TestCase):
         self.assertEqual(stored_file.open("rb").read(), content)
 
         self.assertTrue(url.is_uploaded)
-        self.assertFalse(url.ok_to_clone)
         self.assertEqual(url.local_url, "/f/g/123/adventure.zip")
         self.assertEqual(
             url.original_url, "http://testserver/f/g/123/adventure.zip"
@@ -173,7 +172,6 @@ class UploadMigrationTestCase(TestCase):
             original_filename="story.zip",
             content_type="application/zip",
             is_uploaded=True,
-            ok_to_clone=False,
             creation_date=now(),
         )
 
@@ -235,7 +233,6 @@ class UploadMigrationTestCase(TestCase):
             local_filename=legacy_rel,
             original_filename="legacy.zip",
             is_uploaded=True,
-            ok_to_clone=False,
             creation_date=now(),
         )
 
@@ -302,7 +299,6 @@ class UploadMigrationTestCase(TestCase):
             local_url=f"/f/uploads/{filename}",
             local_filename=filename,
             is_uploaded=True,
-            ok_to_clone=False,
             creation_date=now(),
         )
 
@@ -345,7 +341,6 @@ class UploadMigrationTestCase(TestCase):
             local_url=f"/f/uploads/{filename}",
             local_filename=filename,
             is_uploaded=True,
-            ok_to_clone=False,
             creation_date=now(),
         )
 

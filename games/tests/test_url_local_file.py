@@ -30,7 +30,6 @@ class UrlLocalFileResolutionTests(TestCase):
                 self.assertEqual(url.local_url, "/f/uploads/game.zip")
                 self.assertEqual(url.file_size, len(b"ZIP DATA"))
                 self.assertEqual(url.content_type, "application/zip")
-                self.assertFalse(url.ok_to_clone)
 
     def test_resolve_local_file_with_url_encoding(self) -> None:
         with TemporaryDirectory() as tmp_dir:
@@ -55,8 +54,6 @@ class UrlLocalFileResolutionTests(TestCase):
             with override_settings(UPLOADS_FS=fs):
                 url = CreateUrl(
                     "https://zok.cx/f/uploads/uploaded.zip",
-                    ok_to_clone=True,
                 )
                 self.assertEqual(url.local_filename, "uploaded.zip")
                 self.assertTrue(url.is_uploaded)
-                self.assertFalse(url.ok_to_clone)

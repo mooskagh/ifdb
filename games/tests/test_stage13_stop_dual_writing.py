@@ -87,7 +87,6 @@ class Stage13StopDualWritingTests(TestCase):
         url = URL.objects.create(
             original_url="https://example.com/quest.zip",
             creation_date=now(),
-            ok_to_clone=True,
         )
         GameURL.objects.create(
             game=self.game,
@@ -134,7 +133,6 @@ class Stage13StopDualWritingTests(TestCase):
         url = URL.objects.create(
             original_url="https://example.com/failing.zip",
             creation_date=now(),
-            ok_to_clone=True,
         )
         GameURL.objects.create(
             game=self.game,
@@ -182,7 +180,6 @@ class Stage13StopDualWritingTests(TestCase):
         url = URL.objects.create(
             original_url="https://example.com/recover.zip",
             creation_date=now(),
-            ok_to_clone=True,
             is_broken=True,
             failing_since=now(),
             last_error="Old error",
@@ -218,7 +215,6 @@ class Stage13StopDualWritingTests(TestCase):
         url = URL.objects.create(
             original_url="https://instead-games.ru/bad.html",
             creation_date=now(),
-            ok_to_clone=True,
         )
         GameURL.objects.create(
             game=self.game,
@@ -329,7 +325,6 @@ class Stage13StopDualWritingTests(TestCase):
         url_failed = URL.objects.create(
             original_url="https://example.com/curation_fail.zip",
             creation_date=now(),
-            ok_to_clone=True,
             failing_since=now(),
             last_error="Error 500",
         )
@@ -341,7 +336,6 @@ class Stage13StopDualWritingTests(TestCase):
         url_ok = URL.objects.create(
             original_url="https://example.com/curation_ok.zip",
             creation_date=now(),
-            ok_to_clone=True,
             last_attempt=now(),
         )
         GameURL.objects.create(
@@ -352,7 +346,6 @@ class Stage13StopDualWritingTests(TestCase):
         url_unattempted = URL.objects.create(
             original_url="https://example.com/curation_unattempted.zip",
             creation_date=now(),
-            ok_to_clone=True,
             last_attempt=None,
             is_broken=True,
         )
