@@ -49,7 +49,6 @@ class TestSyncCaddyPlayables(TestCase):
             "handle": [{"handler": "file_server", "root": "/missing"}],
         }
         old_slug = {**current, "match": [{"host": ["old.play.crem.xyz"]}]}
-        mock_get.return_value.headers = {"Etag": '"routes hash"'}
         mock_get.return_value.json.return_value = [
             before,
             stale,
@@ -64,7 +63,6 @@ class TestSyncCaddyPlayables(TestCase):
         mock_patch.assert_called_once_with(
             self.routes_url,
             json=[before, current, after],
-            headers={"If-Match": '"routes hash"'},
             timeout=5,
         )
 
@@ -73,7 +71,6 @@ class TestSyncCaddyPlayables(TestCase):
     def test_already_synced_routes_are_not_changed(
         self, mock_get: MagicMock, mock_patch: MagicMock
     ) -> None:
-        mock_get.return_value.headers = {"Etag": '"routes hash"'}
         mock_get.return_value.json.return_value = [
             caddy_route_payload(self.playable)
         ]

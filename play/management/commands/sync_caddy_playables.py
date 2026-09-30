@@ -34,11 +34,6 @@ class Command(BaseCommand):
                 not isinstance(route, dict) for route in routes
             ):
                 raise CommandError("Expected a Caddy route array.")
-            etag = response.headers.get("Etag")
-            if not etag:
-                raise CommandError(
-                    "Caddy did not return an Etag for its routes."
-                )
 
             playables = (
                 Playable.objects
@@ -71,7 +66,6 @@ class Command(BaseCommand):
             response = requests.patch(
                 routes_url,
                 json=retained,
-                headers={"If-Match": etag},
                 timeout=REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
