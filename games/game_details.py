@@ -3,9 +3,11 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from logging import getLogger
+from pathlib import Path
 from statistics import mean
 from types import SimpleNamespace
 from typing import Any, Protocol, TypeVar, cast
+from urllib.parse import urlparse
 
 from dateutil.parser import parse as parse_date
 from django.conf import settings
@@ -28,6 +30,7 @@ from .models import (
     GameTagCategory,
     GameURLCategory,
     PersonalityAlias,
+    URLFetch,
 )
 from .permissions import (
     can_comment_game,
@@ -104,6 +107,108 @@ class GameUrlValue:
 
     def HasLocalCopy(self) -> bool:
         return self.has_local_copy
+
+
+@dataclass
+class GameDownloadVersion:
+    fetch_id: int
+    download_url: str
+    date_str: str
+    size_str: str | None = None
+    filename: str | None = None
+
+    @property
+    def label(self) -> str:
+        if self.size_str and self.date_str:
+            return f"Версия {self.date_str} ({self.size_str})"
+        elif self.date_str:
+            return f"Версия {self.date_str}"
+        elif self.size_str:
+            return f"Версия ({self.size_str})"
+        return "Версия"
+
+
+@dataclass
+class GameDownloadItem:
+    url: str | None
+    title: str
+    is_local: bool
+    is_broken: bool = False
+    is_direct: bool = True
+    size_str: str | None = None
+    filename: str | None = None
+    older_versions: list[GameDownloadVersion] = field(default_factory=list)
+
+
+@dataclass
+class GameDownloadGroup:
+    main_button: GameDownloadItem
+    has_dropdown: bool = False
+    dropdown_items: list[GameDownloadItem] = field(default_factory=list)
+
+
+def format_compact_file_size(num_bytes: int | None) -> str | None:
+    if num_bytes is None or num_bytes < 0:
+        return None
+    if num_bytes < 1024:
+        return f"{num_bytes}Б"
+
+    units = ["КБ", "МБ", "ГБ", "ТБ"]
+    size = float(num_bytes)
+    unit_idx = -1
+    while size >= 1024 and unit_idx < len(units) - 1:
+        size /= 1024.0
+        unit_idx += 1
+
+    val = round(size, 1)
+    if val >= 1024 and unit_idx < len(units) - 1:
+        val = round(val / 1024.0, 1)
+        unit_idx += 1
+
+    unit = units[unit_idx]
+    if val.is_integer():
+        return f"{int(val)}{unit}"
+    return f"{val:.1f}{unit}"
+
+
+def _extract_domain(url: str | None) -> str | None:
+    if not url:
+        return None
+    try:
+        parsed = urlparse(url)
+        netloc = parsed.netloc.lower()
+        if netloc.startswith("www."):
+            netloc = netloc[4:]
+        return netloc or None
+    except Exception:
+        return None
+
+
+def _is_local_url(url: str | None) -> bool:
+    if not url:
+        return False
+    if url.startswith("/") or url.startswith("./"):
+        return True
+    try:
+        parsed = urlparse(url)
+        if not parsed.netloc:
+            return True
+        if parsed.path.startswith("/f/"):
+            return True
+        host = parsed.netloc.lower()
+        if host.startswith("www."):
+            host = host[4:]
+        if host in {
+            "db.crem.xyz",
+            "kontigr.com",
+            "zok.quest",
+            "localhost",
+            "127.0.0.1",
+        }:
+            return True
+    except Exception:
+        pass
+    return False
 
 
 @dataclass
@@ -203,6 +308,7 @@ class GameContent:
     description_attributions: list[str]
     playables: list[Playable]
     playable_base_domain: str
+    download_groups: list[GameDownloadGroup]
 
 
 @dataclass
@@ -301,6 +407,266 @@ def _PartitionUrls(urls: list[GameUrlValue]) -> GameUrlGroups:
     )
 
 
+def BuildDownloadGroups(
+    raw_urls: list[Any],
+    stored_urls: dict[int, URL],
+    categories: dict[str | None, UrlCategory],
+) -> list[GameDownloadGroup]:
+    download_categories = {"download_direct", "download_landing"}
+    download_entries = [
+        entry
+        for entry in raw_urls
+        if getattr(entry, "category", None) in download_categories
+    ]
+    if not download_entries:
+        return []
+
+    groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for idx, entry in enumerate(download_entries):
+        url_obj = stored_urls.get(entry.url_id) if entry.url_id else None
+        remote_url = (
+            entry.url
+            if entry.url is not None
+            else (getattr(url_obj, "original_url", None) if url_obj else None)
+        )
+        is_broken = url_obj.is_link_broken() if url_obj else False
+        is_uploaded = bool(getattr(url_obj, "is_uploaded", False))
+        is_direct = entry.category == "download_direct"
+
+        fetches: list[URLFetch] = []
+        if url_obj:
+            fetches = list(url_obj.fetches.all())
+            fetches.sort(key=lambda f: (f.last_fetch, f.id or 0), reverse=True)
+
+        latest_fetch = fetches[0] if fetches else None
+        stored_file = None
+        content_hash = None
+        local_url = None
+        file_size = None
+        orig_filename = None
+
+        if latest_fetch and latest_fetch.stored_file:
+            stored_file = latest_fetch.stored_file
+            content_hash = stored_file.content_hash
+            file_size = stored_file.file_size
+            local_url = stored_file.public_url
+            orig_filename = (
+                latest_fetch.original_filename
+                or Path(stored_file.storage_path).name
+            )
+        elif url_obj and url_obj.stored_file:
+            stored_file = url_obj.stored_file
+            content_hash = stored_file.content_hash
+            file_size = stored_file.file_size
+            local_url = stored_file.public_url
+            orig_filename = (
+                url_obj.get_original_filename()
+                or Path(stored_file.storage_path).name
+            )
+        elif url_obj and is_uploaded and url_obj.local_url:
+            local_url = url_obj.local_url
+            file_size = url_obj.file_size
+            orig_filename = url_obj.original_filename
+        else:
+            file_size = url_obj.file_size if url_obj else None
+            orig_filename = url_obj.original_filename if url_obj else None
+
+        seen_file_ids = set()
+        if stored_file and hasattr(stored_file, "id"):
+            seen_file_ids.add(stored_file.id)
+        elif latest_fetch:
+            seen_file_ids.add(latest_fetch.stored_file_id)
+
+        older_versions: list[GameDownloadVersion] = []
+        for f in fetches[1:]:
+            if f.stored_file_id not in seen_file_ids:
+                seen_file_ids.add(f.stored_file_id)
+                dt = f.first_fetch or getattr(
+                    f.stored_file, "created_at", None
+                )
+                dt_str = dt.strftime("%Y-%m-%d") if dt else ""
+                v_size_str = format_compact_file_size(f.stored_file.file_size)
+                v_fname = (
+                    f.original_filename
+                    or Path(f.stored_file.storage_path).name
+                )
+                older_versions.append(
+                    GameDownloadVersion(
+                        fetch_id=f.id,
+                        download_url=f.stored_file.public_url,
+                        date_str=dt_str,
+                        size_str=v_size_str,
+                        filename=v_fname,
+                    )
+                )
+
+        if content_hash:
+            group_key = f"hash:{content_hash}"
+        else:
+            group_key = f"entry:{idx}"
+
+        groups[group_key].append({
+            "entry": entry,
+            "url_obj": url_obj,
+            "remote_url": remote_url,
+            "local_url": local_url,
+            "stored_file": stored_file,
+            "file_size": file_size,
+            "orig_filename": orig_filename,
+            "is_broken": is_broken,
+            "is_uploaded": is_uploaded,
+            "is_direct": is_direct,
+            "older_versions": older_versions,
+        })
+
+    result: list[GameDownloadGroup] = []
+    for entries in groups.values():
+        local_item = next((e for e in entries if e["local_url"]), None)
+        if local_item:
+            primary_entry = next(
+                (
+                    e
+                    for e in entries
+                    if e["is_uploaded"] or _is_local_url(e["remote_url"])
+                ),
+                entries[0],
+            )
+            base_desc = (
+                primary_entry["entry"].description or ""
+            ).strip() or "Скачать"
+            size_str = format_compact_file_size(local_item["file_size"])
+            main_title = f"{base_desc} ({size_str})" if size_str else base_desc
+            main_button = GameDownloadItem(
+                url=local_item["local_url"],
+                title=main_title,
+                is_local=True,
+                is_broken=False,
+                is_direct=True,
+                size_str=size_str,
+                filename=primary_entry["orig_filename"]
+                or local_item["orig_filename"],
+            )
+
+            dropdown_items: list[GameDownloadItem] = []
+            for e in entries:
+                if e["remote_url"] and not _is_local_url(e["remote_url"]):
+                    domain = _extract_domain(e["remote_url"])
+                    desc = (e["entry"].description or "").strip()
+                    if not desc or desc.lower() == "скачать":
+                        item_title = (
+                            f"Скачать с {domain}" if domain else "Скачать"
+                        )
+                    else:
+                        item_title = desc
+                    dropdown_items.append(
+                        GameDownloadItem(
+                            url=e["remote_url"],
+                            title=item_title,
+                            is_local=False,
+                            is_broken=e["is_broken"],
+                            is_direct=e["is_direct"],
+                            size_str=format_compact_file_size(e["file_size"]),
+                            filename=e["orig_filename"],
+                            older_versions=e["older_versions"],
+                        )
+                    )
+                elif e["older_versions"]:
+                    desc = (
+                        e["entry"].description or ""
+                    ).strip() or "Основная версия"
+                    dropdown_items.append(
+                        GameDownloadItem(
+                            url=e["local_url"],
+                            title=desc,
+                            is_local=True,
+                            is_broken=False,
+                            is_direct=True,
+                            size_str=format_compact_file_size(e["file_size"]),
+                            filename=e["orig_filename"],
+                            older_versions=e["older_versions"],
+                        )
+                    )
+
+            has_dropdown = bool(dropdown_items)
+            result.append(
+                GameDownloadGroup(
+                    main_button=main_button,
+                    has_dropdown=has_dropdown,
+                    dropdown_items=dropdown_items,
+                )
+            )
+        else:
+            primary_entry = entries[0]
+            base_desc = (
+                primary_entry["entry"].description or ""
+            ).strip() or "Скачать"
+            size_str = format_compact_file_size(primary_entry["file_size"])
+            main_title = f"{base_desc} ({size_str})" if size_str else base_desc
+            is_local = _is_local_url(primary_entry["remote_url"])
+            main_button = GameDownloadItem(
+                url=primary_entry["remote_url"],
+                title=main_title,
+                is_local=is_local,
+                is_broken=primary_entry["is_broken"],
+                is_direct=primary_entry["is_direct"],
+                size_str=size_str,
+                filename=primary_entry["orig_filename"],
+            )
+
+            dropdown_items = []
+            for e in entries[1:]:
+                domain = _extract_domain(e["remote_url"])
+                desc = (e["entry"].description or "").strip()
+                if not desc or desc.lower() == "скачать":
+                    item_title = f"Скачать с {domain}" if domain else "Скачать"
+                else:
+                    item_title = desc
+                dropdown_items.append(
+                    GameDownloadItem(
+                        url=e["remote_url"],
+                        title=item_title,
+                        is_local=_is_local_url(e["remote_url"]),
+                        is_broken=e["is_broken"],
+                        is_direct=e["is_direct"],
+                        size_str=format_compact_file_size(e["file_size"]),
+                        filename=e["orig_filename"],
+                        older_versions=e["older_versions"],
+                    )
+                )
+
+            if primary_entry["older_versions"]:
+                domain = _extract_domain(primary_entry["remote_url"])
+                desc = (primary_entry["entry"].description or "").strip()
+                if not desc or desc.lower() == "скачать":
+                    item_title = f"Скачать с {domain}" if domain else "Скачать"
+                else:
+                    item_title = desc
+                dropdown_items.insert(
+                    0,
+                    GameDownloadItem(
+                        url=primary_entry["remote_url"],
+                        title=item_title,
+                        is_local=is_local,
+                        is_broken=primary_entry["is_broken"],
+                        is_direct=primary_entry["is_direct"],
+                        size_str=size_str,
+                        filename=primary_entry["orig_filename"],
+                        older_versions=primary_entry["older_versions"],
+                    ),
+                )
+
+            has_dropdown = bool(dropdown_items)
+            result.append(
+                GameDownloadGroup(
+                    main_button=main_button,
+                    has_dropdown=has_dropdown,
+                    dropdown_items=dropdown_items,
+                )
+            )
+
+    return result
+
+
 def GetCommentVotes(vote_set: Any, user: Any, comment: Any) -> CommentVotes:
     likes = vote_set.filter(vote=1).count()
     dislikes = vote_set.filter(vote=-1).count()
@@ -346,6 +712,7 @@ class GameDetailsBuilder:
             description_attributions=self.GetAttributions(),
             playables=[],
             playable_base_domain=settings.PLAYABLE_BASE_DOMAIN,
+            download_groups=self.GetDownloadGroups(),
         )
 
     def GetGameDict(self, game: Game, request: HttpRequest) -> GamePage:
@@ -431,30 +798,47 @@ class GameDetailsBuilder:
         participants.sort(key=lambda x: (x.category.order, x.category.title))
         return GamePeople(authors, participants)
 
+    def _GetStoredData(
+        self,
+    ) -> tuple[dict[int, URL], dict[str | None, UrlCategory]]:
+        if not hasattr(self, "_stored_urls") or not hasattr(
+            self, "_stored_categories"
+        ):
+            url_ids = {
+                entry.url_id
+                for entry in self.info.urls
+                if entry.url_id is not None
+            }
+            self._stored_urls = {
+                url.id: url
+                for url in URL.objects.filter(id__in=url_ids).prefetch_related(
+                    "fetches__stored_file"
+                )
+            }
+            self._stored_categories = {
+                category.symbolic_id: category
+                for category in GameURLCategory.objects.filter(
+                    symbolic_id__in={
+                        entry.category for entry in self.info.urls
+                    }
+                )
+            }
+        return self._stored_urls, self._stored_categories
+
+    def GetDownloadGroups(self) -> list[GameDownloadGroup]:
+        stored, categories = self._GetStoredData()
+        return BuildDownloadGroups(self.info.urls, stored, categories)
+
     def GetUrls(self) -> list[GameUrlValue]:
-        url_ids = {
-            entry.url_id
-            for entry in self.info.urls
-            if entry.url_id is not None
-        }
-        stored = {
-            url.id: url
-            for url in URL.objects.filter(id__in=url_ids).prefetch_related(
-                "fetches__stored_file"
-            )
-        }
-        categories: dict[str | None, UrlCategory] = {
-            category.symbolic_id: category
-            for category in GameURLCategory.objects.filter(
-                symbolic_id__in={entry.category for entry in self.info.urls}
-            )
-        }
+        stored, categories = self._GetStoredData()
         result = []
         for entry in self.info.urls:
             category: UrlCategory = _Category(
                 categories.get(entry.category), entry.category
             )
-            url = stored.get(entry.url_id)
+            url = (
+                stored.get(entry.url_id) if entry.url_id is not None else None
+            )
             remote_url = (
                 entry.url
                 if entry.url is not None
