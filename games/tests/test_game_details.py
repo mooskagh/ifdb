@@ -143,6 +143,7 @@ A **markdown** description.
         page = URL.objects.create(
             original_url="https://stored.example/page",
             is_broken=True,
+            failing_since=now(),
             creation_date=now(),
         )
         poster = URL.objects.create(

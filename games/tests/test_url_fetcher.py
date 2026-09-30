@@ -133,7 +133,7 @@ class TestFetchUrlHistory(BaseFetcherTestCase):
         self.assertEqual(URLFetch.objects.count(), 1)
         self.assertEqual(StoredFile.objects.count(), 1)
         url.refresh_from_db()
-        self.assertTrue(url.is_broken)
+        self.assertTrue(url.is_link_broken())
         self.assertEqual(url.get_stored_file(), good.stored_file)
 
     def test_questbook_error_card_is_a_failed_fetch(self) -> None:
@@ -164,7 +164,7 @@ class TestFetchUrlHistory(BaseFetcherTestCase):
         self.assertFalse(URLFetch.objects.exists())
         self.assertFalse(StoredFile.objects.exists())
         url.refresh_from_db()
-        self.assertTrue(url.is_broken)
+        self.assertTrue(url.is_link_broken())
 
     def test_error_words_inside_valid_content_are_not_rejected(self) -> None:
         game = self.create_game(195)
@@ -208,8 +208,9 @@ class TestFetchUrlHistory(BaseFetcherTestCase):
         self.assertEqual(result.outcome, FetchOutcome.CREATED)
         assert result.stored_file is not None
         url.refresh_from_db()
-        self.assertGreater(len(url.local_url or ""), 255)
-        self.assertEqual(url.local_url, result.stored_file.public_url)
+        self.assertIsNone(url.local_url)
+        self.assertGreater(len(url.get_local_url() or ""), 255)
+        self.assertEqual(url.get_local_url(), result.stored_file.public_url)
 
     def test_overlapping_fetch_cannot_move_timestamps_backwards(self) -> None:
         game = self.create_game(199)
@@ -260,11 +261,16 @@ class TestFetchUrlHistory(BaseFetcherTestCase):
         self.assertTrue(stored.exists())
 
         url.refresh_from_db()
-        self.assertEqual(url.local_url, "/f/g/101/quest.zip")
-        self.assertEqual(url.file_size, len(content))
-        self.assertEqual(url.original_filename, "quest.zip")
-        self.assertEqual(url.content_type, "application/zip")
+        self.assertIsNone(url.local_url)
+        self.assertIsNone(url.file_size)
+        self.assertIsNone(url.original_filename)
+        self.assertIsNone(url.content_type)
         self.assertFalse(url.is_broken)
+        self.assertEqual(url.get_local_url(), "/f/g/101/quest.zip")
+        self.assertEqual(url.get_file_size(), len(content))
+        self.assertEqual(url.get_original_filename(), "quest.zip")
+        self.assertEqual(url.get_content_type(), "application/zip")
+        self.assertFalse(url.is_link_broken())
         self.assertIsNone(url.failing_since)
         self.assertIsNone(url.last_error)
         self.assertIsNotNone(url.last_attempt)
@@ -379,7 +385,7 @@ class TestFetchUrlHistory(BaseFetcherTestCase):
         self.assertIn("HTTP 404 Not Found", res_fail.error or "")
 
         url.refresh_from_db()
-        self.assertTrue(url.is_broken)
+        self.assertTrue(url.is_link_broken())
         self.assertIsNotNone(url.failing_since)
         self.assertIn("HTTP 404 Not Found", url.last_error or "")
         self.assertEqual(URLFetch.objects.count(), 1)
@@ -413,7 +419,7 @@ class TestFetchUrlHistory(BaseFetcherTestCase):
             fetch_url(url)
 
         url.refresh_from_db()
-        self.assertTrue(url.is_broken)
+        self.assertTrue(url.is_link_broken())
         self.assertIsNotNone(url.failing_since)
 
         # Recover
@@ -423,7 +429,7 @@ class TestFetchUrlHistory(BaseFetcherTestCase):
 
         self.assertEqual(res.outcome, FetchOutcome.CREATED)
         url.refresh_from_db()
-        self.assertFalse(url.is_broken)
+        self.assertFalse(url.is_link_broken())
         self.assertIsNone(url.failing_since)
         self.assertIsNone(url.last_error)
 
@@ -456,7 +462,8 @@ class TestDeduplication(BaseFetcherTestCase):
         self.assertEqual(res1.stored_file.storage_path, "g/201/game.zip")
         # url2 points to that same physical file
         url2.refresh_from_db()
-        self.assertEqual(url2.local_url, "/f/g/201/game.zip")
+        self.assertIsNone(url2.local_url)
+        self.assertEqual(url2.get_local_url(), "/f/g/201/game.zip")
 
     def test_uploaded_file_and_remote_url_share_stored_file(self) -> None:
         content = b"upload-and-remote-identical"
@@ -610,8 +617,9 @@ class TestFetchUrlsCommand(BaseFetcherTestCase):
             call_command("fetch_urls", url_id=url.id, verbosity=1)
 
         url.refresh_from_db()
-        self.assertEqual(url.local_url, "/f/g/401/cmd.zip")
-        self.assertFalse(url.is_broken)
+        self.assertIsNone(url.local_url)
+        self.assertEqual(url.get_local_url(), "/f/g/401/cmd.zip")
+        self.assertFalse(url.is_link_broken())
 
     def test_fetch_urls_by_game(self) -> None:
         game1 = self.create_game(402)
@@ -707,3 +715,49 @@ class TestFetchUrlsCommand(BaseFetcherTestCase):
         mock_fetch.assert_not_called()
         url_upload.refresh_from_db()
         self.assertIsNone(url_upload.last_attempt)
+
+
+class TestCleanupBadFetchesCommand(BaseFetcherTestCase):
+    def test_cleanup_bad_fetches_dry_run_and_delete(self) -> None:
+        game = self.create_game(406)
+        url = self.create_url(
+            "https://instead-games.ru/downloader.php?id=42", game=game
+        )
+        body = b"File not found: test.zip\r\n"
+        sf = StoredFile.objects.create(
+            content_hash="a" * 64,
+            storage_path="g/406/test.zip",
+            file_size=len(body),
+            created_at=now(),
+        )
+        self.files_fs.save("g/406/test.zip", io.BytesIO(body))
+        fetch = URLFetch.objects.create(
+            url=url,
+            stored_file=sf,
+            content_type="text/plain",
+            first_fetch=now(),
+            last_fetch=now(),
+        )
+
+        with override_settings(FILES_FS=self.files_fs):
+            out_dry = io.StringIO()
+            call_command("cleanup_bad_fetches", stdout=out_dry)
+            self.assertIn("Found 1 bad fetch(es)", out_dry.getvalue())
+            self.assertIn("Dry run only", out_dry.getvalue())
+            self.assertEqual(URLFetch.objects.filter(pk=fetch.pk).count(), 1)
+
+            out_del = io.StringIO()
+            call_command("cleanup_bad_fetches", delete=True, stdout=out_del)
+            self.assertIn(
+                "Successfully deleted 1 fetch(es)", out_del.getvalue()
+            )
+            self.assertFalse(URLFetch.objects.filter(pk=fetch.pk).exists())
+            self.assertTrue(StoredFile.objects.filter(pk=sf.pk).exists())
+
+            url.refresh_from_db()
+            self.assertIsNone(url.local_url)
+            self.assertIsNone(url.file_size)
+            self.assertIsNone(url.get_local_url())
+            self.assertIsNone(url.get_file_size())
+            self.assertTrue(url.is_link_broken())
+            self.assertIn("File not found", url.last_error or "")

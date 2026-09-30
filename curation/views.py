@@ -2122,12 +2122,10 @@ def game_file_list(request):
 
     if state == "failed":
         urls = urls.filter(
-            Q(failing_since__isnull=False)
-            | Q(last_error__gt="")
-            | Q(is_broken=True)
+            Q(failing_since__isnull=False) | Q(last_error__gt="")
         )
     elif state == "ok":
-        urls = urls.filter(failing_since__isnull=True, is_broken=False).filter(
+        urls = urls.filter(failing_since__isnull=True).filter(
             Q(last_error__isnull=True) | Q(last_error="")
         )
     elif state == "uploaded":
@@ -2269,15 +2267,6 @@ def game_file_delete_fetch(
     url = get_object_or_404(URL, pk=url_id)
     fetch = get_object_or_404(URLFetch, pk=fetch_id, url=url)
     fetch.delete()
-
-    new_latest = url.get_latest_fetch()
-    if new_latest is not None:
-        url.local_url = new_latest.stored_file.public_url
-        url.file_size = new_latest.stored_file.file_size
-    else:
-        url.local_url = None
-        url.file_size = None
-    url.save(update_fields=["local_url", "file_size"])
 
     messages.success(request, f"Запись о загрузке #{fetch_id} удалена.")
     return redirect("curation_game_file_detail", url_id=url.pk)

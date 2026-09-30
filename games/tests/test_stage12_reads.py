@@ -187,8 +187,11 @@ class Stage12ReadsTests(TestCase):
             creation_date=django_timezone.now(),
             is_broken=True,
         )
-        self.assertTrue(legacy_broken.is_link_broken())
-        self.assertTrue(legacy_broken.is_broken_link)
+        # Broken requires actively trying and failing
+        self.assertFalse(legacy_broken.is_link_broken())
+        self.assertFalse(legacy_broken.is_broken_link)
+        with override_settings(USE_STORED_FILE_READS=False):
+            self.assertTrue(legacy_broken.is_link_broken())
 
         # GameURL delegates
         gu_failing = GameURL.objects.create(

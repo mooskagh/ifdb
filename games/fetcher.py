@@ -293,14 +293,12 @@ def fetch_url(
         error_msg = str(exc)
         url.failing_since = url.failing_since or attempt_time
         url.last_error = error_msg
-        url.is_broken = True
         URL.objects.filter(pk=url.pk).filter(
             Q(last_attempt__isnull=True) | Q(last_attempt__lte=attempt_time)
         ).update(
             last_attempt=attempt_time,
             failing_since=url.failing_since,
             last_error=error_msg,
-            is_broken=True,
         )
         tmp_path.unlink(missing_ok=True)
         return FetchResult(
@@ -366,28 +364,14 @@ def fetch_url(
 
         url.failing_since = None
         url.last_error = None
-        url.is_broken = False
-        url.local_url = stored_file.public_url
-        url.file_size = stored_file.file_size
-
-        update_fields = [
-            "last_attempt",
-            "failing_since",
-            "last_error",
-            "is_broken",
-            "local_url",
-            "file_size",
-        ]
-        if orig_filename:
-            url.original_filename = orig_filename[:255]
-            update_fields.append("original_filename")
-        if content_type:
-            url.content_type = content_type[:255]
-            update_fields.append("content_type")
 
         URL.objects.filter(pk=url.pk).filter(
             Q(last_attempt__isnull=True) | Q(last_attempt__lte=attempt_time)
-        ).update(**{field: getattr(url, field) for field in update_fields})
+        ).update(
+            last_attempt=attempt_time,
+            failing_since=None,
+            last_error=None,
+        )
 
         return FetchResult(
             outcome=outcome,

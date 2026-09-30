@@ -615,7 +615,7 @@ class SB_AuxFlags(SB_Flags):
         ),
         6: (
             Q(gameurl__url__failing_since__isnull=False)
-            | Q(gameurl__url__is_broken=True)
+            | Q(gameurl__url__last_error__gt="")
         ),
         7: Q(gameauthor__count__gt=1),
     }
