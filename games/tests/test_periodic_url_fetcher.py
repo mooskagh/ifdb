@@ -92,7 +92,7 @@ class PeriodicUrlFetcherTestCase(TestCase):
         creation_date: datetime | None = None,
         last_attempt: datetime | None = None,
         is_uploaded: bool = False,
-        ok_to_clone: bool = True,
+        allow_cloning: bool = True,
         game: Game | None = None,
         attach_game: bool = True,
     ) -> URL:
@@ -102,12 +102,17 @@ class PeriodicUrlFetcherTestCase(TestCase):
             creation_date=created,
             last_attempt=last_attempt,
             is_uploaded=is_uploaded,
-            ok_to_clone=ok_to_clone,
         )
         if attach_game:
             target_game = game or self.default_game
+            category = self.category
+            if not allow_cloning:
+                category, _ = GameURLCategory.objects.get_or_create(
+                    symbolic_id="no_clone",
+                    defaults={"title": "No cloning", "allow_cloning": False},
+                )
             GameURL.objects.create(
-                game=target_game, url=url, category=self.category
+                game=target_game, url=url, category=category
             )
         return url
 
@@ -146,21 +151,19 @@ class PeriodicUrlFetcherTestCase(TestCase):
             [u_never_new, u_never_old, u_att_old, u_att_recent],
         )
 
-    def test_eligible_urls_filters_uploaded_and_ok_to_clone(self) -> None:
+    def test_eligible_urls_filters_uploaded_and_category(self) -> None:
         self.create_url(
             "https://example.com/uploaded.zip",
             is_uploaded=True,
-            ok_to_clone=True,
         )
         self.create_url(
             "https://example.com/no-clone.zip",
             is_uploaded=False,
-            ok_to_clone=False,
+            allow_cloning=False,
         )
         valid = self.create_url(
             "https://example.com/valid.zip",
             is_uploaded=False,
-            ok_to_clone=True,
         )
 
         eligible = list(get_eligible_urls())
@@ -204,6 +207,64 @@ class PeriodicUrlFetcherTestCase(TestCase):
 
         eligible = list(get_eligible_urls(limit=2))
         self.assertEqual(len(eligible), 2)
+
+    def test_shared_url_uses_any_allowed_game_category(self) -> None:
+        url = self.create_url(
+            "https://example.com/shared.zip", allow_cloning=False
+        )
+        self.assertEqual(list(get_eligible_urls()), [])
+        other_game = self.create_game(603)
+        allowed = GameURL.objects.create(
+            game=other_game, url=url, category=self.category
+        )
+        GameURL.objects.create(
+            game=self.default_game, url=url, category=self.category
+        )
+        self.assertEqual(list(get_eligible_urls()), [url])
+        self.assertEqual(list(get_eligible_urls(game_id=other_game.pk)), [url])
+
+        allowed.delete()
+        GameURL.objects.filter(url=url, category=self.category).delete()
+        self.assertEqual(list(get_eligible_urls()), [])
+        self.assertEqual(list(get_eligible_urls(force=True)), [url])
+
+    def test_non_game_categories_do_not_make_url_eligible(self) -> None:
+        from contest.models import (
+            Competition,
+            CompetitionURL,
+            CompetitionURLCategory,
+        )
+        from games.models import (
+            Personality,
+            PersonalityUrl,
+            PersonalityURLCategory,
+        )
+
+        url = self.create_url(
+            "https://example.com/non-game.zip", attach_game=False
+        )
+        competition = Competition.objects.create(
+            title="Competition",
+            slug="competition",
+            end_date=now().date(),
+            published=True,
+        )
+        CompetitionURL.objects.create(
+            competition=competition,
+            url=url,
+            category=CompetitionURLCategory.objects.create(
+                title="Archive", allow_cloning=True
+            ),
+        )
+        PersonalityUrl.objects.create(
+            personality=Personality.objects.create(name="Author"),
+            url=url,
+            category=PersonalityURLCategory.objects.create(
+                title="Avatar", allow_cloning=True
+            ),
+        )
+        self.assertEqual(list(get_eligible_urls()), [])
+        self.assertEqual(list(get_eligible_urls(force=True)), [])
 
     def test_eligible_urls_filters_by_url_id_and_game_id(self) -> None:
         game1 = self.create_game(601)

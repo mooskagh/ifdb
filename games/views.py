@@ -583,7 +583,6 @@ def upload(request):
     url.original_filename = file.name
     url.local_filename = filename
     url.content_type = file.content_type
-    url.ok_to_clone = False
     url.is_uploaded = True
     url.creation_date = timezone.now()
     url.file_size = fs.size(filename)

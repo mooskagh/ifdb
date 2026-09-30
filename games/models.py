@@ -519,8 +519,6 @@ class URL(models.Model):
         self.local_url = fs.url(rel)
         self.is_uploaded = is_uploaded
         self.file_size = fs.size(rel)
-        if is_uploaded:
-            self.ok_to_clone = False
         if not self.original_filename:
             self.original_filename = Path(rel).name
         if not self.content_type:
@@ -537,8 +535,6 @@ class URL(models.Model):
                 "original_filename",
                 "content_type",
             ]
-            if is_uploaded:
-                fields.append("ok_to_clone")
             self.save(update_fields=fields)
         return True
 
@@ -549,7 +545,6 @@ class URL(models.Model):
     )
     original_filename = models.CharField(null=True, blank=True, max_length=255)
     content_type = models.CharField(null=True, blank=True, max_length=255)
-    ok_to_clone = models.BooleanField(default=False)
     is_uploaded = models.BooleanField(default=False)
     is_broken = models.BooleanField(default=False)
     creation_date = models.DateTimeField()

@@ -90,13 +90,11 @@ class BaseFetcherTestCase(TestCase):
         self,
         original_url: str = "https://example.com/downloads/adventure.zip",
         is_uploaded: bool = False,
-        ok_to_clone: bool = True,
         game: Game | None = None,
     ) -> URL:
         url = URL.objects.create(
             original_url=original_url,
             is_uploaded=is_uploaded,
-            ok_to_clone=ok_to_clone,
             creation_date=now(),
         )
         if game is not None:
@@ -645,13 +643,11 @@ class TestFetchUrlsCommand(BaseFetcherTestCase):
         u_never_old = URL.objects.create(
             original_url="https://example.com/never_old.zip",
             is_uploaded=False,
-            ok_to_clone=True,
             creation_date=t0 - timedelta(days=5),
         )
         u_never_new = URL.objects.create(
             original_url="https://example.com/never_new.zip",
             is_uploaded=False,
-            ok_to_clone=True,
             creation_date=t0 - timedelta(days=1),
         )
 
@@ -659,14 +655,12 @@ class TestFetchUrlsCommand(BaseFetcherTestCase):
         u_att_old = URL.objects.create(
             original_url="https://example.com/att_old.zip",
             is_uploaded=False,
-            ok_to_clone=True,
             creation_date=t0 - timedelta(days=10),
             last_attempt=t0 - timedelta(days=7),
         )
         u_att_recent = URL.objects.create(
             original_url="https://example.com/att_recent.zip",
             is_uploaded=False,
-            ok_to_clone=True,
             creation_date=t0 - timedelta(days=10),
             last_attempt=t0 - timedelta(days=1),
         )
@@ -705,7 +699,6 @@ class TestFetchUrlsCommand(BaseFetcherTestCase):
         url_upload = self.create_url(
             "https://example.com/uploaded.zip",
             is_uploaded=True,
-            ok_to_clone=False,
             game=game,
         )
 

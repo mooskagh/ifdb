@@ -239,20 +239,9 @@ def UpdatePersonalityUrls(importer, request, alias_id, data, update):
         for u in URL.objects.filter(original_url__in=next(zip(*urls_to_add))):
             url_to_id[u.original_url] = u.id
 
-        cats_to_check = set()
         for u, c in urls_to_add:
             if u not in url_to_id:
-                cats_to_check.add(c)
-
-        cat_to_cloneable = {}
-        for c in PersonalityURLCategory.objects.filter(id__in=cats_to_check):
-            cat_to_cloneable[c.id] = c.allow_cloning
-
-        for u, c in urls_to_add:
-            if u not in url_to_id:
-                url = CreateUrl(
-                    u, ok_to_clone=cat_to_cloneable[c], creator=request.user
-                )
+                url = CreateUrl(u, creator=request.user)
                 url_to_id[u] = url.id
 
         objs = []
@@ -310,20 +299,9 @@ def UpdateGameUrls(request, game, data, update, kill_existing=True):
         for u in URL.objects.filter(original_url__in=next(zip(*urls_to_add))):
             url_to_id[u.original_url] = u.id
 
-        cats_to_check = set()
         for u, c in urls_to_add:
             if u not in url_to_id:
-                cats_to_check.add(c)
-
-        cat_to_cloneable = {}
-        for c in GameURLCategory.objects.filter(id__in=cats_to_check):
-            cat_to_cloneable[c.id] = c.allow_cloning
-
-        for u, c in urls_to_add:
-            if u not in url_to_id:
-                url = CreateUrl(
-                    u, ok_to_clone=cat_to_cloneable[c], creator=request.user
-                )
+                url = CreateUrl(u, creator=request.user)
                 url_to_id[u] = url.id
 
         objs = []

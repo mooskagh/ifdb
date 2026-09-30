@@ -231,7 +231,6 @@ class URLAdmin(admin.ModelAdmin):
     list_display = [
         "_original_url",
         "local_url",
-        "ok_to_clone",
         "is_uploaded",
         "is_broken",
         "last_attempt",
@@ -240,7 +239,6 @@ class URLAdmin(admin.ModelAdmin):
     ]
     search_fields = ["pk", "original_url", "local_url", "last_error"]
     list_filter = [
-        "ok_to_clone",
         "is_uploaded",
         "is_broken",
         "last_attempt",

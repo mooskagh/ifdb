@@ -246,7 +246,7 @@ def edit_competition(request, id):
 
         def PopulateUrl(v, cl):
             v.category = CompetitionURLCategory.objects.get(pk=cl["category"])
-            v.url = CreateUrl(cl["url"], ok_to_clone=v.category.allow_cloning)
+            v.url = CreateUrl(cl["url"])
             v.description = cl["description"]
 
         ProcessFormset(urls, CompetitionURL, PopulateUrl)

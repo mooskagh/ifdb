@@ -380,7 +380,7 @@ class GameInfo:
             if entry.url_id is not None:
                 url = URL.objects.get(id=entry.url_id)
             else:
-                url = CreateUrl(entry.url, ok_to_clone=cat.allow_cloning)
+                url = CreateUrl(entry.url)
                 entry.url_id = url.id
             key = (cat.id, url.original_url)
             if key in desired:

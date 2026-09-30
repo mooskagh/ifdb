@@ -254,7 +254,7 @@ class Command(BaseCommand):
                             symbolic_id=dst_cat
                         )
 
-                        u = CreateUrl(url, ok_to_clone=cat.allow_cloning)
+                        u = CreateUrl(url)
                         cu = CompetitionURL()
                         cu.competition = comp
                         cu.url = u

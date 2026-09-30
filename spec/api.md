@@ -281,7 +281,7 @@ Upload a file directly connected to an existing game (specifying `game_id` in UR
 **Behavior**:
 1. Checks for global deduplication: if the identical file bytes already exist anywhere in storage, reuses the existing stored file.
 2. Otherwise saves the unique file under `g/<game_id>/<filename>` (using collision naming if needed).
-3. Creates/reuses a `URL` record (`creator=token.user`, `is_uploaded=True`, `ok_to_clone=False`) and `URLFetch` record.
+3. Creates/reuses a `URL` record (`creator=token.user`, `is_uploaded=True`) and `URLFetch` record.
 4. Attaches `GameURL` under the specified category.
 5. Appends to the game's canonical text and records a new revision with `origin=API`.
 

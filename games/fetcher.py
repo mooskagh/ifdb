@@ -410,7 +410,7 @@ def get_eligible_urls(
         .distinct()
     )
     if not force:
-        base_qs = base_qs.filter(ok_to_clone=True)
+        base_qs = base_qs.filter(gameurl__category__allow_cloning=True)
 
     if url_id is not None:
         base_qs = base_qs.filter(id=url_id)
