@@ -417,9 +417,7 @@ class URL(models.Model):
     def is_link_broken(self) -> bool:
         if not getattr(settings, "USE_STORED_FILE_READS", True):
             return self.is_broken
-        if self.failing_since is not None or self.last_error:
-            return True
-        return self.is_broken
+        return self.failing_since is not None or bool(self.last_error)
 
     @property
     def is_broken_link(self) -> bool:
@@ -761,6 +759,13 @@ class PersonalityUrl(models.Model):
         PersonalityURLCategory, on_delete=models.CASCADE
     )
     description = models.CharField(null=True, blank=True, max_length=255)
+
+    def is_link_broken(self) -> bool:
+        return self.url.is_link_broken()
+
+    @property
+    def is_broken(self) -> bool:
+        return self.url.is_link_broken()
 
 
 class PersonalityAlias(models.Model):

@@ -14,10 +14,10 @@
         <div class="curation-blueprint-pair-single">
             <input type="hidden" name="pair_{{ item.game.pk }}" value="{{ item.pairs.0.game_url.pk }}:{{ item.pairs.0.blueprint_slug }}">
             <a href="{{ item.pairs.0.game_url.url.original_url }}" target="_blank" class="curation-blueprint-pair-file" title="{{ item.pairs.0.game_url.url.original_url }}">
-                {{ item.pairs.0.game_url.url.original_filename|default:item.pairs.0.game_url.url.original_url }}
+                {{ item.pairs.0.game_url.get_original_filename|default:item.pairs.0.game_url.url.original_url }}
             </a>
-            {% if item.pairs.0.game_url.url.file_size %}
-            <span class="curation-meta">({{ item.pairs.0.game_url.url.file_size|filesizeformat }})</span>
+            {% if item.pairs.0.game_url.get_file_size %}
+            <span class="curation-meta">({{ item.pairs.0.game_url.get_file_size|filesizeformat }})</span>
             {% endif %}
             {% if item.pairs.0.compatibility == "partial" %}
             <span class="curation-badge curation-badge--partial" title="Возможна неполная совместимость">{{ item.pairs.0.blueprint_name }} (частично)</span>
@@ -31,10 +31,10 @@
             <label class="curation-blueprint-pair-option" style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 0;">
                 <input type="radio" name="pair_{{ item.game.pk }}" value="{{ pair.game_url.pk }}:{{ pair.blueprint_slug }}"{% if forloop.first %} checked{% endif %} data-versions="{{ pair.available_versions|join:',' }}" style="margin: 0; cursor: pointer;">
                 <a href="{{ pair.game_url.url.original_url }}" target="_blank" class="curation-blueprint-pair-file" title="{{ pair.game_url.url.original_url }}" onclick="event.stopPropagation();">
-                    {{ pair.game_url.url.original_filename|default:pair.game_url.url.original_url }}
+                    {{ pair.game_url.get_original_filename|default:pair.game_url.url.original_url }}
                 </a>
-                {% if pair.game_url.url.file_size %}
-                <span class="curation-meta">({{ pair.game_url.url.file_size|filesizeformat }})</span>
+                {% if pair.game_url.get_file_size %}
+                <span class="curation-meta">({{ pair.game_url.get_file_size|filesizeformat }})</span>
                 {% endif %}
                 {% if pair.compatibility == "partial" %}
                 <span class="curation-badge curation-badge--partial" title="Возможна неполная совместимость">{{ pair.blueprint_name }} (частично)</span>

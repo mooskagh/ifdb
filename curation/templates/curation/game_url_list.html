@@ -83,10 +83,10 @@
         </thead>
         <tbody>
             {% for item in urls %}
-            <tr class="{% if item.failing_since or item.last_error or item.is_broken %}error{% elif item.latest_fetch_is_new %}success{% endif %}"
+            <tr class="{% if item.is_link_broken %}error{% elif item.latest_fetch_is_new %}success{% endif %}"
                 data-href="{% url 'curation_game_file_detail' item.pk %}">
                 <td>
-                    {% if item.failing_since or item.last_error or item.is_broken %}ошибка{% elif item.is_uploaded %}upload{% elif item.latest_fetch_id %}ok{% else %}—{% endif %}
+                    {% if item.is_link_broken %}ошибка{% elif item.is_uploaded %}upload{% elif item.latest_fetch_id %}ok{% else %}—{% endif %}
                 </td>
                 <td class="curation-truncate">{% if item.original_url %}<a href="{{ item.original_url }}" title="{{ item.original_url }}" target="_blank" rel="noopener">{{ item.original_url }}</a>{% else %}—{% endif %} (<a href="{% url 'curation_game_file_detail' item.pk %}">детали</a>)</td>
                 <td class="curation-truncate">

@@ -317,7 +317,7 @@ class PeriodicUrlFetcherTestCase(TestCase):
             self.assertEqual(stats1.files_created, 1)
 
         url.refresh_from_db()
-        self.assertFalse(url.is_broken)
+        self.assertFalse(url.is_link_broken())
         stored_file_before = url.get_stored_file()
         self.assertIsNotNone(stored_file_before)
 
@@ -330,7 +330,7 @@ class PeriodicUrlFetcherTestCase(TestCase):
             self.assertEqual(stats2.fetches_failed, 1)
 
         url.refresh_from_db()
-        self.assertTrue(url.is_broken)
+        self.assertTrue(url.is_link_broken())
         self.assertIsNotNone(url.failing_since)
         self.assertIn("500 Internal Server Error", url.last_error or "")
         # Stored file and URLFetch from previous fetch are preserved intact
@@ -347,7 +347,7 @@ class PeriodicUrlFetcherTestCase(TestCase):
             self.assertEqual(stats3.fetches_failed, 0)
 
         url.refresh_from_db()
-        self.assertFalse(url.is_broken)
+        self.assertFalse(url.is_link_broken())
         self.assertIsNone(url.failing_since)
         self.assertIsNone(url.last_error)
 

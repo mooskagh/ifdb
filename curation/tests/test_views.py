@@ -6676,9 +6676,6 @@ class GameFileViewsTest(TestCase):
             first_fetch=ts,
             last_fetch=ts,
         )
-        url.local_url = sf2.public_url
-        url.file_size = sf2.file_size
-        url.save()
 
         # Reject GET
         resp_get = self.client.get(
@@ -6696,8 +6693,8 @@ class GameFileViewsTest(TestCase):
         self.assertTrue(URLFetch.objects.filter(pk=fetch1.pk).exists())
 
         url.refresh_from_db()
-        self.assertEqual(url.local_url, sf1.public_url)
-        self.assertEqual(url.file_size, sf1.file_size)
+        self.assertEqual(url.get_local_url(), sf1.public_url)
+        self.assertEqual(url.get_file_size(), sf1.file_size)
 
         # POST delete remaining fetch
         resp_post2 = self.client.post(
@@ -6708,8 +6705,8 @@ class GameFileViewsTest(TestCase):
         self.assertFalse(URLFetch.objects.filter(pk=fetch1.pk).exists())
 
         url.refresh_from_db()
-        self.assertIsNone(url.local_url)
-        self.assertIsNone(url.file_size)
+        self.assertIsNone(url.get_local_url())
+        self.assertIsNone(url.get_file_size())
 
     @patch("curation.views.fetch_url")
     def test_game_file_fetch_now(self, mock_fetch):
