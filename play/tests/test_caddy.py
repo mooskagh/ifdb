@@ -68,21 +68,21 @@ class TestCaddyIntegration(TestCase):
         self.assertEqual(kwargs["json"]["@id"], f"playable_{self.playable.pk}")
 
     @override_settings(CADDY_ADMIN_URL="http://localhost:2019")
-    @patch("requests.put")
+    @patch("requests.patch")
     @patch("requests.get")
     def test_configure_caddy_updates_existing_route(
-        self, mock_get: MagicMock, mock_put: MagicMock
+        self, mock_get: MagicMock, mock_patch: MagicMock
     ) -> None:
         mock_get_resp = MagicMock(status_code=200)
         mock_get.return_value = mock_get_resp
 
-        mock_put_resp = MagicMock(status_code=200)
-        mock_put.return_value = mock_put_resp
+        mock_patch_resp = MagicMock(status_code=200)
+        mock_patch.return_value = mock_patch_resp
 
         result = configure_caddy_playable(self.playable)
         self.assertTrue(result)
 
-        mock_put.assert_called_once_with(
+        mock_patch.assert_called_once_with(
             f"http://localhost:2019/id/playable_{self.playable.pk}",
             json=caddy_route_payload(self.playable),
             timeout=5,

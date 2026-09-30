@@ -41,7 +41,7 @@ def configure_caddy_playable(playable: Playable) -> bool:
         )
         if check_resp.status_code == 200:
             # Route exists with this @id, update it
-            update_resp = requests.put(
+            update_resp = requests.patch(
                 f"{admin_url}/id/{route_id}",
                 json=payload,
                 timeout=REQUEST_TIMEOUT_SECONDS,
