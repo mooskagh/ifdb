@@ -68,7 +68,6 @@ games/importer/qspsu.py
 games/importer/questbook.py
 games/importer/rilarhiv.py
 games/importer/tools.py
-games/management/commands/file_storage_stats.py
 games/management/commands/initifdb.py
 games/management/commands/splitauthors.py
 games/models.py

@@ -90,10 +90,6 @@ class CompetitionURL(models.Model):
     def is_link_broken(self) -> bool:
         return self.url.is_link_broken()
 
-    @property
-    def is_broken(self) -> bool:
-        return self.url.is_link_broken()
-
     competition = models.ForeignKey(Competition, on_delete=models.CASCADE)
     url = models.ForeignKey(URL, on_delete=models.CASCADE)
     category = models.ForeignKey(

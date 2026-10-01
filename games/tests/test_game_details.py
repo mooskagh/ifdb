@@ -1,4 +1,5 @@
 from copy import deepcopy
+from hashlib import sha256
 from io import StringIO
 from typing import Any
 
@@ -25,6 +26,8 @@ from games.models import (
     GameURLCategory,
     Personality,
     PersonalityAlias,
+    StoredFile,
+    URLFetch,
 )
 from play.models import Playable
 
@@ -142,15 +145,19 @@ A **markdown** description.
         fantasy = GameTag.objects.get(symbolic_id="g_fantasy")
         page = URL.objects.create(
             original_url="https://stored.example/page",
-            is_broken=True,
             failing_since=now(),
             creation_date=now(),
         )
         poster = URL.objects.create(
             original_url="https://stored.example/poster.png",
-            local_url="/media/poster.png",
             creation_date=now(),
         )
+        stored_poster = StoredFile.objects.create(
+            content_hash=sha256(b"poster").hexdigest(),
+            storage_path="poster.png",
+            file_size=10,
+        )
+        URLFetch.objects.create(url=poster, stored_file=stored_poster)
         attr = GameDescriptionAttribution.objects.create(name="stored.example")
         info = GameInfo(
             name="Canonical title",
@@ -204,10 +211,10 @@ A **markdown** description.
         self.assertEqual(
             page_link.remote_url, "https://canonical.example/page"
         )
-        self.assertTrue(page_link.is_broken)
+        self.assertTrue(page_link.is_link_broken)
         self.assertEqual(
             content.media[0],
-            GameMedia("img", "Canonical poster", img="/media/poster.png"),
+            GameMedia("img", "Canonical poster", img=poster.get_local_url()),
         )
         self.assertEqual(
             content.description_attributions,

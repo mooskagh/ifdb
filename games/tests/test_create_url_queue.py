@@ -4,7 +4,6 @@ from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
 
-from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
 from django.test import TestCase, override_settings
 from django.utils.timezone import now
@@ -134,8 +133,9 @@ class CreateUrlQueueTestCase(TestCase):
         self.assertNotIn(url, list(get_eligible_urls()))
 
     def test_create_url_for_upload_not_eligible(self) -> None:
-        self.uploads_fs.save("uploaded.zip", ContentFile(b"ZIP DATA"))
-        url = CreateUrl("https://zok.cx/f/uploads/uploaded.zip")
+        url = CreateUrl(
+            "https://zok.cx/f/uploads/uploaded.zip", is_uploaded=True
+        )
         self.attach_game(url)
         self.assertTrue(url.is_uploaded)
         self.assertNotIn(url, list(get_eligible_urls()))

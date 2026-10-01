@@ -938,10 +938,7 @@ def blueprint_list(request):
                             game=candidate_game,
                             category__symbolic_id="download_direct",
                         )
-                        .filter(
-                            Q(url__local_filename__isnull=False)
-                            | Q(url__fetches__isnull=False)
-                        )
+                        .filter(url__fetches__isnull=False)
                         .select_related("url")
                     ):
                         path = gu.url.get_local_file_path(must_exist=True)
@@ -1246,9 +1243,7 @@ def blueprint_list(request):
     candidate_games = Game.objects.filter(
         playable__isnull=True,
         gameurl__category__symbolic_id="download_direct",
-    ).filter(
-        Q(gameurl__url__local_filename__isnull=False)
-        | Q(gameurl__url__fetches__isnull=False)
+        gameurl__url__fetches__isnull=False,
     )
     available_platforms = [
         p
@@ -1278,10 +1273,7 @@ def blueprint_list(request):
             .filter(playable__isnull=True)
             .filter(
                 gameurl__category__symbolic_id="download_direct",
-            )
-            .filter(
-                Q(gameurl__url__local_filename__isnull=False)
-                | Q(gameurl__url__fetches__isnull=False)
+                gameurl__url__fetches__isnull=False,
             )
             .exclude(state=Game.State.REDIRECT)
             .distinct()
@@ -1337,10 +1329,7 @@ def blueprint_list(request):
                     .filter(
                         category__symbolic_id="download_direct",
                     )
-                    .filter(
-                        Q(url__local_filename__isnull=False)
-                        | Q(url__fetches__isnull=False)
-                    )
+                    .filter(url__fetches__isnull=False)
                     .select_related("url", "category")
                     .order_by("pk"),
                 ),
@@ -1421,10 +1410,7 @@ def blueprint_candidate_ids(request):
         .filter(playable__isnull=True)
         .filter(
             gameurl__category__symbolic_id="download_direct",
-        )
-        .filter(
-            Q(gameurl__url__local_filename__isnull=False)
-            | Q(gameurl__url__fetches__isnull=False)
+            gameurl__url__fetches__isnull=False,
         )
         .exclude(state=Game.State.REDIRECT)
         .distinct()
@@ -1460,10 +1446,7 @@ def blueprint_candidate_check(request, game_pk: int):
                 queryset=GameURL.objects
                 .filter(
                     category__symbolic_id="download_direct",
-                )
-                .filter(
-                    Q(url__local_filename__isnull=False)
-                    | Q(url__fetches__isnull=False)
+                    url__fetches__isnull=False,
                 )
                 .select_related("url", "category")
                 .order_by("pk"),

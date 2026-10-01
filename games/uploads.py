@@ -75,26 +75,15 @@ def handle_existing_game_upload(
                 else None
             )
             url = URL.objects.create(
-                local_url=file_url,
                 original_url=url_full,
-                original_filename=orig_filename,
-                content_type=content_type,
                 is_uploaded=True,
                 creation_date=now(),
-                file_size=stored_file.file_size,
                 creator=creator,
             )
         else:
-            url.local_url = file_url
-            url.file_size = stored_file.file_size
-            url.is_uploaded = True
-            url.save(
-                update_fields=[
-                    "local_url",
-                    "file_size",
-                    "is_uploaded",
-                ]
-            )
+            if not url.is_uploaded:
+                url.is_uploaded = True
+                url.save(update_fields=["is_uploaded"])
 
         fetch, _ = URLFetch.objects.get_or_create(
             url=url,
@@ -145,7 +134,6 @@ def is_provisional_upload(
 
     existing_urls = URL.objects.filter(
         models.Q(original_url=url_str)
-        | models.Q(local_filename=rel)
         | models.Q(original_url__endswith=f"/f/uploads/{rel}")
     )
     if existing_urls.filter(gameurl__isnull=False).exists():
@@ -182,21 +170,8 @@ def finalize_provisional_uploads(game: Game, info: Any) -> None:
             content_hash=content_hash
         ).first()
 
-        prov_url = (
-            URL.objects.filter(
-                models.Q(original_url=prov_orig_url)
-                | models.Q(local_filename=rel)
-            ).first()
-            if prov_orig_url
-            else URL.objects.filter(local_filename=rel).first()
-        )
-
-        orig_filename = (
-            prov_url.original_filename
-            if prov_url and prov_url.original_filename
-            else Path(rel).name
-        )
-        content_type = prov_url.content_type if prov_url else None
+        orig_filename = Path(rel).name
+        content_type = None
 
         if stored_file is None:
             storage_path = determine_storage_path(
@@ -247,26 +222,15 @@ def finalize_provisional_uploads(game: Game, info: Any) -> None:
         final_url_obj = URL.objects.filter(original_url=final_url).first()
         if final_url_obj is None:
             final_url_obj = URL.objects.create(
-                local_url=stored_file.public_url,
                 original_url=final_url,
-                original_filename=orig_filename[:255],
-                content_type=(content_type or "")[:255],
                 is_uploaded=True,
                 creation_date=now(),
-                file_size=stored_file.file_size,
                 creator=game.added_by,
             )
         else:
-            final_url_obj.local_url = stored_file.public_url
-            final_url_obj.file_size = stored_file.file_size
-            final_url_obj.is_uploaded = True
-            final_url_obj.save(
-                update_fields=[
-                    "local_url",
-                    "file_size",
-                    "is_uploaded",
-                ]
-            )
+            if not final_url_obj.is_uploaded:
+                final_url_obj.is_uploaded = True
+                final_url_obj.save(update_fields=["is_uploaded"])
 
         URLFetch.objects.get_or_create(
             url=final_url_obj,
@@ -283,9 +247,9 @@ def finalize_provisional_uploads(game: Game, info: Any) -> None:
         entry.url_id = final_url_obj.id
 
         # Clean up provisional URL record and staging file
-        prov_qs = URL.objects.filter(
-            models.Q(original_url=prov_orig_url) | models.Q(local_filename=rel)
-        ).filter(gameurl__isnull=True)
+        prov_qs = URL.objects.filter(original_url=prov_orig_url).filter(
+            gameurl__isnull=True
+        )
         if final_url_obj.id:
             prov_qs = prov_qs.exclude(id=final_url_obj.id)
         prov_qs.delete()

@@ -108,13 +108,6 @@ class Stage13StopDualWritingTests(TestCase):
         self.assertEqual(res.outcome, FetchOutcome.CREATED)
 
         url.refresh_from_db()
-        # Legacy fields MUST NOT be populated
-        self.assertIsNone(url.local_url)
-        self.assertIsNone(url.file_size)
-        self.assertIsNone(url.original_filename)
-        self.assertIsNone(url.content_type)
-        self.assertFalse(url.is_broken)
-
         # Health fields MUST be updated
         self.assertIsNotNone(url.last_attempt)
         self.assertIsNone(url.failing_since)
@@ -152,8 +145,6 @@ class Stage13StopDualWritingTests(TestCase):
         self.assertEqual(res.outcome, FetchOutcome.FAILED)
 
         url.refresh_from_db()
-        # Legacy field MUST NOT be updated to True
-        self.assertFalse(url.is_broken)
         # Health state MUST be set
         self.assertIsNotNone(url.last_attempt)
         self.assertIsNotNone(url.failing_since)
@@ -162,25 +153,19 @@ class Stage13StopDualWritingTests(TestCase):
         self.assertTrue(url.is_link_broken())
 
     def test_never_attempted_url_is_not_broken(self) -> None:
-        # A URL marked is_broken=True historically, but never attempted under
-        # the new system
         url = URL.objects.create(
             original_url="https://example.com/unattempted.zip",
             creation_date=now(),
             last_attempt=None,
-            is_broken=True,
         )
-        # Broken means actively tried and failed; unattempted is NOT broken
         self.assertFalse(url.is_link_broken())
 
-    def test_recovered_url_clears_health_without_clearing_legacy_is_broken(
+    def test_recovered_url_clears_health(
         self,
     ) -> None:
-        # Legacy URL with is_broken=True
         url = URL.objects.create(
             original_url="https://example.com/recover.zip",
             creation_date=now(),
-            is_broken=True,
             failing_since=now(),
             last_error="Old error",
         )
@@ -203,9 +188,7 @@ class Stage13StopDualWritingTests(TestCase):
 
         self.assertEqual(res.outcome, FetchOutcome.CREATED)
         url.refresh_from_db()
-        # Legacy is_broken was NOT written (still True in DB)
-        self.assertTrue(url.is_broken)
-        # But health state cleared
+        # Health state cleared
         self.assertIsNone(url.failing_since)
         self.assertIsNone(url.last_error)
         # And application reads report NOT broken
@@ -241,10 +224,6 @@ class Stage13StopDualWritingTests(TestCase):
             call_command("cleanup_bad_fetches", delete=True)
 
         url.refresh_from_db()
-        # Legacy fields are None / untouched
-        self.assertIsNone(url.local_url)
-        self.assertIsNone(url.file_size)
-        self.assertFalse(url.is_broken)
         # Health state reflects failure
         self.assertIsNotNone(url.failing_since)
         self.assertIn("File not found", url.last_error or "")
@@ -279,7 +258,6 @@ class Stage13StopDualWritingTests(TestCase):
             original_url="https://example.com/legacy_broken.zip",
             creation_date=now(),
             last_attempt=None,
-            is_broken=True,
         )
         GameURL.objects.create(
             game=game_unattempted,
@@ -347,7 +325,6 @@ class Stage13StopDualWritingTests(TestCase):
             original_url="https://example.com/curation_unattempted.zip",
             creation_date=now(),
             last_attempt=None,
-            is_broken=True,
         )
         GameURL.objects.create(
             game=self.game, url=url_unattempted, category=self.cat_download
@@ -382,7 +359,6 @@ class Stage13StopDualWritingTests(TestCase):
             creation_date=now(),
             failing_since=now(),
             last_error="404 Not Found",
-            is_broken=True,
         )
         GameURL.objects.create(
             game=self.game, url=url, category=self.cat_download
@@ -418,9 +394,7 @@ class Stage13StopDualWritingTests(TestCase):
             personality=pers, url=url_healthy, category=pcat
         )
 
-        self.assertTrue(purl_failing.is_broken)
         self.assertTrue(purl_failing.is_link_broken())
-        self.assertFalse(purl_healthy.is_broken)
         self.assertFalse(purl_healthy.is_link_broken())
 
         comp = Competition.objects.create(
@@ -437,9 +411,7 @@ class Stage13StopDualWritingTests(TestCase):
             competition=comp, url=url_healthy, category=ccat
         )
 
-        self.assertTrue(curl_failing.is_broken)
         self.assertTrue(curl_failing.is_link_broken())
-        self.assertFalse(curl_healthy.is_broken)
         self.assertFalse(curl_healthy.is_link_broken())
 
     def test_game_details_builder_with_no_legacy_fields(self) -> None:
@@ -447,13 +419,6 @@ class Stage13StopDualWritingTests(TestCase):
             original_url="https://example.com/play.zip",
             creation_date=now(),
             last_attempt=now(),
-            # Legacy fields all None
-            local_url=None,
-            local_filename=None,
-            file_size=None,
-            original_filename=None,
-            content_type=None,
-            is_broken=False,
         )
         sf = StoredFile.objects.create(
             content_hash=hashlib.sha256(b"game-data").hexdigest(),
@@ -493,17 +458,6 @@ class Stage13StopDualWritingTests(TestCase):
         item = urls[0]
         self.assertEqual(item.local_url, f"/f/g/{self.game.id}/play.zip")
         self.assertEqual(item.GetLocalUrl(), f"/f/g/{self.game.id}/play.zip")
-        self.assertFalse(item.is_broken)
+        self.assertFalse(item.is_link_broken)
         self.assertTrue(item.has_local_copy)
         self.assertTrue(item.HasLocalCopy())
-
-    def test_rollback_via_feature_flag_returns_is_broken(self) -> None:
-        url = URL.objects.create(
-            original_url="https://example.com/rollback.zip",
-            creation_date=now(),
-            failing_since=now(),
-            last_error="Error",
-            is_broken=False,
-        )
-        with override_settings(USE_STORED_FILE_READS=False):
-            self.assertFalse(url.is_link_broken())

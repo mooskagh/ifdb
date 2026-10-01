@@ -1,7 +1,5 @@
-import mimetypes
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlparse
 
 from django.conf import settings
 from django.db import models, transaction
@@ -342,12 +340,7 @@ class URL(models.Model):
         return self.get_local_url() or self.original_url
 
     def HasLocalCopy(self) -> bool:
-        return not self.is_uploaded and (
-            self.get_stored_file() is not None or self.local_url is not None
-        )
-
-    def GetFs(self):
-        return settings.UPLOADS_FS if self.is_uploaded else settings.BACKUPS_FS
+        return not self.is_uploaded and self.get_stored_file() is not None
 
     def get_latest_fetch(self) -> "URLFetch | None":
         if self._state.adding or not self.pk:
@@ -372,8 +365,6 @@ class URL(models.Model):
         return self.get_latest_fetch()
 
     def get_stored_file(self) -> "StoredFile | None":
-        if not getattr(settings, "USE_STORED_FILE_READS", True):
-            return None
         fetch = self.get_latest_fetch()
         return fetch.stored_file if fetch is not None else None
 
@@ -384,44 +375,28 @@ class URL(models.Model):
     def get_local_url(self) -> str | None:
         if (stored := self.get_stored_file()) is not None:
             return stored.public_url
-        if self.local_url:
-            return self.local_url
-        if self.local_filename:
-            return self.GetFs().url(self.local_filename)
         return None
 
     def get_original_filename(self) -> str | None:
-        if not getattr(settings, "USE_STORED_FILE_READS", True):
-            return self.original_filename
         fetch = self.get_latest_fetch()
         if fetch is not None and fetch.original_filename:
             return fetch.original_filename
-        return self.original_filename
+        return None
 
     def get_content_type(self) -> str | None:
-        if not getattr(settings, "USE_STORED_FILE_READS", True):
-            return self.content_type
         fetch = self.get_latest_fetch()
         if fetch is not None and fetch.content_type:
             return fetch.content_type
-        return self.content_type
+        return None
 
     def get_file_size(self) -> int | None:
-        if not getattr(settings, "USE_STORED_FILE_READS", True):
-            return self.file_size
         stored = self.get_stored_file()
         if stored is not None:
             return stored.file_size
-        return self.file_size
+        return None
 
     def is_link_broken(self) -> bool:
-        if not getattr(settings, "USE_STORED_FILE_READS", True):
-            return self.is_broken
         return self.failing_since is not None or bool(self.last_error)
-
-    @property
-    def is_broken_link(self) -> bool:
-        return self.is_link_broken()
 
     def get_duplicate_urls(
         self, include_self: bool = False
@@ -447,109 +422,26 @@ class URL(models.Model):
     def has_stored_copy(self, check_disk: bool = False) -> bool:
         if (stored := self.get_stored_file()) is not None:
             return stored.exists() if check_disk else True
-
-        if not self.local_filename:
-            self.resolve_local_file(save=bool(self.pk))
-
-        if self.local_filename:
-            return (
-                self.GetFs().exists(self.local_filename)
-                if check_disk
-                else True
-            )
-
         return False
 
     def get_local_file_path(self, must_exist: bool = False) -> Path | None:
         if (stored := self.get_stored_file()) is not None:
-            path = stored.path
-            if must_exist and not path.exists():
+            if must_exist and not stored.exists():
                 return None
-            return path
-
-        if not self.local_filename:
-            self.resolve_local_file(save=bool(self.pk))
-
-        if self.local_filename:
-            fs = self.GetFs()
-            if must_exist and not fs.exists(self.local_filename):
-                return None
-            try:
-                return Path(fs.path(self.local_filename))
-            except (NotImplementedError, AttributeError, ValueError):
-                return None
-
+            return stored.path
         return None
 
     def open_local_file(self, mode: str = "rb") -> Any:
         if (stored := self.get_stored_file()) is not None:
             return stored.open(mode)
-
-        if not self.local_filename:
-            self.resolve_local_file(save=bool(self.pk))
-
-        if self.local_filename:
-            return self.GetFs().open(self.local_filename, mode)
-
         raise FileNotFoundError(f"No stored file for URL {self.pk}")
 
-    def resolve_local_file(self, save: bool = True) -> bool:
-        if self.local_filename:
-            return True
-        if not self.original_url:
-            return False
-
-        parsed = urlparse(self.original_url)
-        path = parsed.path
-        if "/f/uploads/" in path:
-            rel = unquote(path.split("/f/uploads/", 1)[1]).lstrip("/")
-            fs = settings.UPLOADS_FS
-            is_uploaded = True
-        elif "/f/backups/" in path:
-            rel = unquote(path.split("/f/backups/", 1)[1]).lstrip("/")
-            fs = settings.BACKUPS_FS
-            is_uploaded = False
-        else:
-            return False
-
-        if not rel or not fs.exists(rel):
-            return False
-
-        self.local_filename = rel
-        self.local_url = fs.url(rel)
-        self.is_uploaded = is_uploaded
-        self.file_size = fs.size(rel)
-        if not self.original_filename:
-            self.original_filename = Path(rel).name
-        if not self.content_type:
-            content_type, _ = mimetypes.guess_type(rel)
-            if content_type:
-                self.content_type = content_type
-
-        if save and self.pk:
-            fields = [
-                "local_filename",
-                "local_url",
-                "is_uploaded",
-                "file_size",
-                "original_filename",
-                "content_type",
-            ]
-            self.save(update_fields=fields)
-        return True
-
-    local_url = models.CharField(null=True, blank=True, max_length=2048)
-    local_filename = models.CharField(null=True, blank=True, max_length=255)
     original_url = models.CharField(
         null=True, blank=True, max_length=2048, db_index=True
     )
-    original_filename = models.CharField(null=True, blank=True, max_length=255)
-    content_type = models.CharField(null=True, blank=True, max_length=255)
     is_uploaded = models.BooleanField(default=False)
-    is_broken = models.BooleanField(default=False)
     creation_date = models.DateTimeField()
     use_count = models.IntegerField(default=0)
-    file_size = models.IntegerField(null=True, blank=True)
     creator = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -685,10 +577,6 @@ class GameURL(models.Model):
     def is_link_broken(self) -> bool:
         return self.url.is_link_broken()
 
-    @property
-    def is_broken(self) -> bool:
-        return self.url.is_link_broken()
-
     def get_duplicate_urls(
         self, include_self: bool = False
     ) -> models.QuerySet["URL"]:
@@ -756,10 +644,6 @@ class PersonalityUrl(models.Model):
     description = models.CharField(null=True, blank=True, max_length=255)
 
     def is_link_broken(self) -> bool:
-        return self.url.is_link_broken()
-
-    @property
-    def is_broken(self) -> bool:
         return self.url.is_link_broken()
 
 

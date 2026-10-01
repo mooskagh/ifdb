@@ -87,8 +87,8 @@
                             {% for link in links %}
                                 {% for x in link.items %}
                                     {% if x.remote_url %}
-                                        <a {% if x.is_broken %}title="Битая ссылка!"{% else %}title="{{ x.description }}"{% endif %} href="{{ x.remote_url }}">
-                                            {% if x.is_broken %}
+                                        <a {% if x.is_link_broken %}title="Битая ссылка!"{% else %}title="{{ x.description }}"{% endif %} href="{{ x.remote_url }}">
+                                            {% if x.is_link_broken %}
                                                 <svg><use href="{% static 'iconset.svg' %}#broken-link"></use></svg>
                                             {% else %}
                                                 <svg><use href="{% static 'iconset.svg' %}#link-{{ link.category.symbolic_id }}"></use></svg>
@@ -176,8 +176,8 @@
                         Играть:
                         {% for x in online %}
                             <span class="button-like">
-                                <a {% if x.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}" target="_blank">
-                                    {% if x.is_broken %}
+                                <a {% if x.is_link_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}" target="_blank">
+                                    {% if x.is_link_broken %}
                                         <img src="{% static 'brokenlink.svg' %}"/>
                                     {% endif %}
                                     {{x.description}}
@@ -191,9 +191,9 @@
                         Скачать:
                         {% for x in download %}
                             <span class="button-like">
-                                <a {% if x.is_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}"
+                                <a {% if x.is_link_broken %}title="Битая ссылка!"{% endif %} href="{{ x.GetRemoteUrl }}"
                                         {% if x.category.symbolic_id == 'download_direct' %}download{% endif %}>
-                                    {% if x.is_broken %}
+                                    {% if x.is_link_broken %}
                                         <img src="{% static 'brokenlink.svg' %}"/>
                                     {% endif %}
                                     {{x.description}}

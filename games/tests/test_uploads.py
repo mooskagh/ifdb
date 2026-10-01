@@ -18,6 +18,7 @@ from games.models import (
     GameURL,
     GameURLCategory,
     StoredFile,
+    URLFetch,
 )
 from games.uploads import (
     finalize_provisional_uploads,
@@ -81,11 +82,11 @@ class UploadMigrationTestCase(TestCase):
         self.assertEqual(stored_file.open("rb").read(), content)
 
         self.assertTrue(url.is_uploaded)
-        self.assertEqual(url.local_url, "/f/g/123/adventure.zip")
+        self.assertEqual(url.get_local_url(), "/f/g/123/adventure.zip")
         self.assertEqual(
             url.original_url, "http://testserver/f/g/123/adventure.zip"
         )
-        self.assertEqual(url.original_filename, "adventure.zip")
+        self.assertEqual(url.get_original_filename(), "adventure.zip")
         self.assertEqual(url.get_stored_file(), stored_file)
 
         self.assertEqual(fetch.stored_file, stored_file)
@@ -122,7 +123,7 @@ class UploadMigrationTestCase(TestCase):
         self.assertEqual(stored2.storage_path, "g/101/first.zip")
         self.assertEqual(StoredFile.objects.count(), 1)
         self.assertFalse((self.media_root / "g/102").exists())
-        self.assertEqual(url2.local_url, "/f/g/101/first.zip")
+        self.assertEqual(url2.get_local_url(), "/f/g/101/first.zip")
         self.assertEqual(
             url2.original_url, "http://testserver/f/g/101/first.zip"
         )
@@ -167,10 +168,6 @@ class UploadMigrationTestCase(TestCase):
 
         prov_url = URL.objects.create(
             original_url=prov_full_url,
-            local_url=f"/f/uploads/{filename}",
-            local_filename=filename,
-            original_filename="story.zip",
-            content_type="application/zip",
             is_uploaded=True,
             creation_date=now(),
         )
@@ -229,12 +226,10 @@ class UploadMigrationTestCase(TestCase):
 
         legacy_url = URL.objects.create(
             original_url=legacy_full_url,
-            local_url=f"/f/uploads/{legacy_rel}",
-            local_filename=legacy_rel,
-            original_filename="legacy.zip",
             is_uploaded=True,
             creation_date=now(),
         )
+        URLFetch.objects.create(url=legacy_url, stored_file=legacy_stored)
 
         game1 = Game.objects.create(
             id=50, title="Old Game", creation_time=now()
@@ -296,8 +291,6 @@ class UploadMigrationTestCase(TestCase):
 
         prov_url = URL.objects.create(
             original_url=prov_full_url,
-            local_url=f"/f/uploads/{filename}",
-            local_filename=filename,
             is_uploaded=True,
             creation_date=now(),
         )
@@ -338,8 +331,6 @@ class UploadMigrationTestCase(TestCase):
 
         URL.objects.create(
             original_url=prov_url,
-            local_url=f"/f/uploads/{filename}",
-            local_filename=filename,
             is_uploaded=True,
             creation_date=now(),
         )

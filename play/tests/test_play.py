@@ -1,4 +1,5 @@
 import stat
+from hashlib import sha256
 from importlib.machinery import FileFinder
 from pathlib import Path
 from pkgutil import ModuleInfo
@@ -13,7 +14,14 @@ from django.db import models
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils.timezone import now
 
-from games.models import URL, Game, GameURL, GameURLCategory
+from games.models import (
+    URL,
+    Game,
+    GameURL,
+    GameURLCategory,
+    StoredFile,
+    URLFetch,
+)
 from play.blueprint import (
     BlueprintInfo,
     BlueprintModule,
@@ -160,9 +168,14 @@ class TaskTests(TestCase):
 
             url = URL.objects.create(
                 original_url="https://example.com/game.zip",
-                local_filename="game.zip",
                 creation_date=now(),
             )
+            stored_file = StoredFile.objects.create(
+                content_hash=sha256(b"game1").hexdigest(),
+                storage_path="game.zip",
+                file_size=game_file_path.stat().st_size,
+            )
+            URLFetch.objects.create(url=url, stored_file=stored_file)
             cat, _ = GameURLCategory.objects.get_or_create(
                 symbolic_id="download_direct",
                 defaults={"title": "Direct download"},
@@ -182,11 +195,10 @@ class TaskTests(TestCase):
 
             with override_settings(
                 PLAYABLE_DIR=playables_dir,
-                UPLOADS_FS=fs,
+                FILES_FS=fs,
                 CADDY_ADMIN_URL="http://localhost:2019",
             ):
                 with (
-                    patch("games.models.URL.GetFs", return_value=fs),
                     patch("play.tasks.configure_caddy_playable") as mock_caddy,
                     patch(
                         "play.tasks.generate_playable_domain",
@@ -237,9 +249,14 @@ class TaskTests(TestCase):
 
             url = URL.objects.create(
                 original_url="https://example.com/game.zip",
-                local_filename="game.zip",
                 creation_date=now(),
             )
+            stored_file = StoredFile.objects.create(
+                content_hash=sha256(b"game2").hexdigest(),
+                storage_path="game.zip",
+                file_size=game_file_path.stat().st_size,
+            )
+            URLFetch.objects.create(url=url, stored_file=stored_file)
             cat, _ = GameURLCategory.objects.get_or_create(
                 symbolic_id="download_direct",
                 defaults={"title": "Direct download"},
@@ -260,11 +277,10 @@ class TaskTests(TestCase):
 
             with override_settings(
                 PLAYABLE_DIR=playables_dir,
-                UPLOADS_FS=fs,
+                FILES_FS=fs,
                 CADDY_ADMIN_URL="http://localhost:2019",
             ):
                 with (
-                    patch("games.models.URL.GetFs", return_value=fs),
                     patch("play.tasks.configure_caddy_playable") as mock_caddy,
                     patch(
                         "play.tasks.generate_playable_domain"
@@ -293,9 +309,14 @@ class TaskTests(TestCase):
 
             url = URL.objects.create(
                 original_url="https://example.com/game.zip",
-                local_filename="game.zip",
                 creation_date=now(),
             )
+            stored_file = StoredFile.objects.create(
+                content_hash=sha256(b"game3").hexdigest(),
+                storage_path="game.zip",
+                file_size=game_file_path.stat().st_size,
+            )
+            URLFetch.objects.create(url=url, stored_file=stored_file)
             cat, _ = GameURLCategory.objects.get_or_create(
                 symbolic_id="download_direct",
                 defaults={"title": "Direct download"},
@@ -315,11 +336,10 @@ class TaskTests(TestCase):
 
             with override_settings(
                 PLAYABLE_DIR=playables_dir,
-                UPLOADS_FS=fs,
+                FILES_FS=fs,
                 CADDY_ADMIN_URL="http://localhost:2019",
             ):
                 with (
-                    patch("games.models.URL.GetFs", return_value=fs),
                     patch(
                         "play.tasks.configure_caddy_playable",
                         return_value=False,
@@ -348,9 +368,14 @@ class TaskTests(TestCase):
 
             url = URL.objects.create(
                 original_url="https://example.com/game.zip",
-                local_filename="game.zip",
                 creation_date=now(),
             )
+            stored_file = StoredFile.objects.create(
+                content_hash=sha256(b"game4").hexdigest(),
+                storage_path="game.zip",
+                file_size=game_file_path.stat().st_size,
+            )
+            URLFetch.objects.create(url=url, stored_file=stored_file)
             cat, _ = GameURLCategory.objects.get_or_create(
                 symbolic_id="download_direct",
                 defaults={"title": "Direct download"},
@@ -370,11 +395,10 @@ class TaskTests(TestCase):
 
             with override_settings(
                 PLAYABLE_DIR=playables_dir,
-                UPLOADS_FS=fs,
+                FILES_FS=fs,
                 CADDY_ADMIN_URL=None,
             ):
                 with (
-                    patch("games.models.URL.GetFs", return_value=fs),
                     patch("play.tasks.configure_caddy_playable") as mock_caddy,
                     patch(
                         "play.tasks.generate_playable_domain",

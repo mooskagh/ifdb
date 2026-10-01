@@ -70,9 +70,6 @@ class Stage12ReadsTests(TestCase):
         url = URL.objects.create(
             original_url="https://example.com/archive.zip",
             creation_date=django_timezone.now(),
-            original_filename="old_archive.zip",
-            content_type="application/octet-stream",
-            file_size=9999,
         )
         URLFetch.objects.create(
             url=url,
@@ -83,7 +80,6 @@ class Stage12ReadsTests(TestCase):
 
         with override_settings(
             FILES_FS=self.files_fs,
-            USE_STORED_FILE_READS=True,
         ):
             self.assertEqual(url.get_original_filename(), "new_archive.zip")
             self.assertEqual(url.get_content_type(), "application/zip")
@@ -101,62 +97,19 @@ class Stage12ReadsTests(TestCase):
             self.assertEqual(game_url.get_content_type(), "application/zip")
             self.assertEqual(game_url.get_file_size(), len(b"archive-content"))
 
-    def test_metadata_helpers_fallback_to_legacy(self) -> None:
+    def test_metadata_helpers_without_stored_file_returns_none(self) -> None:
         url = URL.objects.create(
             original_url="https://example.com/legacy.zip",
             creation_date=django_timezone.now(),
-            original_filename="legacy.zip",
-            content_type="application/zip",
-            file_size=1234,
-            local_filename="legacy.zip",
-            local_url="/f/uploads/legacy.zip",
         )
 
         with override_settings(
             FILES_FS=self.files_fs,
-            USE_STORED_FILE_READS=True,
         ):
-            self.assertEqual(url.get_original_filename(), "legacy.zip")
-            self.assertEqual(url.get_content_type(), "application/zip")
-            self.assertEqual(url.get_file_size(), 1234)
-            self.assertEqual(url.get_local_url(), "/f/uploads/legacy.zip")
-
-    def test_feature_flag_rollback_uses_legacy_fields(self) -> None:
-        file_path = Path(self.media_root) / "g" / "1" / "game.zip"
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.write_bytes(b"new-data")
-
-        stored = StoredFile.objects.create(
-            content_hash=hashlib.sha256(b"new-data").hexdigest(),
-            storage_path="g/1/game.zip",
-            file_size=len(b"new-data"),
-        )
-        url = URL.objects.create(
-            original_url="https://example.com/game.zip",
-            creation_date=django_timezone.now(),
-            local_url="/f/uploads/old.zip",
-            local_filename="old.zip",
-            original_filename="old.zip",
-            content_type="application/old",
-            file_size=10,
-        )
-        URLFetch.objects.create(
-            url=url,
-            stored_file=stored,
-            original_filename="new.zip",
-            content_type="application/new",
-        )
-
-        # When feature flag is False, reads roll back to legacy fields
-        with override_settings(
-            FILES_FS=self.files_fs,
-            USE_STORED_FILE_READS=False,
-        ):
-            self.assertIsNone(url.get_stored_file())
-            self.assertEqual(url.get_local_url(), "/f/uploads/old.zip")
-            self.assertEqual(url.get_original_filename(), "old.zip")
-            self.assertEqual(url.get_content_type(), "application/old")
-            self.assertEqual(url.get_file_size(), 10)
+            self.assertIsNone(url.get_original_filename())
+            self.assertIsNone(url.get_content_type())
+            self.assertIsNone(url.get_file_size())
+            self.assertIsNone(url.get_local_url())
 
     def test_broken_link_derived_from_health_fields(self) -> None:
         # Failing URL with new health fields
@@ -165,10 +118,8 @@ class Stage12ReadsTests(TestCase):
             creation_date=django_timezone.now(),
             failing_since=django_timezone.now(),
             last_error="Connection refused",
-            is_broken=False,
         )
         self.assertTrue(failing_url.is_link_broken())
-        self.assertTrue(failing_url.is_broken_link)
 
         # Healthy URL
         healthy_url = URL.objects.create(
@@ -176,22 +127,8 @@ class Stage12ReadsTests(TestCase):
             creation_date=django_timezone.now(),
             failing_since=None,
             last_error=None,
-            is_broken=False,
         )
         self.assertFalse(healthy_url.is_link_broken())
-        self.assertFalse(healthy_url.is_broken_link)
-
-        # Legacy URL with is_broken=True and empty failing_since
-        legacy_broken = URL.objects.create(
-            original_url="https://example.com/legacy_broken.zip",
-            creation_date=django_timezone.now(),
-            is_broken=True,
-        )
-        # Broken requires actively trying and failing
-        self.assertFalse(legacy_broken.is_link_broken())
-        self.assertFalse(legacy_broken.is_broken_link)
-        with override_settings(USE_STORED_FILE_READS=False):
-            self.assertTrue(legacy_broken.is_link_broken())
 
         # GameURL delegates
         gu_failing = GameURL.objects.create(
@@ -200,7 +137,6 @@ class Stage12ReadsTests(TestCase):
             category=self.cat_download,
         )
         self.assertTrue(gu_failing.is_link_broken())
-        self.assertTrue(gu_failing.is_broken)
 
         gu_healthy = GameURL.objects.create(
             game=self.game,
@@ -208,7 +144,6 @@ class Stage12ReadsTests(TestCase):
             category=self.cat_download,
         )
         self.assertFalse(gu_healthy.is_link_broken())
-        self.assertFalse(gu_healthy.is_broken)
 
     def test_competition_url_delegates(self) -> None:
         comp = Competition.objects.create(
@@ -249,7 +184,6 @@ class Stage12ReadsTests(TestCase):
             self.assertEqual(comp_url.GetLocalUrl(), "/f/backups/logo.png")
             self.assertTrue(comp_url.has_stored_copy(check_disk=True))
             self.assertFalse(comp_url.is_link_broken())
-            self.assertFalse(comp_url.is_broken)
 
     def test_game_details_builder_with_stored_file(self) -> None:
         file_path = Path(self.media_root) / "g" / "1" / "game.zip"
@@ -288,7 +222,7 @@ class Stage12ReadsTests(TestCase):
             self.assertEqual(
                 item.GetRemoteUrl(), "https://example.com/game.zip"
             )
-            self.assertFalse(item.is_broken)
+            self.assertFalse(item.is_link_broken)
             self.assertTrue(item.has_local_copy)
             self.assertTrue(item.HasLocalCopy())
             self.assertEqual(item.url, url)
@@ -383,39 +317,3 @@ class Stage12ReadsTests(TestCase):
         self.assertIn("Total duplicate groups: 1", output)
         self.assertIn("Total URLs involved:    2", output)
         self.assertIn(stored.storage_path, output)
-
-    def test_legacy_fallback_report_command(self) -> None:
-        # URL 1: migrated to StoredFile (no fallback required)
-        file_path = Path(self.media_root) / "g" / "1" / "migrated.zip"
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.write_bytes(b"migrated")
-        stored = StoredFile.objects.create(
-            content_hash=hashlib.sha256(b"migrated").hexdigest(),
-            storage_path="g/1/migrated.zip",
-            file_size=len(b"migrated"),
-        )
-        u_migrated = URL.objects.create(
-            original_url="https://example.com/migrated.zip",
-            local_filename="migrated.zip",
-            local_url="/f/uploads/migrated.zip",
-            creation_date=django_timezone.now(),
-        )
-        URLFetch.objects.create(url=u_migrated, stored_file=stored)
-
-        # URL 2: has legacy fields, but NO URLFetch (requires fallback)
-        URL.objects.create(
-            original_url="https://example.com/unmigrated.zip",
-            local_filename="unmigrated.zip",
-            local_url="/f/uploads/unmigrated.zip",
-            creation_date=django_timezone.now(),
-        )
-
-        with override_settings(FILES_FS=self.files_fs):
-            out = StringIO()
-            call_command("legacy_fallback_report", "--details", stdout=out)
-            output = out.getvalue()
-            self.assertIn("Total URLs with legacy local fields: 2", output)
-            self.assertIn("Fully migrated URLs (using StoredFile): 1", output)
-            self.assertIn("URLs requiring legacy fallback:      1", output)
-            self.assertIn("no_url_fetch", output)
-            self.assertIn("unmigrated.zip", output)

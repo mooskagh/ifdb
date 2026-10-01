@@ -1,4 +1,5 @@
 from datetime import timedelta
+from hashlib import sha256
 from html import unescape
 from io import StringIO
 from json import dumps, loads
@@ -3150,12 +3151,25 @@ class SourceViewsTest(TestCase):
     ):
         url = URL.objects.create(
             original_url=original_url,
-            original_filename=original_filename,
-            local_filename=local_filename,
-            local_url=local_url,
             is_uploaded=is_uploaded,
             creation_date=timezone.now(),
         )
+        if local_filename:
+            storage_path = local_filename.removeprefix("/")
+            stored_file, _ = StoredFile.objects.get_or_create(
+                storage_path=storage_path,
+                defaults={
+                    "content_hash": sha256(storage_path.encode()).hexdigest(),
+                    "file_size": 100,
+                },
+            )
+            URLFetch.objects.create(
+                url=url,
+                stored_file=stored_file,
+                original_filename=original_filename
+                or local_filename.rsplit("/", 1)[-1],
+                content_type="application/octet-stream",
+            )
         return GameURL.objects.create(
             game=game,
             url=url,
@@ -3264,12 +3278,12 @@ class SourceViewsTest(TestCase):
         backup = self._download_link(
             game,
             "https://example.com/backup.zip",
-            local_filename="backup.zip",
+            local_filename="backups/backup.zip",
         )
         upload = self._download_link(
             game,
             "https://example.com/upload.zip",
-            local_filename="upload.zip",
+            local_filename="uploads/upload.zip",
             is_uploaded=True,
         )
         remote = self._download_link(
@@ -3328,7 +3342,7 @@ class SourceViewsTest(TestCase):
         discover_mock.assert_not_called()
         exists_mock.assert_not_called()
 
-    def test_history_playable_resolves_local_upload_if_filename_missing(self):
+    def test_history_playable_without_stored_file_has_no_local_copy(self):
         ts = timezone.now()
         game = Game.objects.create(
             state=Game.State.PUBLISHED,
@@ -3336,25 +3350,15 @@ class SourceViewsTest(TestCase):
             creation_time=ts,
         )
         history = GameCuration.objects.create(game=game)
-        with TemporaryDirectory() as upload_root:
-            (Path(upload_root) / "game.zip").write_bytes(b"ZIP")
-            with override_settings(
-                UPLOADS_FS=FileSystemStorage(
-                    upload_root, base_url="/f/uploads/"
-                )
-            ):
-                link = self._download_link(
-                    game,
-                    "https://db.crem.xyz/f/uploads/game.zip",
-                    local_filename=None,
-                )
-                response = self.client.get(f"/curation/{history.pk}/")
-                rows = response.context["playable_files"]
-                self.assertEqual(len(rows), 1)
-                self.assertTrue(rows[0].has_local_copy)
-                link.url.refresh_from_db()
-                self.assertEqual(link.url.local_filename, "game.zip")
-                self.assertTrue(link.url.is_uploaded)
+        self._download_link(
+            game,
+            "https://db.crem.xyz/f/uploads/game.zip",
+            local_filename=None,
+        )
+        response = self.client.get(f"/curation/{history.pk}/")
+        rows = response.context["playable_files"]
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(rows[0].has_local_copy)
 
     def test_history_playable_links_with_stored_file(self):
         ts = timezone.now()
@@ -3404,10 +3408,7 @@ class SourceViewsTest(TestCase):
             state=Game.State.PUBLISHED, title="Compatibility", creation_time=ts
         )
         history = GameCuration.objects.create(game=game)
-        with (
-            TemporaryDirectory() as upload_root,
-            TemporaryDirectory() as backup_root,
-        ):
+        with TemporaryDirectory() as files_root:
             self._download_link(
                 game,
                 "https://example.com/backup.zip",
@@ -3452,15 +3453,14 @@ class SourceViewsTest(TestCase):
                 ),
             ]
             for file_path in [
-                Path(backup_root) / "games/backup.zip",
-                Path(upload_root) / "games/upload.zip",
+                Path(files_root) / "games/backup.zip",
+                Path(files_root) / "games/upload.zip",
             ]:
-                file_path.parent.mkdir(parents=True)
+                file_path.parent.mkdir(parents=True, exist_ok=True)
                 file_path.touch()
 
             with override_settings(
-                UPLOADS_FS=FileSystemStorage(upload_root),
-                BACKUPS_FS=FileSystemStorage(backup_root),
+                FILES_FS=FileSystemStorage(files_root),
             ):
                 response = self.client.get(
                     f"/curation/{history.pk}/",
@@ -3468,8 +3468,8 @@ class SourceViewsTest(TestCase):
                 )
 
             expected_paths = [
-                Path(backup_root) / "games/backup.zip",
-                Path(upload_root) / "games/upload.zip",
+                Path(files_root) / "games/backup.zip",
+                Path(files_root) / "games/upload.zip",
             ]
 
         self.assertEqual(accepting_paths, expected_paths)
@@ -3546,7 +3546,7 @@ class SourceViewsTest(TestCase):
 
         with TemporaryDirectory() as backup_root:
             with override_settings(
-                BACKUPS_FS=FileSystemStorage(backup_root),
+                FILES_FS=FileSystemStorage(backup_root),
             ):
                 response = self.client.get(
                     f"/curation/{history.pk}/",
@@ -3629,12 +3629,11 @@ class SourceViewsTest(TestCase):
         with TemporaryDirectory() as media_root:
             fs = FileSystemStorage(media_root)
             (Path(media_root) / "game.zip").touch()
-            with override_settings(UPLOADS_FS=fs, BACKUPS_FS=fs):
-                with patch.object(game_url.url, "GetFs", return_value=fs):
-                    response = self.client.get(
-                        f"/curation/{history.pk}/",
-                        {"check_compatibility": "1"},
-                    )
+            with override_settings(FILES_FS=fs):
+                response = self.client.get(
+                    f"/curation/{history.pk}/",
+                    {"check_compatibility": "1"},
+                )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, ">создать</button>")
@@ -3709,12 +3708,11 @@ class SourceViewsTest(TestCase):
         with TemporaryDirectory() as media_root:
             fs = FileSystemStorage(media_root)
             (Path(media_root) / "game.zip").touch()
-            with override_settings(UPLOADS_FS=fs, BACKUPS_FS=fs):
-                with patch.object(game_url.url, "GetFs", return_value=fs):
-                    response = self.client.get(
-                        f"/curation/{history.pk}/",
-                        {"check_compatibility": "1"},
-                    )
+            with override_settings(FILES_FS=fs):
+                response = self.client.get(
+                    f"/curation/{history.pk}/",
+                    {"check_compatibility": "1"},
+                )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "INSTEAD Emscripten")
@@ -4554,15 +4552,13 @@ class SourceViewsTest(TestCase):
             discover_mock.return_value = [
                 BlueprintInfo("instead_em", blueprint)
             ]
-            with patch("games.models.URL.GetFs") as fs_mock:
-                fs = MagicMock()
-                fs.exists.return_value = True
-                fs.path.return_value = "/tmp/game.zip"
-                fs_mock.return_value = fs
-
-                response = self.client.get(
-                    f"/curation/{history.pk}/?check_compatibility=1"
-                )
+            with TemporaryDirectory() as media_root:
+                fs = FileSystemStorage(media_root)
+                (Path(media_root) / "game.zip").touch()
+                with override_settings(FILES_FS=fs):
+                    response = self.client.get(
+                        f"/curation/{history.pk}/?check_compatibility=1"
+                    )
                 self.assertContains(response, 'placeholder="✨"')
                 self.assertContains(
                     response, f".{settings.PLAYABLE_BASE_DOMAIN}"
@@ -6310,7 +6306,6 @@ class GameFileViewsTest(TestCase):
             creation_date=ts,
             last_attempt=ts,
             last_error="404 Not Found",
-            is_broken=True,
         )
         url_upload = URL.objects.create(
             original_url="https://example.com/upload.zip",

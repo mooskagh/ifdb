@@ -95,7 +95,7 @@ class GameUrlValue:
     description: str | None
     remote_url: str | None
     local_url: str | None
-    is_broken: bool
+    is_link_broken: bool
     has_local_copy: bool
     url: URL | None = None
 
@@ -133,7 +133,7 @@ class GameDownloadItem:
     url: str | None
     title: str
     is_local: bool
-    is_broken: bool = False
+    is_link_broken: bool = False
     is_direct: bool = True
     size_str: str | None = None
     filename: str | None = None
@@ -463,13 +463,6 @@ def BuildDownloadGroups(
                 url_obj.get_original_filename()
                 or Path(stored_file.storage_path).name
             )
-        elif url_obj and is_uploaded and url_obj.local_url:
-            local_url = url_obj.local_url
-            file_size = url_obj.file_size
-            orig_filename = url_obj.original_filename
-        else:
-            file_size = url_obj.file_size if url_obj else None
-            orig_filename = url_obj.original_filename if url_obj else None
 
         seen_file_ids = set()
         if stored_file and hasattr(stored_file, "id"):
@@ -513,7 +506,7 @@ def BuildDownloadGroups(
             "stored_file": stored_file,
             "file_size": file_size,
             "orig_filename": orig_filename,
-            "is_broken": is_broken,
+            "is_link_broken": is_broken,
             "is_uploaded": is_uploaded,
             "is_direct": is_direct,
             "older_versions": older_versions,
@@ -540,7 +533,7 @@ def BuildDownloadGroups(
                 url=local_item["local_url"],
                 title=main_title,
                 is_local=True,
-                is_broken=False,
+                is_link_broken=False,
                 is_direct=True,
                 size_str=size_str,
                 filename=primary_entry["orig_filename"]
@@ -563,7 +556,7 @@ def BuildDownloadGroups(
                             url=e["remote_url"],
                             title=item_title,
                             is_local=False,
-                            is_broken=e["is_broken"],
+                            is_link_broken=e["is_link_broken"],
                             is_direct=e["is_direct"],
                             size_str=format_compact_file_size(e["file_size"]),
                             filename=e["orig_filename"],
@@ -579,7 +572,7 @@ def BuildDownloadGroups(
                             url=e["local_url"],
                             title=desc,
                             is_local=True,
-                            is_broken=False,
+                            is_link_broken=False,
                             is_direct=True,
                             size_str=format_compact_file_size(e["file_size"]),
                             filename=e["orig_filename"],
@@ -607,7 +600,7 @@ def BuildDownloadGroups(
                 url=primary_entry["remote_url"],
                 title=main_title,
                 is_local=is_local,
-                is_broken=primary_entry["is_broken"],
+                is_link_broken=primary_entry["is_link_broken"],
                 is_direct=primary_entry["is_direct"],
                 size_str=size_str,
                 filename=primary_entry["orig_filename"],
@@ -626,7 +619,7 @@ def BuildDownloadGroups(
                         url=e["remote_url"],
                         title=item_title,
                         is_local=_is_local_url(e["remote_url"]),
-                        is_broken=e["is_broken"],
+                        is_link_broken=e["is_link_broken"],
                         is_direct=e["is_direct"],
                         size_str=format_compact_file_size(e["file_size"]),
                         filename=e["orig_filename"],
@@ -647,7 +640,7 @@ def BuildDownloadGroups(
                         url=primary_entry["remote_url"],
                         title=item_title,
                         is_local=is_local,
-                        is_broken=primary_entry["is_broken"],
+                        is_link_broken=primary_entry["is_link_broken"],
                         is_direct=primary_entry["is_direct"],
                         size_str=size_str,
                         filename=primary_entry["orig_filename"],
@@ -866,7 +859,7 @@ class GameDetailsBuilder:
                     description=entry.description,
                     remote_url=remote_url,
                     local_url=local_url,
-                    is_broken=is_broken,
+                    is_link_broken=is_broken,
                     has_local_copy=has_local_copy,
                     url=url,
                 )

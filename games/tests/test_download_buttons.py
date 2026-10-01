@@ -87,7 +87,7 @@ class DownloadButtonsTests(TestCase):
         group = content.download_groups[0]
         self.assertFalse(group.has_dropdown)
         self.assertFalse(group.main_button.is_local)
-        self.assertFalse(group.main_button.is_broken)
+        self.assertFalse(group.main_button.is_link_broken)
         self.assertEqual(
             group.main_button.url, "https://qsp.org/games/test.zip"
         )
@@ -106,7 +106,7 @@ class DownloadButtonsTests(TestCase):
         )
         content = GameDetailsBuilder(info).GetContentDict()
         group = content.download_groups[0]
-        self.assertTrue(group.main_button.is_broken)
+        self.assertTrue(group.main_button.is_link_broken)
         self.assertFalse(group.main_button.is_local)
 
     def test_url_with_successful_local_fetch(self) -> None:

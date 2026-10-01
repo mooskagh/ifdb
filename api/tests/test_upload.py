@@ -79,7 +79,7 @@ class APIUploadTests(TestCase):
         url_obj = URL.objects.get(pk=data["url_id"])
         self.assertTrue(url_obj.is_uploaded)
         self.assertEqual(url_obj.creator, self.user)
-        self.assertEqual(url_obj.original_filename, "game_archive.zip")
+        self.assertEqual(url_obj.get_original_filename(), "game_archive.zip")
         stored = url_obj.get_stored_file()
         self.assertIsNotNone(stored)
         self.assertEqual(stored.storage_path, f"g/{game.id}/game_archive.zip")
@@ -121,7 +121,9 @@ class APIUploadTests(TestCase):
         stored = url_obj.get_stored_file()
         self.assertIsNotNone(stored)
         self.assertEqual(stored.storage_path, f"g/{game.id}/release.tar.gz")
-        self.assertEqual(url_obj.local_url, f"/f/g/{game.id}/release.tar.gz")
+        self.assertEqual(
+            url_obj.get_local_url(), f"/f/g/{game.id}/release.tar.gz"
+        )
         self.assertTrue(url_obj.fetches.filter(stored_file=stored).exists())
 
         game_url = GameURL.objects.get(game=game, url=url_obj)

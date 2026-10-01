@@ -577,17 +577,12 @@ def upload(request):
     file_url = fs.url(filename)
     url_full = request.build_absolute_uri(file_url)
 
-    url = URL()
-    url.local_url = file_url
-    url.original_url = url_full
-    url.original_filename = file.name
-    url.local_filename = filename
-    url.content_type = file.content_type
-    url.is_uploaded = True
-    url.creation_date = timezone.now()
-    url.file_size = fs.size(filename)
-    url.creator = request.user
-    url.save()
+    URL.objects.create(
+        original_url=url_full,
+        is_uploaded=True,
+        creation_date=timezone.now(),
+        creator=request.user,
+    )
 
     return JsonResponse({"url": url_full})
 
