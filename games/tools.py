@@ -323,7 +323,12 @@ def RenderMarkdown(content, snippet_provider=None):
     return markdown.markdown(content, extensions=extensions)
 
 
-def CreateUrl(url: str, *, creator: AbstractBaseUser | None = None) -> URL:
+def CreateUrl(
+    url: str,
+    *,
+    creator: AbstractBaseUser | None = None,
+    is_uploaded: bool = False,
+) -> URL:
     try:
         u = URL.objects.get(original_url=url)
     except URL.DoesNotExist:
@@ -331,12 +336,9 @@ def CreateUrl(url: str, *, creator: AbstractBaseUser | None = None) -> URL:
         u.original_url = url
         u.creation_date = timezone.now()
         u.creator = creator
-        u.resolve_local_file(save=False)
+        u.is_uploaded = is_uploaded
         u.save()
         return u
-
-    if not u.local_filename:
-        u.resolve_local_file(save=True)
 
     return u
 

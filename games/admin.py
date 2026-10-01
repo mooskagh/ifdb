@@ -2,6 +2,7 @@ from typing import Any
 
 from django import forms
 from django.contrib import admin, messages
+from django.db import models
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.urls import reverse
 
@@ -219,6 +220,27 @@ class URLFetchAdmin(admin.ModelAdmin):
     list_filter = ["content_type", "first_fetch", "last_fetch"]
 
 
+class BrokenLinkListFilter(admin.SimpleListFilter):
+    title = "broken link"
+    parameter_name = "is_broken"
+
+    def lookups(self, request, model_admin):
+        return [("yes", "Yes"), ("no", "No")]
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.filter(
+                models.Q(failing_since__isnull=False)
+                | models.Q(last_error__gt="")
+            )
+        if self.value() == "no":
+            return queryset.filter(
+                models.Q(failing_since__isnull=True),
+                models.Q(last_error__isnull=True) | models.Q(last_error=""),
+            )
+        return queryset
+
+
 @admin.register(URL)
 class URLAdmin(admin.ModelAdmin):
     def _original_url(self, obj: URL) -> str:
@@ -228,19 +250,27 @@ class URLAdmin(admin.ModelAdmin):
             return obj.original_url
         return obj.original_url[:80] + "…"
 
+    @admin.display(description="Local URL")
+    def _local_url(self, obj: URL) -> str:
+        return obj.get_local_url() or ""
+
+    @admin.display(boolean=True, description="Broken")
+    def _is_link_broken(self, obj: URL) -> bool:
+        return obj.is_link_broken()
+
     list_display = [
         "_original_url",
-        "local_url",
+        "_local_url",
         "is_uploaded",
-        "is_broken",
+        "_is_link_broken",
         "last_attempt",
         "failing_since",
         "creation_date",
     ]
-    search_fields = ["pk", "original_url", "local_url", "last_error"]
+    search_fields = ["pk", "original_url", "last_error"]
     list_filter = [
         "is_uploaded",
-        "is_broken",
+        BrokenLinkListFilter,
         "last_attempt",
         "failing_since",
         "creation_date",

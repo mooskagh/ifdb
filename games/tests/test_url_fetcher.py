@@ -206,7 +206,6 @@ class TestFetchUrlHistory(BaseFetcherTestCase):
         self.assertEqual(result.outcome, FetchOutcome.CREATED)
         assert result.stored_file is not None
         url.refresh_from_db()
-        self.assertIsNone(url.local_url)
         self.assertGreater(len(url.get_local_url() or ""), 255)
         self.assertEqual(url.get_local_url(), result.stored_file.public_url)
 
@@ -259,11 +258,6 @@ class TestFetchUrlHistory(BaseFetcherTestCase):
         self.assertTrue(stored.exists())
 
         url.refresh_from_db()
-        self.assertIsNone(url.local_url)
-        self.assertIsNone(url.file_size)
-        self.assertIsNone(url.original_filename)
-        self.assertIsNone(url.content_type)
-        self.assertFalse(url.is_broken)
         self.assertEqual(url.get_local_url(), "/f/g/101/quest.zip")
         self.assertEqual(url.get_file_size(), len(content))
         self.assertEqual(url.get_original_filename(), "quest.zip")
@@ -460,7 +454,6 @@ class TestDeduplication(BaseFetcherTestCase):
         self.assertEqual(res1.stored_file.storage_path, "g/201/game.zip")
         # url2 points to that same physical file
         url2.refresh_from_db()
-        self.assertIsNone(url2.local_url)
         self.assertEqual(url2.get_local_url(), "/f/g/201/game.zip")
 
     def test_uploaded_file_and_remote_url_share_stored_file(self) -> None:
@@ -615,7 +608,6 @@ class TestFetchUrlsCommand(BaseFetcherTestCase):
             call_command("fetch_urls", url_id=url.id, verbosity=1)
 
         url.refresh_from_db()
-        self.assertIsNone(url.local_url)
         self.assertEqual(url.get_local_url(), "/f/g/401/cmd.zip")
         self.assertFalse(url.is_link_broken())
 
@@ -748,8 +740,6 @@ class TestCleanupBadFetchesCommand(BaseFetcherTestCase):
             self.assertTrue(StoredFile.objects.filter(pk=sf.pk).exists())
 
             url.refresh_from_db()
-            self.assertIsNone(url.local_url)
-            self.assertIsNone(url.file_size)
             self.assertIsNone(url.get_local_url())
             self.assertIsNone(url.get_file_size())
             self.assertTrue(url.is_link_broken())

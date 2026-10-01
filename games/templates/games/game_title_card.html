@@ -66,13 +66,13 @@
                     {% for x in online %}
                         {% if x.remote_url %}
                             <a class="button button-salad"
-                                {% if x.is_broken %}
+                                {% if x.is_link_broken %}
                                     title="Битая ссылка!"
                                 {% endif %}
                                 href="{{ x.remote_url }}"
                                 target="_blank">
                                     <svg><use href="{% static 'iconset.svg' %}#play"></use></svg>
-                                    {% if x.is_broken %}
+                                    {% if x.is_link_broken %}
                                         <img src="{% static 'brokenlink.svg' %}"/>
                                     {% endif %}
                                     {{x.description}}
@@ -85,11 +85,11 @@
                         {% if group.has_dropdown %}
                             <div class="button-split">
                                 <a class="button button-gray button-split-main"
-                                        {% if group.main_button.is_broken %}title="Битая ссылка!"{% endif %}
+                                        {% if group.main_button.is_link_broken %}title="Битая ссылка!"{% endif %}
                                         href="{{ group.main_button.url }}"
                                         {% if group.main_button.is_direct %}download{% if group.main_button.filename %}="{{ group.main_button.filename }}"{% endif %}{% endif %}>
                                     <svg><use href="{% static 'iconset.svg' %}#{% if group.main_button.is_local %}download{% else %}download-external{% endif %}"></use></svg>
-                                    {% if group.main_button.is_broken %}
+                                    {% if group.main_button.is_link_broken %}
                                         <img src="{% static 'brokenlink.svg' %}"/>
                                     {% endif %}
                                     {{ group.main_button.title }}
@@ -100,11 +100,11 @@
                                 <div class="download-dropdown-menu">
                                     {% for item in group.dropdown_items %}
                                         <a class="download-dropdown-item"
-                                                {% if item.is_broken %}title="Битая ссылка!"{% endif %}
+                                                {% if item.is_link_broken %}title="Битая ссылка!"{% endif %}
                                                 href="{{ item.url }}"
                                                 {% if item.is_direct %}download{% if item.filename %}="{{ item.filename }}"{% endif %}{% else %}target="_blank"{% endif %}>
                                             <svg><use href="{% static 'iconset.svg' %}#{% if item.is_local %}download{% else %}download-external{% endif %}"></use></svg>
-                                            {% if item.is_broken %}
+                                            {% if item.is_link_broken %}
                                                 <img src="{% static 'brokenlink.svg' %}"/>
                                             {% endif %}
                                             <span>{{ item.title }}</span>
@@ -122,11 +122,11 @@
                             </div>
                         {% elif group.main_button.url %}
                             <a class="button button-gray"
-                                    {% if group.main_button.is_broken %}title="Битая ссылка!"{% endif %}
+                                    {% if group.main_button.is_link_broken %}title="Битая ссылка!"{% endif %}
                                     href="{{ group.main_button.url }}"
                                     {% if group.main_button.is_direct %}download{% if group.main_button.filename %}="{{ group.main_button.filename }}"{% endif %}{% endif %}>
                                 <svg><use href="{% static 'iconset.svg' %}#{% if group.main_button.is_local %}download{% else %}download-external{% endif %}"></use></svg>
-                                {% if group.main_button.is_broken %}
+                                {% if group.main_button.is_link_broken %}
                                     <img src="{% static 'brokenlink.svg' %}"/>
                                 {% endif %}
                                 {{ group.main_button.title }}

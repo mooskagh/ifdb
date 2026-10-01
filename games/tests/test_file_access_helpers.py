@@ -156,17 +156,9 @@ class FileAccessHelpersTests(TestCase):
             self.assertIsNotNone(url.get_local_file_path(must_exist=False))
             self.assertIsNone(url.get_local_file_path(must_exist=True))
 
-    def test_url_fallback_to_legacy_fields(self) -> None:
-        uploads_dir = Path(self.media_root) / "uploads"
-        uploads_dir.mkdir(parents=True, exist_ok=True)
-        file_path = uploads_dir / "legacy_game.zip"
-        file_path.write_bytes(b"legacy-content")
-
+    def test_url_without_stored_file_no_fallback(self) -> None:
         url = URL.objects.create(
             original_url="https://example.com/legacy.zip",
-            local_filename="legacy_game.zip",
-            local_url="/f/uploads/legacy_game.zip",
-            is_uploaded=True,
             creation_date=django_timezone.now(),
         )
 
@@ -175,29 +167,18 @@ class FileAccessHelpersTests(TestCase):
             UPLOADS_FS=self.uploads_fs,
             BACKUPS_FS=self.backups_fs,
         ):
-            # No fetch or stored file
             self.assertIsNone(url.get_latest_fetch())
             self.assertIsNone(url.get_stored_file())
-
-            # Local URL falls back
-            self.assertEqual(url.get_local_url(), "/f/uploads/legacy_game.zip")
-            self.assertEqual(url.GetLocalUrl(), "/f/uploads/legacy_game.zip")
-
-            # Stored copy check
-            self.assertTrue(url.has_stored_copy(check_disk=False))
-            self.assertTrue(url.has_stored_copy(check_disk=True))
-
-            # Path check
+            self.assertIsNone(url.get_local_url())
             self.assertEqual(
-                url.get_local_file_path(must_exist=False), file_path
+                url.GetLocalUrl(), "https://example.com/legacy.zip"
             )
-            self.assertEqual(
-                url.get_local_file_path(must_exist=True), file_path
-            )
-
-            # Open local file
-            with url.open_local_file("rb") as f:
-                self.assertEqual(f.read(), b"legacy-content")
+            self.assertFalse(url.has_stored_copy(check_disk=False))
+            self.assertFalse(url.has_stored_copy(check_disk=True))
+            self.assertIsNone(url.get_local_file_path(must_exist=False))
+            self.assertIsNone(url.get_local_file_path(must_exist=True))
+            with self.assertRaises(FileNotFoundError):
+                url.open_local_file("rb")
 
     def test_url_without_any_stored_file(self) -> None:
         url = URL.objects.create(

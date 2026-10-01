@@ -1,3 +1,4 @@
+from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -7,7 +8,14 @@ from django.core.files.storage import FileSystemStorage
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils.timezone import now
 
-from games.models import URL, Game, GameURL, GameURLCategory
+from games.models import (
+    URL,
+    Game,
+    GameURL,
+    GameURLCategory,
+    StoredFile,
+    URLFetch,
+)
 from play.blueprint import (
     TELEMETRY_SCRIPT,
     GenerateSpec,
@@ -578,9 +586,14 @@ class StaticFilesTaskTests(TestCase):
 
             url = URL.objects.create(
                 original_url="https://example.com/game.zip",
-                local_filename="game.zip",
                 creation_date=now(),
             )
+            stored_file = StoredFile.objects.create(
+                content_hash=sha256(b"sf1").hexdigest(),
+                storage_path="game.zip",
+                file_size=game_file_path.stat().st_size,
+            )
+            URLFetch.objects.create(url=url, stored_file=stored_file)
             cat, _ = GameURLCategory.objects.get_or_create(
                 symbolic_id="download_direct",
                 defaults={"title": "Direct download"},
@@ -600,11 +613,10 @@ class StaticFilesTaskTests(TestCase):
 
             with override_settings(
                 PLAYABLE_DIR=playables_dir,
-                UPLOADS_FS=fs,
+                FILES_FS=fs,
                 CADDY_ADMIN_URL="http://localhost:2019",
             ):
                 with (
-                    patch("games.models.URL.GetFs", return_value=fs),
                     patch(
                         "play.tasks.configure_caddy_playable",
                         return_value=True,
@@ -646,9 +658,14 @@ class StaticFilesTaskTests(TestCase):
 
             url = URL.objects.create(
                 original_url="https://example.com/game.zip",
-                local_filename="game.zip",
                 creation_date=now(),
             )
+            stored_file = StoredFile.objects.create(
+                content_hash=sha256(b"sf2").hexdigest(),
+                storage_path="game.zip",
+                file_size=game_file_path.stat().st_size,
+            )
+            URLFetch.objects.create(url=url, stored_file=stored_file)
             cat, _ = GameURLCategory.objects.get_or_create(
                 symbolic_id="download_direct",
                 defaults={"title": "Direct download"},
@@ -668,11 +685,10 @@ class StaticFilesTaskTests(TestCase):
 
             with override_settings(
                 PLAYABLE_DIR=playables_dir,
-                UPLOADS_FS=fs,
+                FILES_FS=fs,
                 CADDY_ADMIN_URL=None,
             ):
                 with (
-                    patch("games.models.URL.GetFs", return_value=fs),
                     patch(
                         "play.tasks.generate_playable_domain",
                         return_value="sub-game",
@@ -702,9 +718,14 @@ class StaticFilesTaskTests(TestCase):
 
             url = URL.objects.create(
                 original_url="https://example.com/my_game.html",
-                local_filename="my_game.html",
                 creation_date=now(),
             )
+            stored_file = StoredFile.objects.create(
+                content_hash=sha256(b"sf3").hexdigest(),
+                storage_path="my_game.html",
+                file_size=game_file_path.stat().st_size,
+            )
+            URLFetch.objects.create(url=url, stored_file=stored_file)
             cat, _ = GameURLCategory.objects.get_or_create(
                 symbolic_id="download_direct",
                 defaults={"title": "Direct download"},
@@ -724,11 +745,10 @@ class StaticFilesTaskTests(TestCase):
 
             with override_settings(
                 PLAYABLE_DIR=playables_dir,
-                UPLOADS_FS=fs,
+                FILES_FS=fs,
                 CADDY_ADMIN_URL=None,
             ):
                 with (
-                    patch("games.models.URL.GetFs", return_value=fs),
                     patch(
                         "play.tasks.generate_playable_domain",
                         return_value="raw-html-game",
