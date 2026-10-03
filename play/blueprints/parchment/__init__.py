@@ -26,6 +26,7 @@ SUPPORTED_EXTENSIONS = frozenset((
     ".glb",
     ".t3",
     ".gam",
+    ".taf",
 ))
 
 _TADS2_HEADER = b"TADS2 bin\n\r\x1a\x00"
