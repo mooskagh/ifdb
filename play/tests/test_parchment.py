@@ -84,11 +84,13 @@ class ParchmentTests(SimpleTestCase):
                 ".ulx",
                 ".gblorb",
                 ".glb",
+                ".taf",
                 ".Z5",
                 ".ZBLORB",
                 ".Gblorb",
                 ".ULX",
                 ".Glb",
+                ".TAF",
             ):
                 file_path = root / f"game{ext}"
                 file_path.write_bytes(b"game-data")
@@ -103,6 +105,7 @@ class ParchmentTests(SimpleTestCase):
                 ("game.ulx", "readme.txt"),
                 ("subdir/story.gblorb", "subdir/manual.pdf"),
                 ("GAME.ZBLORB", None),
+                ("game.taf", None),
             )
             for i, (game_entry, extra_entry) in enumerate(cases):
                 zip_path = root / f"archive_{i}.zip"
