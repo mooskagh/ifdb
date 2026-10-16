@@ -33,13 +33,19 @@ class MockResponse:
         data: bytes,
         filename: str | None = None,
         content_type: str | None = None,
+        url: str | None = None,
     ):
         self.data = data
         self.metadata = {
             "filename": filename,
             "content-type": content_type,
+            "final_url": url,
         }
+        self.url = url
         self._stream = io.BytesIO(data)
+
+    def geturl(self) -> str | None:
+        return self.url
 
     def read(self, size: int = -1) -> bytes:
         return self._stream.read(size)
@@ -208,6 +214,44 @@ class TestFetchUrlHistory(BaseFetcherTestCase):
         url.refresh_from_db()
         self.assertGreater(len(url.get_local_url() or ""), 255)
         self.assertEqual(url.get_local_url(), result.stored_file.public_url)
+
+    def test_fetch_url_decodes_mojibake_filename_from_metadata(self) -> None:
+        game = self.create_game(2426)
+        url = self.create_url(
+            "http://forum.ifiction.ru/file.php?i=4a2dbfde11788fe0832dd7105f1de5b3",
+            game=game,
+        )
+        res = fetch_url(
+            url,
+            downloader=lambda _u, timeout: MockResponse(
+                b"qsz-content",
+                filename="ÐºÐ°Ñ\x80Ð°Ð½Ñ\x82Ð¸Ð½.qsz",
+                content_type="application/octet-stream",
+                url="https://forum.ifiction.ru/file.php?i=4a2dbfde11788fe0832dd7105f1de5b3",
+            ),
+        )
+        self.assertEqual(res.outcome, FetchOutcome.CREATED)
+        assert res.url_fetch is not None
+        self.assertEqual(res.url_fetch.original_filename, "карантин.qsz")
+        assert res.stored_file is not None
+        self.assertEqual(res.stored_file.storage_path, "g/2426/карантин.qsz")
+        self.assertEqual(url.get_original_filename(), "карантин.qsz")
+
+    def test_fetch_url_extracts_filename_from_redirect_url(self) -> None:
+        game = self.create_game(100)
+        url = self.create_url("https://example.com/dl?id=123", game=game)
+        res = fetch_url(
+            url,
+            downloader=lambda _u, timeout: MockResponse(
+                b"content",
+                url="https://example.com/files/%D0%9A%D0%B0%D1%80%D0%B0%D0%BD%D1%82%D0%B8%D0%BD.qsz",
+            ),
+        )
+        self.assertEqual(res.outcome, FetchOutcome.CREATED)
+        assert res.url_fetch is not None
+        self.assertEqual(res.url_fetch.original_filename, "Карантин.qsz")
+        assert res.stored_file is not None
+        self.assertEqual(res.stored_file.storage_path, "g/100/Карантин.qsz")
 
     def test_overlapping_fetch_cannot_move_timestamps_backwards(self) -> None:
         game = self.create_game(199)
@@ -596,6 +640,13 @@ class TestStoragePathsAndCollisions(BaseFetcherTestCase):
             sanitize_filename(None, content_type="image/png"), "download.png"
         )
         self.assertEqual(sanitize_filename("игра (тест).z5"), "игра_тест.z5")
+        self.assertEqual(sanitize_filename("êàðàíòèí.qsz"), "карантин.qsz")
+        self.assertEqual(
+            sanitize_filename("ÐºÐ°Ñ\x80Ð°Ð½Ñ\x82Ð¸Ð½.qsz"), "карантин.qsz"
+        )
+        self.assertEqual(
+            sanitize_filename("ÐºÐ°Ñ€Ð°Ð½Ñ‚Ð¸Ð½.qsz"), "карантин.qsz"
+        )
 
 
 class TestFetchUrlsCommand(BaseFetcherTestCase):

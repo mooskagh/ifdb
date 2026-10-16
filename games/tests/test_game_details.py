@@ -30,7 +30,7 @@ from games.models import (
     StoredFile,
     URLFetch,
 )
-from games.tools import RenderMarkdown
+from games.tools import RenderCommentMarkdown, RenderMarkdown
 from play.models import Playable
 
 
@@ -422,4 +422,45 @@ Game Description
         )
         response = self.client.get(reverse("show_game", args=[game.id]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, url_comment)
+        expected_link = (
+            f'<a href="{url_comment}" target="_blank" '
+            'rel="nofollow noopener noreferrer">'
+            f"{url_comment}</a>"
+        )
+        self.assertContains(response, expected_link)
+
+    def test_render_comment_markdown_converts_urls_to_links(self) -> None:
+        url = "https://rinakaraseva.gitverse.site/anna-story"
+        rendered = RenderCommentMarkdown(url)
+        self.assertIn(f'href="{url}"', rendered)
+        self.assertIn('target="_blank"', rendered)
+        self.assertIn('rel="nofollow noopener noreferrer"', rendered)
+
+        # Trailing punctuation should be excluded from the link
+        rendered_punct = RenderCommentMarkdown(f"Check {url}.")
+        self.assertIn(
+            f'<a href="{url}" target="_blank" '
+            'rel="nofollow noopener noreferrer">'
+            f"{url}</a>.",
+            rendered_punct,
+        )
+
+        # Markdown links should also receive target="_blank" and nofollow
+        rendered_md = RenderCommentMarkdown("[Story](https://example.com)")
+        self.assertIn(
+            '<a href="https://example.com" target="_blank" '
+            'rel="nofollow noopener noreferrer">Story</a>',
+            rendered_md,
+        )
+
+        # Internal links should remain unchanged
+        rendered_internal = RenderCommentMarkdown("[About](/about)")
+        self.assertEqual(
+            rendered_internal, '<p><a href="/about">About</a></p>'
+        )
+
+        # Code blocks should not have links created
+        rendered_code = RenderCommentMarkdown("`https://example.com`")
+        self.assertEqual(
+            rendered_code, "<p><code>https://example.com</code></p>"
+        )

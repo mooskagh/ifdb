@@ -9,7 +9,6 @@ contest/views.py
 contest/voting.py
 core/admin.py
 core/apps.py
-core/crawler.py
 core/feedfetcher.py
 core/forms.py
 core/management/commands/batchjob.py
