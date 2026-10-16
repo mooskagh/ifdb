@@ -313,7 +313,6 @@ def RenderMarkdown(content, snippet_provider=None):
         content = convert_wikitext_tables(content)
     extensions = [
         "markdown.extensions.extra",
-        "markdown.extensions.meta",
         "markdown.extensions.smarty",
         "markdown.extensions.wikilinks",
         "markdown_del_ins",

@@ -19,6 +19,7 @@ from games.models import (
     URL,
     Game,
     GameAuthor,
+    GameComment,
     GameDescriptionAttribution,
     GameRevision,
     GameTag,
@@ -29,6 +30,7 @@ from games.models import (
     StoredFile,
     URLFetch,
 )
+from games.tools import RenderMarkdown
 from play.models import Playable
 
 
@@ -377,3 +379,47 @@ title: Indented game
         self.assertIn(
             "<pre><code>First indented paragraph line.\n</code></pre>", html
         )
+
+    def test_render_markdown_preserves_urls_and_colon_lines(self) -> None:
+        url = "https://rinakaraseva.gitverse.site/anna-story"
+        self.assertEqual(RenderMarkdown(url), f"<p>{url}</p>")
+        self.assertIn(
+            url,
+            RenderMarkdown(f"{url}\nSecond line"),
+        )
+        self.assertIn(
+            "Note: this should not disappear",
+            RenderMarkdown("Note: this should not disappear"),
+        )
+
+    def test_comment_with_url_renders_on_game_details_page(self) -> None:
+        game = Game.objects.create(
+            title="Commented game",
+            state=Game.State.PUBLISHED,
+            creation_time=now(),
+        )
+        rev = GameRevision.objects.create(
+            game=game,
+            created_at=now(),
+            published_at=now(),
+            status=GameRevision.Status.ACCEPTED,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            canonical_text="""---
+- name: "Commented game"
+---
+Game Description
+""",
+        )
+        game.published_revision = rev
+        game.save(update_fields=["published_revision"])
+
+        url_comment = "https://rinakaraseva.gitverse.site/anna-story"
+        GameComment.objects.create(
+            game=game,
+            creation_time=now(),
+            text=url_comment,
+            username="irkus",
+        )
+        response = self.client.get(reverse("show_game", args=[game.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, url_comment)
