@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 from django.core.files.storage import FileSystemStorage
 from django.template.loader import render_to_string
 from django.test import RequestFactory, TestCase, override_settings
+from django.utils.timezone import now
 
 from games.game_details import (
     GameDetailsBuilder,
@@ -14,6 +15,7 @@ from games.gameinfo import GameInfo, GameUrl
 from games.models import (
     URL,
     Game,
+    GameURL,
     GameURLCategory,
     StoredFile,
     URLFetch,
@@ -331,3 +333,47 @@ class DownloadButtonsTests(TestCase):
             self.assertIn("#download-external", rendered)
             self.assertIn("Скачать с site.org", rendered)
             self.assertIn("https://site.org/game.zip", rendered)
+
+    def test_download_button_decodes_mojibake_filename_attribute(
+        self,
+    ) -> None:
+        file = StoredFile.objects.create(
+            content_hash="mojibakehash1",
+            storage_path="backups/êàðàíòèí.qsz",
+            file_size=33239,
+        )
+        url = URL.objects.create(
+            original_url="http://forum.ifiction.ru/file.php?i=4a2dbfde11788fe0832dd7105f1de5b3",
+            creation_date=now(),
+        )
+        URLFetch.objects.create(
+            url=url,
+            stored_file=file,
+            original_filename="êàðàíòèí.qsz",
+            first_fetch=now(),
+            last_fetch=now(),
+        )
+        GameURL.objects.create(
+            game=self.game, url=url, category=self.cat_direct
+        )
+
+        info = GameInfo(
+            name="Test Game",
+            urls=[GameUrl("download_direct", url.id, "Скачать", None)],
+        )
+        builder = GameDetailsBuilder(info)
+        groups = builder.GetDownloadGroups()
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0].main_button.filename, "карантин.qsz")
+
+        rf = RequestFactory()
+        request = rf.get(f"/game/{self.game.id}/")
+        rendered = render_to_string(
+            "games/game_title_card.html",
+            {
+                "download_groups": groups,
+                "game": self.game,
+            },
+            request=request,
+        )
+        self.assertIn('download="карантин.qsz"', rendered)

@@ -16,6 +16,7 @@ from django.urls import reverse
 
 from contest.models import GameListEntry
 from contest.views import CompetitionHead, FormatHead
+from core.crawler import decode_mojibake_filename
 from moder.actions import GetModerActions
 from play.models import Playable
 
@@ -42,6 +43,7 @@ from .tools import (
     ExtractYoutubeId,
     FormatDate,
     FormatTime,
+    RenderCommentMarkdown,
     RenderMarkdown,
     StarsFromRating,
 )
@@ -464,6 +466,9 @@ def BuildDownloadGroups(
                 or Path(stored_file.storage_path).name
             )
 
+        if orig_filename:
+            orig_filename = decode_mojibake_filename(orig_filename)
+
         seen_file_ids = set()
         if stored_file and hasattr(stored_file, "id"):
             seen_file_ids.add(stored_file.id)
@@ -483,6 +488,8 @@ def BuildDownloadGroups(
                     f.original_filename
                     or Path(f.stored_file.storage_path).name
                 )
+                if v_fname:
+                    v_fname = decode_mojibake_filename(v_fname)
                 older_versions.append(
                     GameDownloadVersion(
                         fetch_id=f.id,
@@ -1021,7 +1028,7 @@ class GameDetailsBuilder:
                     created=FormatTime(comment.creation_time),
                     created_raw=comment.creation_time,
                     edited=FormatTime(comment.edit_time),
-                    text=RenderMarkdown(comment.text),
+                    text=RenderCommentMarkdown(comment.text),
                     is_deleted=comment.is_deleted,
                     likes=GetCommentVotes(
                         comment.gamecommentvote_set, request.user, comment

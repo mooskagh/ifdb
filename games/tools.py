@@ -1,5 +1,6 @@
 import re
 import statistics
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 from xml.etree import ElementTree as etree
 
@@ -10,6 +11,8 @@ from django.db.models import F
 from django.utils import timezone
 from markdown.blockprocessors import BlockProcessor
 from markdown.extensions import Extension
+from markdown.inlinepatterns import InlineProcessor
+from markdown.postprocessors import Postprocessor
 from markdown.util import AtomicString
 
 from .models import URL, Game, GameURL, GameVote
@@ -304,14 +307,117 @@ class MarkdownSnippet(Extension):
         md.parser.blockprocessors.register(processor, "snippets", 200)
 
 
-def RenderMarkdown(content, snippet_provider=None):
+A_TAG_RE = re.compile(r"<a\b([^>]*)>", re.IGNORECASE)
+HREF_RE = re.compile(r"""\bhref=(?:(["'])(.*?)\1|([^\s>]+))""", re.IGNORECASE)
+TARGET_RE = re.compile(r"""\btarget=(?:(["']).*?\1|[^\s>]+)""", re.IGNORECASE)
+REL_RE = re.compile(r"""\brel=(?:(["']).*?\1|[^\s>]+)""", re.IGNORECASE)
+
+
+class BareUrlInlineProcessor(InlineProcessor):
+    TRAILING_PUNCT = ".,:;!?]}\"'"
+
+    def handleMatch(
+        self, m: re.Match[str], data: str
+    ) -> tuple[etree.Element | None, int | None, int | None]:
+        raw = m.group(0)
+        trimmed = raw.rstrip(self.TRAILING_PUNCT)
+        while trimmed.endswith(")") and trimmed.count(")") > trimmed.count(
+            "("
+        ):
+            trimmed = trimmed[:-1].rstrip(self.TRAILING_PUNCT)
+
+        if not trimmed:
+            return None, None, None
+
+        cut = len(raw) - len(trimmed)
+        el = etree.Element("a")
+        el.set("href", trimmed)
+        el.text = AtomicString(trimmed)
+        return el, m.start(0), m.end(0) - cut
+
+
+class ExternalLinksPostprocessor(Postprocessor):
+    def __init__(
+        self,
+        md: markdown.Markdown,
+        target_blank: bool = True,
+        nofollow: bool = True,
+    ) -> None:
+        super().__init__(md)
+        self.target_blank = target_blank
+        self.nofollow = nofollow
+
+    def run(self, text: str) -> str:
+        def replace_a(match: re.Match[str]) -> str:
+            attrs = match.group(1)
+            href_match = HREF_RE.search(attrs)
+            if not href_match:
+                return match.group(0)
+            href = href_match.group(2) or href_match.group(3)
+            if not href.startswith(("http://", "https://", "//")):
+                return match.group(0)
+
+            new_attrs = attrs.rstrip()
+            if self.target_blank:
+                if TARGET_RE.search(new_attrs):
+                    new_attrs = TARGET_RE.sub('target="_blank"', new_attrs)
+                else:
+                    new_attrs += ' target="_blank"'
+            if self.nofollow:
+                if REL_RE.search(new_attrs):
+                    new_attrs = REL_RE.sub(
+                        'rel="nofollow noopener noreferrer"', new_attrs
+                    )
+                else:
+                    new_attrs += ' rel="nofollow noopener noreferrer"'
+            return f"<a{new_attrs}>"
+
+        return A_TAG_RE.sub(replace_a, text)
+
+
+class CommentLinksExtension(Extension):
+    def __init__(
+        self,
+        *,
+        autolink: bool = True,
+        target_blank: bool = True,
+        nofollow: bool = True,
+    ) -> None:
+        super().__init__()
+        self.autolink = autolink
+        self.target_blank = target_blank
+        self.nofollow = nofollow
+
+    def extendMarkdown(self, md: markdown.Markdown) -> None:
+        if self.autolink:
+            md.inlinePatterns.register(
+                BareUrlInlineProcessor(r"https?://[^\s<>]+"), "bare_url", 85
+            )
+        if self.target_blank or self.nofollow:
+            md.postprocessors.register(
+                ExternalLinksPostprocessor(
+                    md, self.target_blank, self.nofollow
+                ),
+                "external_links",
+                15,
+            )
+
+
+def RenderMarkdown(
+    content: str | None,
+    snippet_provider: Any = None,
+    *,
+    autolink: bool = False,
+    target_blank: bool = False,
+    nofollow: bool = False,
+) -> str:
     if not content:
         return ""
     if "{|" in content:
         from games.importer.ifwiki import convert_wikitext_tables
 
         content = convert_wikitext_tables(content)
-    extensions = [
+    extensions: list[Extension | str] = [
         "markdown.extensions.extra",
         "markdown.extensions.smarty",
         "markdown.extensions.wikilinks",
@@ -319,7 +425,24 @@ def RenderMarkdown(content, snippet_provider=None):
     ]
     if snippet_provider:
         extensions.append(MarkdownSnippet(snippet_provider))
+    if autolink or target_blank or nofollow:
+        extensions.append(
+            CommentLinksExtension(
+                autolink=autolink,
+                target_blank=target_blank,
+                nofollow=nofollow,
+            )
+        )
     return markdown.markdown(content, extensions=extensions)
+
+
+def RenderCommentMarkdown(content: str | None) -> str:
+    return RenderMarkdown(
+        content,
+        autolink=True,
+        target_blank=True,
+        nofollow=True,
+    )
 
 
 def CreateUrl(

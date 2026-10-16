@@ -6,6 +6,8 @@ from django.db import models, transaction
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 
+from core.crawler import decode_mojibake_filename
+
 # Create your models here.
 
 
@@ -380,7 +382,7 @@ class URL(models.Model):
     def get_original_filename(self) -> str | None:
         fetch = self.get_latest_fetch()
         if fetch is not None and fetch.original_filename:
-            return fetch.original_filename
+            return decode_mojibake_filename(fetch.original_filename)
         return None
 
     def get_content_type(self) -> str | None:

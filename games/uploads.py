@@ -9,6 +9,7 @@ from django.conf import settings
 from django.db import models, transaction
 from django.utils.timezone import now
 
+from core.crawler import decode_mojibake_filename
 from games.fetcher import determine_storage_path, persist_file_to_storage
 from games.models import URL, Game, StoredFile, URLFetch
 
@@ -64,9 +65,10 @@ def handle_existing_game_upload(
         url_full = (
             build_absolute_uri(file_url) if build_absolute_uri else file_url
         )
-        url = URL.objects.filter(original_url=url_full).first()
-        orig_filename = (uploaded_file.name or "")[:255]
+        raw_name = getattr(uploaded_file, "name", "") or ""
+        orig_filename = (decode_mojibake_filename(raw_name) or "")[:255]
         content_type = (getattr(uploaded_file, "content_type", "") or "")[:255]
+        url = URL.objects.filter(original_url=url_full).first()
 
         if url is None:
             creator = (

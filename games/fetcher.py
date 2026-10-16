@@ -18,11 +18,11 @@ from django.db.models import Q
 from django.utils.text import get_valid_filename
 from django.utils.timezone import now
 
-from core.crawler import FetchUrlToFileLike
+from core.crawler import FetchUrlToFileLike, decode_mojibake_filename
 from games.models import URL, StoredFile, URLFetch
 
 FILENAME_RE = re.compile(
-    r"^.*?\b((?:%[0-9a-f]{2}|[$:+()_\w\d\.])+\.[\w\d]{2,4})\b[^/]*$"
+    r"^.*?(?:/|\b)((?:%[0-9a-fA-F]{2}|[-+$:+()_\w\d\.])+\.[\w\d]{2,4})\b[^/]*$"
 )
 INSTEAD_NOT_FOUND_RE = re.compile(rb"File not found: [^\r\n]+\r?\n?")
 QUESTBOOK_ERROR_RE = re.compile(
@@ -98,7 +98,8 @@ def sanitize_filename(
 ) -> str:
     name = ""
     if candidate:
-        name = Path(candidate.strip().replace("\\", "/")).name
+        decoded = decode_mojibake_filename(candidate) or candidate
+        name = Path(decoded.strip().replace("\\", "/")).name
     try:
         clean = get_valid_filename(name).lstrip(".")
     except Exception:
@@ -260,10 +261,20 @@ def fetch_url(
             metadata = getattr(resp, "metadata", {}) or {}
             orig_filename = metadata.get("filename")
             content_type = metadata.get("content-type")
+            final_url = metadata.get("final_url") or (
+                resp.geturl() if hasattr(resp, "geturl") else None
+            )
+
+            if not orig_filename and final_url:
+                if m := FILENAME_RE.match(unquote(final_url)):
+                    orig_filename = m.group(1)
 
             if not orig_filename:
-                if m := FILENAME_RE.match(url.original_url):
-                    orig_filename = unquote(m.group(1))
+                if m := FILENAME_RE.match(unquote(url.original_url)):
+                    orig_filename = m.group(1)
+
+            if orig_filename:
+                orig_filename = decode_mojibake_filename(orig_filename)
 
             while chunk := resp.read(64 * 1024):
                 digest.update(chunk)
@@ -319,11 +330,18 @@ def fetch_url(
             and latest_fetch.stored_file_id == stored_file.id
         ):
             outcome = FetchOutcome.UNCHANGED
+            update_fields: dict[str, Any] = {"last_fetch": attempt_time}
+            if orig_filename and (
+                not latest_fetch.original_filename
+                or decode_mojibake_filename(latest_fetch.original_filename)
+                != latest_fetch.original_filename
+            ):
+                update_fields["original_filename"] = orig_filename[:255]
             URLFetch.objects.filter(
                 pk=latest_fetch.pk,
                 first_fetch__lte=attempt_time,
                 last_fetch__lt=attempt_time,
-            ).update(last_fetch=attempt_time)
+            ).update(**update_fields)
             fetch_row = latest_fetch
         elif stored_file is not None:
             outcome = FetchOutcome.REUSED
