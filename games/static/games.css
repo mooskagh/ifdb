@@ -4650,3 +4650,75 @@ progress.curation-scan-progress-bar {
     background: #fee2e2;
     color: #b91c1c;
 }
+
+/* Timeline table */
+.curation-timeline-table-wrap {
+    overflow-x: auto;
+}
+.curation-timeline-table {
+    width: 100%;
+}
+.curation-timeline-table td {
+    vertical-align: top;
+}
+.curation-timeline-table tbody tr:hover {
+    background: #f8fafc;
+    cursor: default;
+}
+.curation-timeline-col-time {
+    width: 130px;
+}
+.curation-timeline-col-event {
+    width: 170px;
+}
+.curation-timeline-col-user {
+    width: 135px;
+    font-size: 11px;
+}
+.curation-timeline-col-user .curation-meta {
+    font-size: 11px;
+    line-height: 1.3;
+    margin-bottom: 3px;
+}
+.curation-timeline-col-details {
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+.curation-timeline-col-actions {
+    width: 130px;
+    overflow-wrap: break-word;
+}
+.curation-timeline-col-actions .curation-action-link {
+    display: inline-block;
+    max-width: 100%;
+    box-sizing: border-box;
+    line-height: 1.25;
+    text-align: center;
+    white-space: normal;
+}
+.curation-timeline-empty {
+    padding: 12px;
+    text-align: center;
+}
+.curation-status-badge {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    vertical-align: middle;
+}
+.curation-status-badge--proposed {
+    background: #fef3c7;
+    color: #92400e;
+}
+.curation-status-badge--accepted {
+    background: #dcfce7;
+    color: #15803d;
+}
+.curation-status-badge--rejected {
+    background: #fee2e2;
+    color: #991b1b;
+}
+

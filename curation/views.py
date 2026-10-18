@@ -2656,17 +2656,8 @@ def history_detail(request, game_id):
             "color": "salad",
             "obj": fetch,
             "who": None,
-            "label": "Первая загрузка",
+            "label": "Новая версия у источника",
         })
-        if fetch.last_fetch != fetch.first_fetch:
-            timeline.append({
-                "ts": fetch.last_fetch,
-                "kind": "fetch",
-                "color": "salad",
-                "obj": fetch,
-                "who": None,
-                "label": "Последняя загрузка",
-            })
 
     edits = list(
         GameRevision.objects
@@ -2737,6 +2728,7 @@ def history_detail(request, game_id):
             "sources": sources,
             "playable_files": playable_files,
             "check_compatibility": check_compatibility,
+            "timeline": timeline,
             "groups": _group_timeline(timeline),
             "auto_choices": GameCuration.AutoUpdate.choices,
             "state_choices": GameCuration.State.choices,

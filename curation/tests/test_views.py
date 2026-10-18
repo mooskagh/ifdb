@@ -2302,13 +2302,19 @@ class EditDiffViewTest(TestCase):
 
         self.assertContains(
             response,
-            "Предложил: "
-            f"{self.user.username} ({proposed.created_at:%d.%m.%Y %H:%M})",
+            f"Предложил: {self.user.username}",
         )
         self.assertContains(
             response,
-            "Одобрил: "
-            f"{self.user.username} ({approved.published_at:%d.%m.%Y %H:%M})",
+            f"({proposed.created_at:%d.%m.%Y %H:%M})",
+        )
+        self.assertContains(
+            response,
+            f"Одобрил: {self.user.username}",
+        )
+        self.assertContains(
+            response,
+            f"({approved.published_at:%d.%m.%Y %H:%M})",
         )
         self.assertLess(
             content.index(f"/curation/edits/{proposed.pk}/"),
@@ -2422,6 +2428,44 @@ class EditDiffViewTest(TestCase):
         self.assertContains(
             response, f'href="/curation/edits/{edit.pk}/raw/after/"'
         )
+
+    def test_timeline_is_compact_table_and_fetch_has_single_row(self):
+        edit = self._edit()
+        source = GameSource.objects.create(
+            game=edit.game,
+            type=GameSource.SourceType.APERO,
+            url="https://example.com/apero",
+            created_at=self.now,
+        )
+        fetch = GameSourceFetch.objects.create(
+            source=source,
+            raw_content="content",
+            canonical_text="canonical",
+            canonical_text_hash="hash",
+            first_fetch=self.now,
+            last_fetch=self.now + timezone.timedelta(hours=2),
+        )
+
+        response = self.client.get(f"/curation/{edit.game.pk}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            '<table class="curation-table curation-table--compact'
+            ' curation-timeline-table">',
+        )
+        self.assertContains(response, "Хронология")
+        self.assertContains(response, "Новая версия у источника")
+        self.assertNotContains(response, "Последняя загрузка")
+        self.assertNotContains(response, "Первая загрузка")
+        self.assertContains(
+            response, fetch.first_fetch.strftime("%d.%m.%Y %H:%M")
+        )
+        self.assertContains(
+            response, fetch.last_fetch.strftime("%d.%m.%Y %H:%M")
+        )
+        self.assertContains(response, "curation-status-badge--accepted")
+        self.assertContains(response, "Accepted")
 
     def test_edit_raw_canonical_view(self):
         edit = self._edit()
