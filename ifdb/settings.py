@@ -250,6 +250,8 @@ PLAYABLE_BASE_DOMAIN = env(
 CADDY_PORT = env("CADDY_PORT", default=None) or None
 CADDY_ADMIN_URL = env("CADDY_ADMIN_URL", default=None) or None
 CADDY_SERVER_NAME = env("CADDY_SERVER_NAME", default="srv0")
+SSO_PRIVATE_KEY = env("SSO_PRIVATE_KEY", default=None)
+SSO_ISSUER = env("SSO_ISSUER", default="https://db.crem.xyz")
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
 
 

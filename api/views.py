@@ -1,6 +1,12 @@
+import base64
+import hashlib
 import json
+import time
 from typing import TYPE_CHECKING, Any, cast
 
+import jwt
+from cryptography.hazmat.primitives.asymmetric import ed25519
+from django.conf import settings
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone
@@ -480,3 +486,61 @@ def file_upload(
         },
         status=201,
     )
+
+
+def _sso_private_key() -> ed25519.Ed25519PrivateKey:
+    key_str = settings.SSO_PRIVATE_KEY or settings.SECRET_KEY
+    seed = hashlib.sha256(f"ifdb-sso-ed25519:{key_str}".encode()).digest()
+    return ed25519.Ed25519PrivateKey.from_private_bytes(seed)
+
+
+def _sso_kid(pub_bytes: bytes) -> str:
+    digest = hashlib.sha256(pub_bytes).digest()[:8]
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
+@require_http_methods(["GET"])
+@api_auth(allow_session=True)
+def sso_ticket(request: HttpRequest) -> HttpResponse:
+    client_id = request.GET.get("client_id", "").strip()
+    if not client_id:
+        return JsonResponse(
+            {"error": "Bad Request", "detail": "Missing client_id"},
+            status=400,
+        )
+    priv = _sso_private_key()
+    kid = _sso_kid(priv.public_key().public_bytes_raw())
+    now = int(time.time())
+    token = str(
+        jwt.encode(
+            {
+                "iss": settings.SSO_ISSUER,
+                "sub": str(request.user.pk),
+                "aud": client_id,
+                "iat": now,
+                "exp": now + 60,
+            },
+            priv,
+            algorithm="EdDSA",
+            headers={"kid": kid},
+        )
+    )
+    return JsonResponse({"ticket": token})
+
+
+@require_http_methods(["GET"])
+def sso_jwks(request: HttpRequest) -> HttpResponse:
+    pub_bytes = _sso_private_key().public_key().public_bytes_raw()
+    x = base64.urlsafe_b64encode(pub_bytes).rstrip(b"=").decode("ascii")
+    return JsonResponse({
+        "keys": [
+            {
+                "kty": "OKP",
+                "crv": "Ed25519",
+                "kid": _sso_kid(pub_bytes),
+                "use": "sig",
+                "alg": "EdDSA",
+                "x": x,
+            }
+        ]
+    })
