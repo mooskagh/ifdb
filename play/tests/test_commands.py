@@ -64,10 +64,20 @@ class RegeneratePlayablesCommandTests(TestCase):
             template_version="1.3.1",
             state=Playable.State.READY,
         )
+        Playable.objects.create(
+            game=self.game,
+            template="external",
+            template_version="1",
+            state=Playable.State.READY,
+        )
 
         out = StringIO()
-        call_command("regenerate_playables", dry_run=True, stdout=out)
+        err = StringIO()
+        call_command(
+            "regenerate_playables", dry_run=True, stdout=out, stderr=err
+        )
         output = out.getvalue()
+        self.assertEqual(err.getvalue(), "")
 
         self.assertIn("[DRY RUN] Found 2 playable(s) to regenerate:", output)
         self.assertIn(f"#{p1.pk}: Test Adventure [instead_em 3.6.0]", output)

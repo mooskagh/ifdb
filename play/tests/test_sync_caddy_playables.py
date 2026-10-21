@@ -15,16 +15,16 @@ from play.models import Playable
 )
 class TestSyncCaddyPlayables(TestCase):
     def setUp(self) -> None:
-        game = Game.objects.create(title="2048", creation_time=now())
+        self.game = Game.objects.create(title="2048", creation_time=now())
         self.playable = Playable.objects.create(
-            game=game,
+            game=self.game,
             template="static_files",
             template_version="1",
             slug="2048",
             state=Playable.State.READY,
         )
         Playable.objects.create(
-            game=game,
+            game=self.game,
             template="static_files",
             template_version="1",
             slug="pending-game",
@@ -43,6 +43,7 @@ class TestSyncCaddyPlayables(TestCase):
             "handle": [{"handler": "static_response", "status_code": 404}]
         }
         current = caddy_route_payload(self.playable)
+        assert current is not None
         stale = {
             **current,
             "@id": "playable_999999",
@@ -71,10 +72,45 @@ class TestSyncCaddyPlayables(TestCase):
     def test_already_synced_routes_are_not_changed(
         self, mock_get: MagicMock, mock_patch: MagicMock
     ) -> None:
-        mock_get.return_value.json.return_value = [
-            caddy_route_payload(self.playable)
-        ]
+        current = caddy_route_payload(self.playable)
+        assert current is not None
+        mock_get.return_value.json.return_value = [current]
 
         call_command("sync_caddy_playables", stdout=StringIO())
 
         mock_patch.assert_not_called()
+
+    @patch("play.management.commands.sync_caddy_playables.requests.patch")
+    @patch("play.management.commands.sync_caddy_playables.requests.get")
+    def test_sync_includes_external_with_upstream_and_skips_noop(
+        self, mock_get: MagicMock, mock_patch: MagicMock
+    ) -> None:
+        p_proxy = Playable.objects.create(
+            game=self.game,
+            template="external",
+            template_version="1.0",
+            slug="backend-game",
+            state=Playable.State.READY,
+            config={"upstream": "127.0.0.1:8080"},
+        )
+        Playable.objects.create(
+            game=self.game,
+            template="external",
+            template_version="1.0",
+            slug="noop-game",
+            state=Playable.State.READY,
+            config={},
+        )
+        current = caddy_route_payload(self.playable)
+        proxy_route = caddy_route_payload(p_proxy)
+        assert current is not None
+        assert proxy_route is not None
+
+        mock_get.return_value.json.return_value = []
+        call_command("sync_caddy_playables", stdout=StringIO())
+
+        mock_patch.assert_called_once_with(
+            self.routes_url,
+            json=[current, proxy_route],
+            timeout=5,
+        )

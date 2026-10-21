@@ -15,13 +15,37 @@ def caddy_route_id_for_playable(playable_pk: int) -> str:
     return f"playable_{playable_pk}"
 
 
-def caddy_route_payload(playable: Playable) -> dict[str, Any]:
-    root_dir = str(Path(settings.PLAYABLE_DIR) / str(playable.pk))
+def caddy_route_payload(playable: Playable) -> dict[str, Any] | None:
+    handle: list[dict[str, Any]]
+    if playable.is_external:
+        upstream = playable.config.get("upstream")
+        redirect = playable.config.get("redirect")
+        if isinstance(upstream, str) and upstream.strip():
+            handle = [
+                {
+                    "handler": "reverse_proxy",
+                    "upstreams": [{"dial": upstream.strip()}],
+                }
+            ]
+        elif isinstance(redirect, str) and redirect.strip():
+            handle = [
+                {
+                    "handler": "static_response",
+                    "status_code": 302,
+                    "headers": {"Location": [redirect.strip()]},
+                }
+            ]
+        else:
+            return None
+    else:
+        root_dir = str(Path(settings.PLAYABLE_DIR) / str(playable.pk))
+        handle = [{"handler": "file_server", "root": root_dir}]
+
     host = f"{playable.slug}.{settings.PLAYABLE_BASE_DOMAIN}"
     return {
         "@id": caddy_route_id_for_playable(playable.pk),
         "match": [{"host": [host]}],
-        "handle": [{"handler": "file_server", "root": root_dir}],
+        "handle": handle,
     }
 
 
@@ -30,9 +54,13 @@ def configure_caddy_playable(playable: Playable) -> bool:
     if not admin_url_setting or not playable.slug:
         return False
 
+    payload = caddy_route_payload(playable)
+    if payload is None:
+        delete_caddy_playable(playable.pk)
+        return True
+
     admin_url = str(admin_url_setting).rstrip("/")
     route_id = caddy_route_id_for_playable(playable.pk)
-    payload = caddy_route_payload(playable)
 
     try:
         check_resp = requests.get(

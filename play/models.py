@@ -14,6 +14,8 @@ from django.utils.translation import gettext_lazy as _
 from core.models import User
 from games.models import Game, GameURL
 
+EXTERNAL_TEMPLATE = "external"
+
 
 class Playable(models.Model):
     class Meta:
@@ -24,6 +26,10 @@ class Playable(models.Model):
         BUILDING = "BUILDING", _("Building")
         READY = "READY", _("Ready")
         ERROR = "ERROR", _("Error")
+
+    @property
+    def is_external(self) -> bool:
+        return self.template == EXTERNAL_TEMPLATE
 
     id: int
     slug: models.SlugField[str | None, str | None] = models.SlugField(

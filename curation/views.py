@@ -70,8 +70,17 @@ from play.blueprint import (
     discover_blueprints,
 )
 from play.caddy import configure_caddy_playable
-from play.domain import is_domain_busy, is_valid_domain_slug
-from play.models import Playable, PlaySegment, PlaySession
+from play.domain import (
+    generate_playable_domain,
+    is_domain_busy,
+    is_valid_domain_slug,
+)
+from play.models import (
+    EXTERNAL_TEMPLATE,
+    Playable,
+    PlaySegment,
+    PlaySession,
+)
 from play.tasks import generate_playable
 
 from . import openrouter
@@ -2727,6 +2736,11 @@ def history_detail(request, game_id):
             "game": game,
             "sources": sources,
             "playable_files": playable_files,
+            "external_playables": list(
+                Playable.objects.filter(
+                    game_id=game.pk, template=EXTERNAL_TEMPLATE
+                ).order_by("pk")
+            ),
             "check_compatibility": check_compatibility,
             "timeline": timeline,
             "groups": _group_timeline(timeline),
@@ -2942,12 +2956,49 @@ def history_playable_rename(request, game_id, playable_id):
         )
         return redirect(redirect_url)
 
-    if playable.slug == domain_name:
-        messages.info(request, "Доменное имя не изменилось.")
+    config_changed = False
+    player_name_changed = False
+    if playable.is_external:
+        if "upstream" in request.POST or "redirect" in request.POST:
+            upstream = request.POST.get("upstream", "").strip()
+            redirect_target = request.POST.get("redirect", "").strip()
+            new_config = dict(playable.config)
+            if upstream:
+                new_config["upstream"] = upstream
+                new_config.pop("redirect", None)
+            elif redirect_target:
+                new_config["redirect"] = redirect_target
+                new_config.pop("upstream", None)
+            else:
+                new_config.pop("upstream", None)
+                new_config.pop("redirect", None)
+            if new_config != playable.config:
+                playable.config = new_config
+                config_changed = True
+
+        if "player_name" in request.POST:
+            new_player_name = (
+                request.POST.get("player_name", "").strip() or None
+            )
+            if new_player_name != playable.player_name:
+                playable.player_name = new_player_name
+                player_name_changed = True
+
+    if (
+        playable.slug == domain_name
+        and not config_changed
+        and not player_name_changed
+    ):
+        messages.info(request, "Настройки сайта не изменились.")
         return redirect(redirect_url)
 
+    update_fields = ["slug", "updated"]
     playable.slug = domain_name
-    playable.save(update_fields=["slug", "updated"])
+    if config_changed:
+        update_fields.append("config")
+    if player_name_changed:
+        update_fields.append("player_name")
+    playable.save(update_fields=update_fields)
 
     if (
         getattr(settings, "CADDY_ADMIN_URL", None)
@@ -2956,13 +3007,100 @@ def history_playable_rename(request, game_id, playable_id):
         if not configure_caddy_playable(playable):
             messages.warning(
                 request,
-                f"Доменное имя изменено на '{domain_name}', но не удалось "
+                f"Настройки сайта '{domain_name}' сохранены, но не удалось "
                 "обновить маршрут в Caddy.",
             )
             return redirect(redirect_url)
 
     messages.success(
-        request, f"Доменное имя успешно изменено на '{domain_name}'."
+        request, f"Настройки сайта '{domain_name}' успешно сохранены."
+    )
+    return redirect(redirect_url)
+
+
+def history_playable_create_external(
+    request: HttpRequest, game_id: int
+) -> HttpResponse:
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    game = get_object_or_404(Game, pk=game_id)
+
+    redirect_url = request.POST.get("next")
+    if not (
+        redirect_url
+        and url_has_allowed_host_and_scheme(
+            redirect_url, allowed_hosts={request.get_host()}
+        )
+    ):
+        redirect_url = (
+            f"{reverse('curation_history_detail', args=[game.pk])}"
+            "?check_compatibility=1"
+        )
+
+    domain_name = request.POST.get("domain_name", "").strip().lower()
+    slug: str | None = None
+    if domain_name:
+        if not is_valid_domain_slug(domain_name):
+            messages.error(
+                request,
+                "Некорректное доменное имя. Используйте только строчные "
+                "латинские буквы, цифры и дефис.",
+            )
+            return redirect(redirect_url)
+        busy, reason = is_domain_busy(domain_name)
+        if busy:
+            messages.error(
+                request, f"Доменное имя '{domain_name}' уже занято: {reason}"
+            )
+            return redirect(redirect_url)
+        slug = domain_name
+    else:
+        try:
+            slug = generate_playable_domain(game)
+        except Exception:
+            messages.error(request, "Укажите доменное имя для сайта.")
+            return redirect(redirect_url)
+
+    upstream = request.POST.get("upstream", "").strip()
+    redirect_target = request.POST.get("redirect", "").strip()
+    player_name = request.POST.get("player_name", "").strip() or None
+
+    config: dict[str, object] = {}
+    if upstream:
+        config["upstream"] = upstream
+    elif redirect_target:
+        config["redirect"] = redirect_target
+
+    visible = (
+        "visible" in request.POST
+        if ("has_visible_field" in request.POST or "visible" in request.POST)
+        else True
+    )
+
+    playable = Playable.objects.create(
+        game=game,
+        game_url=None,
+        template=EXTERNAL_TEMPLATE,
+        template_version="1",
+        template_config={},
+        config=config,
+        slug=slug,
+        state=Playable.State.READY,
+        visible=visible,
+        player_name=player_name,
+    )
+
+    if getattr(settings, "CADDY_ADMIN_URL", None) and config:
+        if not configure_caddy_playable(playable):
+            messages.warning(
+                request,
+                f"Сайт '{slug}' создан, но не удалось настроить "
+                "маршрут в Caddy.",
+            )
+            return redirect(redirect_url)
+
+    messages.success(
+        request, f"Внешний сайт '{slug}' успешно привязан к игре."
     )
     return redirect(redirect_url)
 
@@ -2984,6 +3122,10 @@ def history_playable_regenerate(request, game_id, playable_id):
             f"{reverse('curation_history_detail', args=[game.pk])}"
             "?check_compatibility=1"
         )
+
+    if playable.is_external:
+        messages.error(request, "Внешний сайт нельзя пересоздать.")
+        return redirect(redirect_url)
 
     if playable.state in (Playable.State.PENDING, Playable.State.BUILDING):
         messages.info(request, "Сайт для этого файла уже создаётся.")

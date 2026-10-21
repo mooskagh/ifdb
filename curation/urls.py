@@ -182,6 +182,11 @@ urlpatterns = [
         name="curation_history_playable_create",
     ),
     path(
+        "<int:game_id>/playables/create-external/",
+        superuser_required(views.history_playable_create_external),
+        name="curation_history_playable_create_external",
+    ),
+    path(
         "<int:game_id>/playables/<int:playable_id>/delete/",
         superuser_required(views.history_playable_delete),
         name="curation_history_playable_delete",
