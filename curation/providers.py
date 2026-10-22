@@ -118,6 +118,8 @@ class CanonicalAuthor:
 
     @classmethod
     def from_importer_dict(cls, d: dict) -> "CanonicalAuthor":
+        if "error" in d:
+            raise ValueError(d["error"])
         return cls(
             name=d.get("name", ""),
             bio=d.get("bio"),

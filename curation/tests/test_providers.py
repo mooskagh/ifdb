@@ -188,6 +188,58 @@ class QuestBookProviderTest(ProviderTestBase):
         )
         self.assert_round_trips(info)
 
+    def test_canonicalize_raises_on_phpbb_critical_error(self):
+        error_html = (
+            "<html>\n"
+            "<body>\n"
+            "phpBB : <b>Critical Error</b>\n"
+            "<br /><br />\n"
+            "Error doing DB query userdata row fetch</body>\n"
+            "</html>\n"
+        )
+        with self.assertRaises(ValueError):
+            QuestBookProvider().canonicalize(error_html, self.url)
+
+    def test_canonicalize_raises_on_card_error(self):
+        error_html = (
+            '<div class="card-header"><h4 class="mt-0">'
+            "Общая ошибка</h4></div>"
+            '<div class="card-body"><div class="text-center">'
+            "Ошибка запроса</div></div>"
+        )
+        with self.assertRaises(ValueError):
+            QuestBookProvider().canonicalize(error_html, self.url)
+
+    def test_fetch_raises_on_phpbb_critical_error(self):
+        error_html = (
+            "<html>\n"
+            "<body>\n"
+            "phpBB : <b>Critical Error</b>\n"
+            "<br /><br />\n"
+            "Error doing DB query userdata row fetch</body>\n"
+            "</html>\n"
+        )
+        with patch(
+            "games.importer.questbook.FetchUrlToString",
+            return_value=error_html,
+        ):
+            with self.assertRaises(ValueError):
+                QuestBookProvider().fetch(self.url)
+
+    def test_fetch_raises_on_card_error(self):
+        error_html = (
+            '<div class="card-header"><h4 class="mt-0">'
+            "Общая ошибка</h4></div>"
+            '<div class="card-body"><div class="text-center">'
+            "Ошибка запроса</div></div>"
+        )
+        with patch(
+            "games.importer.questbook.FetchUrlToString",
+            return_value=error_html,
+        ):
+            with self.assertRaises(ValueError):
+                QuestBookProvider().fetch(self.url)
+
 
 IFICTION_HTML = """
 <h1><b><span>Моя игра</span></b></h1>
