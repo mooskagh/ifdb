@@ -50,8 +50,6 @@
                         <div class="curation-meta">Происхождение: {{ entry.obj.get_origin_display }}</div>
                         {% elif entry.kind == "orphan_trajectory" %}
                         <div><strong>Сиротская траектория LLM</strong></div>
-                        {% elif entry.kind == "comment" %}
-                        <div><strong>{{ entry.obj.get_type_display }}</strong></div>
                         {% elif entry.kind == "audit" %}
                         <div><strong>{{ entry.obj.get_kind_display }}</strong></div>
                         {% endif %}
@@ -107,8 +105,6 @@
                         {% elif entry.kind == "orphan_trajectory" %}
                         <div class="curation-meta">У этой траектории нет ссылки на GameRevision.</div>
                         <div class="curation-meta">Workflow: {{ entry.obj.workflow.name|default:"—" }} · Модель: {{ entry.obj.model.name|default:"—" }}</div>
-                        {% elif entry.kind == "comment" %}
-                        <div class="curation-comment-text">{{ entry.obj.text|linebreaksbr }}</div>
                         {% elif entry.kind == "audit" %}
                         <div class="curation-audit-text">
                             {% if entry.obj.kind == "SOURCE_ATTACHED" %}
@@ -519,17 +515,6 @@
     </div>
 </div>
 
-
-<div class="card card--blue">
-    <div class="card--header">Добавить комментарий</div>
-    <div class="card--body">
-        <form method="post" action="{% url 'curation_history_comment_add' history.pk %}" class="comment-input">
-            {% csrf_token %}
-            <textarea name="text" placeholder="Комментарий модератора" required></textarea>
-            <input type="submit" value="Отправить">
-        </form>
-    </div>
-</div>
 {% endblock %}
 
 {% block curation_sidebar %}

@@ -5,7 +5,6 @@ from .models import (
     EnrichmentRule,
     GameCuration,
     GameHistoryAuditLog,
-    GameHistoryComment,
     GameSource,
     GameSourceFetch,
     GenreMapping,
@@ -61,14 +60,6 @@ class GameSourceFetchAdmin(admin.ModelAdmin):
 class EditPipelineAdmin(admin.ModelAdmin):
     list_display = ["pk", "name"]
     search_fields = ["name"]
-
-
-@admin.register(GameHistoryComment)
-class GameHistoryCommentAdmin(admin.ModelAdmin):
-    list_display = ["pk", "game", "type", "user", "creation_time"]
-    list_filter = ["type"]
-    search_fields = ["pk", "text"]
-    raw_id_fields = ["game", "reply_to", "user"]
 
 
 @admin.register(GameHistoryAuditLog)

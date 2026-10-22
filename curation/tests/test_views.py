@@ -32,7 +32,6 @@ from curation.models import (
     EditPipeline,
     GameCuration,
     GameHistoryAuditLog,
-    GameHistoryComment,
     GameSource,
     GameSourceFetch,
     LLMModel,
@@ -287,21 +286,6 @@ class CurationSmokeTest(TestCase):
         self.assertEqual(edit.status, GameRevision.Status.REJECTED)
         self.assertEqual(other_edit.status, GameRevision.Status.PROPOSED)
         self.assertEqual(other_edit.passes, ["ManualPass"])
-
-        parent_comment = GameHistoryComment.objects.create(
-            game=game,
-            type=GameHistoryComment.CommentType.USER_FEEDBACK,
-            text="Looks off.",
-            creation_time=now,
-        )
-        reply = GameHistoryComment.objects.create(
-            game=game,
-            reply_to=parent_comment,
-            type=GameHistoryComment.CommentType.MODS_COMMENT,
-            text="Fixed.",
-            creation_time=now,
-        )
-        self.assertEqual(reply.reply_to, parent_comment)
 
         GameHistoryAuditLog.objects.create(
             game=game,
@@ -708,26 +692,6 @@ class HistoryDetailViewTest(TestCase):
         )
         self.history = GameCuration.objects.create(game=self.game)
 
-    def test_history_page_shows_comments_and_comment_form(self):
-        GameHistoryComment.objects.create(
-            game=self.game,
-            user=self.user,
-            type=GameHistoryComment.CommentType.MODS_COMMENT,
-            text="Existing moderator note.",
-            creation_time=self.now,
-        )
-
-        response = self.client.get(f"/curation/{self.history.pk}/")
-
-        self.assertContains(response, "Moderator comment")
-        self.assertContains(response, "Existing moderator note.")
-        self.assertContains(response, "Добавить комментарий")
-        self.assertContains(
-            response,
-            f'action="/curation/{self.history.pk}/comments/add/"',
-        )
-        self.assertContains(response, 'name="text"')
-
     def test_history_page_links_note_object_refs_and_escapes_text(self):
         source = GameSource.objects.create(
             game=self.game,
@@ -762,29 +726,6 @@ class HistoryDetailViewTest(TestCase):
         )
         self.assertContains(response, "<br>&lt;script&gt;x&lt;/script&gt;")
         self.assertNotContains(response, "<script>x</script>")
-
-    def test_post_comment_creates_mods_comment(self):
-        response = self.client.post(
-            f"/curation/{self.history.pk}/comments/add/",
-            {"text": "Please verify the source."},
-        )
-
-        self.assertRedirects(response, f"/curation/{self.history.pk}/")
-        comment = GameHistoryComment.objects.get(game=self.game)
-        self.assertEqual(comment.user, self.user)
-        self.assertEqual(
-            comment.type, GameHistoryComment.CommentType.MODS_COMMENT
-        )
-        self.assertEqual(comment.text, "Please verify the source.")
-
-    def test_blank_comment_is_ignored(self):
-        response = self.client.post(
-            f"/curation/{self.history.pk}/comments/add/",
-            {"text": "  "},
-        )
-
-        self.assertRedirects(response, f"/curation/{self.history.pk}/")
-        self.assertFalse(GameHistoryComment.objects.exists())
 
     def test_history_page_shows_delete_dialog(self):
         response = self.client.get(f"/curation/{self.history.pk}/")

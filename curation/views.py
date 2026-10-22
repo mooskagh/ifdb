@@ -99,7 +99,6 @@ from .models import (
     EditPipeline,
     GameCuration,
     GameHistoryAuditLog,
-    GameHistoryComment,
     GameSource,
     GameSourceFetch,
     LLMModel,
@@ -438,15 +437,6 @@ def _group_timeline(timeline):
             })
     return groups
 
-
-# Card colour per comment type, so the timeline distinguishes them visually.
-COMMENT_TYPE_COLORS = {
-    GameHistoryComment.CommentType.USER_FEEDBACK: "yellow",
-    GameHistoryComment.CommentType.MODS_COMMENT: "blue",
-    GameHistoryComment.CommentType.NOTE_FOR_AI: "purple",
-    GameHistoryComment.CommentType.STATUS_MESSAGE: "salad",
-    GameHistoryComment.CommentType.EMAIL_RESPONSE: "orange",
-}
 
 # Fields editable from the detail view, mapped to their model choices.
 EDITABLE_FIELDS = {
@@ -2703,17 +2693,6 @@ def history_detail(request, game_id):
             "who": None,
         })
 
-    for comment in GameHistoryComment.objects.filter(game=game).select_related(
-        "user"
-    ):
-        timeline.append({
-            "ts": comment.creation_time,
-            "kind": "comment",
-            "color": COMMENT_TYPE_COLORS.get(comment.type, "blue"),
-            "obj": comment,
-            "who": comment.user,
-        })
-
     for log in GameHistoryAuditLog.objects.filter(game=game).select_related(
         "actor"
     ):
@@ -2764,26 +2743,6 @@ def history_detail(request, game_id):
             ),
         },
     )
-
-
-def history_comment_add(request, game_id):
-    if request.method != "POST":
-        return HttpResponseBadRequest("POST required.")
-    game = get_object_or_404(Game, pk=game_id)
-    text = request.POST.get("text", "").strip()
-    if not text:
-        messages.error(request, "Комментарий не может быть пустым.")
-        return redirect("curation_history_detail", game_id=game.pk)
-
-    GameHistoryComment.objects.create(
-        game=game,
-        user=request.user,
-        type=GameHistoryComment.CommentType.MODS_COMMENT,
-        text=text,
-        creation_time=now(),
-    )
-    messages.success(request, "Комментарий добавлен.")
-    return redirect("curation_history_detail", game_id=game.pk)
 
 
 def history_run_edit(request, game_id):

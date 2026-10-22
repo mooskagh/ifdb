@@ -224,7 +224,7 @@ the D boundary is firm.
 ## Code map
 
 - `curation/models.py` — `GameHistory`, `GameSource`, `GameSourceFetch`,
-  `GameRevision`, `GameHistoryComment`, `GameHistoryAuditLog`.
+  `GameRevision`, `GameHistoryAuditLog`.
 - `games/gameinfo.py` — `GameInfo` (canonical form), `merge`, `parse`,
   `to_canonical`, `save`, alias resolution. The heart of the new system.
 - `curation/passes.py` / `curation/enrichment.py` — Phase 4 edit passes
