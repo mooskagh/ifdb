@@ -11,6 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
+from core.cors import set_cors_headers as _set_cors_headers
 from core.models import User
 from games.models import Game, GameAuthor
 
@@ -31,34 +32,6 @@ def _get_ip_addr(request: HttpRequest) -> str | None:
         if addr:
             return addr
     return None
-
-
-def _set_cors_headers(
-    request: HttpRequest, response: HttpResponse
-) -> HttpResponse:
-    origin = request.META.get("HTTP_ORIGIN")
-    if not origin:
-        return response
-
-    base_domain = getattr(settings, "PLAYABLE_BASE_DOMAIN", "").strip().lower()
-    parsed = urlparse(origin)
-    hostname = (parsed.hostname or "").lower()
-
-    allowed = False
-    if base_domain and (
-        hostname == base_domain or hostname.endswith(f".{base_domain}")
-    ):
-        allowed = True
-    elif settings.DEBUG and hostname in {"localhost", "127.0.0.1", "0.0.0.0"}:
-        allowed = True
-
-    if allowed:
-        response["Access-Control-Allow-Origin"] = origin
-        response["Access-Control-Allow-Credentials"] = "true"
-        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type"
-
-    return response
 
 
 def _parse_payload(request: HttpRequest) -> dict[str, Any]:
