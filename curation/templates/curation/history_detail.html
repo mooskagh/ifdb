@@ -530,6 +530,7 @@
                     <a href="{% url 'show_game' game.pk %}">{{ game.title }}</a>
                     {% else %}
                     {{ game.title }} ({{ game.get_state_display }})
+                    <span class="curation-meta"><a href="{% url 'edit_game' game.pk %}">редактировать</a></span>
                     {% endif %}
                 </div>
             </div>

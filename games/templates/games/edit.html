@@ -51,6 +51,9 @@
         </div>
         <div class="leftpane">
             <button id="submit">{{ submit_label|default:"Сохранить" }}</button>
+            {% if can_save_as_draft %}
+                <button id="submit_draft" type="button">Сохранить как черновик</button>
+            {% endif %}
         </div>
         <div style="clear: both;"></div>
     </div>

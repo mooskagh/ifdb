@@ -79,7 +79,7 @@ function updateFields(data: GameData): void {
   if (data.links) links.merge(data.links);
 }
 
-function submit(): void {
+function submit(asDraft = false): void {
   const title = $<HTMLTextAreaElement>('#title').value;
   let valid = true;
   if (title === '') {
@@ -105,6 +105,7 @@ function submit(): void {
     tags: tags.values(),
     links: links.values(),
   };
+  if (asDraft) res.as_draft = true;
   if (gameId()) res.game_id = gameId();
   postRedirect('/game/store/', res);
 }
@@ -156,7 +157,11 @@ async function init(): Promise<void> {
     (e.target as HTMLElement).classList.remove('invalidinput'),
   );
   $('#import_button').addEventListener('click', importGame);
-  $('#submit').addEventListener('click', submit);
+  $('#submit').addEventListener('click', () => submit(false));
+  const submitDraft = document.querySelector<HTMLButtonElement>('#submit_draft');
+  if (submitDraft) {
+    submitDraft.addEventListener('click', () => submit(true));
+  }
 
   const params = gameId() ? {game_id: gameId()} : undefined;
   const data = await getJSON<GameInfo>('/json/gameinfo/', params);

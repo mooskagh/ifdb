@@ -37,6 +37,7 @@ export interface GameData {
   authors?: Pair[];
   tags?: Pair[];
   links?: Link[];
+  as_draft?: boolean;
 }
 
 export interface GameInfo {
