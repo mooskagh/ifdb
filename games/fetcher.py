@@ -19,18 +19,17 @@ from django.utils.text import get_valid_filename
 from django.utils.timezone import now
 
 from core.crawler import FetchUrlToFileLike, decode_mojibake_filename
+from games.importer.questbook import (
+    QUESTBOOK_CARD_ERROR_RE,
+    is_questbook_error,
+)
 from games.models import URL, StoredFile, URLFetch
 
 FILENAME_RE = re.compile(
     r"^.*?(?:/|\b)((?:%[0-9a-fA-F]{2}|[-+$:+()_\w\d\.])+\.[\w\d]{2,4})\b[^/]*$"
 )
 INSTEAD_NOT_FOUND_RE = re.compile(rb"File not found: [^\r\n]+\r?\n?")
-QUESTBOOK_ERROR_RE = re.compile(
-    r'<div class="card-header">\s*<h4[^>]*>Общая ошибка</h4>\s*</div>'
-    r'\s*<div class="card-body">\s*<div class="text-center">'
-    r"\s*Ошибка запроса\s*</div>",
-    re.IGNORECASE,
-)
+QUESTBOOK_ERROR_RE = QUESTBOOK_CARD_ERROR_RE
 ERROR_RESPONSE_LIMIT = 128 * 1024
 
 
@@ -50,8 +49,11 @@ def _questbook_request_error(content_type: str | None, body: bytes) -> bool:
     try:
         html = body.decode(encoding)
     except (LookupError, UnicodeError):
-        return False
-    return bool(QUESTBOOK_ERROR_RE.search(html))
+        try:
+            html = body.decode("cp1251")
+        except (LookupError, UnicodeError):
+            return False
+    return bool(is_questbook_error(html))
 
 
 ERROR_RESPONSE_RULES: tuple[

@@ -27,4 +27,6 @@ urlpatterns = [
         views.file_upload,
         name="api_game_file_upload",
     ),
+    path("v1/sso/ticket/", views.sso_ticket, name="api_sso_ticket"),
+    path("v1/sso/jwks.json", views.sso_jwks, name="api_sso_jwks"),
 ]

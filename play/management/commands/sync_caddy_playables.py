@@ -41,7 +41,11 @@ class Command(BaseCommand):
                 .exclude(slug="")
                 .order_by("pk")
             )
-            desired = [caddy_route_payload(playable) for playable in playables]
+            desired = [
+                payload
+                for playable in playables
+                if (payload := caddy_route_payload(playable)) is not None
+            ]
             retained: list[dict[str, Any]] = []
             insertion_index: int | None = None
             removed = 0

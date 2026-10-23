@@ -609,6 +609,11 @@ class FromImporterDictTest(GameInfoTestBase):
     def test_empty_dict_is_empty_gameinfo(self) -> None:
         self.assertEqual(GameInfo.from_importer_dict({}), GameInfo())
 
+    def test_from_importer_dict_with_error_raises_value_error(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            GameInfo.from_importer_dict({"error": "Failed to parse page"})
+        self.assertEqual(str(ctx.exception), "Failed to parse page")
+
 
 class MergeTest(GameInfoTestBase):
     def test_union_dedup_and_scalars(self) -> None:

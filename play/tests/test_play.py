@@ -452,6 +452,18 @@ class TaskTests(TestCase):
         playable.refresh_from_db()
         self.assertEqual(playable.state, Playable.State.ERROR)
 
+    def test_generate_playable_external_skips(self) -> None:
+        playable = Playable.objects.create(
+            game=self.game,
+            template="external",
+            template_version="1.0",
+            slug="ext-game",
+            state=Playable.State.READY,
+        )
+        generate_playable(playable.pk)
+        playable.refresh_from_db()
+        self.assertEqual(playable.state, Playable.State.READY)
+
     def test_playable_pre_delete_cleans_up_caddy_and_files(self) -> None:
         with TemporaryDirectory() as temp_dir:
             with override_settings(PLAYABLE_DIR=temp_dir):

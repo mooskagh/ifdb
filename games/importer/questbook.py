@@ -39,6 +39,25 @@ QUESTBOOK_LISTING_RE = re.compile(
     r'<a [^>]*href="(view/[^"]+)"[^>]*>'
 )  # [^\n]*Подробнее</a>
 
+QUESTBOOK_CARD_ERROR_RE = re.compile(
+    r'<div class="card-header">\s*<h4[^>]*>Общая ошибка</h4>\s*</div>'
+    r'\s*<div class="card-body">\s*<div class="text-center">'
+    r"\s*Ошибка запроса\s*</div>",
+    re.IGNORECASE,
+)
+QUESTBOOK_PHPBB_ERROR_RE = re.compile(
+    r"phpBB\s*:\s*(?:<b>)?(?:Critical|General)\s+Error"
+    r"|Error doing DB query",
+    re.IGNORECASE,
+)
+
+
+def is_questbook_error(html: str) -> bool:
+    return bool(
+        QUESTBOOK_CARD_ERROR_RE.search(html)
+        or QUESTBOOK_PHPBB_ERROR_RE.search(html)
+    )
+
 
 def GetCandidates():
     page = 1
@@ -47,6 +66,8 @@ def GetCandidates():
         r = FetchUrlToString(
             "https://quest-book.ru/online/?s=%d" % page, use_cache=False
         )
+        if is_questbook_error(r):
+            raise ValueError(f"QuestBook error page returned for page {page}")
 
         found = False
 
@@ -107,7 +128,10 @@ MONTH = [
 
 
 def FetchQuestBook(url, use_cache=True):
-    return FetchUrlToString(url, encoding="cp1251", use_cache=use_cache)
+    html = FetchUrlToString(url, encoding="cp1251", use_cache=use_cache)
+    if is_questbook_error(html):
+        raise ValueError(f"QuestBook error page returned for {url}")
+    return html
 
 
 def ImportFromQuestBook(url):
@@ -119,6 +143,9 @@ def ImportFromQuestBook(url):
 
 
 def ParseQuestBook(html, url):
+    if is_questbook_error(html):
+        return {"error": f"QuestBook error page returned for {url}"}
+
     res = {"priority": 51, "authors": []}
     tags = [{"cat_slug": "platform", "tag": "Questbook"}]
     urls = [

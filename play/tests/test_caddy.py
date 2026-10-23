@@ -32,6 +32,8 @@ class TestCaddyIntegration(TestCase):
             f"playable_{self.playable.pk}",
         )
         payload = caddy_route_payload(self.playable)
+        self.assertIsNotNone(payload)
+        assert payload is not None
         self.assertEqual(payload["@id"], f"playable_{self.playable.pk}")
         self.assertEqual(
             payload["match"],
@@ -110,3 +112,66 @@ class TestCaddyIntegration(TestCase):
     def test_delete_caddy_skipped_when_no_url(self) -> None:
         result = delete_caddy_playable(self.playable.pk)
         self.assertFalse(result)
+
+    def test_external_caddy_routes(self) -> None:
+        p_proxy = Playable.objects.create(
+            game=self.game,
+            template="external",
+            template_version="1.0",
+            slug="ext-proxy",
+            config={"upstream": "127.0.0.1:9000"},
+        )
+        proxy_payload = caddy_route_payload(p_proxy)
+        self.assertIsNotNone(proxy_payload)
+        assert proxy_payload is not None
+        self.assertEqual(
+            proxy_payload["handle"][0]["handler"], "reverse_proxy"
+        )
+        self.assertEqual(
+            proxy_payload["handle"][0]["upstreams"],
+            [{"dial": "127.0.0.1:9000"}],
+        )
+
+        p_redir = Playable.objects.create(
+            game=self.game,
+            template="external",
+            template_version="1.0",
+            slug="ext-redir",
+            config={"redirect": "https://external.org/game"},
+        )
+        redir_payload = caddy_route_payload(p_redir)
+        self.assertIsNotNone(redir_payload)
+        assert redir_payload is not None
+        self.assertEqual(
+            redir_payload["handle"][0]["handler"], "static_response"
+        )
+        self.assertEqual(
+            redir_payload["handle"][0]["headers"]["Location"],
+            ["https://external.org/game"],
+        )
+
+        p_noop = Playable.objects.create(
+            game=self.game,
+            template="external",
+            template_version="1.0",
+            slug="ext-noop",
+            config={},
+        )
+        self.assertIsNone(caddy_route_payload(p_noop))
+
+    @override_settings(CADDY_ADMIN_URL="http://localhost:2019")
+    @patch("play.caddy.delete_caddy_playable")
+    def test_configure_caddy_external_noop_cleans_route_and_returns_true(
+        self, mock_delete: MagicMock
+    ) -> None:
+        mock_delete.return_value = True
+        p_noop = Playable.objects.create(
+            game=self.game,
+            template="external",
+            template_version="1.0",
+            slug="ext-noop",
+            config={},
+        )
+        result = configure_caddy_playable(p_noop)
+        self.assertTrue(result)
+        mock_delete.assert_called_once_with(p_noop.pk)

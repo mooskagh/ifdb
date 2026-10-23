@@ -539,3 +539,38 @@ class TelemetryAPITests(TestCase):
 
         # Ensure mock_overlay.html is not in static assets
         self.assertIsNone(find("mock_overlay.html"))
+
+    @override_settings(PLAYABLE_BASE_DOMAIN="play.crem.xyz")
+    def test_telemetry_external_playable(self) -> None:
+        ext_playable = Playable.objects.create(
+            slug="my-custom-game",
+            game=self.game,
+            template="external",
+            template_version="1",
+            player_name="CustomEngine",
+            state=Playable.State.READY,
+        )
+        session_id = uuid.uuid4()
+        payload = {
+            "event": "game_loaded",
+            "play_session_id": str(session_id),
+            "playable_id": "https://my-custom-game.play.crem.xyz/index.html",
+        }
+        res = self.client.post(
+            "/play/telemetry/",
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_ORIGIN="https://my-custom-game.play.crem.xyz",
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(
+            res.headers.get("Access-Control-Allow-Origin"),
+            "https://my-custom-game.play.crem.xyz",
+        )
+        data = res.json()
+        self.assertEqual(data["playable_id"], ext_playable.pk)
+        self.assertEqual(data["player_name"], "CustomEngine")
+        self.assertEqual(data["game_name"], "Telemetry Quest")
+
+        session = PlaySession.objects.get(play_session_id=session_id)
+        self.assertEqual(session.playable, ext_playable)

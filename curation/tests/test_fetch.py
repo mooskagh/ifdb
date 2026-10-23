@@ -315,6 +315,32 @@ class FetchTest(TestCase):
         self.assertIsNone(source.last_error)
         self.assertEqual(GameSourceFetch.objects.count(), 1)
 
+    def test_questbook_down_error_records_failed_fetch(self):
+        source = GameSource.objects.create(
+            type=GameSource.SourceType.QUESTBOOK,
+            url="https://quest-book.ru/online/view/123",
+        )
+        error_html = (
+            "<html>\n"
+            "<body>\n"
+            "phpBB : <b>Critical Error</b>\n"
+            "<br /><br />\n"
+            "Error doing DB query userdata row fetch</body>\n"
+            "</html>\n"
+        )
+        with self.assertLogs("worker", level="ERROR"):
+            with patch(
+                "games.importer.questbook.FetchUrlToString",
+                return_value=error_html,
+            ):
+                stats = run_fetch(types=[GameSource.SourceType.QUESTBOOK])
+
+        source.refresh_from_db()
+        self.assertEqual(stats, [FetchStats("QUESTBOOK", 1, 0, 1, 0, 0)])
+        self.assertIsNotNone(source.failing_since)
+        self.assertIn("QuestBook error page", source.last_error or "")
+        self.assertFalse(GameSourceFetch.objects.exists())
+
     def test_type_filter_limits_sources(self):
         self.source(GameSource.SourceType.APERO, "http://example.com/apero")
         self.source(GameSource.SourceType.QSP, "http://example.com/qsp")

@@ -20,6 +20,8 @@ def get_token_from_request(request: HttpRequest) -> str | None:
 
 def api_auth(
     perm: str | None = None,
+    *,
+    allow_session: bool = False,
 ) -> Callable[[Callable[..., HttpResponse]], Callable[..., HttpResponse]]:
     def decorator(
         view_func: Callable[..., HttpResponse],
@@ -30,6 +32,8 @@ def api_auth(
         ) -> HttpResponse:
             token_key = get_token_from_request(request)
             if not token_key:
+                if allow_session and request.user.is_authenticated:
+                    return view_func(request, *args, **kwargs)
                 return JsonResponse(
                     {
                         "error": "Unauthorized",

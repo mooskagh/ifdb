@@ -156,6 +156,9 @@ class Command(BaseCommand):
         skipped_up_to_date = 0
 
         for playable in qs:
+            if playable.is_external:
+                continue
+
             if (
                 playable.state == Playable.State.BUILDING
                 and not include_building

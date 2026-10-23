@@ -50,8 +50,6 @@
                         <div class="curation-meta">Происхождение: {{ entry.obj.get_origin_display }}</div>
                         {% elif entry.kind == "orphan_trajectory" %}
                         <div><strong>Сиротская траектория LLM</strong></div>
-                        {% elif entry.kind == "comment" %}
-                        <div><strong>{{ entry.obj.get_type_display }}</strong></div>
                         {% elif entry.kind == "audit" %}
                         <div><strong>{{ entry.obj.get_kind_display }}</strong></div>
                         {% endif %}
@@ -107,8 +105,6 @@
                         {% elif entry.kind == "orphan_trajectory" %}
                         <div class="curation-meta">У этой траектории нет ссылки на GameRevision.</div>
                         <div class="curation-meta">Workflow: {{ entry.obj.workflow.name|default:"—" }} · Модель: {{ entry.obj.model.name|default:"—" }}</div>
-                        {% elif entry.kind == "comment" %}
-                        <div class="curation-comment-text">{{ entry.obj.text|linebreaksbr }}</div>
                         {% elif entry.kind == "audit" %}
                         <div class="curation-audit-text">
                             {% if entry.obj.kind == "SOURCE_ATTACHED" %}
@@ -217,9 +213,9 @@
     </div>
 </div>
 
-{% if playable_files %}
 <div class="card card--green">
     <div class="card--header">Проигрыватели</div>
+    {% if playable_files or external_playables %}
     <div class="curation-playable-table-wrap">
         <table class="curation-table curation-table--compact curation-playable-table">
             <thead>
@@ -402,15 +398,105 @@
                 {% endfor %}
             </tbody>
             {% endfor %}
+            {% if external_playables %}
+            <tbody class="curation-playable-file-group">
+                <tr class="curation-playable-file-header-row">
+                    <td colspan="4" class="curation-playable-file-header-cell">
+                        <div class="curation-playable-file-header-content">
+                            <div class="curation-playable-file-info">
+                                <strong>Внешние / собственные сайты:</strong>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% for p in external_playables %}
+                <tr class="curation-playable-item-row">
+                    <td class="curation-playable-template">
+                        <span class="curation-playable-template-name">Внешний сайт</span>
+                        {% if p.player_name %}
+                        <div class="curation-meta">Плеер: {{ p.player_name }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="curation-playable-compatibility">
+                        <span class="curation-meta">
+                            {% if p.config.upstream %}
+                                Прокси: <code>{{ p.config.upstream }}</code>
+                            {% elif p.config.redirect %}
+                                Редирект: <code>{{ p.config.redirect }}</code>
+                            {% else %}
+                                Без прокси
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td class="curation-playable-site">
+                        <div class="curation-playable-site-status">
+                            <span>Сайт привязан</span>
+                            {% if p.slug %}
+                            <div>
+                                <a href="http{% if request.is_secure %}s{% endif %}://{{ p.slug }}.{{ playable_base_domain }}" target="_blank">http{% if request.is_secure %}s{% endif %}://{{ p.slug }}.{{ playable_base_domain }}</a>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="curation-meta" style="margin-top: 4px;">
+                            Создан: {{ p.created|date:"d.m.Y H:i" }} | Обновлён: {{ p.updated|date:"d.m.Y H:i" }}
+                        </div>
+                    </td>
+                    <td class="curation-playable-actions">
+                        <div class="curation-playable-actions-group">
+                            <form method="post" action="{% url 'curation_history_playable_rename' game.pk p.pk %}" class="curation-playable-form">
+                                {% csrf_token %}
+                                <div class="curation-playable-form-group">
+                                    <input type="text" name="domain_name" value="{{ p.slug|default:'' }}" class="curation-playable-domain-input" autocomplete="off" spellcheck="false" title="Доменное имя">
+                                    <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
+                                    <input type="text" name="upstream" value="{{ p.config.upstream|default:'' }}" placeholder="прокси: 127.0.0.1:8080" style="font-size: 11px; padding: 2px 4px; width: 130px;" title="Caddy upstream (опционально)">
+                                    <button type="submit">сохранить</button>
+                                </div>
+                            </form>
+                            <form method="post" action="{% url 'curation_history_playable_visibility' game.pk p.pk %}" class="curation-playable-form" style="display: flex; align-items: center; gap: 6px;">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <label style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
+                                    <input type="checkbox" name="visible" value="1" {% if p.visible %}checked{% endif %}>
+                                    виден
+                                </label>
+                                <button type="submit">сохранить</button>
+                            </form>
+                            <div>
+                                <form method="post" action="{% url 'curation_history_playable_delete' game.pk p.pk %}" style="display: inline; white-space: nowrap;" onsubmit="return confirm('Удалить внешний сайт?');">
+                                    {% csrf_token %}
+                                    <button type="submit" style="color: #c5221f;">удалить</button>
+                                </form>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% endif %}
         </table>
     </div>
-    <div class="card--body">
+    {% endif %}
+    <div class="card--body" style="display: flex; flex-direction: column; gap: 10px;">
+        {% if playable_files %}
         <form method="get" class="curation-source-add">
             <button type="submit" name="check_compatibility" value="1">Проверить совместимость</button>
         </form>
+        {% endif %}
+        <div style="border-top: 1px solid #e0e0e0; padding-top: 8px;">
+            <strong style="display: block; margin-bottom: 6px; font-size: 12px;">Привязать внешний сайт:</strong>
+            <form method="post" action="{% url 'curation_history_playable_create_external' game.pk %}" class="curation-playable-form">
+                {% csrf_token %}
+                <div class="curation-playable-form-group" style="flex-wrap: wrap; gap: 6px; align-items: center;">
+                    <input type="text" name="domain_name" placeholder="✨ домен" class="curation-playable-domain-input" autocomplete="off" spellcheck="false" title="Доменное имя третьего уровня">
+                    <span class="curation-playable-domain-label">.{{ playable_base_domain }}</span>
+                    <input type="text" name="upstream" placeholder="прокси: 127.0.0.1:8080" style="font-size: 11px; padding: 2px 4px; width: 140px;" title="Caddy upstream (например 127.0.0.1:8080, опционально)">
+                    <input type="text" name="player_name" placeholder="движок/плеер" style="font-size: 11px; padding: 2px 4px; width: 100px;" title="Название движка (опционально)">
+                    <button type="submit">Привязать сайт</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
-{% endif %}
 <div class="card card--blue curation-overrides-card">
     <div class="card--header">Переопределения</div>
     <div class="curation-overrides-diff">
@@ -429,17 +515,6 @@
     </div>
 </div>
 
-
-<div class="card card--blue">
-    <div class="card--header">Добавить комментарий</div>
-    <div class="card--body">
-        <form method="post" action="{% url 'curation_history_comment_add' history.pk %}" class="comment-input">
-            {% csrf_token %}
-            <textarea name="text" placeholder="Комментарий модератора" required></textarea>
-            <input type="submit" value="Отправить">
-        </form>
-    </div>
-</div>
 {% endblock %}
 
 {% block curation_sidebar %}

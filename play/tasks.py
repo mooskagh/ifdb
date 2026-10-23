@@ -45,6 +45,9 @@ def generate_playable(playable_id: int) -> None:
     playable = Playable.objects.select_related("game_url__url", "game").get(
         pk=playable_id
     )
+    if playable.is_external:
+        return
+
     playable.state = Playable.State.BUILDING
     playable.save(update_fields=["state", "updated"])
 

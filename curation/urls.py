@@ -128,11 +128,6 @@ urlpatterns = [
         name="curation_history_source_detach",
     ),
     path(
-        "<int:game_id>/comments/add/",
-        superuser_required(views.history_comment_add),
-        name="curation_history_comment_add",
-    ),
-    path(
         "edits/<int:edit_id>/",
         superuser_required(views.edit_diff),
         name="curation_edit_diff",
@@ -180,6 +175,11 @@ urlpatterns = [
         "<int:game_id>/playables/create/",
         superuser_required(views.history_playable_create),
         name="curation_history_playable_create",
+    ),
+    path(
+        "<int:game_id>/playables/create-external/",
+        superuser_required(views.history_playable_create_external),
+        name="curation_history_playable_create_external",
     ),
     path(
         "<int:game_id>/playables/<int:playable_id>/delete/",

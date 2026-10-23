@@ -288,38 +288,6 @@ class EditPipeline(models.Model):
     passes = models.JSONField(_("Passes"), default=list)
 
 
-class GameHistoryComment(models.Model):
-    class Meta:
-        default_permissions = ()
-
-    class CommentType(models.TextChoices):
-        USER_FEEDBACK = "USER_FEEDBACK", _("User feedback")
-        MODS_COMMENT = "MODS_COMMENT", _("Moderator comment")
-        NOTE_FOR_AI = "NOTE_FOR_AI", _("Note for AI")
-        STATUS_MESSAGE = "STATUS_MESSAGE", _("Status message")
-        EMAIL_RESPONSE = "EMAIL_RESPONSE", _("Email response")
-
-    def __str__(self):
-        return f"Comment #{self.pk} on game #{self.game_id}"
-
-    game = models.ForeignKey("games.Game", on_delete=models.CASCADE)
-    reply_to = models.ForeignKey(
-        "self",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-    )
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-    )
-    type = models.CharField(_("Type"), max_length=16, choices=CommentType)
-    text = models.TextField(_("Text"))
-    creation_time = models.DateTimeField(_("Created at"))
-
-
 class EnrichmentRule(models.Model):
     class Meta:
         default_permissions = ()

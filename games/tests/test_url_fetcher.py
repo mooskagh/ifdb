@@ -170,6 +170,34 @@ class TestFetchUrlHistory(BaseFetcherTestCase):
         url.refresh_from_db()
         self.assertTrue(url.is_link_broken())
 
+    def test_questbook_phpbb_critical_error_is_a_failed_fetch(self) -> None:
+        game = self.create_game(197)
+        url = self.create_url(
+            "https://quest-book.ru/online/other/download/10/txt/", game=game
+        )
+        page = (
+            "<html>\n"
+            "<body>\n"
+            "phpBB : <b>Critical Error</b>\n"
+            "<br /><br />\n"
+            "Error doing DB query userdata row fetch</body>\n"
+            "</html>\n"
+        ).encode("utf-8")
+
+        result = fetch_url(
+            url,
+            downloader=lambda _url, *, timeout: MockResponse(
+                page, content_type="text/html"
+            ),
+        )
+
+        self.assertEqual(result.outcome, FetchOutcome.FAILED)
+        self.assertIn("Request error", result.error or "")
+        self.assertFalse(URLFetch.objects.exists())
+        self.assertFalse(StoredFile.objects.exists())
+        url.refresh_from_db()
+        self.assertTrue(url.is_link_broken())
+
     def test_error_words_inside_valid_content_are_not_rejected(self) -> None:
         game = self.create_game(195)
         instead = self.create_url(

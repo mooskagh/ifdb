@@ -32,7 +32,6 @@ from curation.models import (
     EditPipeline,
     GameCuration,
     GameHistoryAuditLog,
-    GameHistoryComment,
     GameSource,
     GameSourceFetch,
     LLMModel,
@@ -287,21 +286,6 @@ class CurationSmokeTest(TestCase):
         self.assertEqual(edit.status, GameRevision.Status.REJECTED)
         self.assertEqual(other_edit.status, GameRevision.Status.PROPOSED)
         self.assertEqual(other_edit.passes, ["ManualPass"])
-
-        parent_comment = GameHistoryComment.objects.create(
-            game=game,
-            type=GameHistoryComment.CommentType.USER_FEEDBACK,
-            text="Looks off.",
-            creation_time=now,
-        )
-        reply = GameHistoryComment.objects.create(
-            game=game,
-            reply_to=parent_comment,
-            type=GameHistoryComment.CommentType.MODS_COMMENT,
-            text="Fixed.",
-            creation_time=now,
-        )
-        self.assertEqual(reply.reply_to, parent_comment)
 
         GameHistoryAuditLog.objects.create(
             game=game,
@@ -708,26 +692,6 @@ class HistoryDetailViewTest(TestCase):
         )
         self.history = GameCuration.objects.create(game=self.game)
 
-    def test_history_page_shows_comments_and_comment_form(self):
-        GameHistoryComment.objects.create(
-            game=self.game,
-            user=self.user,
-            type=GameHistoryComment.CommentType.MODS_COMMENT,
-            text="Existing moderator note.",
-            creation_time=self.now,
-        )
-
-        response = self.client.get(f"/curation/{self.history.pk}/")
-
-        self.assertContains(response, "Moderator comment")
-        self.assertContains(response, "Existing moderator note.")
-        self.assertContains(response, "Добавить комментарий")
-        self.assertContains(
-            response,
-            f'action="/curation/{self.history.pk}/comments/add/"',
-        )
-        self.assertContains(response, 'name="text"')
-
     def test_history_page_links_note_object_refs_and_escapes_text(self):
         source = GameSource.objects.create(
             game=self.game,
@@ -762,29 +726,6 @@ class HistoryDetailViewTest(TestCase):
         )
         self.assertContains(response, "<br>&lt;script&gt;x&lt;/script&gt;")
         self.assertNotContains(response, "<script>x</script>")
-
-    def test_post_comment_creates_mods_comment(self):
-        response = self.client.post(
-            f"/curation/{self.history.pk}/comments/add/",
-            {"text": "Please verify the source."},
-        )
-
-        self.assertRedirects(response, f"/curation/{self.history.pk}/")
-        comment = GameHistoryComment.objects.get(game=self.game)
-        self.assertEqual(comment.user, self.user)
-        self.assertEqual(
-            comment.type, GameHistoryComment.CommentType.MODS_COMMENT
-        )
-        self.assertEqual(comment.text, "Please verify the source.")
-
-    def test_blank_comment_is_ignored(self):
-        response = self.client.post(
-            f"/curation/{self.history.pk}/comments/add/",
-            {"text": "  "},
-        )
-
-        self.assertRedirects(response, f"/curation/{self.history.pk}/")
-        self.assertFalse(GameHistoryComment.objects.exists())
 
     def test_history_page_shows_delete_dialog(self):
         response = self.client.get(f"/curation/{self.history.pk}/")
@@ -5582,6 +5523,144 @@ class SourceViewsTest(TestCase):
         )
         playable.refresh_from_db()
         self.assertTrue(playable.visible)
+
+    @override_settings(CADDY_ADMIN_URL="http://localhost:2019")
+    @patch("curation.views.configure_caddy_playable")
+    def test_history_playable_create_external(self, mock_caddy: MagicMock):
+        mock_caddy.return_value = True
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="External Game",
+            creation_time=ts,
+        )
+        GameCuration.objects.create(game=game)
+
+        # 1. Invalid domain slug
+        resp = self.client.post(
+            f"/curation/{game.pk}/playables/create-external/",
+            {"domain_name": "Bad_Slug!"},
+        )
+        self.assertRedirects(
+            resp, f"/curation/{game.pk}/?check_compatibility=1"
+        )
+        self.assertFalse(Playable.objects.filter(game=game).exists())
+
+        # 2. Success with domain, upstream, and player_name
+        resp = self.client.post(
+            f"/curation/{game.pk}/playables/create-external/",
+            {
+                "domain_name": "my-cool-game",
+                "upstream": "127.0.0.1:8080",
+                "player_name": "Custom Engine",
+                "visible": "1",
+            },
+        )
+        self.assertRedirects(
+            resp, f"/curation/{game.pk}/?check_compatibility=1"
+        )
+        playable = Playable.objects.get(game=game)
+        self.assertEqual(playable.slug, "my-cool-game")
+        self.assertEqual(playable.template, "external")
+        self.assertEqual(playable.state, Playable.State.READY)
+        self.assertEqual(playable.player_name, "Custom Engine")
+        self.assertEqual(playable.config, {"upstream": "127.0.0.1:8080"})
+        self.assertTrue(playable.visible)
+        mock_caddy.assert_called_once_with(playable)
+
+        # 3. Domain already busy
+        resp = self.client.post(
+            f"/curation/{game.pk}/playables/create-external/",
+            {"domain_name": "my-cool-game"},
+        )
+        self.assertRedirects(
+            resp, f"/curation/{game.pk}/?check_compatibility=1"
+        )
+
+    @override_settings(CADDY_ADMIN_URL="http://localhost:2019")
+    @patch("curation.views.configure_caddy_playable")
+    def test_history_playable_rename_external(self, mock_caddy: MagicMock):
+        mock_caddy.return_value = True
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Rename External",
+            creation_time=ts,
+        )
+        GameCuration.objects.create(game=game)
+        playable = Playable.objects.create(
+            game=game,
+            template="external",
+            template_version="1",
+            slug="ext-old",
+            state=Playable.State.READY,
+            config={"upstream": "127.0.0.1:8080"},
+        )
+
+        resp = self.client.post(
+            f"/curation/{game.pk}/playables/{playable.pk}/rename/",
+            {
+                "domain_name": "ext-new",
+                "upstream": "127.0.0.1:9090",
+            },
+        )
+        self.assertRedirects(
+            resp, f"/curation/{game.pk}/?check_compatibility=1"
+        )
+        playable.refresh_from_db()
+        self.assertEqual(playable.slug, "ext-new")
+        self.assertEqual(playable.config, {"upstream": "127.0.0.1:9090"})
+        mock_caddy.assert_called_once_with(playable)
+
+    def test_history_playable_regenerate_external_rejected(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="Regen External",
+            creation_time=ts,
+        )
+        GameCuration.objects.create(game=game)
+        playable = Playable.objects.create(
+            game=game,
+            template="external",
+            template_version="1",
+            slug="ext-game",
+            state=Playable.State.READY,
+        )
+
+        resp = self.client.post(
+            f"/curation/{game.pk}/playables/{playable.pk}/regenerate/",
+        )
+        self.assertRedirects(
+            resp, f"/curation/{game.pk}/?check_compatibility=1"
+        )
+        playable.refresh_from_db()
+        self.assertEqual(playable.state, Playable.State.READY)
+
+    def test_history_detail_renders_external_playables(self):
+        ts = timezone.now()
+        game = Game.objects.create(
+            state=Game.State.PUBLISHED,
+            title="External Detail Game",
+            creation_time=ts,
+        )
+        GameCuration.objects.create(game=game)
+        Playable.objects.create(
+            game=game,
+            template="external",
+            template_version="1",
+            slug="ext-detail-game",
+            state=Playable.State.READY,
+            config={"upstream": "127.0.0.1:8080"},
+            player_name="MyEngine",
+        )
+
+        resp = self.client.get(f"/curation/{game.pk}/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Внешний сайт")
+        self.assertContains(resp, "ext-detail-game")
+        self.assertContains(resp, "127.0.0.1:8080")
+        self.assertContains(resp, "Привязать внешний сайт")
 
     def test_blueprint_list_bulk_visibility(self):
         ts = timezone.now()

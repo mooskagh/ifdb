@@ -146,6 +146,8 @@ class GameInfo:
         human role name instead of a ``role_slug`` (no importer emits that
         today, but the old ``Importer2Json`` honored it).
         """
+        if "error" in d:
+            raise ValueError(d["error"])
         info = cls(
             name=d.get("title"),
             date=str(d["release_date"]) if d.get("release_date") else None,
