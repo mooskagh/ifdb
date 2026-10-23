@@ -16,6 +16,7 @@ from django.views.decorators.http import require_http_methods
 if TYPE_CHECKING:
     from django.core.files.uploadedfile import UploadedFile
 
+from core.cors import cors_playable
 from curation.models import GameCuration
 from curation.overrides import (
     build_initial_overrides,
@@ -499,6 +500,7 @@ def _sso_kid(pub_bytes: bytes) -> str:
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
+@cors_playable(methods="GET")
 @require_http_methods(["GET"])
 @api_auth(allow_session=True)
 def sso_ticket(request: HttpRequest) -> HttpResponse:
