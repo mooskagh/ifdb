@@ -71,13 +71,13 @@ def index(request):
 def add_game(request):
     if not can_add_game(request.user):
         raise PermissionDenied
+    can_edit = can_edit_game(request.user)
     return render(
         request,
         "games/edit.html",
         {
-            "submit_label": (
-                "Сохранить" if can_edit_game(request.user) else "Предложить"
-            ),
+            "submit_label": "Опубликовать" if can_edit else "Предложить",
+            "can_save_as_draft": can_edit,
         },
     )
 
@@ -85,17 +85,28 @@ def add_game(request):
 @ensure_csrf_cookie
 @login_required
 def edit_game(request, game_id):
-    game = get_object_or_404(Game.objects.published(), id=game_id)
+    if can_edit_game(request.user):
+        game = get_object_or_404(
+            Game.objects.filter(
+                state__in=[Game.State.PUBLISHED, Game.State.DRAFT]
+            ),
+            id=game_id,
+        )
+    else:
+        game = get_object_or_404(Game.objects.published(), id=game_id)
+    can_edit = can_edit_game(request.user, game)
+    is_draft = game.state == Game.State.DRAFT
     return render(
         request,
         "games/edit.html",
         {
             "game_id": game.id,
             "submit_label": (
-                "Сохранить"
-                if can_edit_game(request.user, game)
-                else "Предложить"
+                "Опубликовать"
+                if is_draft and can_edit
+                else ("Сохранить" if can_edit else "Предложить")
             ),
+            "can_save_as_draft": is_draft and can_edit,
         },
     )
 
@@ -119,16 +130,32 @@ def store_game(request):
             {"message": "У игры должно быть название."},
         )
 
+    as_draft = bool(j.get("as_draft"))
     is_new_game = "game_id" not in j
     if not is_new_game:
-        game = get_object_or_404(Game.objects.published(), id=j["game_id"])
+        if can_edit_game(request.user):
+            game = get_object_or_404(
+                Game.objects.filter(
+                    state__in=[Game.State.PUBLISHED, Game.State.DRAFT]
+                ),
+                id=j["game_id"],
+            )
+        else:
+            game = get_object_or_404(Game.objects.published(), id=j["game_id"])
         can_save = can_edit_game(request.user, game)
         if not can_save and not (
             request.user.is_authenticated and request.user.is_active
         ):
             raise PermissionDenied
+        apply = can_save and not as_draft
         try:
-            edit = store_manual_edit(game, j, request.user, apply=can_save)
+            edit = store_manual_edit(
+                game,
+                j,
+                request.user,
+                apply=apply,
+                as_draft=as_draft and can_save,
+            )
         except ValueError as exc:
             return render(
                 request,
@@ -137,29 +164,42 @@ def store_game(request):
             )
         LogAction(
             request,
-            "gam-store" if can_save else "gam-propose",
+            "gam-store" if apply else "gam-propose",
             is_mutation=True,
             obj=game,
             obj2=edit,
             after=j,
         )
-        return redirect(reverse("show_game", kwargs={"game_id": game.id}))
+        if apply:
+            return redirect(reverse("show_game", kwargs={"game_id": game.id}))
+        if request.user.is_superuser:
+            return redirect(
+                reverse("curation_history_detail", kwargs={"game_id": game.id})
+            )
+        return redirect(reverse("list_games"))
 
     if not can_add_game(request.user):
         raise PermissionDenied
     can_save = can_edit_game(request.user)
-    edit = store_manual_add(j, request.user, apply=can_save)
+    apply = can_save and not as_draft
+    edit = store_manual_add(
+        j, request.user, apply=apply, as_draft=as_draft and can_save
+    )
     game = edit.game
     LogAction(
         request,
-        "gam-store" if can_save else "gam-propose",
+        "gam-store" if apply else "gam-propose",
         is_mutation=True,
         obj=game,
         obj2=edit,
         after=j,
     )
-    if can_save:
+    if apply:
         return redirect(reverse("show_game", kwargs={"game_id": game.id}))
+    if request.user.is_superuser:
+        return redirect(
+            reverse("curation_history_detail", kwargs={"game_id": game.id})
+        )
     return redirect(reverse("list_games"))
 
 
@@ -640,7 +680,15 @@ def linktypes(request):
 def BuildJsonGameInfo(request, game_id):
     g = {}
     if game_id:
-        game = get_object_or_404(Game.objects.published(), id=game_id)
+        if can_edit_game(request.user):
+            game = get_object_or_404(
+                Game.objects.filter(
+                    state__in=[Game.State.PUBLISHED, Game.State.DRAFT]
+                ),
+                id=game_id,
+            )
+        else:
+            game = get_object_or_404(Game.objects.published(), id=game_id)
         if not can_view_game(request.user, game):
             raise PermissionDenied
         g["title"] = game.title or ""

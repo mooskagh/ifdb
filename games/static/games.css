@@ -2420,12 +2420,21 @@ button.upload_button {
 }
 
 button#submit,
+button#submit_draft,
 .user-registration input[type="submit"] {
     font-size: 16px;
     margin-top: 20px;
     border: none;
     padding: 15px 32px;
     display: inline-block;
+}
+
+button#submit_draft {
+    background-color: #6c757d;
+    margin-left: 10px;
+}
+button#submit_draft:hover {
+    background-color: #5a6268;
 }
 
 .ui-widget {

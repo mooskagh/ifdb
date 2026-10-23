@@ -70,9 +70,10 @@ def _validate_pinned_urls(game: Game, info: GameInfo) -> None:
 
 @transaction.atomic
 def store_manual_edit(
-    game: Game, data: dict, user, *, apply: bool
+    game: Game, data: dict, user, *, apply: bool, as_draft: bool = False
 ) -> GameRevision:
     curation = _curation_for_game(game)
+    was_draft = game.state == Game.State.DRAFT
     previous_edit = _latest_applied_edit(game)
     before = previous_edit.canonical_text if previous_edit else ""
     info = editor_payload_to_gameinfo(data)
@@ -94,13 +95,18 @@ def store_manual_edit(
             info.tags.extend(internal_tags)
             info.canonicalize()
     canonical = info.to_canonical()
+
+    GameRevision.objects.filter(
+        game=game, status=GameRevision.Status.PROPOSED
+    ).update(status=GameRevision.Status.REJECTED)
+
     edit = GameRevision.objects.create(
         game=game,
         created_at=now(),
         created_by=user,
         origin=(
             GameRevision.Origin.MANUAL_EDIT
-            if apply
+            if (apply or as_draft)
             else GameRevision.Origin.USER_SUGGESTION
         ),
         status=(
@@ -129,9 +135,15 @@ def store_manual_edit(
             "include_overrides",
             "exclude_overrides",
         ]
+        if was_draft:
+            PostNewGameToDiscord(game.id)
     else:
+        if was_draft and as_draft:
+            info.save(game, state=Game.State.DRAFT)
+            curation.note = "Черновик обновлён"
+        else:
+            curation.note = "Пользователь предложил правку"
         curation.state = GameCuration.State.NEEDS_ATTENTION
-        curation.note = "Пользователь предложил правку"
         curation_fields = ["state", "note"]
     GameHistoryAuditLog.record_note_change(game, user, old_note, curation.note)
     curation.save(update_fields=curation_fields)
@@ -139,7 +151,9 @@ def store_manual_edit(
 
 
 @transaction.atomic
-def store_manual_add(data: dict, user, *, apply: bool) -> GameRevision:
+def store_manual_add(
+    data: dict, user, *, apply: bool, as_draft: bool = False
+) -> GameRevision:
     info = editor_payload_to_gameinfo(data)
     game, after = info.save(
         None, state=Game.State.PUBLISHED if apply else Game.State.DRAFT
@@ -147,6 +161,15 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameRevision:
     game.added_by = user
     game.save(update_fields=["added_by"])
 
+    note = (
+        None
+        if apply
+        else (
+            "Черновик игры"
+            if as_draft
+            else "Пользователь предложил новую игру"
+        )
+    )
     curation = GameCuration.objects.create(
         game=game,
         state=(
@@ -154,7 +177,7 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameRevision:
             if apply
             else GameCuration.State.NEEDS_ATTENTION
         ),
-        note=None if apply else "Пользователь предложил новую игру",
+        note=note,
         include_overrides=build_initial_overrides(info, is_rich_source=False),
         exclude_overrides={},
     )
@@ -164,7 +187,7 @@ def store_manual_add(data: dict, user, *, apply: bool) -> GameRevision:
         created_by=user,
         origin=(
             GameRevision.Origin.MANUAL_EDIT
-            if apply
+            if (apply or as_draft)
             else GameRevision.Origin.USER_SUGGESTION
         ),
         status=(

@@ -1,6 +1,7 @@
 import json
 from datetime import timedelta
 from io import StringIO
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -1146,3 +1147,187 @@ class GameEditCurationViewTests(TestCase):
         self.assertIsNotNone(correction)
         self.assertNotIn("tag1", correction.canonical_text)
         self.assertIn("tag2", correction.canonical_text)
+
+    def test_admin_can_save_game_as_draft(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+
+        response = self.client.get(reverse("add_game"))
+        self.assertContains(response, "Опубликовать")
+        self.assertContains(response, "Сохранить как черновик")
+
+        with patch("curation.manual.PostNewGameToDiscord") as mock_discord:
+            resp = self.client.post(
+                reverse("store_game"),
+                {
+                    "json": json.dumps({
+                        "title": "Draft Adventure",
+                        "as_draft": True,
+                    })
+                },
+            )
+            mock_discord.assert_not_called()
+
+        game = Game.objects.get(title="Draft Adventure")
+        self.assertEqual(game.state, Game.State.DRAFT)
+        self.assertRedirects(
+            resp, reverse("curation_history_detail", args=[game.id])
+        )
+
+        curation = GameCuration.objects.get(game=game)
+        self.assertEqual(curation.note, "Черновик игры")
+        self.assertEqual(curation.state, GameCuration.State.NEEDS_ATTENTION)
+
+        revision = GameRevision.objects.get(game=game)
+        self.assertEqual(revision.status, GameRevision.Status.PROPOSED)
+        self.assertEqual(revision.origin, GameRevision.Origin.MANUAL_EDIT)
+        self.assertEqual(revision.created_by, self.user)
+
+    def test_non_admin_cannot_see_save_as_draft_button(self):
+        response = self.client.get(reverse("add_game"))
+        self.assertContains(response, "Предложить")
+        self.assertNotContains(response, "Сохранить как черновик")
+
+    def test_admin_can_edit_and_publish_draft_game(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+
+        draft_game = Game.objects.create(
+            title="Draft Game",
+            state=Game.State.DRAFT,
+            creation_time=now(),
+            added_by=self.user,
+        )
+        GameCuration.objects.create(
+            game=draft_game,
+            state=GameCuration.State.NEEDS_ATTENTION,
+            note="Черновик игры",
+        )
+        GameRevision.objects.create(
+            game=draft_game,
+            created_at=now(),
+            created_by=self.user,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            status=GameRevision.Status.PROPOSED,
+            canonical_text='---\n- name: "Draft Game"\n---\nDraft desc',
+        )
+
+        # Admin can view edit page for draft game
+        response = self.client.get(reverse("edit_game", args=[draft_game.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Опубликовать")
+        self.assertContains(response, "Сохранить как черновик")
+
+        # Admin publishes the draft game via web editor
+        with patch("curation.manual.PostNewGameToDiscord") as mock_discord:
+            resp = self.client.post(
+                reverse("store_game"),
+                {
+                    "json": json.dumps({
+                        "game_id": draft_game.id,
+                        "title": "Published Title",
+                    })
+                },
+            )
+            mock_discord.assert_called_once_with(draft_game.id)
+
+        self.assertRedirects(
+            resp, reverse("show_game", kwargs={"game_id": draft_game.id})
+        )
+        draft_game.refresh_from_db()
+        self.assertEqual(draft_game.state, Game.State.PUBLISHED)
+        self.assertEqual(draft_game.title, "Published Title")
+
+    def test_admin_can_update_draft_game_without_publishing(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+
+        draft_game = Game.objects.create(
+            title="Draft Game",
+            state=Game.State.DRAFT,
+            creation_time=now(),
+            added_by=self.user,
+        )
+        GameCuration.objects.create(
+            game=draft_game,
+            state=GameCuration.State.NEEDS_ATTENTION,
+            note="Черновик игры",
+        )
+        GameRevision.objects.create(
+            game=draft_game,
+            created_at=now(),
+            created_by=self.user,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            status=GameRevision.Status.PROPOSED,
+            canonical_text='---\n- name: "Draft Game"\n---\nDraft desc',
+        )
+
+        with patch("curation.manual.PostNewGameToDiscord") as mock_discord:
+            resp = self.client.post(
+                reverse("store_game"),
+                {
+                    "json": json.dumps({
+                        "game_id": draft_game.id,
+                        "title": "Still Draft",
+                        "as_draft": True,
+                    })
+                },
+            )
+            mock_discord.assert_not_called()
+
+        self.assertRedirects(
+            resp, reverse("curation_history_detail", args=[draft_game.id])
+        )
+        draft_game.refresh_from_db()
+        self.assertEqual(draft_game.state, Game.State.DRAFT)
+        self.assertEqual(draft_game.title, "Still Draft")
+
+    def test_non_admin_cannot_edit_draft_game(self):
+        draft_game = Game.objects.create(
+            title="Draft Game",
+            state=Game.State.DRAFT,
+            creation_time=now(),
+        )
+        response = self.client.get(reverse("edit_game", args=[draft_game.id]))
+        self.assertEqual(response.status_code, 404)
+        json_resp = self.client.get(
+            reverse("json_gameinfo"), {"game_id": draft_game.id}
+        )
+        self.assertEqual(json_resp.status_code, 404)
+
+    def test_publishing_draft_via_curation_triggers_notification(self):
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+
+        draft_game = Game.objects.create(
+            title="Draft Game",
+            state=Game.State.DRAFT,
+            creation_time=now(),
+            added_by=self.user,
+        )
+        curation = GameCuration.objects.create(
+            game=draft_game,
+            state=GameCuration.State.NEEDS_ATTENTION,
+            note="Черновик игры",
+        )
+        edit = GameRevision.objects.create(
+            game=draft_game,
+            created_at=now(),
+            created_by=self.user,
+            origin=GameRevision.Origin.MANUAL_EDIT,
+            status=GameRevision.Status.PROPOSED,
+            canonical_text='---\n- name: "Draft Game"\n---\nDraft desc',
+        )
+
+        with patch("curation.views.PostNewGameToDiscord") as mock_discord:
+            resp = self.client.post(
+                reverse("curation_edit_diff", args=[edit.pk]),
+                {"action": "accept"},
+            )
+            self.assertEqual(resp.status_code, 302)
+            mock_discord.assert_called_once_with(draft_game.id)
+
+        draft_game.refresh_from_db()
+        self.assertEqual(draft_game.state, Game.State.PUBLISHED)
+        curation.refresh_from_db()
+        self.assertEqual(curation.state, GameCuration.State.SETTLED)
