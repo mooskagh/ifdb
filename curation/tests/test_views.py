@@ -6122,16 +6122,13 @@ class SourceViewsTest(TestCase):
 
         response = self.client.post(
             f"/curation/{history.pk}/sources/add/",
-            {
-                "type": GameSource.SourceType.IFWIKI,
-                "url": " https://example.com/new ",
-            },
+            {"url": " https://ifwiki.ru/New "},
         )
 
         self.assertRedirects(response, f"/curation/{history.pk}/")
         source = GameSource.objects.get(game=history.game)
         self.assertEqual(source.type, GameSource.SourceType.IFWIKI)
-        self.assertEqual(source.url, "https://example.com/new")
+        self.assertEqual(source.url, "https://ifwiki.ru/New")
         audit = GameHistoryAuditLog.objects.get(game=history.game)
         self.assertEqual(
             audit.kind, GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED
@@ -6140,20 +6137,17 @@ class SourceViewsTest(TestCase):
         self.assertEqual(audit.new_id, source.pk)
         self.assertIn("IFWiki", audit.new_text)
 
-    def test_history_source_add_reuses_orphan_with_same_type_and_url(self):
+    def test_history_source_add_reuses_orphan_with_same_key(self):
         ts = timezone.now()
         history = self._history(creation_time=ts)
         orphan = GameSource.objects.create(
             type=GameSource.SourceType.IFWIKI,
-            url="https://example.com/new",
+            url="http://ifwiki.ru/%D0%98%D0%B3%D1%80%D0%B0",
         )
 
         response = self.client.post(
             f"/curation/{history.pk}/sources/add/",
-            {
-                "type": GameSource.SourceType.IFWIKI,
-                "url": " https://example.com/new ",
-            },
+            {"url": "https://ifwiki.ru/Игра/"},
         )
 
         self.assertRedirects(response, f"/curation/{history.pk}/")
@@ -6169,20 +6163,85 @@ class SourceViewsTest(TestCase):
         GameSource.objects.create(
             game=other.game,
             type=GameSource.SourceType.IFWIKI,
-            url="https://example.com/new",
+            url="https://ifwiki.ru/New",
         )
 
         response = self.client.post(
             f"/curation/{history.pk}/sources/add/",
-            {
-                "type": GameSource.SourceType.IFWIKI,
-                "url": "https://example.com/new",
-            },
+            {"url": "https://ifwiki.ru/New"},
+            follow=True,
         )
 
-        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, f"игры #{other.game.pk}")
         self.assertEqual(GameSource.objects.count(), 1)
         self.assertFalse(GameHistoryAuditLog.objects.exists())
+
+    def test_history_source_add_rejects_unknown_url(self):
+        history = self._history(creation_time=timezone.now())
+
+        response = self.client.post(
+            f"/curation/{history.pk}/sources/add/",
+            {"url": "https://example.com/new"},
+            follow=True,
+        )
+
+        self.assertContains(response, "Не похоже на страницу источника")
+        self.assertFalse(GameSource.objects.exists())
+
+    def test_history_lists_source_like_links(self):
+        history = self._history(creation_time=timezone.now())
+        page = GameURLCategory.objects.get_or_create(
+            symbolic_id="game_page", defaults={"title": "Page"}
+        )[0]
+        poster = GameURLCategory.objects.get_or_create(
+            symbolic_id="poster", defaults={"title": "Poster"}
+        )[0]
+        for category, url in [
+            (page, "https://ifwiki.ru/Linked"),
+            (poster, "https://ifwiki.ru/files/poster.png"),
+        ]:
+            GameURL.objects.create(
+                game=history.game,
+                category=category,
+                url=URL.objects.create(
+                    original_url=url, creation_date=timezone.now()
+                ),
+            )
+
+        response = self.client.get(f"/curation/{history.pk}/")
+        self.assertContains(response, "сделать источником")
+        self.assertContains(response, "https://ifwiki.ru/Linked")
+        self.assertNotContains(response, "poster.png")
+
+        self.client.post(
+            f"/curation/{history.pk}/sources/add/",
+            {"url": "https://ifwiki.ru/Linked"},
+        )
+        response = self.client.get(f"/curation/{history.pk}/")
+        self.assertNotContains(response, "сделать источником")
+
+    @patch("curation.views.import_sources.delay")
+    def test_sources_add_creates_orphans_and_imports(self, delay):
+        existing = GameSource.objects.create(
+            type=GameSource.SourceType.IFWIKI, url="http://ifwiki.ru/Old"
+        )
+
+        response = self.client.post(
+            "/curation/sources/add/",
+            {
+                "urls": "https://ifwiki.ru/Old\nhttps://ifwiki.ru/New\n"
+                "https://example.com/x",
+                "import": "on",
+            },
+            follow=True,
+        )
+
+        new = GameSource.objects.get(url="https://ifwiki.ru/New")
+        self.assertIsNone(new.game)
+        self.assertEqual(GameSource.objects.count(), 2)
+        delay.assert_called_once_with([new.pk])
+        self.assertContains(response, f"#{existing.pk}")
+        self.assertContains(response, "https://example.com/x")
 
     def test_history_source_add_attaches_orphan_by_id(self):
         ts = timezone.now()
@@ -6220,18 +6279,6 @@ class SourceViewsTest(TestCase):
         self.assertEqual(response.status_code, 400)
         source.refresh_from_db()
         self.assertEqual(source.game, other.game)
-        self.assertFalse(GameHistoryAuditLog.objects.exists())
-
-    def test_history_source_add_rejects_unknown_type(self):
-        history = self._history()
-
-        response = self.client.post(
-            f"/curation/{history.pk}/sources/add/",
-            {"type": "NOPE", "url": "https://example.com/new"},
-        )
-
-        self.assertEqual(response.status_code, 400)
-        self.assertFalse(GameSource.objects.exists())
         self.assertFalse(GameHistoryAuditLog.objects.exists())
 
     def test_history_source_detach_keeps_source_and_records_audit(self):

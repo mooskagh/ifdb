@@ -19,11 +19,19 @@ def discover_sources(types=None, auto_import_new=False, pipeline_id=None):
     new_ids = [
         source_id for stats in provider_stats for source_id in stats.new_ids
     ]
-    if not new_ids:
-        return {"discovered": dict(discovered), "auto_import_new": None}
+    return {
+        "discovered": dict(discovered),
+        "auto_import_new": (
+            import_sources(new_ids, pipeline_id) if new_ids else None
+        ),
+    }
 
+
+@shared_task
+def import_sources(source_ids, pipeline_id=None):
+    """Fetch -> reconcile -> edit the games spawned for ``source_ids``."""
     fetch_stats = []
-    for source_id in new_ids:
+    for source_id in source_ids:
         fetch_stats.extend(run_fetch(source_id=source_id))
 
     game_ids = set()
@@ -34,7 +42,7 @@ def discover_sources(types=None, auto_import_new=False, pipeline_id=None):
             game_ids.add(curation.pk)
 
     reconcile_stats = []
-    for source_id in new_ids:
+    for source_id in source_ids:
         reconcile_stats.extend(
             run_reconcile(
                 source_id=source_id,
@@ -47,13 +55,10 @@ def discover_sources(types=None, auto_import_new=False, pipeline_id=None):
         for game_id in sorted(game_ids)
     ]
     return {
-        "discovered": dict(discovered),
-        "auto_import_new": {
-            "source_ids": new_ids,
-            "fetch": [stats.__dict__ for stats in fetch_stats],
-            "reconcile": [stats.__dict__ for stats in reconcile_stats],
-            "edit": edit_stats,
-        },
+        "source_ids": source_ids,
+        "fetch": [stats.__dict__ for stats in fetch_stats],
+        "reconcile": [stats.__dict__ for stats in reconcile_stats],
+        "edit": edit_stats,
     }
 
 

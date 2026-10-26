@@ -727,6 +727,13 @@ class OwnsRoutingTest(ProviderTestBase):
                     if type(other) is not type(provider):
                         self.assertFalse(other.owns(url))
 
+    def test_source_key_ignores_scheme_slash_and_percent_encoding(self):
+        provider = IfwikiProvider()
+        self.assertEqual(
+            provider.source_key("http://ifwiki.ru/" + quote("Игра")),
+            provider.source_key("https://ifwiki.ru/Игра/"),
+        )
+
     def test_provider_fetches_bypass_crawler_file_cache(self):
         cases = [
             (AperoProvider(), "FetchApero", AperoProviderTest.url, None),

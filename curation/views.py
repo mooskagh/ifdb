@@ -42,6 +42,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.utils.html import format_html, format_html_join
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import now
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
@@ -112,10 +113,19 @@ from .overrides import (
 )
 from .passes.merge_sources import description_diff, merge_descriptions
 from .providers import REGISTERED_PROVIDERS
+from .sources import (
+    Outcome,
+    add_orphan_source,
+    attach_source,
+    attach_url_source,
+    is_source_link,
+    matching_sources,
+)
 from .tasks import (
     discover_sources,
     edit_sources,
     fetch_sources,
+    import_sources,
     reconcile_sources,
 )
 
@@ -2415,47 +2425,66 @@ def history_source_add(request, game_id):
             )
             if source.game_id is not None:
                 return HttpResponseBadRequest("Source is already attached.")
-            _attach_source(game, source, request.user)
+            attach_source(game, source, request.user)
         return redirect("curation_history_detail", game_id=game.pk)
 
-    source_type = request.POST.get("type")
-    if source_type not in GameSource.SourceType.values:
-        return HttpResponseBadRequest("Unknown source type.")
-    url = request.POST.get("url", "").strip() or None
-
+    url = request.POST.get("url", "").strip()
     with transaction.atomic():
-        source = None
-        if url:
-            existing = (
-                GameSource.objects
-                .select_for_update()
-                .filter(type=source_type, url=url)
-                .order_by("game_id", "pk")
-                .first()
-            )
-            if existing and existing.game_id is not None:
-                return HttpResponseBadRequest("Source is already attached.")
-            source = existing
-        if source is None:
-            source = GameSource.objects.create(
-                type=source_type,
-                url=url,
-                created_at=now(),
-            )
-        _attach_source(game, source, request.user)
-
+        outcome, source = attach_url_source(game, url, request.user)
+    if outcome == Outcome.UNKNOWN:
+        messages.error(request, f"Не похоже на страницу источника: {url}")
+    elif outcome == Outcome.EXISTS:
+        messages.info(request, "Этот источник уже присоединён к игре.")
+    elif outcome == Outcome.TAKEN:
+        assert source is not None
+        messages.error(
+            request,
+            format_html(
+                'Это уже источник <a href="{}">игры #{}</a> — '
+                '<a href="{}">объединить</a>?',
+                reverse("curation_history_detail", args=[source.game_id]),
+                source.game_id,
+                reverse("curation_history_reconcile", args=[game.pk]),
+            ),
+        )
     return redirect("curation_history_detail", game_id=game.pk)
 
 
-def _attach_source(game, source, user):
-    source.game = game
-    source.save(update_fields=["game"])
-    GameHistoryAuditLog.record_source(
-        game,
-        user,
-        GameHistoryAuditLog.AuditKind.SOURCE_ATTACHED,
-        source,
+def sources_add(request):
+    if request.method != "POST":
+        return HttpResponseBadRequest("Only POST is supported.")
+
+    created, existing, unknown = [], [], []
+    for url in dict.fromkeys(request.POST.get("urls", "").split()):
+        outcome, source = add_orphan_source(url)
+        if outcome == Outcome.UNKNOWN:
+            unknown.append(url)
+        elif outcome == Outcome.CREATED:
+            created.append(source)
+        else:
+            existing.append(source)
+
+    if created and request.POST.get("import") == "on":
+        import_sources.delay([s.pk for s in created])
+    messages.success(
+        request,
+        format_html(
+            "Создано: {}, уже были: {}{}",
+            len(created),
+            len(existing),
+            format_html_join(
+                "",
+                ' <a href="{}">#{}</a>',
+                (
+                    (reverse("curation_source_detail", args=[s.pk]), s.pk)
+                    for s in existing
+                ),
+            ),
+        ),
     )
+    if unknown:
+        messages.error(request, "Не распознаны: " + ", ".join(unknown))
+    return redirect("curation_source_list")
 
 
 def _detach_source(game, source, user, *, keep_orphan=False):
@@ -2631,6 +2660,12 @@ def history_detail(request, game_id):
     game = get_object_or_404(Game, pk=game_id)
     curation, _ = GameCuration.objects.get_or_create(game=game)
     sources = list(GameSource.objects.filter(game=game))
+    for source in sources:
+        source.shared_with = sorted({
+            s.game_id
+            for s in (matching_sources(source.url) or [])
+            if s.game_id not in (None, game.pk)
+        })
     check_compatibility = request.GET.get("check_compatibility") == "1"
     playable_files = _build_playable_files(game.pk, check_compatibility)
 
@@ -2714,6 +2749,7 @@ def history_detail(request, game_id):
             "curation": curation,
             "game": game,
             "sources": sources,
+            "link_source_candidates": _link_source_candidates(game),
             "playable_files": playable_files,
             "external_playables": list(
                 Playable.objects.filter(
@@ -2725,7 +2761,6 @@ def history_detail(request, game_id):
             "groups": _group_timeline(timeline),
             "auto_choices": GameCuration.AutoUpdate.choices,
             "state_choices": GameCuration.State.choices,
-            "source_type_choices": GameSource.SourceType.choices,
             "proposed_edit_status": GameRevision.Status.PROPOSED,
             "edit_pipelines": EditPipeline.objects.order_by("id"),
             "playable_base_domain": settings.PLAYABLE_BASE_DOMAIN,
@@ -2743,6 +2778,25 @@ def history_detail(request, game_id):
             ),
         },
     )
+
+
+def _link_source_candidates(game):
+    """Game links that look like sources but aren't sources of this game."""
+    candidates = {}
+    for gu in game.gameurl_set.select_related("url", "category"):
+        url = gu.url.original_url
+        if url in candidates or not is_source_link(
+            gu.category.symbolic_id, url
+        ):
+            continue
+        matches = matching_sources(url) or []
+        if any(s.game_id == game.pk for s in matches):
+            continue
+        candidates[url] = {
+            "url": url,
+            "taken": next((s for s in matches if s.game_id), None),
+        }
+    return list(candidates.values())
 
 
 def history_run_edit(request, game_id):

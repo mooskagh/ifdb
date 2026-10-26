@@ -164,6 +164,7 @@
             <div class="curation-source-type"><a href="{% url 'curation_source_detail' source.pk %}">{{ source.get_type_display }}</a></div>
             <div class="curation-source-body">
                 {% if source.url %}<a href="{{ source.url }}">{{ source.url }}</a>{% endif %}
+                {% for other_id in source.shared_with %}<div class="curation-meta">тот же источник у <a href="{% url 'curation_history_detail' other_id %}">игры #{{ other_id }}</a></div>{% endfor %}
                 {% if source.failing_since %}<div class="curation-meta">Сбоит с: {{ source.failing_since|date:"d.m.Y H:i" }}</div>{% endif %}
                 {% if source.last_error %}<div class="curation-meta">Ошибка: {{ source.last_error }}</div>{% endif %}
                 {% if source.created_at %}<div class="curation-meta">Добавлен: {{ source.created_at|date:"d.m.Y H:i" }}</div>{% endif %}
@@ -189,15 +190,27 @@
         {% empty %}
         <div class="curation-source curation-meta">Источников нет.</div>
         {% endfor %}
+        {% if link_source_candidates %}
+        <div class="curation-source curation-meta">Ссылки игры, похожие на источники:</div>
+        {% for candidate in link_source_candidates %}
+        <div class="curation-source">
+            <div class="curation-source-body curation-break-url"><a href="{{ candidate.url }}">{{ candidate.url }}</a></div>
+            {% if candidate.taken %}
+            <a href="{% url 'curation_history_detail' candidate.taken.game_id %}">уже источник игры #{{ candidate.taken.game_id }} →</a>
+            {% else %}
+            <form method="post" action="{% url 'curation_history_source_add' history.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="url" value="{{ candidate.url }}">
+                <button type="submit">сделать источником</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
         <div class="curation-source-add-row">
             <form method="post" action="{% url 'curation_history_source_add' history.pk %}" class="curation-source-add">
                 {% csrf_token %}
-                <select name="type" required>
-                    {% for value, label in source_type_choices %}
-                    <option value="{{ value }}">{{ label }}</option>
-                    {% endfor %}
-                </select>
-                <input type="url" name="url" placeholder="URL">
+                <input type="url" name="url" placeholder="URL" required>
                 <button type="submit">Добавить источник</button>
             </form>
             <form method="post" action="{% url 'curation_history_source_add' history.pk %}" class="curation-source-add curation-source-add--id">
