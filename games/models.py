@@ -142,8 +142,26 @@ class Game(models.Model):
         from games.gameinfo import parse
 
         ts = timestamp or now()
+        prev_text = (
+            GameRevision.objects
+            .filter(pk=self.published_revision_id)
+            .exclude(pk=revision.pk)
+            .values_list("canonical_text", flat=True)
+            .first()
+        )
         info = parse(revision.canonical_text)
         _, backfilled_text = info.save(self)
+        if revision.origin in GameRevision.HUMAN_ORIGINS:
+            from curation.sources import adopt_link_sources
+
+            old_urls = (
+                {u.url for u in parse(prev_text).urls} if prev_text else set()
+            )
+            new_urls = [u for u in info.urls if u.url not in old_urls]
+            # After commit, so callers' curation updates can't clobber flags.
+            transaction.on_commit(
+                lambda: adopt_link_sources(self, new_urls, actor)
+            )
         if self.state == Game.State.DRAFT:
             self.state = Game.State.PUBLISHED
             self.save(update_fields=["state"])
@@ -256,6 +274,9 @@ class GameRevision(models.Model):
         MERGE = "MERGE", _("Merge")
         API = "API", _("API")
         CORRECTION = "CORRECTION", _("Correction")
+
+    # Revisions whose new links are adopted as sources (not source-derived).
+    HUMAN_ORIGINS = frozenset({Origin.MANUAL_EDIT, Origin.USER_SUGGESTION})
 
     def __str__(self) -> str:
         return f"Revision #{self.pk} ({self.get_status_display()})"

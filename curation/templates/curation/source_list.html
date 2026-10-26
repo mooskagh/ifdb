@@ -5,6 +5,18 @@
 
 {% block curation_main %}
 <div class="card card--brown">
+    <div class="card--header">Добавить источники</div>
+    <div class="card--body">
+        <form method="post" action="{% url 'curation_sources_add' %}" class="curation-sources-add">
+            {% csrf_token %}
+            <textarea name="urls" rows="3" placeholder="URL, по одному в строке" required></textarea>
+            <label><input type="checkbox" name="import" checked> сразу импортировать</label>
+            <button type="submit">Добавить</button>
+        </form>
+    </div>
+</div>
+
+<div class="card card--brown">
     <div class="card--header">Источники</div>
     <div class="card--body">
         <form class="curation-filter curation-filter--source" method="get">

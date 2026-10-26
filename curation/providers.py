@@ -23,7 +23,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from html import unescape
-from urllib.parse import urljoin
+from urllib.parse import unquote, urljoin
 
 from html2text import HTML2Text
 
@@ -95,10 +95,10 @@ def _base_source_key(url: str) -> str:
 
     Stored URLs are heterogeneous (legacy ``http://`` from seeding, clean
     ``https://`` from discover); strip the scheme and any trailing slash so the
-    two paths collapse to the same key.  Not lowercased -- ifwiki titles are
-    case-sensitive.
+    two paths collapse to the same key; percent-decode so %-escaped and unicode
+    spellings match too.  Not lowercased -- ifwiki titles are case-sensitive.
     """
-    return re.sub(r"^https?://", "", url).rstrip("/")
+    return unquote(re.sub(r"^https?://", "", url)).rstrip("/")
 
 
 @dataclass
@@ -855,3 +855,11 @@ REGISTERED_PROVIDERS: list[GameSourceProvider] = [
 PROVIDER_BY_TYPE: dict[str, GameSourceProvider] = {
     provider.source_type: provider for provider in REGISTERED_PROVIDERS
 }
+
+# ``owns()`` also claims files/posters on a source site; only links in these
+# categories are treated as candidate sources.
+SOURCE_LINK_CATEGORIES = frozenset({"game_page", "play_online", "unknown"})
+
+
+def provider_for_url(url: str) -> GameSourceProvider | None:
+    return next((p for p in REGISTERED_PROVIDERS if p.owns(url)), None)

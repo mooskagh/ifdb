@@ -3978,6 +3978,16 @@ progress.curation-scan-progress-bar {
 .curation-source-add--id {
     margin-left: auto;
 }
+.curation-sources-add {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+.curation-sources-add textarea {
+    width: 100%;
+    box-sizing: border-box;
+}
 .curation-discovery-source {
     align-items: flex-start;
 }
