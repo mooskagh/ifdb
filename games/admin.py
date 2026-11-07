@@ -94,7 +94,12 @@ class InlinePlayableAdmin(admin.TabularInline):
 class PersonalityUrlAdmin(admin.ModelAdmin):
     list_display = ["personality", "description", "category", "url"]
     raw_id_fields = ["personality", "url"]
-    search_fields = ["pk", "personality", "description", "url"]
+    search_fields = [
+        "pk",
+        "personality__name",
+        "description",
+        "url__original_url",
+    ]
 
 
 @admin.register(Game)
@@ -156,7 +161,7 @@ class PersonalityAliasAdmin(admin.ModelAdmin):
 class PersonalityAliasRedirectAdmin(admin.ModelAdmin):
     raw_id_fields = ["hidden_for"]
     list_display = ["name", "hidden_for"]
-    search_fields = ["name", "hidden_for"]
+    search_fields = ["name", "hidden_for__name"]
 
 
 @admin.register(Personality)
@@ -346,7 +351,7 @@ class GameAuthorRoleAdmin(admin.ModelAdmin):
 @admin.register(GameAuthor)
 class GameAuthorAdmin(admin.ModelAdmin):
     list_display = ["game", "author", "role"]
-    search_fields = ["pk", "game", "author"]
+    search_fields = ["pk", "game__title", "author__name"]
     list_filter = ["role"]
     raw_id_fields = ["game", "author"]
 
@@ -355,7 +360,7 @@ class GameAuthorAdmin(admin.ModelAdmin):
 class GameVoteAdmin(admin.ModelAdmin):
     list_display = ["game", "user", "star_rating"]
     list_filter = ["star_rating", "creation_time", "edit_time"]
-    search_fields = ["pk", "game", "author"]
+    search_fields = ["pk", "game__title", "user__username", "user__email"]
 
 
 @admin.register(GameComment)
@@ -370,4 +375,4 @@ class GameCommentAdmin(admin.ModelAdmin):
 class GameCommentVoteAdmin(admin.ModelAdmin):
     list_display = ["comment", "user", "vote_time", "vote"]
     raw_id_fields = ["comment"]
-    search_fields = ["comment", "user"]
+    search_fields = ["comment__text", "user__username", "user__email"]
