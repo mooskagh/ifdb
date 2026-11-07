@@ -14,6 +14,6 @@ class UserLogAdmin(admin.ModelAdmin):
         "timestamp",
         "is_mutation",
     ]
-    search_fields = ["action", "user", "ip_addr", "timestamp", "is_mutation"]
-    list_filter = ["action"]
+    search_fields = ["action", "user__username", "user__email", "ip_addr"]
+    list_filter = ["action", "is_mutation"]
     raw_id_fields = ["user"]
