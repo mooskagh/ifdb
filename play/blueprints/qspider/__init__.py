@@ -32,12 +32,22 @@ from play.blueprints.qspider.detection import (
     split_clean_parts,
 )
 
-ASSETS_DIR = Path(__file__).parent / "assets"
+_DEFAULT_ASSETS_DIR = Path(__file__).parent / "assets"
+ASSETS_DIR = _DEFAULT_ASSETS_DIR
 
 _RELEASE_NAME = re.compile(
     r"^qspider-(?:player-standalone-)?(?P<version>\d+(?:[-.]\d+)*)\.zip$"
 )
 _TITLE_TAG = re.compile(rb"<title>[^<]*</title>", re.IGNORECASE)
+_HEAD_TAG = re.compile(rb"</head\s*>", re.IGNORECASE)
+_VIEWPORT_FILE = "viewport.css"
+_VIEWPORT_SCRIPT_FILE = "viewport.js"
+_VIEWPORT_LINK = (
+    b'    <link rel="stylesheet" type="text/css" href="viewport.css">\n'
+)
+_VIEWPORT_SCRIPT = (
+    b'    <script type="text/javascript" src="viewport.js" defer></script>\n'
+)
 
 VALID_CONFIG_KEYS = frozenset((
     "mode",
@@ -177,7 +187,12 @@ def accepts(
 def _patch_index_html(html_bytes: bytes, title: str) -> bytes:
     escaped_title = html.escape(title).encode("utf-8")
     title_replacement = b"<title>" + escaped_title + b"</title>"
-    return _TITLE_TAG.sub(title_replacement, html_bytes, count=1)
+    patched = _TITLE_TAG.sub(title_replacement, html_bytes, count=1)
+    return _HEAD_TAG.sub(
+        _VIEWPORT_LINK + _VIEWPORT_SCRIPT + b"  </head>",
+        patched,
+        count=1,
+    )
 
 
 def _write_runtime(runtime_path: Path, stage: Path, title: str) -> None:
@@ -202,6 +217,12 @@ def _write_runtime(runtime_path: Path, stage: Path, title: str) -> None:
                     target_path.open("wb") as dst,
                 ):
                     shutil.copyfileobj(src, dst)
+
+    for filename in (_VIEWPORT_FILE, _VIEWPORT_SCRIPT_FILE):
+        src_path = ASSETS_DIR / filename
+        if not src_path.is_file():
+            src_path = _DEFAULT_ASSETS_DIR / filename
+        shutil.copyfile(src_path, stage / filename)
 
 
 def _flatten_single_dir(directory: Path) -> None:

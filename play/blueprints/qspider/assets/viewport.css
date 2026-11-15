@@ -1,0 +1,38 @@
+.qsp-touch-pause-button {
+  position: fixed;
+  top: 0;
+  left: 50%;
+}
+
+.qsp-touch-pause-button button {
+  display: inline-block;
+  margin-left: -50%;
+  border: 1px solid white;
+  border-top: 0;
+  border-bottom-left-radius: 50%;
+  border-bottom-right-radius: 50%;
+  padding: 2px 4px;
+  background-color: black;
+  color: white;
+  opacity: 50%;
+}
+
+qsp-pause-screen .qsp-pause-screen {
+  display: block;
+  max-height: 100%;
+  overflow: auto;
+}
+
+@media only screen and (min-width: 768px) {
+  qsp-pause-screen .qsp-pause-screen {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: minmax(0, 1fr);
+    column-gap: 12px;
+    overflow: hidden;
+  }
+}
+
+qsp-pause-screen .qsp-pause-screen-buttons {
+  margin-bottom: 12px;
+}
