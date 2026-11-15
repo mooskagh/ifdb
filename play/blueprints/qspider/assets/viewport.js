@@ -5,6 +5,35 @@
     '<path d="M6.04995 2.74998C6.04995 2.44623 5.80371 2.19998 5.49995 2.19998C5.19619 2.19998 4.94995 2.44623 4.94995 2.74998V12.25C4.94995 12.5537 5.19619 12.8 5.49995 12.8C5.80371 12.8 6.04995 12.5537 6.04995 12.25V2.74998ZM10.05 2.74998C10.05 2.44623 9.8037 2.19998 9.5 2.19998C9.1962 2.19998 8.95 2.44623 8.95 2.74998V12.25C8.95 12.5537 9.1962 12.8 9.5 12.8C9.8037 12.8 10.05 12.5537 10.05 12.25V2.74998Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"></path>' +
     "</svg>";
 
+  function dispatchEscape() {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Escape",
+        code: "Escape",
+        keyCode: 27,
+        which: 27,
+        bubbles: true,
+        cancelable: true,
+      })
+    );
+  }
+
+  document.addEventListener("click", function (e) {
+    var target = e.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+    if (
+      (target.classList.contains("qsp-dialog-container") &&
+        target.querySelector('qsp-view, [data-qsp="view"]')) ||
+      (target.classList.contains("qsp-overlay") &&
+        target.parentElement &&
+        target.parentElement.querySelector('qsp-view, [data-qsp="view"]'))
+    ) {
+      dispatchEscape();
+    }
+  });
+
   function isTouchDevice() {
     return (
       "ontouchstart" in window ||
@@ -89,16 +118,7 @@
     ) {
       return;
     }
-    document.dispatchEvent(
-      new KeyboardEvent("keydown", {
-        key: "Escape",
-        code: "Escape",
-        keyCode: 27,
-        which: 27,
-        bubbles: true,
-        cancelable: true,
-      })
-    );
+    dispatchEscape();
   });
 
   function mountIfNeeded() {
