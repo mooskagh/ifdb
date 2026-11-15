@@ -245,6 +245,17 @@ class QSpiderTests(SimpleTestCase):
             self.assertTrue(index_path.exists())
             index_content = index_path.read_text()
             self.assertIn("<title>Тестовая Башня</title>", index_content)
+            self.assertIn(
+                '<link rel="stylesheet" type="text/css" href="viewport.css">',
+                index_content,
+            )
+            self.assertIn(
+                '<script type="text/javascript" src="viewport.js" defer>'
+                "</script>",
+                index_content,
+            )
+            self.assertTrue((destination / "viewport.css").is_file())
+            self.assertTrue((destination / "viewport.js").is_file())
 
             game_cfg = destination / "game" / "game.cfg"
             self.assertTrue(game_cfg.exists())
@@ -414,6 +425,8 @@ class QSpiderTests(SimpleTestCase):
             self.assertTrue((destination / "index.html").is_file())
             self.assertTrue((destination / "assets").is_dir())
             self.assertTrue((destination / "themes").is_dir())
+            self.assertTrue((destination / "viewport.css").is_file())
+            self.assertTrue((destination / "viewport.js").is_file())
             self.assertTrue((destination / "game" / "sample.qsp").is_file())
             self.assertTrue((destination / "game" / "game.cfg").is_file())
             index_content = (destination / "index.html").read_text(
@@ -421,6 +434,23 @@ class QSpiderTests(SimpleTestCase):
             )
             self.assertIn(TELEMETRY_SCRIPT, index_content)
             self.assertIn("<title>Real Asset Test</title>", index_content)
+            self.assertIn(
+                '<link rel="stylesheet" type="text/css" href="viewport.css">',
+                index_content,
+            )
+            self.assertIn(
+                '<script type="text/javascript" src="viewport.js" defer>'
+                "</script>",
+                index_content,
+            )
+            self.assertIn(
+                "qsp-touch-pause-button",
+                (destination / "viewport.css").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "qsp-touch-pause-button",
+                (destination / "viewport.js").read_text(encoding="utf-8"),
+            )
 
     def test_case_insensitive_aliases_created(self) -> None:
         with TemporaryDirectory() as directory:
