@@ -44,7 +44,7 @@ VALID_CONFIG_KEYS = frozenset((
     "html_support",
     "title",
 ))
-VALID_MODES = frozenset(("urqw", "ripurq", "dosurq", "akurq"))
+VALID_MODES = frozenset(("urqw", "urqw1", "ripurq", "dosurq", "akurq"))
 VALID_ENCODINGS = frozenset(("UTF-8", "CP1251"))
 
 _IGNORED_ROOTS = frozenset(("__MACOSX",))
@@ -203,7 +203,16 @@ def _patch_index_html(html_bytes: bytes, title: str) -> bytes:
     return patched
 
 
+def _runtime_supports_urqw1(runtime_path: Path) -> bool:
+    with ZipFile(runtime_path) as runtime:
+        return b"urqw1" in runtime.read("dist/bundle.js")
+
+
 def _write_runtime(runtime_path: Path, stage: Path, title: str) -> None:
+    fonts_dir = ASSETS_DIR / "fonts"
+    if fonts_dir.is_dir():
+        shutil.copytree(fonts_dir, stage / "fonts", dirs_exist_ok=True)
+
     with ZipFile(runtime_path) as runtime:
         index_raw = runtime.read("index.html")
         patched_index = _patch_index_html(index_raw, title)
@@ -225,10 +234,6 @@ def _write_runtime(runtime_path: Path, stage: Path, title: str) -> None:
                 ):
                     shutil.copyfileobj(src, dst)
 
-    fonts_dir = ASSETS_DIR / "fonts"
-    if fonts_dir.is_dir():
-        shutil.copytree(fonts_dir, stage / "fonts", dirs_exist_ok=True)
-
 
 def _flatten_single_dir(directory: Path) -> None:
     """If directory contains only one sub-directory, move its contents up."""
@@ -242,6 +247,30 @@ def _flatten_single_dir(directory: Path) -> None:
         temp_move.rmdir()
 
 
+def _unwrap_urqw_subdir(directory: Path) -> None:
+    """Promote urqw/ subdirectory if all quest files reside inside it."""
+    urqw_dir = directory / "urqw"
+    if not urqw_dir.is_dir():
+        return
+    quest_exts = (".qst", ".qs1", ".qs2")
+    all_quests = [
+        p
+        for p in directory.rglob("*")
+        if p.is_file() and p.suffix.lower() in quest_exts
+    ]
+    if all_quests and all(p.is_relative_to(urqw_dir) for p in all_quests):
+        temp_move = directory.parent / ".tmp_urqw_subdir"
+        urqw_dir.rename(temp_move)
+        for item in list(directory.iterdir()):
+            if item.is_dir():
+                shutil.rmtree(item)
+            else:
+                item.unlink()
+        for item in temp_move.iterdir():
+            shutil.move(str(item), str(directory / item.name))
+        temp_move.rmdir()
+
+
 def _unpack_nested_qsz(directory: Path) -> None:
     """Unpack any .qsz archives within directory in place."""
     for qsz in list(directory.rglob("*.qsz")):
@@ -250,13 +279,34 @@ def _unpack_nested_qsz(directory: Path) -> None:
         qsz.unlink()
 
 
+def _load_existing_manifest(game_stage: Path) -> dict[str, object]:
+    candidates = [game_stage / "manifest.json"]
+    candidates.extend(
+        p for p in sorted(game_stage.glob("*/manifest.json")) if p.is_file()
+    )
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if isinstance(raw, dict) and raw.get("manifest_version") == 1:
+            if path.parent != game_stage:
+                path.unlink()
+            return raw
+    return {}
+
+
 def _prepare_game_zip(
     game_file: Path,
     output_zip: Path,
     config: dict[str, object],
-    title: str,
+    title: str | None,
+    fallback_title: str,
     tags: list[str],
-) -> None:
+    supports_urqw1: bool,
+) -> str:
     with tempfile.TemporaryDirectory() as temp_dir_str:
         temp_dir = Path(temp_dir_str)
         game_stage = temp_dir / "game"
@@ -269,6 +319,9 @@ def _prepare_game_zip(
             extract_archive(game_file, game_stage)
             _unpack_nested_qsz(game_stage)
             _flatten_single_dir(game_stage)
+            _unwrap_urqw_subdir(game_stage)
+
+        existing_manifest = _load_existing_manifest(game_stage)
 
         # Collect quest text to analyze encoding & mode
         quest_files = sorted(
@@ -287,24 +340,27 @@ def _prepare_game_zip(
                 if len(sample_bytes) > 65536:
                     break
 
-        detected_enc = (
-            detect_encoding(sample_bytes) if sample_bytes else "CP1251"
-        )
-        if detected_enc == "CP866":
-            # Transcode .qst files from CP866 to UTF-8 for UrqW
-            for qf in quest_files:
-                if qf.suffix.lower() == ".qst":
-                    try:
-                        content_866 = qf.read_bytes().decode("cp866")
-                        qf.write_text(content_866, encoding="utf-8")
-                    except Exception:
-                        pass
-            resolved_encoding = "UTF-8"
-        else:
-            resolved_encoding = detected_enc
-
+        existing_enc = existing_manifest.get("game_encoding")
         if "game_encoding" in config:
             resolved_encoding = str(config["game_encoding"])
+        elif isinstance(existing_enc, str) and existing_enc in VALID_ENCODINGS:
+            resolved_encoding = existing_enc
+        else:
+            detected_enc = (
+                detect_encoding(sample_bytes) if sample_bytes else "CP1251"
+            )
+            if detected_enc == "CP866":
+                # Transcode .qst files from CP866 to UTF-8 for UrqW
+                for qf in quest_files:
+                    if qf.suffix.lower() == ".qst":
+                        try:
+                            content_866 = qf.read_bytes().decode("cp866")
+                            qf.write_text(content_866, encoding="utf-8")
+                        except Exception:
+                            pass
+                resolved_encoding = "UTF-8"
+            else:
+                resolved_encoding = detected_enc
 
         # Decode sample text for mode detection
         if sample_bytes:
@@ -317,18 +373,47 @@ def _prepare_game_zip(
         else:
             sample_text = ""
 
+        existing_mode = existing_manifest.get("urq_mode")
         if "urq_mode" in config:
             resolved_mode = str(config["urq_mode"])
+        elif isinstance(existing_mode, str) and existing_mode in VALID_MODES:
+            resolved_mode = existing_mode
         else:
             resolved_mode, _ = detect_urq_mode(tags=tags, content=sample_text)
 
+        if resolved_mode == "urqw1" and not supports_urqw1:
+            resolved_mode = "urqw"
+
+        existing_title = existing_manifest.get("urqw_title")
+        resolved_title = str(
+            title
+            or (
+                existing_title
+                if isinstance(existing_title, str) and existing_title
+                else fallback_title
+            )
+        )
+
+        if "html_support" in config:
+            html_support = bool(config["html_support"])
+        elif isinstance(existing_manifest.get("html_support"), bool):
+            html_support = bool(existing_manifest["html_support"])
+        elif existing_manifest:
+            html_support = resolved_mode not in ("ripurq", "dosurq")
+        else:
+            html_support = True
+
         manifest: dict[str, object] = {
             "manifest_version": 1,
-            "urqw_title": title,
-            "urq_mode": resolved_mode,
-            "game_encoding": resolved_encoding,
-            "html_support": bool(config.get("html_support", True)),
+            "urqw_title": resolved_title,
         }
+        for optional_key in ("urqw_game_ifid", "urqw_game_lang"):
+            val = existing_manifest.get(optional_key)
+            if isinstance(val, str) and val:
+                manifest[optional_key] = val
+        manifest["urq_mode"] = resolved_mode
+        manifest["game_encoding"] = resolved_encoding
+        manifest["html_support"] = html_support
 
         (game_stage / "manifest.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2),
@@ -341,6 +426,8 @@ def _prepare_game_zip(
                 if file_path.is_file():
                     arcname = file_path.relative_to(game_stage)
                     zf.write(file_path, arcname=str(arcname))
+
+        return resolved_title
 
 
 def _publish(stage: Path, destination: Path) -> None:
@@ -382,8 +469,10 @@ def generate(spec: GenerateSpec) -> GenerateResult:
         raise ValueError(f"Unknown UrqW version: {spec.version}")
     runtime_path = releases[spec.version]
 
-    resolved_title = str(
-        spec.config.get("title") or spec.title or spec.game_file.stem
+    explicit_title = (
+        str(spec.config["title"])
+        if spec.config.get("title")
+        else (spec.title or None)
     )
 
     stage = Path(
@@ -392,15 +481,17 @@ def generate(spec: GenerateSpec) -> GenerateResult:
         )
     )
     try:
-        _write_runtime(runtime_path, stage, resolved_title)
         quests_dir = stage / "quests"
-        _prepare_game_zip(
+        resolved_title = _prepare_game_zip(
             game_file=spec.game_file,
             output_zip=quests_dir / "game.zip",
             config=spec.config,
-            title=resolved_title,
+            title=explicit_title,
+            fallback_title=spec.game_file.stem,
             tags=spec.tags,
+            supports_urqw1=_runtime_supports_urqw1(runtime_path),
         )
+        _write_runtime(runtime_path, stage, resolved_title)
         _publish(stage, spec.destination)
         return GenerateResult(
             player_name="UrqW",

@@ -17,6 +17,16 @@ _HTML_TAGS = re.compile(
 )
 _COUNT_VAR = re.compile(r"\bcount_[a-zA-Zа-яА-Я0-9_]+\b", re.IGNORECASE)
 _LABEL_DEF = re.compile(r"^\s*:([a-zA-Zа-яА-Я0-9_]+)", re.MULTILINE)
+_URQ_MODE_ASSIGN = re.compile(
+    r"""\burq_mode\s*=\s*["']?(urqw1|urqw|ripurq|dosurq|akurq)\b""",
+    re.IGNORECASE,
+)
+_URQW1_TAG = re.compile(r"\burqw\s*1(?:\.\S*)?\b", re.IGNORECASE)
+_URQW2_TAG = re.compile(r"\burqw\s*2(?:\.\S*)?\b", re.IGNORECASE)
+_URQW1_DOTTED_COUNTER = re.compile(
+    r"\bcount_[a-zA-Zа-яА-Я0-9_]+\.[a-zA-Zа-яА-Я0-9_]+",
+    re.IGNORECASE,
+)
 
 
 def detect_encoding(data: bytes) -> str:
@@ -51,7 +61,7 @@ def detect_urq_mode(
 
     Returns:
         tuple of (urq_mode, is_fireurq) where urq_mode is one of:
-        'urqw', 'ripurq', 'dosurq', 'akurq'.
+        'urqw', 'urqw1', 'ripurq', 'dosurq', 'akurq'.
     """
     text_content: str | None
     if isinstance(content, bytes):
@@ -72,11 +82,21 @@ def detect_urq_mode(
             return "dosurq", False
         if any("ak" in t for t in lower_tags):
             return "akurq", False
+        if any(_URQW1_TAG.search(t) for t in lower_tags):
+            return "urqw1", False
+        if any(_URQW2_TAG.search(t) for t in lower_tags):
+            return "urqw", False
         if any("urqw" in t for t in lower_tags):
+            if text_content and _URQW1_DOTTED_COUNTER.search(text_content):
+                return "urqw1", False
             return "urqw", False
 
     if text_content:
         content_lower = text_content.lower()
+
+        mode_match = _URQ_MODE_ASSIGN.search(text_content)
+        if mode_match:
+            return mode_match.group(1).lower(), False
 
         # Check explicit runtime environment detections
         if "urqw_version" in content_lower:
@@ -94,6 +114,8 @@ def detect_urq_mode(
 
         # UrqW wiki-links
         if _WIKI_LINK.search(text_content):
+            if _URQW1_DOTTED_COUNTER.search(text_content):
+                return "urqw1", False
             return "urqw", False
 
         # AkURQ HTML constructs
