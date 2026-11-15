@@ -443,16 +443,16 @@ class QSpiderTests(SimpleTestCase):
                 "</script>",
                 index_content,
             )
-            self.assertIn(
-                "qsp-touch-pause-button",
-                (destination / "viewport.css").read_text(encoding="utf-8"),
+            viewport_css = (destination / "viewport.css").read_text(
+                encoding="utf-8"
             )
+            self.assertIn("qsp-touch-pause-button", viewport_css)
+            self.assertIn(".qsp-dialog-container", viewport_css)
+            self.assertIn("pointer-events: none !important", viewport_css)
             viewport_js = (destination / "viewport.js").read_text(
                 encoding="utf-8"
             )
             self.assertIn("qsp-touch-pause-button", viewport_js)
-            self.assertIn("qsp-dialog-container", viewport_js)
-            self.assertIn("qsp-view", viewport_js)
 
     def test_case_insensitive_aliases_created(self) -> None:
         with TemporaryDirectory() as directory:

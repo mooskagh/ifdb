@@ -1,3 +1,19 @@
+.qsp-dialog-container:has(> qsp-view, > [data-qsp="view"]) {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none !important;
+}
+
+.qsp-dialog-container > qsp-view,
+.qsp-dialog-container > [data-qsp="view"] {
+  max-width: 80vw;
+  max-height: 90vh;
+  pointer-events: auto;
+}
+
 .qsp-touch-pause-button {
   position: fixed;
   top: 0;
