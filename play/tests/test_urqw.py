@@ -171,13 +171,28 @@ class UrqWTests(SimpleTestCase):
         self.assertEqual(detect_urq_mode(tags=["AkURQ"]), ("akurq", False))
         self.assertEqual(detect_urq_mode(tags=["FireURQ"]), ("akurq", True))
         self.assertEqual(detect_urq_mode(tags=["UrqW"]), ("urqw", False))
+        self.assertEqual(detect_urq_mode(tags=["UrqW 1.0"]), ("urqw1", False))
+        self.assertEqual(detect_urq_mode(tags=["UrqW 2.0"]), ("urqw", False))
 
         # Syntax heuristics
         self.assertEqual(detect_urq_mode("urqw_version = 1"), ("urqw", False))
+        self.assertEqual(
+            detect_urq_mode('urq_mode = "urqw1"'), ("urqw1", False)
+        )
         self.assertEqual(detect_urq_mode("urq_type = 2"), ("akurq", False))
         self.assertEqual(detect_urq_mode("urq_delay = 50"), ("dosurq", False))
         self.assertEqual(
             detect_urq_mode("[[next_room|Next]]"), ("urqw", False)
+        )
+        self.assertEqual(
+            detect_urq_mode("if count_1.1 < 1 then p [[next_room|Next]]"),
+            ("urqw1", False),
+        )
+        self.assertEqual(
+            detect_urq_mode(
+                "if count_1.1 < 1 then btn 1, Next", tags=["UrqW"]
+            ),
+            ("urqw1", False),
         )
         self.assertEqual(detect_urq_mode("count_items = 1"), ("dosurq", False))
         self.assertEqual(
@@ -199,7 +214,7 @@ class UrqWTests(SimpleTestCase):
 
             generate(
                 GenerateSpec(
-                    "2026-08-21",
+                    "2026-11-08",
                     {},
                     destination,
                     game_file,
@@ -213,6 +228,7 @@ class UrqWTests(SimpleTestCase):
             index_html = index_path.read_text()
             self.assertIn(TELEMETRY_SCRIPT, index_html)
             self.assertIn('var urqw_default_game = "game";', index_html)
+            self.assertIn('urqw_version="2.0"', index_html)
 
             self.assertTrue((destination / "rss.svg").is_file())
             for font in (
@@ -247,7 +263,7 @@ class UrqWTests(SimpleTestCase):
 
             generate(
                 GenerateSpec(
-                    "2026-08-21",
+                    "2026-11-08",
                     {},
                     destination,
                     game_file,
@@ -274,7 +290,7 @@ class UrqWTests(SimpleTestCase):
             destination = root / "generated"
             generate(
                 GenerateSpec(
-                    "2026-08-21",
+                    "2026-11-08",
                     {},
                     destination,
                     archive_path,
@@ -289,6 +305,63 @@ class UrqWTests(SimpleTestCase):
                 self.assertIn("story.qst", names)
                 self.assertIn("images/pic.png", names)
 
+    def test_preserves_existing_manifest_and_unwraps_urqw_subdir(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path = root / "repo.zip"
+            author_manifest = {
+                "manifest_version": 1,
+                "urqw_title": "Author Title",
+                "urqw_game_ifid": "A4ACD6904673881B3220776584033B0D",
+                "urqw_game_lang": "ru",
+                "game_encoding": "UTF-8",
+                "urq_mode": "urqw1",
+            }
+            with ZipFile(archive_path, "w") as zf:
+                zf.writestr("repo/README.md", b"# Repo docs")
+                zf.writestr(
+                    "repo/urqw/manifest.json",
+                    json.dumps(author_manifest).encode("utf-8"),
+                )
+                zf.writestr("repo/urqw/main.qst", b":start\npln Hello\nend\n")
+                zf.writestr(
+                    "repo/urqw/A4ACD6904673881B3220776584033B0D.iFiction",
+                    b"<ifindex></ifindex>",
+                )
+
+            destination = root / "generated"
+            generate(
+                GenerateSpec(
+                    "2026-11-08",
+                    {},
+                    destination,
+                    archive_path,
+                )
+            )
+
+            index_html = (destination / "index.html").read_text()
+            self.assertIn("<title>Author Title</title>", index_html)
+
+            quests_zip = destination / "quests" / "game.zip"
+            with ZipFile(quests_zip) as zf:
+                names = zf.namelist()
+                self.assertIn("manifest.json", names)
+                self.assertIn("main.qst", names)
+                self.assertIn(
+                    "A4ACD6904673881B3220776584033B0D.iFiction", names
+                )
+                self.assertNotIn("README.md", names)
+                manifest = json.loads(zf.read("manifest.json"))
+                self.assertEqual(manifest["urqw_title"], "Author Title")
+                self.assertEqual(
+                    manifest["urqw_game_ifid"],
+                    "A4ACD6904673881B3220776584033B0D",
+                )
+                self.assertEqual(manifest["urqw_game_lang"], "ru")
+                self.assertEqual(manifest["urq_mode"], "urqw1")
+                self.assertEqual(manifest["game_encoding"], "UTF-8")
+                self.assertTrue(manifest["html_support"])
+
     def test_generates_from_nested_qsz(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -300,7 +373,7 @@ class UrqWTests(SimpleTestCase):
             destination = root / "generated"
             generate(
                 GenerateSpec(
-                    "2026-08-21",
+                    "2026-11-08",
                     {},
                     destination,
                     qsz_path,
@@ -324,9 +397,9 @@ class UrqWTests(SimpleTestCase):
 
             generate(
                 GenerateSpec(
-                    "2026-08-21",
+                    "2026-11-08",
                     {
-                        "urq_mode": "ripurq",
+                        "urq_mode": "urqw1",
                         "game_encoding": "UTF-8",
                         "html_support": False,
                         "title": "Configured Title",
@@ -339,10 +412,47 @@ class UrqWTests(SimpleTestCase):
             quests_zip = destination / "quests" / "game.zip"
             with ZipFile(quests_zip) as zf:
                 manifest = json.loads(zf.read("manifest.json"))
-                self.assertEqual(manifest["urq_mode"], "ripurq")
+                self.assertEqual(manifest["urq_mode"], "urqw1")
                 self.assertEqual(manifest["game_encoding"], "UTF-8")
                 self.assertFalse(manifest["html_support"])
                 self.assertEqual(manifest["urqw_title"], "Configured Title")
+
+    def test_bundled_runtime_assets(self) -> None:
+        spec = get_spec()
+        self.assertIn("2026-08-21", spec.versions)
+        self.assertIn("2026-11-08", spec.versions)
+        self.assertEqual(spec.versions[-1], "2026-11-08")
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            game_file = root / "legacy.qst"
+            game_file.write_bytes(
+                b":1.1\nif count_1.1 < 1 then p [[next|1.1]]\nend\n"
+            )
+
+            # 2026-08-21 downgrades urqw1 to urqw and provides fallback fonts
+            dest_old = root / "gen_old"
+            generate(GenerateSpec("2026-08-21", {}, dest_old, game_file))
+            self.assertTrue(
+                (
+                    dest_old / "fonts" / "glyphicons-halflings-regular.woff2"
+                ).is_file()
+            )
+            with ZipFile(dest_old / "quests" / "game.zip") as zf:
+                manifest_old = json.loads(zf.read("manifest.json"))
+                self.assertEqual(manifest_old["urq_mode"], "urqw")
+
+            # 2026-11-08 keeps urqw1 compatibility mode
+            dest_new = root / "gen_new"
+            generate(GenerateSpec("2026-11-08", {}, dest_new, game_file))
+            self.assertTrue(
+                (
+                    dest_new / "fonts" / "glyphicons-halflings-regular.woff2"
+                ).is_file()
+            )
+            with ZipFile(dest_new / "quests" / "game.zip") as zf:
+                manifest_new = json.loads(zf.read("manifest.json"))
+                self.assertEqual(manifest_new["urq_mode"], "urqw1")
 
     def test_invalid_config_raises(self) -> None:
         with TemporaryDirectory() as directory:
@@ -355,7 +465,7 @@ class UrqWTests(SimpleTestCase):
             with self.assertRaises(ValueError):
                 generate(
                     GenerateSpec(
-                        "2026-08-21",
+                        "2026-11-08",
                         {"urq_mode": "invalid_mode"},
                         destination,
                         game_file,
@@ -366,7 +476,7 @@ class UrqWTests(SimpleTestCase):
             with self.assertRaises(ValueError):
                 generate(
                     GenerateSpec(
-                        "2026-08-21",
+                        "2026-11-08",
                         {"unknown_key": "val"},
                         destination,
                         game_file,
@@ -398,6 +508,7 @@ class UrqWTests(SimpleTestCase):
         spec = urqw_info.blueprint.get_spec()
         self.assertEqual(spec.name, "UrqW")
         self.assertIn("2026-08-21", spec.versions)
+        self.assertIn("2026-11-08", spec.versions)
 
     def test_real_backup_generation(self) -> None:
         sample_qst = Path("files/backups/000000.qst")
@@ -409,7 +520,7 @@ class UrqWTests(SimpleTestCase):
             destination = Path(directory) / "urqw_out"
             generate(
                 GenerateSpec(
-                    "2026-08-21",
+                    "2026-11-08",
                     {},
                     destination,
                     sample_qst,
@@ -424,7 +535,7 @@ class UrqWTests(SimpleTestCase):
                 self.assertIn(manifest["game_encoding"], ("CP1251", "UTF-8"))
                 self.assertIn(
                     manifest["urq_mode"],
-                    ("akurq", "ripurq", "dosurq", "urqw"),
+                    ("akurq", "ripurq", "dosurq", "urqw", "urqw1"),
                 )
 
     def test_real_backup_generation_thrief(self) -> None:
@@ -437,7 +548,7 @@ class UrqWTests(SimpleTestCase):
             destination = Path(directory) / "urqw_out"
             generate(
                 GenerateSpec(
-                    "2026-08-21",
+                    "2026-11-08",
                     {},
                     destination,
                     sample_zip,
@@ -453,3 +564,31 @@ class UrqWTests(SimpleTestCase):
                 self.assertEqual(manifest["urq_mode"], "ripurq")
                 names = zf.namelist()
                 self.assertTrue(any(n.endswith(".qst") for n in names))
+
+    def test_real_backup_generation_francis_spaight(self) -> None:
+        sample_zip = Path("files/backups/francis_spaight.zip")
+        if not sample_zip.is_file():
+            self.skipTest("files/backups/francis_spaight.zip not found")
+
+        self.assertEqual(
+            accepts(sample_zip, tags=["UrqW"]), Compatibility.FULL
+        )
+        with TemporaryDirectory() as directory:
+            destination = Path(directory) / "urqw_out"
+            generate(
+                GenerateSpec(
+                    "2026-11-08",
+                    {},
+                    destination,
+                    sample_zip,
+                    title="Френсис Спейт",
+                    tags=["UrqW"],
+                )
+            )
+            quests_zip = destination / "quests" / "game.zip"
+            self.assertTrue(quests_zip.exists())
+            with ZipFile(quests_zip) as zf:
+                manifest = json.loads(zf.read("manifest.json"))
+                self.assertEqual(manifest["urqw_title"], "Френсис Спейт")
+                self.assertEqual(manifest["game_encoding"], "CP1251")
+                self.assertEqual(manifest["urq_mode"], "urqw1")
